@@ -1,9 +1,53 @@
-## Strands
+# Sediment
 
-AI chats, but would be usable.
+> Trace any research concept back through time. Knowledge, layered.
 
-- Start a thread from any message
-- Fix to the Hallucination problem
-- React + Express, hosted on a AWS EC2
+Sediment is an agent-powered research lineage explorer. Enter a concept or paper, and it traces the intellectual ancestry — surfacing the key papers, ideas, and breakthroughs that led to it, rendered as an interactive chronological timeline you can explore and expand.
 
-Live: [strandschat.com](https://strandschat.com)
+## Stack
+
+| Layer | Choice | Notes |
+|---|---|---|
+| Frontend | Next.js on Vercel | `frontend/` |
+| Backend | FastAPI on EC2 | `backend/` |
+| Reverse Proxy | Nginx on EC2 | `nginx/` |
+| TLS | Certbot | Free HTTPS |
+| Database | Supabase (hosted Postgres) | Tree state persistence |
+| Agent | Claude + arXiv MCP | Lineage extraction |
+| Canvas | SVG in React | Hand-rolled, no React Flow |
+| Export | Markdown serializer | Obsidian-ready |
+
+## Repo Structure
+
+```
+sediment/
+├── frontend/        # Next.js app (deployed to Vercel)
+├── backend/         # FastAPI app (deployed to EC2)
+├── nginx/           # Nginx config
+└── README.md
+```
+
+## Features
+
+- **Concept → Timeline** — agent queries arXiv, extracts ancestral papers, renders left-to-right chronological map
+- **Click to branch** — drill into any node, a new parallel lane expands in place
+- **Obsidian export** — full tree as wikilinked markdown, frontmatter per paper
+- **Shareable URLs** — no login, tree state persisted via Supabase short ID
+
+## Running Locally
+
+### Frontend
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+### Backend
+```bash
+cd backend
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+uvicorn main:app --reload
+```
