@@ -113,10 +113,9 @@ export function TimelineCanvas({
         applyTransform();
         setZoomDisplay(Math.round(newZoom * 100));
       } else {
-        const z = zoomRef.current;
         panRef.current = {
-          x: panRef.current.x - e.deltaX / z,
-          y: panRef.current.y - e.deltaY / z,
+          x: panRef.current.x - e.deltaX,
+          y: panRef.current.y - e.deltaY,
         };
         applyTransform();
       }
