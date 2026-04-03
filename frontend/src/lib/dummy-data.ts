@@ -379,7 +379,7 @@ export function mergeSubLineage(
   return {
     nodes: newNodes,
     adjacency: newAdj,
-    lanes: newLane + 1,
+    lanes: Object.keys(newNodes).length > 0 ? newLane + 1 : newLane,
     generation,
   };
 }

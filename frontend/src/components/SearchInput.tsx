@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface SearchInputProps {
@@ -11,7 +11,6 @@ interface SearchInputProps {
 export function SearchInput({ onSearch, isSearching }: SearchInputProps) {
   const [query, setQuery] = useState("");
   const [focused, setFocused] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -68,7 +67,6 @@ export function SearchInput({ onSearch, isSearching }: SearchInputProps) {
         </svg>
 
         <input
-          ref={inputRef}
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}

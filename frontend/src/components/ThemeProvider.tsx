@@ -23,8 +23,8 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    const stored = localStorage.getItem("sediment-theme") as Theme | null;
-    if (stored) {
+    const stored = localStorage.getItem("sediment-theme");
+    if (stored === "light" || stored === "dark") {
       setTheme(stored);
     } else if (window.matchMedia("(prefers-color-scheme: light)").matches) {
       setTheme("light");

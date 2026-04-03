@@ -70,8 +70,11 @@
   padding: 0;
 }
 
-html {
-  color-scheme: light dark;
+html[data-theme="light"] {
+  color-scheme: light;
+}
+html[data-theme="dark"] {
+  color-scheme: dark;
 }
 
 body {
@@ -86,7 +89,7 @@ body {
 
 /* ── Typography ── */
 .font-display {
-  font-family: 'Instrument Serif', 'Georgia', serif;
+  font-family: 'Instrument Serif', Georgia, serif;
 }
 
 .font-mono {

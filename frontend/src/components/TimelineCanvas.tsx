@@ -14,8 +14,6 @@ interface ChatMessage {
   suggestion?: LineageSuggestion;
 }
 
-let _msgId = 0;
-
 interface TimelineCanvasProps {
   data: TimelineData;
   onExpandNode: (nodeId: number, query: string) => void;
@@ -44,6 +42,7 @@ export function TimelineCanvas({
   const [chatInput, setChatInput] = useState("");
   const [isThinking, setIsThinking] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const msgIdRef = useRef(0);
 
   // Track the latest generation so only new nodes animate
   const latestGenRef = useRef(0);
@@ -63,9 +62,13 @@ export function TimelineCanvas({
 
   const allNodes = Object.values(data.nodes);
   const maxX =
-    Math.max(...allNodes.map((n) => n.x + NODE_DIMENSIONS.width)) + 120;
+    allNodes.length === 0
+      ? NODE_DIMENSIONS.width + 120
+      : Math.max(...allNodes.map((n) => n.x + NODE_DIMENSIONS.width)) + 120;
   const maxY =
-    Math.max(...allNodes.map((n) => n.y + NODE_DIMENSIONS.height)) + 120;
+    allNodes.length === 0
+      ? NODE_DIMENSIONS.height + 120
+      : Math.max(...allNodes.map((n) => n.y + NODE_DIMENSIONS.height)) + 120;
 
   const applyTransform = useCallback(() => {
     if (gRef.current) {
@@ -219,7 +222,7 @@ export function TimelineCanvas({
       if (!activeNodeId || !chatInput.trim() || isThinking) return;
 
       const userMsg: ChatMessage = {
-        id: ++_msgId,
+        id: ++msgIdRef.current,
         role: "user",
         content: chatInput.trim(),
       };
@@ -236,7 +239,7 @@ export function TimelineCanvas({
       setTimeout(() => {
         const response = generateChatResponse(query);
         const assistantMsg: ChatMessage = {
-          id: ++_msgId,
+          id: ++msgIdRef.current,
           role: "assistant",
           content: response.text,
           suggestion: response.suggestion,
@@ -714,7 +717,6 @@ export function TimelineCanvas({
                     padding: "9px 12px",
                     transition: "border-color 0.15s",
                   }}
-                  onFocus={() => {}}
                 >
                   <input
                     type="text"

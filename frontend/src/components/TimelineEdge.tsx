@@ -21,11 +21,13 @@ export function TimelineEdgeLine({
 }: TimelineEdgeProps) {
   const { width, height } = NODE_DIMENSIONS;
 
-  const x1 = from.x + width;
   const y1 = from.y + height / 2;
-  // Pull the endpoint back slightly so the arrowhead tip lands at the node border
-  const x2 = to.x - 2;
   const y2 = to.y + height / 2;
+
+  // Dock to outer borders: right→left when target is to the right, left→right when reversed
+  const reversed = to.x < from.x;
+  const x1 = reversed ? from.x : from.x + width;
+  const x2 = reversed ? to.x + width + 2 : to.x - 2;
 
   const midX = (x1 + x2) / 2;
   const path = `M ${x1} ${y1} C ${midX} ${y1}, ${midX} ${y2}, ${x2} ${y2}`;
