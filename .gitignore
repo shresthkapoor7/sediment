@@ -4,6 +4,7 @@ node_modules/
 .pnp.js
 
 claude.md
+PLAN.md
 
 # Next.js
 frontend/.next/
