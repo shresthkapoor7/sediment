@@ -1,5 +1,5 @@
-import asyncio
 import logging
+from collections import deque
 from .semantic_scholar import SemanticScholarClient
 from .llm import LLMClient
 
@@ -30,11 +30,11 @@ async def trace_lineage(concept: str, s2: SemanticScholarClient, llm: LLMClient)
     seen: dict[str, dict] = {}
     seen[seed["s2Id"]] = {"paper": seed, "parent_id": None}
 
-    # BFS over citation graph
-    queue = [(seed["s2Id"], 0)]  # (paper_id, depth)
+    # BFS over citation graph — deque for O(1) popleft
+    queue: deque = deque([(seed["s2Id"], 0)])  # (paper_id, depth)
 
     while queue:
-        paper_id, depth = queue.pop(0)
+        paper_id, depth = queue.popleft()
         if depth >= DEPTH:
             continue
 
@@ -55,9 +55,7 @@ async def trace_lineage(concept: str, s2: SemanticScholarClient, llm: LLMClient)
         # Recurse into top BREADTH ancestors
         for pid in new_papers[:BREADTH]:
             queue.append((pid, depth + 1))
-
-        # Rate limit between S2 calls
-        await asyncio.sleep(3)
+        # Rate limiting is handled by SemanticScholarClient._get's REQUEST_DELAY
 
     return _build_llm_paper_list(seen)
 
@@ -65,38 +63,25 @@ async def trace_lineage(concept: str, s2: SemanticScholarClient, llm: LLMClient)
 async def expand_lineage(paper_id: str, concept: str, s2: SemanticScholarClient, llm: LLMClient) -> list[dict]:
     """
     Expand a single paper's lineage one level.
-    Returns LLMPaper-compatible dicts with parentIndex set.
+    Returns LLMPaper-compatible dicts, all with parentIndex=None.
+    The frontend merges them under the clicked node.
     """
     refs = await s2.fetch_references(paper_id, limit=80)
     if not refs:
         return []
 
     ranked = await llm.rank_references(concept, refs, top_n=5)
-
-    # Build result: first item is the seed (parentIndex=null), rest point to it
-    result = []
-    for i, p in enumerate(ranked):
-        result.append({
-            **p,
-            "parentIndex": None if i == 0 else 0,
-        })
-
-    # Actually all should point back to the source node, but the frontend
-    # handles that by treating the source nodeId as the parent. So we just
-    # return flat list where all have parentIndex=None (frontend merges them
-    # under the clicked node).
-    for p in result:
-        p["parentIndex"] = None
-
-    return result
+    return [{**p, "parentIndex": None} for p in ranked]
 
 
 def _build_llm_paper_list(seen: dict) -> list[dict]:
     """Convert seen dict to sorted LLMPaper list with parentIndex values.
 
-    Sorts chronologically (oldest first). Each paper's parent is the
-    previous paper in the sorted list, making a simple oldest→newest chain.
-    Root (oldest) has parentIndex=null.
+    Sorts chronologically (oldest first) and builds a simple linear chain
+    (parentIndex = i-1). This is intentional: the BFS parent_id points to
+    the NEWER paper that referenced each entry (opposite of display direction).
+    A chronological chain correctly places the oldest paper as root (left)
+    and newest as leaf (right) in the frontend's left-to-right timeline.
     """
     papers_list = list(seen.values())
     papers_list.sort(key=lambda x: (x["paper"].get("year") or 9999))

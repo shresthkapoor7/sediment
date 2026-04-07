@@ -12,14 +12,13 @@ SEARCH = "https://api.semanticscholar.org/graph/v1/paper/search"
 RETRY_DELAYS = [10, 20, 40]  # seconds to wait on 429
 REQUEST_DELAY = 3.0           # polite delay between all requests
 
-
 HEADERS = {"User-Agent": "Sediment/1.0 (research lineage explorer; contact via github)"}
 
 
 async def _get(session: aiohttp.ClientSession, url: str, params: dict) -> Optional[dict]:
     """GET with polite delay + retry on 429."""
     await asyncio.sleep(REQUEST_DELAY)
-    for attempt, delay in enumerate([0] + RETRY_DELAYS):
+    for attempt, delay in enumerate([0, *RETRY_DELAYS]):
         if delay:
             logger.info(f"Rate limited, waiting {delay}s before retry {attempt}...")
             await asyncio.sleep(delay)
@@ -37,6 +36,21 @@ async def _get(session: aiohttp.ClientSession, url: str, params: dict) -> Option
 class SemanticScholarClient:
     def __init__(self, api_key: str = ""):
         self.headers = {**HEADERS, "x-api-key": api_key} if api_key else {**HEADERS}
+        self._session: Optional[aiohttp.ClientSession] = None
+
+    async def __aenter__(self):
+        self._session = aiohttp.ClientSession(headers=self.headers)
+        return self
+
+    async def __aexit__(self, *_):
+        if self._session:
+            await self._session.close()
+            self._session = None
+
+    def _session_or_raise(self) -> aiohttp.ClientSession:
+        if self._session is None:
+            raise RuntimeError("Use 'async with SemanticScholarClient() as client:'")
+        return self._session
 
     def _extract_arxiv_id(self, paper: dict) -> Optional[str]:
         return paper.get("externalIds", {}).get("ArXiv")
@@ -47,7 +61,7 @@ class SemanticScholarClient:
             "title": paper.get("title", ""),
             "abstract": paper.get("abstract", ""),
             "year": paper.get("year"),
-            "authors": [a["name"] for a in paper.get("authors", [])],
+            "authors": [a.get("name", "") for a in paper.get("authors", []) if a.get("name")],
             "citationCount": paper.get("citationCount", 0),
             "arxivId": self._extract_arxiv_id(paper),
         }
@@ -55,32 +69,29 @@ class SemanticScholarClient:
     async def search_papers(self, query: str, limit: int = 10) -> list[dict]:
         """Search by concept name, sorted by citation count."""
         params = {"query": query, "limit": limit, "fields": FIELDS}
-        async with aiohttp.ClientSession(headers=self.headers) as session:
-            data = await _get(session, SEARCH, params)
-            if not data:
-                return []
-            return [self._normalize(p) for p in data.get("data", []) if p.get("title")]
+        data = await _get(self._session_or_raise(), SEARCH, params)
+        if not data:
+            return []
+        return [self._normalize(p) for p in data.get("data", []) if p.get("title")]
 
     async def fetch_references(self, paper_id: str, limit: int = 100) -> list[dict]:
         """Get papers this paper cites (its intellectual ancestors)."""
         params = {"fields": FIELDS, "limit": limit}
         url = f"{BASE}/{paper_id}/references"
-        async with aiohttp.ClientSession(headers=self.headers) as session:
-            data = await _get(session, url, params)
-            if not data:
-                return []
-            results = []
-            for item in data.get("data", []):
-                cited = item.get("citedPaper", {})
-                if cited.get("title") and cited.get("year"):
-                    results.append(self._normalize(cited))
-            return results
+        data = await _get(self._session_or_raise(), url, params)
+        if not data:
+            return []
+        results = []
+        for item in data.get("data", []):
+            cited = item.get("citedPaper", {})
+            if cited.get("title") and cited.get("year"):
+                results.append(self._normalize(cited))
+        return results
 
     async def fetch_paper(self, paper_id: str) -> Optional[dict]:
         """Fetch a single paper by ID."""
         params = {"fields": FIELDS}
-        async with aiohttp.ClientSession(headers=self.headers) as session:
-            data = await _get(session, f"{BASE}/{paper_id}", params)
-            if not data:
-                return None
-            return self._normalize(data)
+        data = await _get(self._session_or_raise(), f"{BASE}/{paper_id}", params)
+        if not data:
+            return None
+        return self._normalize(data)
