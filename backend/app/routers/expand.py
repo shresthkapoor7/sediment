@@ -26,6 +26,7 @@ async def expand(req: ExpandRequest):
                 req.conceptContext.strip(),
                 openalex,
                 _llm,
+                settings=req.settings,
             )
     except LLMParseError as e:
         raise HTTPException(status_code=502, detail=f"LLM error: {e}") from e

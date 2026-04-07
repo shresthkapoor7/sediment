@@ -1,14 +1,19 @@
-import { ChatSuggestion, LineageGraphResponse, TimelineNode } from "./types";
+import { ChatSuggestion, LineageGraphResponse, TimelineNode, TraversalSettings } from "./types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
 
-export async function searchLineage(query: string, seedOpenalexId?: string): Promise<LineageGraphResponse> {
+export async function searchLineage(
+  query: string,
+  seedOpenalexId?: string,
+  settings?: TraversalSettings,
+): Promise<LineageGraphResponse> {
   const response = await fetch(`${API_BASE}/api/search`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       query,
       ...(seedOpenalexId ? { seedOpenalexId } : {}),
+      ...(settings ? { settings } : {}),
     }),
   });
 
@@ -20,11 +25,15 @@ export async function searchLineage(query: string, seedOpenalexId?: string): Pro
   return response.json();
 }
 
-export async function expandLineage(paperId: string, conceptContext: string): Promise<LineageGraphResponse> {
+export async function expandLineage(
+  paperId: string,
+  conceptContext: string,
+  settings?: TraversalSettings,
+): Promise<LineageGraphResponse> {
   const response = await fetch(`${API_BASE}/api/expand`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ paperId, conceptContext }),
+    body: JSON.stringify({ paperId, conceptContext, ...(settings ? { settings } : {}) }),
   });
 
   if (!response.ok) {

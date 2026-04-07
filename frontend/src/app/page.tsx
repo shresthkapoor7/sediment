@@ -7,7 +7,14 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { TimelineCanvas } from "@/components/TimelineCanvas";
 import { expandLineage, searchLineage } from "@/lib/api";
 import { buildTimelineFromGraph, mergeTimelineWithGraph } from "@/lib/timeline-builder";
-import { SeedCandidate, TimelineData } from "@/lib/types";
+import { SeedCandidate, TimelineData, TraversalSettings } from "@/lib/types";
+
+const DEFAULT_SETTINGS: TraversalSettings = {
+  depth: 1,
+  breadth: 2,
+  referenceLimit: 20,
+  topN: 5,
+};
 
 export default function Home() {
   const [timelineData, setTimelineData] = useState<TimelineData | null>(null);
@@ -16,6 +23,8 @@ export default function Home() {
   const [searchedQuery, setSearchedQuery] = useState("");
   const [searchError, setSearchError] = useState("");
   const [disambiguation, setDisambiguation] = useState<SeedCandidate[]>([]);
+  const [settings, setSettings] = useState<TraversalSettings>(DEFAULT_SETTINGS);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const runSearch = useCallback(async (query: string, seedOpenalexId?: string) => {
     setIsSearching(true);
@@ -24,7 +33,7 @@ export default function Home() {
     setSearchedQuery(query);
 
     try {
-      const response = await searchLineage(query, seedOpenalexId);
+      const response = await searchLineage(query, seedOpenalexId, settings);
       if (response.meta.mode === "needs_disambiguation") {
         setTimelineData(null);
         setDisambiguation(response.disambiguation ?? []);
@@ -37,7 +46,7 @@ export default function Home() {
     } finally {
       setIsSearching(false);
     }
-  }, []);
+  }, [settings]);
 
   const handleSearch = useCallback((query: string) => {
     void runSearch(query);
@@ -66,7 +75,7 @@ export default function Home() {
       setIsExpanding(true);
       setSearchError("");
 
-      void expandLineage(sourceNode.paper.openalexId, query)
+      void expandLineage(sourceNode.paper.openalexId, query, settings)
         .then((fragment) => {
           setTimelineData((prev) => {
             if (!prev) return prev;
@@ -80,8 +89,13 @@ export default function Home() {
           setIsExpanding(false);
         });
     },
-    [timelineData]
+    [settings, timelineData]
   );
+
+  const handleRefreshCurrent = useCallback(() => {
+    if (!searchedQuery) return;
+    void runSearch(searchedQuery);
+  }, [runSearch, searchedQuery]);
 
   return (
     <div
@@ -200,6 +214,145 @@ export default function Home() {
             <span style={{ fontSize: 11, color: "var(--text-tertiary)", fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.02em" }}>
               10
             </span>
+          </div>
+
+          <div style={{ position: "relative" }}>
+            <button
+              onClick={() => setSettingsOpen((open) => !open)}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                padding: "0 12px",
+                height: 32,
+                boxSizing: "border-box",
+                background: "none",
+                border: "1px solid var(--border)",
+                borderRadius: 7,
+                color: "var(--text-secondary)",
+                fontSize: 12,
+                fontFamily: "'DM Sans', sans-serif",
+                fontWeight: 500,
+                cursor: "pointer",
+              }}
+            >
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M6.5 1.5h3M6 14.5h4M3.5 5.5h9M2.5 10.5h11" />
+                <circle cx="10.5" cy="5.5" r="1.5" />
+                <circle cx="5.5" cy="10.5" r="1.5" />
+              </svg>
+              Settings
+            </button>
+
+            <AnimatePresence>
+              {settingsOpen && (
+                <motion.div
+                  initial={{ opacity: 0, y: -6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -6 }}
+                  style={{
+                    position: "absolute",
+                    top: 40,
+                    right: 0,
+                    width: 248,
+                    padding: 12,
+                    background: "var(--bg-primary)",
+                    border: "1px solid var(--border)",
+                    borderRadius: 12,
+                    boxShadow: "0 12px 32px rgba(0,0,0,0.18)",
+                    zIndex: 100,
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 12,
+                  }}
+                >
+                  <p style={{ fontSize: 11, color: "var(--text-tertiary)", fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.04em" }}>
+                    traversal settings
+                  </p>
+                  {[
+                    { key: "depth", label: "Depth", min: 1, max: 3 },
+                    { key: "breadth", label: "Breadth", min: 1, max: 5 },
+                    { key: "referenceLimit", label: "Reference limit", min: 5, max: 50 },
+                    { key: "topN", label: "Top N", min: 1, max: 8 },
+                  ].map((item) => (
+                    <label key={item.key} style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          fontSize: 12,
+                          color: "var(--text-secondary)",
+                          fontFamily: "'DM Sans', sans-serif",
+                        }}
+                      >
+                        <span style={{ fontWeight: 500 }}>{item.label}</span>
+                        <span style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+                          {settings[item.key as keyof TraversalSettings]}
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min={item.min}
+                        max={item.max}
+                        value={settings[item.key as keyof TraversalSettings]}
+                        onChange={(e) => {
+                          const value = Number(e.currentTarget.value);
+                          setSettings((prev) => ({ ...prev, [item.key]: value }));
+                        }}
+                        style={{
+                          width: "100%",
+                          height: 12,
+                          margin: 0,
+                          accentColor: "var(--accent)",
+                          cursor: "pointer",
+                        }}
+                      />
+                    </label>
+                  ))}
+                  <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 4 }}>
+                    <button
+                      onClick={() => setSettings(DEFAULT_SETTINGS)}
+                      style={{
+                        height: 30,
+                        padding: "0 10px",
+                        borderRadius: 7,
+                        border: "1px solid var(--border)",
+                        background: "none",
+                        color: "var(--text-secondary)",
+                        cursor: "pointer",
+                        fontSize: 12,
+                        fontFamily: "'DM Sans', sans-serif",
+                        fontWeight: 500,
+                      }}
+                    >
+                      Reset
+                    </button>
+                    <button
+                      onClick={() => {
+                        void handleRefreshCurrent();
+                        setSettingsOpen(false);
+                      }}
+                      disabled={!searchedQuery || isSearching}
+                      style={{
+                        height: 30,
+                        padding: "0 10px",
+                        borderRadius: 7,
+                        border: "none",
+                        background: "var(--accent)",
+                        color: "white",
+                        cursor: searchedQuery && !isSearching ? "pointer" : "default",
+                        opacity: searchedQuery && !isSearching ? 1 : 0.5,
+                        fontSize: 12,
+                        fontFamily: "'DM Sans', sans-serif",
+                        fontWeight: 500,
+                      }}
+                    >
+                      Refresh Search
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
 
           <AnimatePresence>

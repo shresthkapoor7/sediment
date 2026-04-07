@@ -2,14 +2,23 @@ from typing import Literal, Optional
 from pydantic import BaseModel, Field
 
 
+class TraversalSettings(BaseModel):
+    depth: Optional[int] = None
+    breadth: Optional[int] = None
+    referenceLimit: Optional[int] = None
+    topN: Optional[int] = None
+
+
 class SearchRequest(BaseModel):
     query: str
     seedOpenalexId: Optional[str] = None
+    settings: Optional[TraversalSettings] = None
 
 
 class ExpandRequest(BaseModel):
     paperId: str
     conceptContext: str
+    settings: Optional[TraversalSettings] = None
 
 
 class ChatRequest(BaseModel):

@@ -27,6 +27,13 @@ export interface ChatSuggestion {
   nodeCount: number;
 }
 
+export interface TraversalSettings {
+  depth: number;
+  breadth: number;
+  referenceLimit: number;
+  topN: number;
+}
+
 export interface SearchMeta {
   query: string;
   mode: "resolved" | "needs_disambiguation";
