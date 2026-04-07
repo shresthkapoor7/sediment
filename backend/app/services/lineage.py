@@ -23,15 +23,19 @@ async def trace_lineage(concept: str, s2: SemanticScholarClient, llm: LLMClient)
         return []
 
     seed = search_results[0]
+    seed_id = seed.get("s2Id")
+    if not seed_id:
+        logger.error(f"Seed paper missing s2Id: {seed.get('title')}")
+        return []
     logger.info(f"Seed paper: {seed['title']} ({seed['year']})")
 
     # Track all papers and their parent relationships
     # paper_id -> {"paper": dict, "parent_id": str | None}
     seen: dict[str, dict] = {}
-    seen[seed["s2Id"]] = {"paper": seed, "parent_id": None}
+    seen[seed_id] = {"paper": seed, "parent_id": None}
 
     # BFS over citation graph — deque for O(1) popleft
-    queue: deque = deque([(seed["s2Id"], 0)])  # (paper_id, depth)
+    queue: deque = deque([(seed_id, 0)])  # (paper_id, depth)
 
     while queue:
         paper_id, depth = queue.popleft()

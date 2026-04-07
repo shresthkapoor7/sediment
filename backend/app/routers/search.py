@@ -20,6 +20,6 @@ async def search(req: SearchRequest):
         async with SemanticScholarClient(api_key=settings.semantic_scholar_api_key) as s2:
             papers = await trace_lineage(req.query.strip(), s2, _llm)
     except LLMParseError as e:
-        raise HTTPException(status_code=502, detail=f"LLM error: {e}")
+        raise HTTPException(status_code=502, detail=f"LLM error: {e}") from e
 
     return LineageResponse(papers=[LLMPaper(**p) for p in papers])

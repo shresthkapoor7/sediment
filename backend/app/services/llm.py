@@ -75,8 +75,14 @@ Respond with a JSON array (no markdown, no explanation) of the top {top_n} paper
             logger.error(f"Failed to parse LLM response: {e}\nRaw: {resp.content[0].text}")
             raise LLMParseError(f"Invalid JSON from model: {e}") from e
 
+        if not isinstance(ranked, list):
+            logger.error(f"LLM returned non-list: {resp.content[0].text}")
+            raise LLMParseError(f"Expected list, got {type(ranked).__name__}")
+
         result = []
         for item in ranked:
+            if not isinstance(item, dict):
+                continue
             idx = item.get("index")
             if not isinstance(idx, int) or not (0 <= idx < len(candidates)):
                 continue
