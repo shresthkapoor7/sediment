@@ -271,7 +271,16 @@ export function generateTimeline(): TimelineData {
 
     nodes[id] = {
       id,
-      paper: { id, title: p.title, year: p.year, summary: p.summary, detail: p.detail, authors: p.authors, arxivId: p.arxivId },
+      paper: {
+        id,
+        openalexId: `mock-${id}`,
+        title: p.title,
+        year: p.year,
+        summary: p.summary,
+        detail: p.detail,
+        authors: p.authors,
+        arxivId: p.arxivId,
+      },
       x, y,
       lane: p.lane,
       parentId,
@@ -363,7 +372,7 @@ export function mergeSubLineage(
 
     newNodes[id] = {
       id,
-      paper: { id, title: p.title, year: p.year, summary: p.summary },
+      paper: { id, openalexId: `mock-${id}`, title: p.title, year: p.year, summary: p.summary },
       x, y,
       lane: newLane,
       parentId,

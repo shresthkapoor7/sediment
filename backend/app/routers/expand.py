@@ -1,31 +1,31 @@
 from fastapi import APIRouter, HTTPException
-from ..models import LineageGraphResponse, SearchRequest
+
+from ..config import settings
+from ..models import ExpandRequest, LineageGraphResponse
+from ..services.lineage import expand_lineage
 from ..services.llm import LLMClient, LLMParseError
 from ..services.openalex import OpenAlexClient, OpenAlexError
-from ..services.lineage import trace_lineage
-from ..config import settings
 
 router = APIRouter()
 
-# Singletons — created once, reused per request
 _llm = LLMClient(api_key=settings.anthropic_api_key, model=settings.llm_model)
 
 
-@router.post("/search", response_model=LineageGraphResponse)
-async def search(req: SearchRequest):
-    if not req.query.strip():
-        raise HTTPException(status_code=400, detail="query required")
+@router.post("/expand", response_model=LineageGraphResponse)
+async def expand(req: ExpandRequest):
+    if not req.paperId.strip():
+        raise HTTPException(status_code=400, detail="paperId required")
 
     try:
         async with OpenAlexClient(
             api_key=settings.openalex_api_key,
             mailto=settings.openalex_mailto,
         ) as openalex:
-            graph = await trace_lineage(
-                req.query.strip(),
+            graph = await expand_lineage(
+                req.paperId.strip(),
+                req.conceptContext.strip(),
                 openalex,
                 _llm,
-                seed_openalex_id=req.seedOpenalexId,
             )
     except LLMParseError as e:
         raise HTTPException(status_code=502, detail=f"LLM error: {e}") from e

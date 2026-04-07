@@ -1,38 +1,74 @@
-// Wire format the LLM returns — no IDs, parentIndex is 0-based index into the returned array
-export interface LLMPaper {
+export interface GraphPaper {
+  openalexId: string;
   title: string;
-  year: number;
+  year: number | null;
   summary: string;
   detail?: string;
   authors?: string[];
-  arxivId?: string;
-  parentIndex: number | null; // null = root of this lineage
+  doi?: string | null;
+}
+
+export interface GraphEdge {
+  parentOpenalexId: string;
+  childOpenalexId: string;
+  relation: "influenced";
+}
+
+export interface SeedCandidate {
+  openalexId: string;
+  title: string;
+  year: number | null;
+  reason?: string | null;
+}
+
+export interface ChatSuggestion {
+  topic: string;
+  query: string;
+  nodeCount: number;
+}
+
+export interface SearchMeta {
+  query: string;
+  mode: "resolved" | "needs_disambiguation";
+  confidence?: "high" | "medium" | "low" | null;
+  cacheHit: boolean;
+}
+
+export interface LineageGraphResponse {
+  seedPaperId: string | null;
+  papers: GraphPaper[];
+  edges: GraphEdge[];
+  rootIds: string[];
+  meta: SearchMeta;
+  disambiguation?: SeedCandidate[] | null;
 }
 
 export interface Paper {
   id: number;
+  openalexId: string;
   title: string;
   year: number;
   summary: string;
   detail?: string;
   authors?: string[];
+  doi?: string | null;
   arxivId?: string;
 }
 
 export interface TimelineNode {
-  id: number;             // auto-assigned by frontend, never from LLM
+  id: number;
   paper: Paper;
   x: number;
   y: number;
   lane: number;
-  parentId: number | null; // O(1) parent lookup; null if root
+  parentId: number | null;
   expanded: boolean;
   generation: number;
 }
 
 export interface TimelineData {
   nodes: Record<number, TimelineNode>;
-  adjacency: Record<number, number[]>; // single source of truth: nodeId → childIds
+  adjacency: Record<number, number[]>;
   lanes: number;
   rootId: number;
   expansions: Expansion[];

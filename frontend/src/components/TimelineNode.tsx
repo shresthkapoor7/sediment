@@ -62,6 +62,8 @@ export function TimelineNodeCard({
             transition: "border-color 0.2s, box-shadow 0.2s, transform 0.2s",
             overflow: "hidden",
             position: "relative",
+            userSelect: "none",
+            WebkitUserSelect: "none",
           }}
           onMouseEnter={(e) => {
             e.currentTarget.style.boxShadow = "var(--node-shadow-hover)";

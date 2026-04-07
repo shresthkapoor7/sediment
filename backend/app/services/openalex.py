@@ -1,0 +1,186 @@
+from __future__ import annotations
+
+from typing import Optional
+import asyncio
+import logging
+
+import aiohttp
+
+logger = logging.getLogger(__name__)
+
+BASE = "https://api.openalex.org"
+REQUEST_DELAY = 0.1
+SEARCH_SELECT = ",".join([
+    "id",
+    "display_name",
+    "publication_year",
+    "authorships",
+    "doi",
+    "cited_by_count",
+    "primary_topic",
+    "abstract_inverted_index",
+    "referenced_works",
+])
+
+
+class OpenAlexError(Exception):
+    pass
+
+
+def _extract_openalex_id(raw_id: str | None) -> Optional[str]:
+    if not raw_id:
+        return None
+    return raw_id.rstrip("/").split("/")[-1]
+
+
+def _abstract_from_inverted_index(index: Optional[dict]) -> str:
+    if not index:
+        return ""
+
+    positions: dict[int, str] = {}
+    for token, idxs in index.items():
+        if not isinstance(idxs, list):
+            continue
+        for pos in idxs:
+            if isinstance(pos, int):
+                positions[pos] = token
+
+    if not positions:
+        return ""
+
+    return " ".join(positions[i] for i in sorted(positions))
+
+
+def _build_detail(abstract: str, primary_topic: Optional[str], cited_by_count: int) -> str:
+    abstract = abstract.strip()
+    if abstract:
+        return abstract[:560]
+
+    parts = []
+    if primary_topic:
+        parts.append(f"Primary topic: {primary_topic}.")
+    if cited_by_count:
+        parts.append(f"Cited by {cited_by_count} works in OpenAlex.")
+    return " ".join(parts)
+
+
+async def _get(session: aiohttp.ClientSession, url: str, params: dict) -> dict:
+    await asyncio.sleep(REQUEST_DELAY)
+    async with session.get(url, params=params) as resp:
+        if resp.status == 200:
+            return await resp.json()
+        text = await resp.text()
+        logger.error("OpenAlex error %s for %s: %s", resp.status, url, text)
+        raise OpenAlexError(f"OpenAlex error {resp.status}")
+
+
+class OpenAlexClient:
+    def __init__(self, api_key: str = "", mailto: str = ""):
+        self.api_key = api_key
+        self.mailto = mailto
+        self._session: Optional[aiohttp.ClientSession] = None
+
+    async def __aenter__(self) -> "OpenAlexClient":
+        self._session = aiohttp.ClientSession(headers={"User-Agent": "Sediment/1.0"})
+        return self
+
+    async def __aexit__(self, *_):
+        if self._session:
+            await self._session.close()
+            self._session = None
+
+    def _session_or_raise(self) -> aiohttp.ClientSession:
+        if self._session is None:
+            raise RuntimeError("Use 'async with OpenAlexClient() as client:'")
+        return self._session
+
+    def _base_params(self) -> dict:
+        params: dict[str, str] = {}
+        if self.api_key:
+            params["api_key"] = self.api_key
+        if self.mailto:
+            params["mailto"] = self.mailto
+        return params
+
+    def _normalize_work(self, work: dict) -> Optional[dict]:
+        openalex_id = _extract_openalex_id(work.get("id"))
+        title = work.get("display_name") or ""
+        if not openalex_id or not title:
+            return None
+
+        abstract = _abstract_from_inverted_index(work.get("abstract_inverted_index"))
+        primary_topic = (work.get("primary_topic") or {}).get("display_name")
+
+        return {
+            "openalexId": openalex_id,
+            "title": title,
+            "abstract": abstract,
+            "detail": _build_detail(abstract, primary_topic, work.get("cited_by_count", 0)),
+            "year": work.get("publication_year"),
+            "authors": [
+                authorship.get("author", {}).get("display_name", "")
+                for authorship in work.get("authorships", [])
+                if authorship.get("author", {}).get("display_name")
+            ],
+            "doi": work.get("doi"),
+            "citedByCount": work.get("cited_by_count", 0),
+            "primaryTopic": primary_topic,
+            "referencedWorks": [
+                ref_id for ref_id in (_extract_openalex_id(item) for item in work.get("referenced_works", [])) if ref_id
+            ],
+            "referencedWorksCount": len(work.get("referenced_works", [])),
+        }
+
+    async def search_papers(self, query: str, limit: int = 8) -> list[dict]:
+        params = {
+            **self._base_params(),
+            "search": query,
+            "per-page": str(limit),
+            "select": SEARCH_SELECT,
+        }
+        data = await _get(self._session_or_raise(), f"{BASE}/works", params)
+        results = []
+        for work in data.get("results", []):
+            normalized = self._normalize_work(work)
+            if normalized:
+                results.append(normalized)
+        return results
+
+    async def fetch_work(self, openalex_id: str) -> Optional[dict]:
+        params = {**self._base_params(), "select": SEARCH_SELECT}
+        data = await _get(self._session_or_raise(), f"{BASE}/works/{openalex_id}", params)
+        return self._normalize_work(data)
+
+    async def hydrate_works(self, openalex_ids: list[str]) -> list[dict]:
+        unique_ids = []
+        seen = set()
+        for paper_id in openalex_ids:
+            if paper_id and paper_id not in seen:
+                unique_ids.append(paper_id)
+                seen.add(paper_id)
+
+        if not unique_ids:
+            return []
+
+        params = {
+            **self._base_params(),
+            "filter": f"openalex:{'|'.join(unique_ids)}",
+            "per-page": str(len(unique_ids)),
+            "select": SEARCH_SELECT,
+        }
+        data = await _get(self._session_or_raise(), f"{BASE}/works", params)
+        results = []
+        for work in data.get("results", []):
+            normalized = self._normalize_work(work)
+            if normalized:
+                results.append(normalized)
+
+        order = {paper_id: i for i, paper_id in enumerate(unique_ids)}
+        results.sort(key=lambda item: order.get(item["openalexId"], 10**9))
+        return results
+
+    async def fetch_references(self, openalex_id: str, limit: int = 25) -> list[dict]:
+        work = await self.fetch_work(openalex_id)
+        if not work:
+            return []
+        return await self.hydrate_works(work.get("referencedWorks", [])[:limit])
