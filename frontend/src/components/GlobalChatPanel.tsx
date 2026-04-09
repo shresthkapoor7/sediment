@@ -130,23 +130,25 @@ export function GlobalChatPanel({ data, onHighlight, onAddLineage, isExpanding }
               borderBottom: "1px solid var(--border)",
               flexShrink: 0,
             }}>
-              <div style={{
-                width: 24,
-                height: 24,
-                borderRadius: "50%",
-                background: "var(--accent-soft)",
-                border: "1.5px solid var(--accent)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                flexShrink: 0,
-              }}>
-                <svg width="13" height="13" viewBox="0 0 20 20" fill="none">
+              <motion.div
+                initial={false}
+                animate={{ rotate: open ? 180 : 0 }}
+                transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
+                style={{
+                  width: 20,
+                  height: 20,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0,
+                }}
+              >
+                <svg width="14" height="14" viewBox="0 0 20 20" fill="none">
                   <rect x="2"  y="4"  width="16" height="3" rx="1.5" fill="var(--accent)" opacity="1" />
                   <rect x="4"  y="9"  width="12" height="3" rx="1.5" fill="var(--accent)" opacity="0.7" />
                   <rect x="6"  y="14" width="8"  height="3" rx="1.5" fill="var(--accent)" opacity="0.4" />
                 </svg>
-              </div>
+              </motion.div>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-primary)", fontFamily: "'DM Sans', sans-serif" }}>
                   Ask about this timeline
@@ -376,26 +378,28 @@ export function GlobalChatPanel({ data, onHighlight, onAddLineage, isExpanding }
         onClick={() => setOpen((o) => !o)}
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
+        animate={{ rotate: open ? 180 : 0 }}
+        transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
         style={{
-          width: 40,
-          height: 40,
-          borderRadius: "50%",
-          background: open ? "var(--accent)" : "var(--bg-secondary)",
-          border: `1.5px solid ${open ? "var(--accent)" : "var(--border-hover)"}`,
-          boxShadow: open ? "0 4px 16px var(--accent-glow)" : "0 2px 8px rgba(0,0,0,0.12)",
+          width: 32,
+          height: 32,
+          background: "none",
+          border: "none",
+          boxShadow: "none",
           cursor: "pointer",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          transition: "background 0.2s, border-color 0.2s, box-shadow 0.2s",
+          transition: "transform 0.2s",
           flexShrink: 0,
+          padding: 0,
         }}
       >
         <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
           {/* strata layers — geological sediment */}
-          <rect x="2"  y="4"  width="16" height="3" rx="1.5" fill={open ? "white" : "var(--accent)"} opacity="1" />
-          <rect x="4"  y="9"  width="12" height="3" rx="1.5" fill={open ? "white" : "var(--accent)"} opacity="0.7" />
-          <rect x="6"  y="14" width="8"  height="3" rx="1.5" fill={open ? "white" : "var(--accent)"} opacity="0.4" />
+          <rect x="2"  y="4"  width="16" height="3" rx="1.5" fill="var(--accent)" opacity={open ? "1" : "0.92"} />
+          <rect x="4"  y="9"  width="12" height="3" rx="1.5" fill="var(--accent)" opacity={open ? "0.78" : "0.66"} />
+          <rect x="6"  y="14" width="8"  height="3" rx="1.5" fill="var(--accent)" opacity={open ? "0.58" : "0.42"} />
         </svg>
       </motion.button>
     </div>
