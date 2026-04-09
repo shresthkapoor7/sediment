@@ -278,6 +278,16 @@ export function TimelineCanvas({
     [activeNodeId, onExpandNode]
   );
 
+  const hasExistingExpansion = useCallback(
+    (sourceNodeId: number, query: string) =>
+      data.expansions.some(
+        (expansion) =>
+          expansion.sourceNodeId === sourceNodeId &&
+          expansion.query.trim().toLowerCase() === query.trim().toLowerCase(),
+      ),
+    [data.expansions]
+  );
+
   return (
     <motion.div
       ref={containerRef}
@@ -666,6 +676,14 @@ export function TimelineCanvas({
                             gap: 10,
                           }}
                         >
+                          {(() => {
+                            const suggestionAlreadyAdded = hasExistingExpansion(
+                              activeNode.id,
+                              msg.suggestion.query,
+                            );
+
+                            return (
+                              <>
                           <div>
                             <p style={{ fontSize: 12, fontWeight: 600, color: "var(--text-primary)", fontFamily: "'DM Sans', sans-serif", marginBottom: 2 }}>
                               {msg.suggestion.topic}
@@ -675,25 +693,25 @@ export function TimelineCanvas({
                             </p>
                           </div>
                           <motion.button
-                            onClick={() => !activeNode.expanded && !isExpanding && handleAddLineage(msg.suggestion!.query)}
-                            disabled={activeNode.expanded || isExpanding}
-                            whileHover={!activeNode.expanded && !isExpanding ? { scale: 1.03 } : {}}
-                            whileTap={!activeNode.expanded && !isExpanding ? { scale: 0.97 } : {}}
+                            onClick={() => !suggestionAlreadyAdded && !isExpanding && handleAddLineage(msg.suggestion!.query)}
+                            disabled={suggestionAlreadyAdded || isExpanding}
+                            whileHover={!suggestionAlreadyAdded && !isExpanding ? { scale: 1.03 } : {}}
+                            whileTap={!suggestionAlreadyAdded && !isExpanding ? { scale: 0.97 } : {}}
                             style={{
                               flexShrink: 0,
-                              background: activeNode.expanded ? "var(--bg-tertiary)" : "var(--accent)",
-                              color: activeNode.expanded ? "var(--text-tertiary)" : "white",
+                              background: suggestionAlreadyAdded ? "var(--bg-tertiary)" : "var(--accent)",
+                              color: suggestionAlreadyAdded ? "var(--text-tertiary)" : "white",
                               border: "none",
                               borderRadius: 7,
                               padding: "7px 13px",
                               fontSize: 12,
                               fontWeight: 500,
-                              cursor: activeNode.expanded ? "default" : "pointer",
+                              cursor: suggestionAlreadyAdded ? "default" : "pointer",
                               fontFamily: "'DM Sans', sans-serif",
                               display: "flex",
                               alignItems: "center",
                               gap: 5,
-                              opacity: activeNode.expanded ? 0.5 : 1,
+                              opacity: suggestionAlreadyAdded ? 0.5 : 1,
                               transition: "background 0.15s, opacity 0.15s",
                             }}
                           >
@@ -703,12 +721,15 @@ export function TimelineCanvas({
                                 transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
                                 style={{ width: 12, height: 12, border: "1.5px solid rgba(255,255,255,0.3)", borderTopColor: "white", borderRadius: "50%" }}
                               />
-                            ) : activeNode.expanded ? (
+                            ) : suggestionAlreadyAdded ? (
                               "Added ✓"
                             ) : (
                               <>Add to timeline →</>
                             )}
                           </motion.button>
+                              </>
+                            );
+                          })()}
                         </motion.div>
                       )}
                     </div>

@@ -41,7 +41,9 @@ export default function Home() {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [savedGraphs, setSavedGraphs] = useState<SavedGraphListItem[]>([]);
   const [isHistoryLoading, setIsHistoryLoading] = useState(false);
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const saveTimeoutRef = useRef<number | null>(null);
+  const saveStateTimeoutRef = useRef<number | null>(null);
 
   const buildMetadata = useCallback((query: string, data: TimelineData) => ({
     title: query,
@@ -88,6 +90,9 @@ export default function Home() {
     if (saveTimeoutRef.current) {
       window.clearTimeout(saveTimeoutRef.current);
     }
+    if (saveStateTimeoutRef.current) {
+      window.clearTimeout(saveStateTimeoutRef.current);
+    }
   }, []);
 
   useEffect(() => {
@@ -112,6 +117,11 @@ export default function Home() {
     if (saveTimeoutRef.current) {
       window.clearTimeout(saveTimeoutRef.current);
     }
+    if (saveStateTimeoutRef.current) {
+      window.clearTimeout(saveStateTimeoutRef.current);
+    }
+
+    setSaveState("saving");
 
     saveTimeoutRef.current = window.setTimeout(() => {
       void updateSavedGraph(graphId, {
@@ -120,13 +130,25 @@ export default function Home() {
         data: nextData,
         seedPaperId: nextData.nodes[nextData.rootId]?.paper.openalexId ?? null,
         metadata: buildMetadata(nextQuery, nextData),
-      }).catch(() => undefined);
+      })
+        .then(() => {
+          setSaveState("saved");
+          saveStateTimeoutRef.current = window.setTimeout(() => {
+            setSaveState("idle");
+          }, 1800);
+        })
+        .catch(() => {
+          setSaveState("error");
+        });
     }, 700);
   }, [buildMetadata, graphId, userId]);
 
   const runSearch = useCallback(async (query: string, seedOpenalexId?: string) => {
     if (saveTimeoutRef.current) {
       window.clearTimeout(saveTimeoutRef.current);
+    }
+    if (saveStateTimeoutRef.current) {
+      window.clearTimeout(saveStateTimeoutRef.current);
     }
     setIsSearching(true);
     setSearchError("");
@@ -138,6 +160,7 @@ export default function Home() {
       if (response.meta.mode === "needs_disambiguation") {
         setTimelineData(null);
         setGraphId(null);
+        setSaveState("idle");
         persistLastGraphId(null);
         setDisambiguation(response.disambiguation ?? []);
         return;
@@ -147,6 +170,7 @@ export default function Home() {
 
       if (userId) {
         try {
+          setSaveState("saving");
           const savedGraph = await createSavedGraph({
             userId,
             query,
@@ -155,15 +179,21 @@ export default function Home() {
             metadata: buildMetadata(query, nextTimelineData),
           });
           setGraphId(savedGraph.id);
+          setSaveState("saved");
           persistLastGraphId(savedGraph.id);
+          saveStateTimeoutRef.current = window.setTimeout(() => {
+            setSaveState("idle");
+          }, 1800);
         } catch {
           setGraphId(null);
+          setSaveState("error");
           persistLastGraphId(null);
         }
       }
     } catch (error) {
       setTimelineData(null);
       setGraphId(null);
+      setSaveState("idle");
       setSearchError(error instanceof Error ? error.message : "Search failed");
     } finally {
       setIsSearching(false);
@@ -183,8 +213,12 @@ export default function Home() {
     if (saveTimeoutRef.current) {
       window.clearTimeout(saveTimeoutRef.current);
     }
+    if (saveStateTimeoutRef.current) {
+      window.clearTimeout(saveStateTimeoutRef.current);
+    }
     setTimelineData(null);
     setGraphId(null);
+    setSaveState("idle");
     setSearchedQuery("");
     setSearchError("");
     setDisambiguation([]);
@@ -194,27 +228,32 @@ export default function Home() {
   const handleExpandNode = useCallback(
     (nodeId: number, query: string) => {
       if (!timelineData) return;
-      if (timelineData.nodes[nodeId]?.expanded) return;
 
       const sourceNode = timelineData.nodes[nodeId];
       if (!sourceNode) return;
+
+      const normalizedQuery = query.trim().toLowerCase();
+      const alreadyExpanded = timelineData.expansions.some(
+        (expansion) =>
+          expansion.sourceNodeId === nodeId &&
+          expansion.query.trim().toLowerCase() === normalizedQuery,
+      );
+      if (alreadyExpanded) return;
 
       setIsExpanding(true);
       setSearchError("");
 
       void expandLineage(sourceNode.paper.openalexId, query, settings)
         .then((fragment) => {
-          let nextTimelineData: TimelineData | null = null;
+          const nextTimelineData = mergeTimelineWithGraph(
+            timelineData,
+            fragment,
+            nodeId,
+            query,
+          );
 
-          setTimelineData((prev) => {
-            if (!prev) return prev;
-            nextTimelineData = mergeTimelineWithGraph(prev, fragment, nodeId, query);
-            return nextTimelineData;
-          });
-
-          if (nextTimelineData) {
-            scheduleGraphUpdate(nextTimelineData, searchedQuery);
-          }
+          setTimelineData(nextTimelineData);
+          scheduleGraphUpdate(nextTimelineData, searchedQuery);
         })
         .catch((error) => {
           setSearchError(error instanceof Error ? error.message : "Expand failed");
@@ -240,6 +279,7 @@ export default function Home() {
         setTimelineData(graph.data);
         setSearchedQuery(graph.query);
         setGraphId(graph.id);
+        setSaveState("idle");
         persistLastGraphId(graph.id);
         setHistoryOpen(false);
       })
@@ -317,19 +357,69 @@ export default function Home() {
 
         <AnimatePresence>
           {searchedQuery && (
-            <motion.span
-              initial={{ opacity: 0, y: -4 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -4 }}
-              style={{
-                fontSize: 12,
-                color: "var(--text-tertiary)",
-                fontFamily: "'JetBrains Mono', monospace",
-                letterSpacing: "0.02em",
-              }}
-            >
-              tracing: {searchedQuery}
-            </motion.span>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <motion.span
+                initial={{ opacity: 0, y: -4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -4 }}
+                style={{
+                  fontSize: 12,
+                  color: "var(--text-tertiary)",
+                  fontFamily: "'JetBrains Mono', monospace",
+                  letterSpacing: "0.02em",
+                }}
+              >
+                tracing: {searchedQuery}
+              </motion.span>
+
+              {timelineData && (
+                <motion.span
+                  initial={{ opacity: 0, y: -4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -4 }}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                    padding: "4px 8px",
+                    borderRadius: 999,
+                    border: "1px solid var(--border)",
+                    background: "var(--bg-secondary)",
+                    fontSize: 11,
+                    color:
+                      saveState === "error"
+                        ? "#d16f5b"
+                        : saveState === "saved"
+                        ? "var(--accent)"
+                        : "var(--text-tertiary)",
+                    fontFamily: "'JetBrains Mono', monospace",
+                    letterSpacing: "0.03em",
+                  }}
+                >
+                  <span
+                    style={{
+                      width: 6,
+                      height: 6,
+                      borderRadius: 999,
+                      background:
+                        saveState === "error"
+                          ? "#d16f5b"
+                          : saveState === "saved"
+                          ? "var(--accent)"
+                          : "var(--text-tertiary)",
+                      opacity: saveState === "saving" ? 0.75 : 1,
+                    }}
+                  />
+                  {saveState === "saving"
+                    ? "Saving..."
+                    : saveState === "saved"
+                    ? "Saved"
+                    : saveState === "error"
+                    ? "Save failed"
+                    : "Local"}
+                </motion.span>
+              )}
+            </div>
           )}
         </AnimatePresence>
 
