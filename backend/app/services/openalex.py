@@ -162,6 +162,12 @@ class OpenAlexClient:
             return_exceptions=True,
         )
 
+        if isinstance(title_data, Exception) and isinstance(broad_data, Exception):
+            raise OpenAlexError(
+                "OpenAlex search failed for both title and broad queries: "
+                f"title={title_data}, broad={broad_data}"
+            )
+
         seen_ids: set[str] = set()
         results: list[dict] = []
 

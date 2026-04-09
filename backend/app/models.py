@@ -1,5 +1,6 @@
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 from pydantic import BaseModel, Field
+from .config import settings
 
 
 class TraversalSettings(BaseModel):
@@ -96,3 +97,58 @@ class GlobalChatResponse(BaseModel):
     text: str
     highlightedPaperIds: list[str] = Field(default_factory=list)
     suggestion: Optional[ChatSuggestion] = None
+
+
+class UserUpsertRequest(BaseModel):
+    id: str
+
+
+class UserRecord(BaseModel):
+    id: str
+    created_at: str
+    last_seen: str
+
+
+class SavedGraphMetadata(BaseModel):
+    title: str = ""
+    nodeCount: int = 0
+    lastOpenedAt: Optional[str] = None
+    appVersion: str = Field(default_factory=lambda: settings.app_version)
+
+
+class SaveGraphRequest(BaseModel):
+    userId: str
+    query: str
+    data: dict[str, Any]
+    seedPaperId: Optional[str] = None
+    metadata: SavedGraphMetadata = Field(default_factory=SavedGraphMetadata)
+
+
+class UpdateGraphRequest(BaseModel):
+    userId: str
+    query: Optional[str] = None
+    data: Optional[dict[str, Any]] = None
+    seedPaperId: Optional[str] = None
+    metadata: Optional[SavedGraphMetadata] = None
+
+
+class GraphRecord(BaseModel):
+    id: str
+    userId: str
+    query: str
+    data: dict[str, Any]
+    metadata: SavedGraphMetadata = Field(default_factory=SavedGraphMetadata)
+    seedPaperId: Optional[str] = None
+    isPublic: bool = False
+    shareId: Optional[str] = None
+    createdAt: str
+    updatedAt: str
+
+
+class GraphListItem(BaseModel):
+    id: str
+    query: str
+    seedPaperId: Optional[str] = None
+    metadata: SavedGraphMetadata = Field(default_factory=SavedGraphMetadata)
+    createdAt: str
+    updatedAt: str

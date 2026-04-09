@@ -1,13 +1,25 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { SearchInput } from "@/components/SearchInput";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { TimelineCanvas } from "@/components/TimelineCanvas";
-import { expandLineage, searchLineage } from "@/lib/api";
+import {
+  APIError,
+  APP_VERSION,
+  createSavedGraph,
+  expandLineage,
+  fetchSavedGraph,
+  getOrCreateAnonymousUserId,
+  LAST_GRAPH_ID_KEY,
+  listSavedGraphs,
+  registerAnonymousUser,
+  searchLineage,
+  updateSavedGraph,
+} from "@/lib/api";
 import { buildTimelineFromGraph, mergeTimelineWithGraph } from "@/lib/timeline-builder";
-import { SeedCandidate, TimelineData, TraversalSettings } from "@/lib/types";
+import { SavedGraphListItem, SeedCandidate, TimelineData, TraversalSettings } from "@/lib/types";
 
 const DEFAULT_SETTINGS: TraversalSettings = {
   depth: 1,
@@ -20,33 +32,188 @@ export default function Home() {
   const [timelineData, setTimelineData] = useState<TimelineData | null>(null);
   const [isSearching, setIsSearching] = useState(false);
   const [isExpanding, setIsExpanding] = useState(false);
+  const [isRestoring, setIsRestoring] = useState(true);
   const [searchedQuery, setSearchedQuery] = useState("");
   const [searchError, setSearchError] = useState("");
   const [disambiguation, setDisambiguation] = useState<SeedCandidate[]>([]);
   const [settings, setSettings] = useState<TraversalSettings>(DEFAULT_SETTINGS);
+  const [draftSettings, setDraftSettings] = useState<TraversalSettings>(DEFAULT_SETTINGS);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [graphId, setGraphId] = useState<string | null>(null);
+  const [selectedSeedOpenalexId, setSelectedSeedOpenalexId] = useState<string | null>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [savedGraphs, setSavedGraphs] = useState<SavedGraphListItem[]>([]);
+  const [isHistoryLoading, setIsHistoryLoading] = useState(false);
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const saveTimeoutRef = useRef<number | null>(null);
+  const saveStateTimeoutRef = useRef<number | null>(null);
 
-  const runSearch = useCallback(async (query: string, seedOpenalexId?: string) => {
+  const buildMetadata = useCallback((query: string, data: TimelineData) => ({
+    title: query,
+    nodeCount: Object.keys(data.nodes).length,
+    lastOpenedAt: new Date().toISOString(),
+    appVersion: APP_VERSION,
+  }), []);
+
+  const persistLastGraphId = useCallback((nextGraphId: string | null) => {
+    if (nextGraphId) {
+      window.localStorage.setItem(LAST_GRAPH_ID_KEY, nextGraphId);
+      return;
+    }
+    window.localStorage.removeItem(LAST_GRAPH_ID_KEY);
+  }, []);
+
+  useEffect(() => {
+    const nextUserId = getOrCreateAnonymousUserId();
+    setUserId(nextUserId);
+
+    void registerAnonymousUser(nextUserId).catch(() => undefined);
+
+    const lastGraphId = window.localStorage.getItem(LAST_GRAPH_ID_KEY);
+    if (!lastGraphId) {
+      setIsRestoring(false);
+      return;
+    }
+
+    void fetchSavedGraph(lastGraphId, nextUserId)
+      .then((graph) => {
+        setTimelineData(graph.data);
+        setSearchedQuery(graph.query);
+        setGraphId(graph.id);
+        setSelectedSeedOpenalexId(graph.seedPaperId ?? null);
+      })
+      .catch((error) => {
+        if (error instanceof APIError && error.status === 404) {
+          window.localStorage.removeItem(LAST_GRAPH_ID_KEY);
+        }
+      })
+      .finally(() => {
+        setIsRestoring(false);
+      });
+  }, []);
+
+  useEffect(() => () => {
+    if (saveTimeoutRef.current) {
+      window.clearTimeout(saveTimeoutRef.current);
+    }
+    if (saveStateTimeoutRef.current) {
+      window.clearTimeout(saveStateTimeoutRef.current);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!historyOpen || !userId || timelineData) return;
+
+    setIsHistoryLoading(true);
+    void listSavedGraphs(userId)
+      .then((graphs) => {
+        setSavedGraphs(graphs);
+      })
+      .catch(() => {
+        setSavedGraphs([]);
+      })
+      .finally(() => {
+        setIsHistoryLoading(false);
+      });
+  }, [historyOpen, timelineData, userId]);
+
+  const scheduleGraphUpdate = useCallback((nextData: TimelineData, nextQuery: string) => {
+    if (!graphId || !userId) return;
+
+    if (saveTimeoutRef.current) {
+      window.clearTimeout(saveTimeoutRef.current);
+    }
+    if (saveStateTimeoutRef.current) {
+      window.clearTimeout(saveStateTimeoutRef.current);
+    }
+
+    setSaveState("saving");
+
+    saveTimeoutRef.current = window.setTimeout(() => {
+      void updateSavedGraph(graphId, {
+        userId,
+        query: nextQuery,
+        data: nextData,
+        seedPaperId: nextData.nodes[nextData.rootId]?.paper.openalexId ?? null,
+        metadata: buildMetadata(nextQuery, nextData),
+      })
+        .then(() => {
+          setSaveState("saved");
+          saveStateTimeoutRef.current = window.setTimeout(() => {
+            setSaveState("idle");
+          }, 1800);
+        })
+        .catch(() => {
+          setSaveState("error");
+        });
+    }, 700);
+  }, [buildMetadata, graphId, userId]);
+
+  const runSearch = useCallback(async (
+    query: string,
+    seedOpenalexId?: string,
+    searchSettings: TraversalSettings = settings,
+  ) => {
+    if (isExpanding) return;
+    if (saveTimeoutRef.current) {
+      window.clearTimeout(saveTimeoutRef.current);
+    }
+    if (saveStateTimeoutRef.current) {
+      window.clearTimeout(saveStateTimeoutRef.current);
+    }
     setIsSearching(true);
     setSearchError("");
     setDisambiguation([]);
     setSearchedQuery(query);
 
     try {
-      const response = await searchLineage(query, seedOpenalexId, settings);
+      const response = await searchLineage(query, seedOpenalexId, searchSettings);
       if (response.meta.mode === "needs_disambiguation") {
         setTimelineData(null);
+        setGraphId(null);
+        setSelectedSeedOpenalexId(null);
+        setSaveState("idle");
+        persistLastGraphId(null);
         setDisambiguation(response.disambiguation ?? []);
         return;
       }
-      setTimelineData(buildTimelineFromGraph(response));
+      const nextTimelineData = buildTimelineFromGraph(response);
+      setTimelineData(nextTimelineData);
+      setSelectedSeedOpenalexId(response.seedPaperId ?? seedOpenalexId ?? null);
+
+      if (userId) {
+        try {
+          setSaveState("saving");
+          const savedGraph = await createSavedGraph({
+            userId,
+            query,
+            data: nextTimelineData,
+            seedPaperId: response.seedPaperId,
+            metadata: buildMetadata(query, nextTimelineData),
+          });
+          setGraphId(savedGraph.id);
+          setSaveState("saved");
+          persistLastGraphId(savedGraph.id);
+          saveStateTimeoutRef.current = window.setTimeout(() => {
+            setSaveState("idle");
+          }, 1800);
+        } catch {
+          setGraphId(null);
+          setSaveState("error");
+          persistLastGraphId(null);
+        }
+      }
     } catch (error) {
       setTimelineData(null);
+      setGraphId(null);
+      setSelectedSeedOpenalexId(null);
+      setSaveState("idle");
       setSearchError(error instanceof Error ? error.message : "Search failed");
     } finally {
       setIsSearching(false);
     }
-  }, [settings]);
+  }, [buildMetadata, isExpanding, persistLastGraphId, settings, userId]);
 
   const handleSearch = useCallback((query: string) => {
     void runSearch(query);
@@ -54,33 +221,57 @@ export default function Home() {
 
   const handleSeedChoice = useCallback((openalexId: string) => {
     if (!searchedQuery) return;
+    setSelectedSeedOpenalexId(openalexId);
     void runSearch(searchedQuery, openalexId);
   }, [runSearch, searchedQuery]);
 
   const handleReset = useCallback(() => {
+    if (saveTimeoutRef.current) {
+      window.clearTimeout(saveTimeoutRef.current);
+    }
+    if (saveStateTimeoutRef.current) {
+      window.clearTimeout(saveStateTimeoutRef.current);
+    }
     setTimelineData(null);
+    setGraphId(null);
+    setSelectedSeedOpenalexId(null);
+    setSaveState("idle");
     setSearchedQuery("");
     setSearchError("");
     setDisambiguation([]);
-  }, []);
+    setDraftSettings(settings);
+    persistLastGraphId(null);
+  }, [persistLastGraphId, settings]);
 
   const handleExpandNode = useCallback(
     (nodeId: number, query: string) => {
       if (!timelineData) return;
-      if (timelineData.nodes[nodeId]?.expanded) return;
 
       const sourceNode = timelineData.nodes[nodeId];
       if (!sourceNode) return;
+
+      const normalizedQuery = query.trim().toLowerCase();
+      const alreadyExpanded = timelineData.expansions.some(
+        (expansion) =>
+          expansion.sourceNodeId === nodeId &&
+          expansion.query.trim().toLowerCase() === normalizedQuery,
+      );
+      if (alreadyExpanded) return;
 
       setIsExpanding(true);
       setSearchError("");
 
       void expandLineage(sourceNode.paper.openalexId, query, settings)
         .then((fragment) => {
-          setTimelineData((prev) => {
-            if (!prev) return prev;
-            return mergeTimelineWithGraph(prev, fragment, nodeId, query);
-          });
+          const nextTimelineData = mergeTimelineWithGraph(
+            timelineData,
+            fragment,
+            nodeId,
+            query,
+          );
+
+          setTimelineData(nextTimelineData);
+          scheduleGraphUpdate(nextTimelineData, searchedQuery);
         })
         .catch((error) => {
           setSearchError(error instanceof Error ? error.message : "Expand failed");
@@ -89,13 +280,35 @@ export default function Home() {
           setIsExpanding(false);
         });
     },
-    [settings, timelineData]
+    [scheduleGraphUpdate, searchedQuery, settings, timelineData]
   );
 
   const handleRefreshCurrent = useCallback(() => {
-    if (!searchedQuery) return;
-    void runSearch(searchedQuery);
-  }, [runSearch, searchedQuery]);
+    if (!searchedQuery || isExpanding) return;
+    void runSearch(searchedQuery, selectedSeedOpenalexId ?? undefined);
+  }, [isExpanding, runSearch, searchedQuery, selectedSeedOpenalexId]);
+
+  const handleLoadSavedGraph = useCallback((savedGraphId: string) => {
+    if (!userId) return;
+
+    setIsHistoryLoading(true);
+    void fetchSavedGraph(savedGraphId, userId)
+      .then((graph) => {
+        setTimelineData(graph.data);
+        setSearchedQuery(graph.query);
+        setGraphId(graph.id);
+        setSelectedSeedOpenalexId(graph.seedPaperId ?? null);
+        setSaveState("idle");
+        persistLastGraphId(graph.id);
+        setHistoryOpen(false);
+      })
+      .catch((error) => {
+        setSearchError(error instanceof Error ? error.message : "Failed to load saved graph");
+      })
+      .finally(() => {
+        setIsHistoryLoading(false);
+      });
+  }, [persistLastGraphId, userId]);
 
   return (
     <div
@@ -163,23 +376,105 @@ export default function Home() {
 
         <AnimatePresence>
           {searchedQuery && (
-            <motion.span
-              initial={{ opacity: 0, y: -4 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -4 }}
-              style={{
-                fontSize: 12,
-                color: "var(--text-tertiary)",
-                fontFamily: "'JetBrains Mono', monospace",
-                letterSpacing: "0.02em",
-              }}
-            >
-              tracing: {searchedQuery}
-            </motion.span>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <motion.span
+                initial={{ opacity: 0, y: -4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -4 }}
+                style={{
+                  fontSize: 12,
+                  color: "var(--text-tertiary)",
+                  fontFamily: "'JetBrains Mono', monospace",
+                  letterSpacing: "0.02em",
+                }}
+              >
+                tracing: {searchedQuery}
+              </motion.span>
+
+              {timelineData && (
+                <motion.span
+                  initial={{ opacity: 0, y: -4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -4 }}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                    padding: "4px 8px",
+                    borderRadius: 999,
+                    border: "1px solid var(--border)",
+                    background: "var(--bg-secondary)",
+                    fontSize: 11,
+                    color:
+                      saveState === "error"
+                        ? "#d16f5b"
+                        : saveState === "saved"
+                        ? "var(--accent)"
+                        : "var(--text-tertiary)",
+                    fontFamily: "'JetBrains Mono', monospace",
+                    letterSpacing: "0.03em",
+                  }}
+                >
+                  <span
+                    style={{
+                      width: 6,
+                      height: 6,
+                      borderRadius: 999,
+                      background:
+                        saveState === "error"
+                          ? "#d16f5b"
+                          : saveState === "saved"
+                          ? "var(--accent)"
+                          : "var(--text-tertiary)",
+                      opacity: saveState === "saving" ? 0.75 : 1,
+                    }}
+                  />
+                  {saveState === "saving"
+                    ? "Saving..."
+                    : saveState === "saved"
+                    ? "Saved"
+                    : saveState === "error"
+                    ? "Save failed"
+                    : "Local"}
+                </motion.span>
+              )}
+            </div>
           )}
         </AnimatePresence>
 
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {!timelineData && (
+            <motion.button
+              initial={{ opacity: 0, y: -4 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.25 }}
+              onClick={() => setHistoryOpen((open) => !open)}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                padding: "0 12px",
+                height: 32,
+                boxSizing: "border-box",
+                background: historyOpen ? "var(--accent-soft)" : "none",
+                border: `1px solid ${historyOpen ? "var(--accent)" : "var(--border)"}`,
+                borderRadius: 7,
+                color: historyOpen ? "var(--accent)" : "var(--text-secondary)",
+                fontSize: 12,
+                fontFamily: "'DM Sans', sans-serif",
+                fontWeight: 500,
+                cursor: "pointer",
+                transition: "border-color 0.15s, color 0.15s, background 0.15s",
+              }}
+            >
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M2.5 3.5h11M2.5 8h11M2.5 12.5h11" />
+                <path d="M4.5 3.5v9" opacity="0.35" />
+              </svg>
+              History
+            </motion.button>
+          )}
+
           {/* Credits indicator */}
           <div
             style={{
@@ -218,7 +513,16 @@ export default function Home() {
 
           <div style={{ position: "relative" }}>
             <button
-              onClick={() => setSettingsOpen((open) => !open)}
+              onClick={() => {
+                setSettingsOpen((open) => {
+                  if (!open) {
+                    setDraftSettings(settings);
+                    return true;
+                  }
+                  setDraftSettings(settings);
+                  return false;
+                });
+              }}
               style={{
                 display: "flex",
                 alignItems: "center",
@@ -298,11 +602,11 @@ export default function Home() {
                       >
                         <span style={{ fontWeight: 500 }}>{item.label}</span>
                         <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "var(--accent)" }}>
-                          {settings[item.key as keyof TraversalSettings]}
+                          {draftSettings[item.key as keyof TraversalSettings]}
                         </span>
                       </div>
                       {(() => {
-                        const val = settings[item.key as keyof TraversalSettings];
+                        const val = draftSettings[item.key as keyof TraversalSettings];
                         const pct = ((val - item.min) / (item.max - item.min)) * 100;
                         const thumbSize = 13;
                         return (
@@ -332,7 +636,7 @@ export default function Home() {
                               value={val}
                               onChange={(e) => {
                                 const value = Number(e.currentTarget.value);
-                                setSettings((prev) => ({ ...prev, [item.key]: value }));
+                                setDraftSettings((prev) => ({ ...prev, [item.key]: value }));
                               }}
                               style={{ position: "absolute", inset: 0, width: "100%", margin: 0, opacity: 0, cursor: "pointer", height: "100%" }}
                             />
@@ -343,7 +647,7 @@ export default function Home() {
                   ))}
                   <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 2, borderTop: "1px solid var(--border)", paddingTop: 10 }}>
                     <button
-                      onClick={() => setSettings(DEFAULT_SETTINGS)}
+                      onClick={() => setDraftSettings(DEFAULT_SETTINGS)}
                       style={{
                         height: 26,
                         padding: "0 8px",
@@ -363,7 +667,15 @@ export default function Home() {
                     <div style={{ flex: 1 }} />
                     <button
                       onClick={() => {
-                        if (searchedQuery && !isSearching) void handleRefreshCurrent();
+                        if (isExpanding) return;
+                        setSettings(draftSettings);
+                        if (searchedQuery && !isSearching) {
+                          void runSearch(
+                            searchedQuery,
+                            selectedSeedOpenalexId ?? undefined,
+                            draftSettings,
+                          );
+                        }
                         setSettingsOpen(false);
                       }}
                       style={{
@@ -373,12 +685,13 @@ export default function Home() {
                         border: "1px solid var(--accent)",
                         background: "var(--accent-soft)",
                         color: "var(--accent)",
-                        cursor: "pointer",
+                        cursor: isExpanding ? "default" : "pointer",
                         fontSize: 11,
                         fontFamily: "'DM Sans', sans-serif",
                         fontWeight: 600,
                         letterSpacing: "0.01em",
                       }}
+                      disabled={isExpanding}
                     >
                       Apply
                     </button>
@@ -476,8 +789,216 @@ export default function Home() {
 
       {/* Main content */}
       <div style={{ flex: 1, position: "relative", overflow: "hidden" }}>
+        <AnimatePresence>
+          {!timelineData && historyOpen && (
+            <>
+              <motion.button
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setHistoryOpen(false)}
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  background: "rgba(16, 12, 8, 0.22)",
+                  border: "none",
+                  zIndex: 20,
+                  cursor: "pointer",
+                }}
+                aria-label="Close history"
+              />
+
+              <motion.aside
+                initial={{ opacity: 0, x: 24 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 24 }}
+                transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+                style={{
+                  position: "absolute",
+                  top: 14,
+                  right: 14,
+                  bottom: 14,
+                  width: 340,
+                  maxWidth: "calc(100vw - 28px)",
+                  borderRadius: 20,
+                  border: "1px solid var(--border-hover)",
+                  background: "color-mix(in srgb, var(--bg-primary) 86%, #1e1510 14%)",
+                  boxShadow: "0 18px 48px rgba(0,0,0,0.22)",
+                  backdropFilter: "blur(18px)",
+                  zIndex: 30,
+                  display: "flex",
+                  flexDirection: "column",
+                  overflow: "hidden",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    padding: "18px 18px 14px",
+                    borderBottom: "1px solid var(--border)",
+                  }}
+                >
+                  <div>
+                    <p
+                      style={{
+                        fontSize: 11,
+                        color: "var(--accent)",
+                        fontFamily: "'JetBrains Mono', monospace",
+                        letterSpacing: "0.08em",
+                        textTransform: "uppercase",
+                        marginBottom: 6,
+                      }}
+                    >
+                      Saved graphs
+                    </p>
+                    <h2
+                      style={{
+                        fontSize: 22,
+                        lineHeight: 1.1,
+                        color: "var(--text-primary)",
+                        fontFamily: "'Instrument Serif', Georgia, serif",
+                        fontWeight: 400,
+                      }}
+                    >
+                      Return to prior traces
+                    </h2>
+                  </div>
+
+                  <button
+                    onClick={() => setHistoryOpen(false)}
+                    style={{
+                      width: 32,
+                      height: 32,
+                      borderRadius: 8,
+                      border: "1px solid var(--border)",
+                      background: "none",
+                      color: "var(--text-tertiary)",
+                      cursor: "pointer",
+                      fontSize: 18,
+                      lineHeight: 1,
+                    }}
+                    aria-label="Close history"
+                  >
+                    ×
+                  </button>
+                </div>
+
+                <div
+                  style={{
+                    padding: 14,
+                    overflowY: "auto",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 10,
+                  }}
+                >
+                  {isHistoryLoading ? (
+                    <div
+                      style={{
+                        padding: "18px 16px",
+                        borderRadius: 16,
+                        border: "1px solid var(--border)",
+                        background: "var(--bg-secondary)",
+                        color: "var(--text-tertiary)",
+                        fontSize: 13,
+                      }}
+                    >
+                      Loading saved graphs...
+                    </div>
+                  ) : savedGraphs.length === 0 ? (
+                    <div
+                      style={{
+                        padding: "18px 16px",
+                        borderRadius: 16,
+                        border: "1px solid var(--border)",
+                        background: "var(--bg-secondary)",
+                        color: "var(--text-secondary)",
+                        fontSize: 13,
+                        lineHeight: 1.6,
+                      }}
+                    >
+                      No saved graphs yet. Run a search and Sediment will keep the trace here.
+                    </div>
+                  ) : (
+                    savedGraphs.map((graph) => (
+                      <button
+                        key={graph.id}
+                        onClick={() => handleLoadSavedGraph(graph.id)}
+                        style={{
+                          textAlign: "left",
+                          padding: "14px 14px 13px",
+                          borderRadius: 16,
+                          border: "1px solid var(--border)",
+                          background: "var(--bg-secondary)",
+                          color: "var(--text-primary)",
+                          cursor: "pointer",
+                          transition: "border-color 0.15s, transform 0.15s",
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.borderColor = "var(--accent)";
+                          e.currentTarget.style.transform = "translateX(-2px)";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.borderColor = "var(--border)";
+                          e.currentTarget.style.transform = "translateX(0)";
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            gap: 12,
+                            marginBottom: 8,
+                          }}
+                        >
+                          <div
+                            style={{
+                              fontSize: 14,
+                              fontWeight: 600,
+                              lineHeight: 1.35,
+                            }}
+                          >
+                            {graph.metadata.title || graph.query}
+                          </div>
+                          <div
+                            style={{
+                              flexShrink: 0,
+                              padding: "3px 7px",
+                              borderRadius: 999,
+                              background: "var(--accent-soft)",
+                              color: "var(--accent)",
+                              fontSize: 10,
+                              fontFamily: "'JetBrains Mono', monospace",
+                              letterSpacing: "0.04em",
+                            }}
+                          >
+                            {graph.metadata.nodeCount} nodes
+                          </div>
+                        </div>
+                        <div
+                          style={{
+                            fontSize: 11,
+                            color: "var(--text-tertiary)",
+                            fontFamily: "'JetBrains Mono', monospace",
+                            letterSpacing: "0.02em",
+                          }}
+                        >
+                          updated {new Date(graph.updatedAt).toLocaleDateString()}
+                        </div>
+                      </button>
+                    ))
+                  )}
+                </div>
+              </motion.aside>
+            </>
+          )}
+        </AnimatePresence>
+
         <AnimatePresence mode="wait">
-          {!timelineData && !isSearching ? (
+          {!timelineData && !isSearching && !isRestoring ? (
             /* Landing state */
             <motion.div
               key="landing"
@@ -566,7 +1087,7 @@ export default function Home() {
                 </p>
               </motion.div>
 
-              <SearchInput onSearch={handleSearch} isSearching={isSearching} />
+              <SearchInput onSearch={handleSearch} isSearching={isSearching || isExpanding} />
 
               {!!searchError && (
                 <motion.div
@@ -668,7 +1189,7 @@ export default function Home() {
                 ))}
               </motion.div>
             </motion.div>
-          ) : isSearching ? (
+          ) : isSearching || isRestoring ? (
             /* Loading state */
             <motion.div
               key="loading"
@@ -726,7 +1247,9 @@ export default function Home() {
                   letterSpacing: "0.02em",
                 }}
               >
-                tracing lineage for &quot;{searchedQuery}&quot;
+                {isRestoring
+                  ? "restoring your last graph"
+                  : `tracing lineage for "${searchedQuery}"`}
               </motion.p>
             </motion.div>
           ) : (

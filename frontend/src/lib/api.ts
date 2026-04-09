@@ -1,6 +1,29 @@
-import { ChatSuggestion, GlobalChatResponse, LineageGraphResponse, TimelineNode, TraversalSettings } from "./types";
+import {
+  ChatSuggestion,
+  GlobalChatResponse,
+  LineageGraphResponse,
+  SavedGraph,
+  SavedGraphListItem,
+  SavedGraphMetadata,
+  TimelineData,
+  TimelineNode,
+  TraversalSettings,
+} from "./types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+export const SEDIMENT_USER_ID_KEY = "sediment_user_id";
+export const LAST_GRAPH_ID_KEY = "last_graph_id";
+export const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || "0.1.0";
+
+export class APIError extends Error {
+  status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "APIError";
+    this.status = status;
+  }
+}
 
 export async function searchLineage(
   query: string,
@@ -19,7 +42,7 @@ export async function searchLineage(
 
   if (!response.ok) {
     const detail = await readErrorDetail(response);
-    throw new Error(detail || `Search failed with status ${response.status}`);
+    throw new APIError(detail || `Search failed with status ${response.status}`, response.status);
   }
 
   return response.json();
@@ -38,7 +61,7 @@ export async function expandLineage(
 
   if (!response.ok) {
     const detail = await readErrorDetail(response);
-    throw new Error(detail || `Expand failed with status ${response.status}`);
+    throw new APIError(detail || `Expand failed with status ${response.status}`, response.status);
   }
 
   return response.json();
@@ -60,7 +83,7 @@ export async function chatAboutPaper(node: TimelineNode, question: string): Prom
 
   if (!response.ok) {
     const detail = await readErrorDetail(response);
-    throw new Error(detail || `Chat failed with status ${response.status}`);
+    throw new APIError(detail || `Chat failed with status ${response.status}`, response.status);
   }
 
   return response.json();
@@ -90,7 +113,96 @@ export async function chatAboutTimeline(
 
   if (!response.ok) {
     const detail = await readErrorDetail(response);
-    throw new Error(detail || `Chat failed with status ${response.status}`);
+    throw new APIError(detail || `Chat failed with status ${response.status}`, response.status);
+  }
+
+  return response.json();
+}
+
+export function getOrCreateAnonymousUserId(): string {
+  const existing = window.localStorage.getItem(SEDIMENT_USER_ID_KEY);
+  if (existing) return existing;
+
+  const userId = crypto.randomUUID();
+  window.localStorage.setItem(SEDIMENT_USER_ID_KEY, userId);
+  return userId;
+}
+
+export async function registerAnonymousUser(userId: string): Promise<void> {
+  const response = await fetch(`${API_BASE}/api/users`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id: userId }),
+  });
+
+  if (!response.ok) {
+    const detail = await readErrorDetail(response);
+    throw new APIError(detail || `User registration failed with status ${response.status}`, response.status);
+  }
+}
+
+export async function createSavedGraph(input: {
+  userId: string;
+  query: string;
+  data: TimelineData;
+  seedPaperId?: string | null;
+  metadata: SavedGraphMetadata;
+}): Promise<SavedGraph> {
+  const response = await fetch(`${API_BASE}/api/graphs`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+
+  if (!response.ok) {
+    const detail = await readErrorDetail(response);
+    throw new APIError(detail || `Save failed with status ${response.status}`, response.status);
+  }
+
+  return response.json();
+}
+
+export async function updateSavedGraph(
+  graphId: string,
+  input: {
+    userId: string;
+    query?: string;
+    data?: TimelineData;
+    seedPaperId?: string | null;
+    metadata?: SavedGraphMetadata;
+  },
+): Promise<SavedGraph> {
+  const response = await fetch(`${API_BASE}/api/graphs/${graphId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+
+  if (!response.ok) {
+    const detail = await readErrorDetail(response);
+    throw new APIError(detail || `Update failed with status ${response.status}`, response.status);
+  }
+
+  return response.json();
+}
+
+export async function fetchSavedGraph(graphId: string, userId: string): Promise<SavedGraph> {
+  const response = await fetch(`${API_BASE}/api/graphs/${graphId}?userId=${encodeURIComponent(userId)}`);
+
+  if (!response.ok) {
+    const detail = await readErrorDetail(response);
+    throw new APIError(detail || `Load failed with status ${response.status}`, response.status);
+  }
+
+  return response.json();
+}
+
+export async function listSavedGraphs(userId: string): Promise<SavedGraphListItem[]> {
+  const response = await fetch(`${API_BASE}/api/graphs?userId=${encodeURIComponent(userId)}`);
+
+  if (!response.ok) {
+    const detail = await readErrorDetail(response);
+    throw new APIError(detail || `List failed with status ${response.status}`, response.status);
   }
 
   return response.json();
