@@ -451,16 +451,23 @@ function comparePapersDescending(a?: GraphPaper, b?: GraphPaper): number {
   return (a?.title ?? "").localeCompare(b?.title ?? "");
 }
 
-function getDepth(openalexId: string, context: BuildContext, memo: Map<string, number>): number {
+function getDepth(openalexId: string, context: BuildContext, memo: Map<string, number>, visiting: Set<string> = new Set()): number {
   if (memo.has(openalexId)) {
     return memo.get(openalexId)!;
+  }
+  if (visiting.has(openalexId)) {
+    // Cycle detected — break it by returning 0
+    memo.set(openalexId, 0);
+    return 0;
   }
   const parents = context.parentsById.get(openalexId) ?? [];
   if (parents.length === 0) {
     memo.set(openalexId, 0);
     return 0;
   }
-  const depth = Math.max(...parents.map((parentId) => getDepth(parentId, context, memo))) + 1;
+  visiting.add(openalexId);
+  const depth = Math.max(...parents.map((parentId) => getDepth(parentId, context, memo, visiting))) + 1;
+  visiting.delete(openalexId);
   memo.set(openalexId, depth);
   return depth;
 }

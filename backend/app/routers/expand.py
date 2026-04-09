@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException
+from pydantic import ValidationError
 
 from ..config import settings
 from ..models import ExpandRequest, LineageGraphResponse
@@ -26,10 +27,14 @@ async def expand(req: ExpandRequest):
                 req.conceptContext.strip(),
                 openalex,
                 _llm,
+                settings=req.settings,
             )
     except LLMParseError as e:
         raise HTTPException(status_code=502, detail=f"LLM error: {e}") from e
     except OpenAlexError as e:
         raise HTTPException(status_code=502, detail=f"OpenAlex error: {e}") from e
 
-    return LineageGraphResponse(**graph)
+    try:
+        return LineageGraphResponse(**graph)
+    except ValidationError as e:
+        raise HTTPException(status_code=502, detail=f"Validation error: {e}") from e

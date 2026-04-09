@@ -7,7 +7,14 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { TimelineCanvas } from "@/components/TimelineCanvas";
 import { expandLineage, searchLineage } from "@/lib/api";
 import { buildTimelineFromGraph, mergeTimelineWithGraph } from "@/lib/timeline-builder";
-import { SeedCandidate, TimelineData } from "@/lib/types";
+import { SeedCandidate, TimelineData, TraversalSettings } from "@/lib/types";
+
+const DEFAULT_SETTINGS: TraversalSettings = {
+  depth: 1,
+  breadth: 2,
+  referenceLimit: 20,
+  topN: 5,
+};
 
 export default function Home() {
   const [timelineData, setTimelineData] = useState<TimelineData | null>(null);
@@ -16,6 +23,8 @@ export default function Home() {
   const [searchedQuery, setSearchedQuery] = useState("");
   const [searchError, setSearchError] = useState("");
   const [disambiguation, setDisambiguation] = useState<SeedCandidate[]>([]);
+  const [settings, setSettings] = useState<TraversalSettings>(DEFAULT_SETTINGS);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const runSearch = useCallback(async (query: string, seedOpenalexId?: string) => {
     setIsSearching(true);
@@ -24,7 +33,7 @@ export default function Home() {
     setSearchedQuery(query);
 
     try {
-      const response = await searchLineage(query, seedOpenalexId);
+      const response = await searchLineage(query, seedOpenalexId, settings);
       if (response.meta.mode === "needs_disambiguation") {
         setTimelineData(null);
         setDisambiguation(response.disambiguation ?? []);
@@ -37,7 +46,7 @@ export default function Home() {
     } finally {
       setIsSearching(false);
     }
-  }, []);
+  }, [settings]);
 
   const handleSearch = useCallback((query: string) => {
     void runSearch(query);
@@ -66,7 +75,7 @@ export default function Home() {
       setIsExpanding(true);
       setSearchError("");
 
-      void expandLineage(sourceNode.paper.openalexId, query)
+      void expandLineage(sourceNode.paper.openalexId, query, settings)
         .then((fragment) => {
           setTimelineData((prev) => {
             if (!prev) return prev;
@@ -80,8 +89,13 @@ export default function Home() {
           setIsExpanding(false);
         });
     },
-    [timelineData]
+    [settings, timelineData]
   );
+
+  const handleRefreshCurrent = useCallback(() => {
+    if (!searchedQuery) return;
+    void runSearch(searchedQuery);
+  }, [runSearch, searchedQuery]);
 
   return (
     <div
@@ -200,6 +214,178 @@ export default function Home() {
             <span style={{ fontSize: 11, color: "var(--text-tertiary)", fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.02em" }}>
               10
             </span>
+          </div>
+
+          <div style={{ position: "relative" }}>
+            <button
+              onClick={() => setSettingsOpen((open) => !open)}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                padding: "0 12px",
+                height: 32,
+                boxSizing: "border-box",
+                background: "none",
+                border: "1px solid var(--border)",
+                borderRadius: 7,
+                color: "var(--text-secondary)",
+                fontSize: 12,
+                fontFamily: "'DM Sans', sans-serif",
+                fontWeight: 500,
+                cursor: "pointer",
+                transition: "border-color 0.15s, color 0.15s",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = "var(--accent)";
+                e.currentTarget.style.color = "var(--accent)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = "var(--border)";
+                e.currentTarget.style.color = "var(--text-secondary)";
+              }}
+            >
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M6.5 1.5h3M6 14.5h4M3.5 5.5h9M2.5 10.5h11" />
+                <circle cx="10.5" cy="5.5" r="1.5" />
+                <circle cx="5.5" cy="10.5" r="1.5" />
+              </svg>
+              Settings
+            </button>
+
+            <AnimatePresence>
+              {settingsOpen && (
+                <motion.div
+                  initial={{ opacity: 0, y: -6, scale: 0.98 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -6, scale: 0.98 }}
+                  transition={{ duration: 0.15, ease: "easeOut" }}
+                  style={{
+                    position: "absolute",
+                    top: 40,
+                    right: 0,
+                    width: 240,
+                    padding: "14px 14px 12px",
+                    background: "var(--bg-secondary)",
+                    border: "1px solid var(--border-hover)",
+                    borderRadius: 10,
+                    boxShadow: "0 8px 24px rgba(0,0,0,0.10), 0 2px 6px rgba(0,0,0,0.06)",
+                    zIndex: 100,
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 10,
+                  }}
+                >
+                  <p style={{ fontSize: 10, color: "var(--text-tertiary)", fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.06em", textTransform: "uppercase" }}>
+                    traversal settings
+                  </p>
+                  {[
+                    { key: "depth", label: "Depth", min: 1, max: 3 },
+                    { key: "breadth", label: "Breadth", min: 1, max: 5 },
+                    { key: "referenceLimit", label: "Reference limit", min: 5, max: 50 },
+                    { key: "topN", label: "Top N", min: 1, max: 8 },
+                  ].map((item) => (
+                    <label key={item.key} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "baseline",
+                          fontSize: 11.5,
+                          color: "var(--text-secondary)",
+                          fontFamily: "'DM Sans', sans-serif",
+                        }}
+                      >
+                        <span style={{ fontWeight: 500 }}>{item.label}</span>
+                        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "var(--accent)" }}>
+                          {settings[item.key as keyof TraversalSettings]}
+                        </span>
+                      </div>
+                      {(() => {
+                        const val = settings[item.key as keyof TraversalSettings];
+                        const pct = ((val - item.min) / (item.max - item.min)) * 100;
+                        const thumbSize = 13;
+                        return (
+                          <div style={{ position: "relative", height: 20, display: "flex", alignItems: "center" }}>
+                            {/* Track background */}
+                            <div style={{ position: "absolute", left: 0, right: 0, height: 3, top: "50%", transform: "translateY(-50%)", borderRadius: 2, background: "var(--bg-tertiary)" }} />
+                            {/* Filled portion */}
+                            <div style={{ position: "absolute", left: 0, height: 3, top: "50%", transform: "translateY(-50%)", borderRadius: 2, background: "var(--accent)", width: `${pct}%` }} />
+                            {/* Thumb */}
+                            <div style={{
+                              position: "absolute",
+                              width: thumbSize,
+                              height: thumbSize,
+                              top: "50%",
+                              transform: "translateY(-50%)",
+                              borderRadius: "50%",
+                              background: "var(--accent)",
+                              boxShadow: "0 1px 4px rgba(0,0,0,0.3)",
+                              pointerEvents: "none",
+                              left: `calc(${pct}% - ${pct / 100 * thumbSize}px)`,
+                            }} />
+                            {/* Invisible native input for interaction */}
+                            <input
+                              type="range"
+                              min={item.min}
+                              max={item.max}
+                              value={val}
+                              onChange={(e) => {
+                                const value = Number(e.currentTarget.value);
+                                setSettings((prev) => ({ ...prev, [item.key]: value }));
+                              }}
+                              style={{ position: "absolute", inset: 0, width: "100%", margin: 0, opacity: 0, cursor: "pointer", height: "100%" }}
+                            />
+                          </div>
+                        );
+                      })()}
+                    </label>
+                  ))}
+                  <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 2, borderTop: "1px solid var(--border)", paddingTop: 10 }}>
+                    <button
+                      onClick={() => setSettings(DEFAULT_SETTINGS)}
+                      style={{
+                        height: 26,
+                        padding: "0 8px",
+                        borderRadius: 6,
+                        border: "none",
+                        background: "none",
+                        color: "var(--text-tertiary)",
+                        cursor: "pointer",
+                        fontSize: 11,
+                        fontFamily: "'DM Sans', sans-serif",
+                        fontWeight: 500,
+                        letterSpacing: "0.01em",
+                      }}
+                    >
+                      reset
+                    </button>
+                    <div style={{ flex: 1 }} />
+                    <button
+                      onClick={() => {
+                        if (searchedQuery && !isSearching) void handleRefreshCurrent();
+                        setSettingsOpen(false);
+                      }}
+                      style={{
+                        height: 26,
+                        padding: "0 10px",
+                        borderRadius: 6,
+                        border: "1px solid var(--accent)",
+                        background: "var(--accent-soft)",
+                        color: "var(--accent)",
+                        cursor: "pointer",
+                        fontSize: 11,
+                        fontFamily: "'DM Sans', sans-serif",
+                        fontWeight: 600,
+                        letterSpacing: "0.01em",
+                      }}
+                    >
+                      Apply
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
 
           <AnimatePresence>

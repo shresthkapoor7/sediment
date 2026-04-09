@@ -5,12 +5,13 @@ from collections import deque
 
 from .llm import LLMClient
 from .openalex import OpenAlexClient
+from ..models import TraversalSettings
 
 logger = logging.getLogger(__name__)
 
 DEPTH = 1
 BREADTH = 2
-SEARCH_LIMIT = 8
+SEARCH_LIMIT = 10
 REFERENCE_LIMIT = 20
 TOP_N = 5
 DISAMBIGUATION_COUNT = 3
@@ -21,11 +22,13 @@ async def trace_lineage(
     openalex: OpenAlexClient,
     llm: LLMClient,
     seed_openalex_id: str | None = None,
+    settings: TraversalSettings | None = None,
 ) -> dict:
     concept = concept.strip()
     if not concept:
         return _empty_response(concept)
 
+    resolved = _resolve_settings(settings)
     search_results = await openalex.search_papers(concept, limit=SEARCH_LIMIT)
     if not search_results:
         return _empty_response(concept)
@@ -68,7 +71,7 @@ async def trace_lineage(
     if not chosen_seed:
         return _empty_response(concept)
 
-    chosen_seed, seed_refs = await _resolve_viable_seed(chosen_seed, search_results, openalex)
+    chosen_seed, seed_refs = await _resolve_viable_seed(chosen_seed, search_results, openalex, resolved["reference_limit"])
     if not chosen_seed:
         return _empty_response(concept)
 
@@ -92,17 +95,17 @@ async def trace_lineage(
 
     while queue:
         current_paper, depth, prefetched_refs = queue.popleft()
-        if depth >= DEPTH:
+        if depth >= resolved["depth"]:
             continue
 
         refs = prefetched_refs if prefetched_refs is not None else await openalex.fetch_references(
             current_paper["openalexId"],
-            limit=REFERENCE_LIMIT,
+            limit=resolved["reference_limit"],
         )
         if not refs:
             continue
 
-        ranked = await llm.rank_references(concept, current_paper, refs, top_n=TOP_N)
+        ranked = await llm.rank_references(concept, current_paper, refs, top_n=resolved["top_n"])
         next_level_ids = []
         for paper in ranked:
             paper_id = paper.get("openalexId")
@@ -118,7 +121,7 @@ async def trace_lineage(
             edges.add((paper_id, current_paper["openalexId"]))
             next_level_ids.append(paper_id)
 
-        for paper_id in next_level_ids[:BREADTH]:
+        for paper_id in next_level_ids[:resolved["breadth"]]:
             next_paper = next((paper for paper in refs if paper.get("openalexId") == paper_id), None)
             if next_paper:
                 queue.append((next_paper, depth + 1, None))
@@ -162,13 +165,15 @@ async def expand_lineage(
     concept: str,
     openalex: OpenAlexClient,
     llm: LLMClient,
+    settings: TraversalSettings | None = None,
 ) -> dict:
     concept = concept.strip()
+    resolved = _resolve_settings(settings)
     source_paper = await openalex.fetch_work(paper_id)
     if not source_paper:
         return _empty_response(concept)
 
-    refs = await openalex.fetch_references(paper_id, limit=REFERENCE_LIMIT)
+    refs = await openalex.fetch_references(paper_id, limit=resolved["reference_limit"])
     if not refs:
         return {
             "seedPaperId": paper_id,
@@ -184,7 +189,7 @@ async def expand_lineage(
             "disambiguation": None,
         }
 
-    ranked = await llm.rank_references(concept, source_paper, refs, top_n=min(5, TOP_N))
+    ranked = await llm.rank_references(concept, source_paper, refs, top_n=resolved["top_n"])
     papers = [_graph_paper(source_paper, summary="Expanded source paper.")]
     edges = []
     for paper in ranked:
@@ -239,7 +244,7 @@ def _empty_response(query: str) -> dict:
 
 def _graph_paper(paper: dict, summary: str = "") -> dict:
     return {
-        "openalexId": paper["openalexId"],
+        "openalexId": paper.get("openalexId", ""),
         "title": paper.get("title", ""),
         "year": paper.get("year"),
         "summary": summary,
@@ -253,6 +258,7 @@ async def _resolve_viable_seed(
     chosen_seed: dict,
     search_results: list[dict],
     openalex: OpenAlexClient,
+    reference_limit: int,
 ) -> tuple[dict | None, list[dict]]:
     candidates = [chosen_seed] + [
         paper for paper in search_results
@@ -272,7 +278,7 @@ async def _resolve_viable_seed(
     best_ref_count = -1
 
     for candidate in candidates[:4]:
-        refs = await openalex.fetch_references(candidate["openalexId"], limit=REFERENCE_LIMIT)
+        refs = await openalex.fetch_references(candidate["openalexId"], limit=reference_limit)
         ref_count = len(refs)
         if ref_count > best_ref_count:
             best_candidate = candidate
@@ -281,4 +287,35 @@ async def _resolve_viable_seed(
         if ref_count >= 3:
             return candidate, refs
 
+    # No candidate had indexed references — fall back to topic-based related papers
+    if best_ref_count < 3:
+        logger.info("No references found for any candidate, falling back to topic search for '%s'", best_candidate.get("title"))
+        fallback_refs = await openalex.fetch_related_earlier_papers(best_candidate, limit=reference_limit)
+        if fallback_refs:
+            return best_candidate, fallback_refs
+
     return best_candidate, best_refs
+
+
+def _resolve_settings(settings: TraversalSettings | None) -> dict[str, int]:
+    depth = DEPTH
+    breadth = BREADTH
+    reference_limit = REFERENCE_LIMIT
+    top_n = TOP_N
+
+    if settings:
+        if settings.depth is not None:
+            depth = max(1, min(settings.depth, 3))
+        if settings.breadth is not None:
+            breadth = max(1, min(settings.breadth, 5))
+        if settings.referenceLimit is not None:
+            reference_limit = max(5, min(settings.referenceLimit, 50))
+        if settings.topN is not None:
+            top_n = max(1, min(settings.topN, 8))
+
+    return {
+        "depth": depth,
+        "breadth": breadth,
+        "reference_limit": reference_limit,
+        "top_n": top_n,
+    }

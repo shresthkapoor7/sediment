@@ -26,6 +26,7 @@ async def search(req: SearchRequest):
                 openalex,
                 _llm,
                 seed_openalex_id=req.seedOpenalexId,
+                settings=req.settings,
             )
     except LLMParseError as e:
         raise HTTPException(status_code=502, detail=f"LLM error: {e}") from e

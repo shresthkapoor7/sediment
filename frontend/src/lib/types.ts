@@ -27,6 +27,19 @@ export interface ChatSuggestion {
   nodeCount: number;
 }
 
+export interface GlobalChatResponse {
+  text: string;
+  highlightedPaperIds: string[];
+  suggestion: ChatSuggestion | null;
+}
+
+export interface TraversalSettings {
+  depth: number;
+  breadth: number;
+  referenceLimit: number;
+  topN: number;
+}
+
 export interface SearchMeta {
   query: string;
   mode: "resolved" | "needs_disambiguation";

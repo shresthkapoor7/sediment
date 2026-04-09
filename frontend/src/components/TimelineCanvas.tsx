@@ -7,6 +7,7 @@ import { TimelineData, ChatSuggestion } from "@/lib/types";
 import { NODE_DIMENSIONS } from "@/lib/dummy-data";
 import { TimelineNodeCard } from "./TimelineNode";
 import { TimelineEdgeLine } from "./TimelineEdge";
+import { GlobalChatPanel } from "./GlobalChatPanel";
 
 interface ChatMessage {
   id: number;
@@ -44,6 +45,7 @@ export function TimelineCanvas({
   const [isThinking, setIsThinking] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const msgIdRef = useRef(0);
+  const [highlightedPaperIds, setHighlightedPaperIds] = useState<Set<string>>(new Set());
 
   // Track the latest generation so only new nodes animate
   const latestGenRef = useRef(0);
@@ -228,12 +230,13 @@ export function TimelineCanvas({
       };
       const query = chatInput.trim();
       const currentNode = activeNode;
+      const targetNodeId = activeNodeId;
       setChatInput("");
       setIsThinking(true);
 
       setChatHistories((prev) => ({
         ...prev,
-        [activeNodeId]: [...(prev[activeNodeId] ?? []), userMsg],
+        [targetNodeId]: [...(prev[targetNodeId] ?? []), userMsg],
       }));
 
       void chatAboutPaper(currentNode, query)
@@ -246,7 +249,7 @@ export function TimelineCanvas({
         };
         setChatHistories((prev) => ({
           ...prev,
-          [activeNodeId]: [...(prev[activeNodeId] ?? []), assistantMsg],
+          [targetNodeId]: [...(prev[targetNodeId] ?? []), assistantMsg],
         }));
         })
         .catch((error) => {
@@ -257,7 +260,7 @@ export function TimelineCanvas({
           };
           setChatHistories((prev) => ({
             ...prev,
-            [activeNodeId]: [...(prev[activeNodeId] ?? []), assistantMsg],
+            [targetNodeId]: [...(prev[targetNodeId] ?? []), assistantMsg],
           }));
         })
         .finally(() => {
@@ -293,28 +296,7 @@ export function TimelineCanvas({
         touchAction: "none",
       }}
     >
-      {/* Zoom indicator */}
-      <div
-        style={{
-          position: "absolute",
-          bottom: 16,
-          right: 16,
-          fontSize: 11,
-          fontFamily: "'JetBrains Mono', monospace",
-          color: "var(--text-tertiary)",
-          background: "var(--bg-secondary)",
-          border: "1px solid var(--border)",
-          borderRadius: 6,
-          padding: "4px 8px",
-          zIndex: 10,
-          userSelect: "none",
-          letterSpacing: "0.02em",
-        }}
-      >
-        {zoomDisplay}%
-      </div>
-
-      {/* Controls */}
+      {/* Controls + zoom indicator */}
       <div
         style={{
           position: "absolute",
@@ -323,6 +305,7 @@ export function TimelineCanvas({
           display: "flex",
           gap: 4,
           zIndex: 10,
+          alignItems: "center",
         }}
       >
         {[
@@ -408,6 +391,20 @@ export function TimelineCanvas({
             {btn.label}
           </button>
         ))}
+        <div style={{
+          fontSize: 11,
+          fontFamily: "'JetBrains Mono', monospace",
+          color: "var(--text-tertiary)",
+          background: "var(--bg-secondary)",
+          border: "1px solid var(--border)",
+          borderRadius: 6,
+          padding: "4px 8px",
+          userSelect: "none",
+          letterSpacing: "0.02em",
+          marginLeft: 4,
+        }}>
+          {zoomDisplay}%
+        </div>
       </div>
 
       <svg
@@ -456,6 +453,7 @@ export function TimelineCanvas({
               index={i}
               onClick={handleNodeClick}
               isActive={activeRelated.has(node.id)}
+              isHighlighted={highlightedPaperIds.has(node.paper.openalexId)}
               shouldAnimate={node.generation === latestGeneration}
             />
           ))}
@@ -510,11 +508,12 @@ export function TimelineCanvas({
             <div
               style={{
                 display: "flex",
-                alignItems: "stretch",
+                alignItems: "center",
                 gap: 8,
-                padding: "12px 16px",
+                padding: "10px 16px",
                 borderBottom: "1px solid var(--border)",
                 flexShrink: 0,
+                minHeight: 52,
               }}
             >
               <button
@@ -525,7 +524,6 @@ export function TimelineCanvas({
                   borderRadius: 6, color: "var(--text-tertiary)", cursor: "pointer",
                   transition: "background 0.15s, color 0.15s",
                   flexShrink: 0,
-                  marginTop: 1,
                 }}
                 onMouseEnter={(e) => { e.currentTarget.style.background = "var(--bg-secondary)"; e.currentTarget.style.color = "var(--text-primary)"; }}
                 onMouseLeave={(e) => { e.currentTarget.style.background = "none"; e.currentTarget.style.color = "var(--text-tertiary)"; }}
@@ -534,44 +532,35 @@ export function TimelineCanvas({
                   <path d="M6 4l4 4-4 4" />
                 </svg>
               </button>
-              <div style={{ display: "flex", alignItems: "flex-start", gap: 8, flex: 1, minWidth: 0, paddingTop: 2 }}>
-                <span
-                  style={{
-                    fontSize: 11,
-                    color: "var(--text-tertiary)",
-                    fontFamily: "'JetBrains Mono', monospace",
-                    letterSpacing: "0.04em",
-                    flexShrink: 0,
-                    lineHeight: "18px",
-                    paddingTop: 1,
-                  }}
-                >
-                  {activeNode.paper.year}
-                </span>
-                <div
-                  style={{
-                    flex: 1,
-                    minWidth: 0,
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: 13,
-                      color: "var(--text-primary)",
-                      fontFamily: "'DM Sans', sans-serif",
-                      fontWeight: 500,
-                      lineHeight: 1.35,
-                      display: "-webkit-box",
-                      WebkitLineClamp: 2,
-                      WebkitBoxOrient: "vertical",
-                      overflow: "hidden",
-                      wordBreak: "break-word",
-                    }}
-                    title={activeNode.paper.title}
-                  >
-                    {activeNode.paper.title}
-                  </div>
-                </div>
+              <span
+                style={{
+                  fontSize: 11,
+                  color: "var(--text-tertiary)",
+                  fontFamily: "'JetBrains Mono', monospace",
+                  letterSpacing: "0.04em",
+                  flexShrink: 0,
+                }}
+              >
+                {activeNode.paper.year}
+              </span>
+              <div
+                style={{
+                  flex: 1,
+                  minWidth: 0,
+                  fontSize: 13,
+                  color: "var(--text-primary)",
+                  fontFamily: "'DM Sans', sans-serif",
+                  fontWeight: 500,
+                  lineHeight: 1.35,
+                  display: "-webkit-box",
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: "vertical",
+                  overflow: "hidden",
+                  wordBreak: "break-word",
+                }}
+                title={activeNode.paper.title}
+              >
+                {activeNode.paper.title}
               </div>
               {(activeNode.paper.doi || activeNode.paper.arxivId) && (
                 <a
@@ -579,11 +568,9 @@ export function TimelineCanvas({
                   target="_blank"
                   rel="noopener noreferrer"
                   style={{
-                    marginTop: 1,
                     flexShrink: 0, fontSize: 11, color: "var(--text-tertiary)", textDecoration: "none",
                     fontFamily: "'JetBrains Mono', monospace", background: "var(--bg-secondary)",
                     border: "1px solid var(--border)", borderRadius: 5, padding: "3px 7px", transition: "all 0.15s",
-                    alignSelf: "flex-start",
                   }}
                   onMouseEnter={(e) => { (e.currentTarget as HTMLAnchorElement).style.borderColor = "var(--accent)"; (e.currentTarget as HTMLAnchorElement).style.color = "var(--accent)"; }}
                   onMouseLeave={(e) => { (e.currentTarget as HTMLAnchorElement).style.borderColor = "var(--border)"; (e.currentTarget as HTMLAnchorElement).style.color = "var(--text-tertiary)"; }}
@@ -813,6 +800,15 @@ export function TimelineCanvas({
           </motion.div>
         )}
       </AnimatePresence>
+
+      {!activeNodeId && (
+        <GlobalChatPanel
+          data={data}
+          onHighlight={(ids) => setHighlightedPaperIds(new Set(ids))}
+          onAddLineage={(query) => onExpandNode(data.rootId, query)}
+          isExpanding={isExpanding}
+        />
+      )}
     </motion.div>
   );
 }

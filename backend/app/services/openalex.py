@@ -66,12 +66,21 @@ def _build_detail(abstract: str, primary_topic: Optional[str], cited_by_count: i
 
 async def _get(session: aiohttp.ClientSession, url: str, params: dict) -> dict:
     await asyncio.sleep(REQUEST_DELAY)
-    async with session.get(url, params=params) as resp:
-        if resp.status == 200:
-            return await resp.json()
-        text = await resp.text()
-        logger.error("OpenAlex error %s for %s: %s", resp.status, url, text)
-        raise OpenAlexError(f"OpenAlex error {resp.status}")
+    try:
+        async with session.get(url, params=params) as resp:
+            if resp.status == 200:
+                return await resp.json()
+            text = await resp.text()
+            logger.error("OpenAlex error %s for %s: %s", resp.status, url, text)
+            raise OpenAlexError(f"OpenAlex error {resp.status}")
+    except OpenAlexError:
+        raise
+    except asyncio.TimeoutError as exc:
+        logger.error("Timeout fetching %s", url)
+        raise OpenAlexError(f"Timeout fetching {url}") from exc
+    except aiohttp.ClientError as exc:
+        logger.error("Transport error fetching %s: %s", url, exc)
+        raise OpenAlexError(f"Transport error: {exc}") from exc
 
 
 class OpenAlexClient:
@@ -132,19 +141,40 @@ class OpenAlexClient:
         }
 
     async def search_papers(self, query: str, limit: int = 8) -> list[dict]:
-        params = {
+        # Run title search and broad search in parallel, merge with title matches first.
+        # Title search catches specific paper titles; broad search catches general concepts.
+        title_params = {
             **self._base_params(),
-            "search": query,
+            "filter": f"display_name.search:{query}",
             "per-page": str(limit),
             "select": SEARCH_SELECT,
         }
-        data = await _get(self._session_or_raise(), f"{BASE}/works", params)
-        results = []
-        for work in data.get("results", []):
-            normalized = self._normalize_work(work)
-            if normalized:
-                results.append(normalized)
-        return results
+        broad_params = {
+            **self._base_params(),
+            "filter": f"title_and_abstract.search:{query}",
+            "per-page": str(limit),
+            "select": SEARCH_SELECT,
+        }
+
+        title_data, broad_data = await asyncio.gather(
+            _get(self._session_or_raise(), f"{BASE}/works", title_params),
+            _get(self._session_or_raise(), f"{BASE}/works", broad_params),
+            return_exceptions=True,
+        )
+
+        seen_ids: set[str] = set()
+        results: list[dict] = []
+
+        for data in (title_data, broad_data):
+            if isinstance(data, Exception):
+                continue
+            for work in data.get("results", []):
+                normalized = self._normalize_work(work)
+                if normalized and normalized["openalexId"] not in seen_ids:
+                    seen_ids.add(normalized["openalexId"])
+                    results.append(normalized)
+
+        return results[:limit * 2]  # give LLM more candidates to pick from
 
     async def fetch_work(self, openalex_id: str) -> Optional[dict]:
         params = {**self._base_params(), "select": SEARCH_SELECT}
@@ -184,3 +214,31 @@ class OpenAlexClient:
         if not work:
             return []
         return await self.hydrate_works(work.get("referencedWorks", [])[:limit])
+
+    async def fetch_related_earlier_papers(self, paper: dict, limit: int = 20) -> list[dict]:
+        """Fallback for papers with no indexed references — search by topic/title keywords."""
+        year = paper.get("year")
+        title = paper.get("title", "")
+        primary_topic = paper.get("primaryTopic")
+
+        # Build a focused query from the title (strip subtitle after colon)
+        short_title = title.split(":")[0].strip() if ":" in title else title
+        query = primary_topic or short_title
+
+        params: dict = {
+            **self._base_params(),
+            "filter": f"title_and_abstract.search:{query}",
+            "per-page": str(limit),
+            "select": SEARCH_SELECT,
+            "sort": "cited_by_count:desc",
+        }
+        if year:
+            params["filter"] += f",publication_year:<{year}"
+
+        data = await _get(self._session_or_raise(), f"{BASE}/works", params)
+        results = []
+        for work in data.get("results", []):
+            normalized = self._normalize_work(work)
+            if normalized and normalized["openalexId"] != paper.get("openalexId"):
+                results.append(normalized)
+        return results[:limit]
