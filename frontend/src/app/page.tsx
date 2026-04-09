@@ -5,73 +5,80 @@ import { motion, AnimatePresence } from "framer-motion";
 import { SearchInput } from "@/components/SearchInput";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { TimelineCanvas } from "@/components/TimelineCanvas";
-import { generateTimeline, mergeSubLineage } from "@/lib/dummy-data";
-import { TimelineData } from "@/lib/types";
+import { expandLineage, searchLineage } from "@/lib/api";
+import { buildTimelineFromGraph, mergeTimelineWithGraph } from "@/lib/timeline-builder";
+import { SeedCandidate, TimelineData } from "@/lib/types";
 
 export default function Home() {
   const [timelineData, setTimelineData] = useState<TimelineData | null>(null);
   const [isSearching, setIsSearching] = useState(false);
   const [isExpanding, setIsExpanding] = useState(false);
   const [searchedQuery, setSearchedQuery] = useState("");
+  const [searchError, setSearchError] = useState("");
+  const [disambiguation, setDisambiguation] = useState<SeedCandidate[]>([]);
 
-  const handleSearch = useCallback((query: string) => {
+  const runSearch = useCallback(async (query: string, seedOpenalexId?: string) => {
     setIsSearching(true);
+    setSearchError("");
+    setDisambiguation([]);
     setSearchedQuery(query);
 
-    setTimeout(() => {
-      setTimelineData(generateTimeline());
+    try {
+      const response = await searchLineage(query, seedOpenalexId);
+      if (response.meta.mode === "needs_disambiguation") {
+        setTimelineData(null);
+        setDisambiguation(response.disambiguation ?? []);
+        return;
+      }
+      setTimelineData(buildTimelineFromGraph(response));
+    } catch (error) {
+      setTimelineData(null);
+      setSearchError(error instanceof Error ? error.message : "Search failed");
+    } finally {
       setIsSearching(false);
-    }, 1200);
+    }
   }, []);
+
+  const handleSearch = useCallback((query: string) => {
+    void runSearch(query);
+  }, [runSearch]);
+
+  const handleSeedChoice = useCallback((openalexId: string) => {
+    if (!searchedQuery) return;
+    void runSearch(searchedQuery, openalexId);
+  }, [runSearch, searchedQuery]);
 
   const handleReset = useCallback(() => {
     setTimelineData(null);
     setSearchedQuery("");
+    setSearchError("");
+    setDisambiguation([]);
   }, []);
 
   const handleExpandNode = useCallback(
     (nodeId: number, query: string) => {
       if (!timelineData) return;
-      // Don't re-expand an already expanded node
       if (timelineData.nodes[nodeId]?.expanded) return;
 
+      const sourceNode = timelineData.nodes[nodeId];
+      if (!sourceNode) return;
+
       setIsExpanding(true);
+      setSearchError("");
 
-      setTimeout(() => {
-        setTimelineData((prev) => {
-          if (!prev) return prev;
-          const result = mergeSubLineage(nodeId, query, prev);
-
-          // Merge adjacency: spread new entries, then append source node's new child
-          const mergedAdj: Record<number, number[]> = { ...prev.adjacency };
-          for (const [fromIdStr, children] of Object.entries(result.adjacency)) {
-            const fromId = Number(fromIdStr);
-            if (mergedAdj[fromId]) {
-              // Append without duplicating
-              const existing = new Set(mergedAdj[fromId]);
-              mergedAdj[fromId] = [...mergedAdj[fromId], ...children.filter(c => !existing.has(c))];
-            } else {
-              mergedAdj[fromId] = [...children];
-            }
-          }
-
-          return {
-            ...prev,
-            nodes: {
-              ...prev.nodes,
-              [nodeId]: { ...prev.nodes[nodeId], expanded: true },
-              ...result.nodes,
-            },
-            adjacency: mergedAdj,
-            lanes: result.lanes,
-            expansions: [
-              ...prev.expansions,
-              { sourceNodeId: nodeId, query, lane: result.lanes - 1 },
-            ],
-          };
+      void expandLineage(sourceNode.paper.openalexId, query)
+        .then((fragment) => {
+          setTimelineData((prev) => {
+            if (!prev) return prev;
+            return mergeTimelineWithGraph(prev, fragment, nodeId, query);
+          });
+        })
+        .catch((error) => {
+          setSearchError(error instanceof Error ? error.message : "Expand failed");
+        })
+        .finally(() => {
+          setIsExpanding(false);
         });
-        setIsExpanding(false);
-      }, 800);
     },
     [timelineData]
   );
@@ -374,6 +381,77 @@ export default function Home() {
               </motion.div>
 
               <SearchInput onSearch={handleSearch} isSearching={isSearching} />
+
+              {!!searchError && (
+                <motion.div
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  style={{
+                    marginTop: 16,
+                    padding: "12px 14px",
+                    borderRadius: 12,
+                    border: "1px solid var(--border)",
+                    background: "var(--bg-secondary)",
+                    color: "var(--text-secondary)",
+                    maxWidth: 520,
+                    width: "100%",
+                    textAlign: "left",
+                    fontSize: 13,
+                  }}
+                >
+                  {searchError}
+                </motion.div>
+              )}
+
+              {disambiguation.length > 0 && (
+                <motion.div
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  style={{
+                    marginTop: 16,
+                    padding: 14,
+                    borderRadius: 16,
+                    border: "1px solid var(--border)",
+                    background: "var(--bg-secondary)",
+                    maxWidth: 520,
+                    width: "100%",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 10,
+                  }}
+                >
+                  <p
+                    style={{
+                      fontSize: 12,
+                      color: "var(--text-tertiary)",
+                      fontFamily: "'JetBrains Mono', monospace",
+                      letterSpacing: "0.03em",
+                    }}
+                  >
+                    pick the intended seed paper
+                  </p>
+                  {disambiguation.map((candidate) => (
+                    <button
+                      key={candidate.openalexId}
+                      onClick={() => handleSeedChoice(candidate.openalexId)}
+                      style={{
+                        textAlign: "left",
+                        padding: "12px 14px",
+                        borderRadius: 12,
+                        border: "1px solid var(--border)",
+                        background: "var(--bg-primary)",
+                        cursor: "pointer",
+                        color: "var(--text-primary)",
+                      }}
+                    >
+                      <div style={{ fontSize: 13, fontWeight: 600 }}>{candidate.title}</div>
+                      <div style={{ fontSize: 11, color: "var(--text-tertiary)", marginTop: 4 }}>
+                        {candidate.year ?? "Unknown year"}
+                      </div>
+                    </button>
+                  ))}
+                </motion.div>
+              )}
 
               {/* Decorative strata lines */}
               <motion.div

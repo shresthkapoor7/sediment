@@ -13,7 +13,8 @@ Sediment is an agent-powered research lineage explorer. Enter a concept or paper
 | Reverse Proxy | Nginx on EC2 | `nginx/` |
 | TLS | Certbot | Free HTTPS |
 | Database | Supabase (hosted Postgres) | Tree state persistence |
-| Agent | Claude + arXiv MCP | Lineage extraction |
+| Graph Data | OpenAlex | Public paper graph: search, metadata, references |
+| Agent | Claude | Seed selection, ranking, summaries, chat |
 | Canvas | SVG in React | Hand-rolled, no React Flow |
 | Export | Markdown serializer | Obsidian-ready |
 
@@ -29,7 +30,7 @@ sediment/
 
 ## Features
 
-- **Concept → Timeline** — agent queries arXiv, extracts ancestral papers, renders left-to-right chronological map
+- **Concept → Timeline** — backend fetches OpenAlex graph data, ranks lineage with Claude, renders left-to-right chronological map
 - **Click to branch** — drill into any node, a new parallel lane expands in place
 - **Obsidian export** — full tree as wikilinked markdown, frontmatter per paper
 - **Shareable URLs** — no login, tree state persisted via Supabase short ID
