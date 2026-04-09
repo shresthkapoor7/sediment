@@ -510,11 +510,12 @@ export function TimelineCanvas({
             <div
               style={{
                 display: "flex",
-                alignItems: "stretch",
+                alignItems: "center",
                 gap: 8,
-                padding: "12px 16px",
+                padding: "10px 16px",
                 borderBottom: "1px solid var(--border)",
                 flexShrink: 0,
+                minHeight: 52,
               }}
             >
               <button
@@ -525,7 +526,6 @@ export function TimelineCanvas({
                   borderRadius: 6, color: "var(--text-tertiary)", cursor: "pointer",
                   transition: "background 0.15s, color 0.15s",
                   flexShrink: 0,
-                  marginTop: 1,
                 }}
                 onMouseEnter={(e) => { e.currentTarget.style.background = "var(--bg-secondary)"; e.currentTarget.style.color = "var(--text-primary)"; }}
                 onMouseLeave={(e) => { e.currentTarget.style.background = "none"; e.currentTarget.style.color = "var(--text-tertiary)"; }}
@@ -534,44 +534,35 @@ export function TimelineCanvas({
                   <path d="M6 4l4 4-4 4" />
                 </svg>
               </button>
-              <div style={{ display: "flex", alignItems: "flex-start", gap: 8, flex: 1, minWidth: 0, paddingTop: 2 }}>
-                <span
-                  style={{
-                    fontSize: 11,
-                    color: "var(--text-tertiary)",
-                    fontFamily: "'JetBrains Mono', monospace",
-                    letterSpacing: "0.04em",
-                    flexShrink: 0,
-                    lineHeight: "18px",
-                    paddingTop: 1,
-                  }}
-                >
-                  {activeNode.paper.year}
-                </span>
-                <div
-                  style={{
-                    flex: 1,
-                    minWidth: 0,
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: 13,
-                      color: "var(--text-primary)",
-                      fontFamily: "'DM Sans', sans-serif",
-                      fontWeight: 500,
-                      lineHeight: 1.35,
-                      display: "-webkit-box",
-                      WebkitLineClamp: 2,
-                      WebkitBoxOrient: "vertical",
-                      overflow: "hidden",
-                      wordBreak: "break-word",
-                    }}
-                    title={activeNode.paper.title}
-                  >
-                    {activeNode.paper.title}
-                  </div>
-                </div>
+              <span
+                style={{
+                  fontSize: 11,
+                  color: "var(--text-tertiary)",
+                  fontFamily: "'JetBrains Mono', monospace",
+                  letterSpacing: "0.04em",
+                  flexShrink: 0,
+                }}
+              >
+                {activeNode.paper.year}
+              </span>
+              <div
+                style={{
+                  flex: 1,
+                  minWidth: 0,
+                  fontSize: 13,
+                  color: "var(--text-primary)",
+                  fontFamily: "'DM Sans', sans-serif",
+                  fontWeight: 500,
+                  lineHeight: 1.35,
+                  display: "-webkit-box",
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: "vertical",
+                  overflow: "hidden",
+                  wordBreak: "break-word",
+                }}
+                title={activeNode.paper.title}
+              >
+                {activeNode.paper.title}
               </div>
               {(activeNode.paper.doi || activeNode.paper.arxivId) && (
                 <a
@@ -579,11 +570,9 @@ export function TimelineCanvas({
                   target="_blank"
                   rel="noopener noreferrer"
                   style={{
-                    marginTop: 1,
                     flexShrink: 0, fontSize: 11, color: "var(--text-tertiary)", textDecoration: "none",
                     fontFamily: "'JetBrains Mono', monospace", background: "var(--bg-secondary)",
                     border: "1px solid var(--border)", borderRadius: 5, padding: "3px 7px", transition: "all 0.15s",
-                    alignSelf: "flex-start",
                   }}
                   onMouseEnter={(e) => { (e.currentTarget as HTMLAnchorElement).style.borderColor = "var(--accent)"; (e.currentTarget as HTMLAnchorElement).style.color = "var(--accent)"; }}
                   onMouseLeave={(e) => { (e.currentTarget as HTMLAnchorElement).style.borderColor = "var(--border)"; (e.currentTarget as HTMLAnchorElement).style.color = "var(--text-tertiary)"; }}

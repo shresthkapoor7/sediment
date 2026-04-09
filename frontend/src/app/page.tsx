@@ -234,6 +234,15 @@ export default function Home() {
                 fontFamily: "'DM Sans', sans-serif",
                 fontWeight: 500,
                 cursor: "pointer",
+                transition: "border-color 0.15s, color 0.15s",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = "var(--accent)";
+                e.currentTarget.style.color = "var(--accent)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = "var(--border)";
+                e.currentTarget.style.color = "var(--text-secondary)";
               }}
             >
               <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -247,26 +256,27 @@ export default function Home() {
             <AnimatePresence>
               {settingsOpen && (
                 <motion.div
-                  initial={{ opacity: 0, y: -6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -6 }}
+                  initial={{ opacity: 0, y: -6, scale: 0.98 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -6, scale: 0.98 }}
+                  transition={{ duration: 0.15, ease: "easeOut" }}
                   style={{
                     position: "absolute",
                     top: 40,
                     right: 0,
-                    width: 248,
-                    padding: 12,
-                    background: "var(--bg-primary)",
-                    border: "1px solid var(--border)",
-                    borderRadius: 12,
-                    boxShadow: "0 12px 32px rgba(0,0,0,0.18)",
+                    width: 240,
+                    padding: "14px 14px 12px",
+                    background: "var(--bg-secondary)",
+                    border: "1px solid var(--border-hover)",
+                    borderRadius: 10,
+                    boxShadow: "0 8px 24px rgba(0,0,0,0.10), 0 2px 6px rgba(0,0,0,0.06)",
                     zIndex: 100,
                     display: "flex",
                     flexDirection: "column",
-                    gap: 12,
+                    gap: 10,
                   }}
                 >
-                  <p style={{ fontSize: 11, color: "var(--text-tertiary)", fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.04em" }}>
+                  <p style={{ fontSize: 10, color: "var(--text-tertiary)", fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.06em", textTransform: "uppercase" }}>
                     traversal settings
                   </p>
                   {[
@@ -275,79 +285,102 @@ export default function Home() {
                     { key: "referenceLimit", label: "Reference limit", min: 5, max: 50 },
                     { key: "topN", label: "Top N", min: 1, max: 8 },
                   ].map((item) => (
-                    <label key={item.key} style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                    <label key={item.key} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                       <div
                         style={{
                           display: "flex",
                           justifyContent: "space-between",
-                          fontSize: 12,
+                          alignItems: "baseline",
+                          fontSize: 11.5,
                           color: "var(--text-secondary)",
                           fontFamily: "'DM Sans', sans-serif",
                         }}
                       >
                         <span style={{ fontWeight: 500 }}>{item.label}</span>
-                        <span style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+                        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "var(--accent)" }}>
                           {settings[item.key as keyof TraversalSettings]}
                         </span>
                       </div>
-                      <input
-                        type="range"
-                        min={item.min}
-                        max={item.max}
-                        value={settings[item.key as keyof TraversalSettings]}
-                        onChange={(e) => {
-                          const value = Number(e.currentTarget.value);
-                          setSettings((prev) => ({ ...prev, [item.key]: value }));
-                        }}
-                        style={{
-                          width: "100%",
-                          height: 12,
-                          margin: 0,
-                          accentColor: "var(--accent)",
-                          cursor: "pointer",
-                        }}
-                      />
+                      {(() => {
+                        const val = settings[item.key as keyof TraversalSettings];
+                        const pct = ((val - item.min) / (item.max - item.min)) * 100;
+                        const thumbSize = 13;
+                        return (
+                          <div style={{ position: "relative", height: 20, display: "flex", alignItems: "center" }}>
+                            {/* Track background */}
+                            <div style={{ position: "absolute", left: 0, right: 0, height: 3, top: "50%", transform: "translateY(-50%)", borderRadius: 2, background: "var(--bg-tertiary)" }} />
+                            {/* Filled portion */}
+                            <div style={{ position: "absolute", left: 0, height: 3, top: "50%", transform: "translateY(-50%)", borderRadius: 2, background: "var(--accent)", width: `${pct}%` }} />
+                            {/* Thumb */}
+                            <div style={{
+                              position: "absolute",
+                              width: thumbSize,
+                              height: thumbSize,
+                              top: "50%",
+                              transform: "translateY(-50%)",
+                              borderRadius: "50%",
+                              background: "var(--accent)",
+                              boxShadow: "0 1px 4px rgba(0,0,0,0.3)",
+                              pointerEvents: "none",
+                              left: `calc(${pct}% - ${pct / 100 * thumbSize}px)`,
+                            }} />
+                            {/* Invisible native input for interaction */}
+                            <input
+                              type="range"
+                              min={item.min}
+                              max={item.max}
+                              value={val}
+                              onChange={(e) => {
+                                const value = Number(e.currentTarget.value);
+                                setSettings((prev) => ({ ...prev, [item.key]: value }));
+                              }}
+                              style={{ position: "absolute", inset: 0, width: "100%", margin: 0, opacity: 0, cursor: "pointer", height: "100%" }}
+                            />
+                          </div>
+                        );
+                      })()}
                     </label>
                   ))}
-                  <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 4 }}>
+                  <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 2, borderTop: "1px solid var(--border)", paddingTop: 10 }}>
                     <button
                       onClick={() => setSettings(DEFAULT_SETTINGS)}
                       style={{
-                        height: 30,
-                        padding: "0 10px",
-                        borderRadius: 7,
-                        border: "1px solid var(--border)",
+                        height: 26,
+                        padding: "0 8px",
+                        borderRadius: 6,
+                        border: "none",
                         background: "none",
-                        color: "var(--text-secondary)",
+                        color: "var(--text-tertiary)",
                         cursor: "pointer",
-                        fontSize: 12,
+                        fontSize: 11,
                         fontFamily: "'DM Sans', sans-serif",
                         fontWeight: 500,
+                        letterSpacing: "0.01em",
                       }}
                     >
-                      Reset
+                      reset
                     </button>
+                    <div style={{ flex: 1 }} />
                     <button
                       onClick={() => {
-                        void handleRefreshCurrent();
+                        if (searchedQuery && !isSearching) void handleRefreshCurrent();
                         setSettingsOpen(false);
                       }}
-                      disabled={!searchedQuery || isSearching}
                       style={{
-                        height: 30,
+                        height: 26,
                         padding: "0 10px",
-                        borderRadius: 7,
-                        border: "none",
-                        background: "var(--accent)",
-                        color: "white",
-                        cursor: searchedQuery && !isSearching ? "pointer" : "default",
-                        opacity: searchedQuery && !isSearching ? 1 : 0.5,
-                        fontSize: 12,
+                        borderRadius: 6,
+                        border: "1px solid var(--accent)",
+                        background: "var(--accent-soft)",
+                        color: "var(--accent)",
+                        cursor: "pointer",
+                        fontSize: 11,
                         fontFamily: "'DM Sans', sans-serif",
-                        fontWeight: 500,
+                        fontWeight: 600,
+                        letterSpacing: "0.01em",
                       }}
                     >
-                      Refresh Search
+                      Apply
                     </button>
                   </div>
                 </motion.div>
