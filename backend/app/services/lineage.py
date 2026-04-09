@@ -71,7 +71,12 @@ async def trace_lineage(
     if not chosen_seed:
         return _empty_response(concept)
 
-    chosen_seed, seed_refs = await _resolve_viable_seed(chosen_seed, search_results, openalex, resolved["reference_limit"])
+    chosen_seed, seed_refs, seed_refs_inferred = await _resolve_viable_seed(
+        chosen_seed,
+        search_results,
+        openalex,
+        resolved["reference_limit"],
+    )
     if not chosen_seed:
         return _empty_response(concept)
 
@@ -91,10 +96,10 @@ async def trace_lineage(
     }
     edges: set[tuple[str, str]] = set()
 
-    queue: deque[tuple[dict, int, list[dict] | None]] = deque([(chosen_seed, 0, seed_refs)])
+    queue: deque[tuple[dict, int, list[dict] | None, bool]] = deque([(chosen_seed, 0, seed_refs, seed_refs_inferred)])
 
     while queue:
-        current_paper, depth, prefetched_refs = queue.popleft()
+        current_paper, depth, prefetched_refs, refs_inferred = queue.popleft()
         if depth >= resolved["depth"]:
             continue
 
@@ -118,13 +123,14 @@ async def trace_lineage(
                 if paper.get("summary") and not seen[paper_id]["paper"].get("summary"):
                     seen[paper_id]["paper"]["summary"] = paper["summary"]
 
-            edges.add((paper_id, current_paper["openalexId"]))
+            if not refs_inferred:
+                edges.add((paper_id, current_paper["openalexId"]))
             next_level_ids.append(paper_id)
 
         for paper_id in next_level_ids[:resolved["breadth"]]:
             next_paper = next((paper for paper in refs if paper.get("openalexId") == paper_id), None)
             if next_paper:
-                queue.append((next_paper, depth + 1, None))
+                queue.append((next_paper, depth + 1, None, False))
 
     papers = sorted(
         (item["paper"] for item in seen.values()),
@@ -259,7 +265,7 @@ async def _resolve_viable_seed(
     search_results: list[dict],
     openalex: OpenAlexClient,
     reference_limit: int,
-) -> tuple[dict | None, list[dict]]:
+) -> tuple[dict | None, list[dict], bool]:
     candidates = [chosen_seed] + [
         paper for paper in search_results
         if paper.get("openalexId") != chosen_seed.get("openalexId")
@@ -285,16 +291,16 @@ async def _resolve_viable_seed(
             best_refs = refs
             best_ref_count = ref_count
         if ref_count >= 3:
-            return candidate, refs
+            return candidate, refs, False
 
     # No candidate had indexed references — fall back to topic-based related papers
     if best_ref_count < 3:
         logger.info("No references found for any candidate, falling back to topic search for '%s'", best_candidate.get("title"))
         fallback_refs = await openalex.fetch_related_earlier_papers(best_candidate, limit=reference_limit)
         if fallback_refs:
-            return best_candidate, fallback_refs
+            return best_candidate, fallback_refs, True
 
-    return best_candidate, best_refs
+    return best_candidate, best_refs, False
 
 
 def _resolve_settings(settings: TraversalSettings | None) -> dict[str, int]:

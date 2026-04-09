@@ -35,9 +35,11 @@ export default function Home() {
   const [searchError, setSearchError] = useState("");
   const [disambiguation, setDisambiguation] = useState<SeedCandidate[]>([]);
   const [settings, setSettings] = useState<TraversalSettings>(DEFAULT_SETTINGS);
+  const [draftSettings, setDraftSettings] = useState<TraversalSettings>(DEFAULT_SETTINGS);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   const [graphId, setGraphId] = useState<string | null>(null);
+  const [selectedSeedOpenalexId, setSelectedSeedOpenalexId] = useState<string | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [savedGraphs, setSavedGraphs] = useState<SavedGraphListItem[]>([]);
   const [isHistoryLoading, setIsHistoryLoading] = useState(false);
@@ -77,6 +79,7 @@ export default function Home() {
         setTimelineData(graph.data);
         setSearchedQuery(graph.query);
         setGraphId(graph.id);
+        setSelectedSeedOpenalexId(graph.seedPaperId ?? null);
       })
       .catch(() => {
         window.localStorage.removeItem(LAST_GRAPH_ID_KEY);
@@ -144,6 +147,7 @@ export default function Home() {
   }, [buildMetadata, graphId, userId]);
 
   const runSearch = useCallback(async (query: string, seedOpenalexId?: string) => {
+    if (isExpanding) return;
     if (saveTimeoutRef.current) {
       window.clearTimeout(saveTimeoutRef.current);
     }
@@ -160,6 +164,7 @@ export default function Home() {
       if (response.meta.mode === "needs_disambiguation") {
         setTimelineData(null);
         setGraphId(null);
+        setSelectedSeedOpenalexId(null);
         setSaveState("idle");
         persistLastGraphId(null);
         setDisambiguation(response.disambiguation ?? []);
@@ -167,6 +172,7 @@ export default function Home() {
       }
       const nextTimelineData = buildTimelineFromGraph(response);
       setTimelineData(nextTimelineData);
+      setSelectedSeedOpenalexId(response.seedPaperId ?? seedOpenalexId ?? null);
 
       if (userId) {
         try {
@@ -193,12 +199,13 @@ export default function Home() {
     } catch (error) {
       setTimelineData(null);
       setGraphId(null);
+      setSelectedSeedOpenalexId(null);
       setSaveState("idle");
       setSearchError(error instanceof Error ? error.message : "Search failed");
     } finally {
       setIsSearching(false);
     }
-  }, [buildMetadata, persistLastGraphId, settings, userId]);
+  }, [buildMetadata, isExpanding, persistLastGraphId, settings, userId]);
 
   const handleSearch = useCallback((query: string) => {
     void runSearch(query);
@@ -206,6 +213,7 @@ export default function Home() {
 
   const handleSeedChoice = useCallback((openalexId: string) => {
     if (!searchedQuery) return;
+    setSelectedSeedOpenalexId(openalexId);
     void runSearch(searchedQuery, openalexId);
   }, [runSearch, searchedQuery]);
 
@@ -218,12 +226,14 @@ export default function Home() {
     }
     setTimelineData(null);
     setGraphId(null);
+    setSelectedSeedOpenalexId(null);
     setSaveState("idle");
     setSearchedQuery("");
     setSearchError("");
     setDisambiguation([]);
+    setDraftSettings(settings);
     persistLastGraphId(null);
-  }, [persistLastGraphId]);
+  }, [persistLastGraphId, settings]);
 
   const handleExpandNode = useCallback(
     (nodeId: number, query: string) => {
@@ -266,9 +276,9 @@ export default function Home() {
   );
 
   const handleRefreshCurrent = useCallback(() => {
-    if (!searchedQuery) return;
-    void runSearch(searchedQuery);
-  }, [runSearch, searchedQuery]);
+    if (!searchedQuery || isExpanding) return;
+    void runSearch(searchedQuery, selectedSeedOpenalexId ?? undefined);
+  }, [isExpanding, runSearch, searchedQuery, selectedSeedOpenalexId]);
 
   const handleLoadSavedGraph = useCallback((savedGraphId: string) => {
     if (!userId) return;
@@ -279,6 +289,7 @@ export default function Home() {
         setTimelineData(graph.data);
         setSearchedQuery(graph.query);
         setGraphId(graph.id);
+        setSelectedSeedOpenalexId(graph.seedPaperId ?? null);
         setSaveState("idle");
         persistLastGraphId(graph.id);
         setHistoryOpen(false);
@@ -494,7 +505,16 @@ export default function Home() {
 
           <div style={{ position: "relative" }}>
             <button
-              onClick={() => setSettingsOpen((open) => !open)}
+              onClick={() => {
+                setSettingsOpen((open) => {
+                  if (!open) {
+                    setDraftSettings(settings);
+                    return true;
+                  }
+                  setDraftSettings(settings);
+                  return false;
+                });
+              }}
               style={{
                 display: "flex",
                 alignItems: "center",
@@ -574,11 +594,11 @@ export default function Home() {
                       >
                         <span style={{ fontWeight: 500 }}>{item.label}</span>
                         <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "var(--accent)" }}>
-                          {settings[item.key as keyof TraversalSettings]}
+                          {draftSettings[item.key as keyof TraversalSettings]}
                         </span>
                       </div>
                       {(() => {
-                        const val = settings[item.key as keyof TraversalSettings];
+                        const val = draftSettings[item.key as keyof TraversalSettings];
                         const pct = ((val - item.min) / (item.max - item.min)) * 100;
                         const thumbSize = 13;
                         return (
@@ -608,7 +628,7 @@ export default function Home() {
                               value={val}
                               onChange={(e) => {
                                 const value = Number(e.currentTarget.value);
-                                setSettings((prev) => ({ ...prev, [item.key]: value }));
+                                setDraftSettings((prev) => ({ ...prev, [item.key]: value }));
                               }}
                               style={{ position: "absolute", inset: 0, width: "100%", margin: 0, opacity: 0, cursor: "pointer", height: "100%" }}
                             />
@@ -619,7 +639,7 @@ export default function Home() {
                   ))}
                   <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 2, borderTop: "1px solid var(--border)", paddingTop: 10 }}>
                     <button
-                      onClick={() => setSettings(DEFAULT_SETTINGS)}
+                      onClick={() => setDraftSettings(DEFAULT_SETTINGS)}
                       style={{
                         height: 26,
                         padding: "0 8px",
@@ -639,7 +659,11 @@ export default function Home() {
                     <div style={{ flex: 1 }} />
                     <button
                       onClick={() => {
-                        if (searchedQuery && !isSearching) void handleRefreshCurrent();
+                        if (isExpanding) return;
+                        setSettings(draftSettings);
+                        if (searchedQuery && !isSearching) {
+                          void runSearch(searchedQuery, selectedSeedOpenalexId ?? undefined);
+                        }
                         setSettingsOpen(false);
                       }}
                       style={{
@@ -649,12 +673,13 @@ export default function Home() {
                         border: "1px solid var(--accent)",
                         background: "var(--accent-soft)",
                         color: "var(--accent)",
-                        cursor: "pointer",
+                        cursor: isExpanding ? "default" : "pointer",
                         fontSize: 11,
                         fontFamily: "'DM Sans', sans-serif",
                         fontWeight: 600,
                         letterSpacing: "0.01em",
                       }}
+                      disabled={isExpanding}
                     >
                       Apply
                     </button>
@@ -1050,7 +1075,7 @@ export default function Home() {
                 </p>
               </motion.div>
 
-              <SearchInput onSearch={handleSearch} isSearching={isSearching} />
+              <SearchInput onSearch={handleSearch} isSearching={isSearching || isExpanding} />
 
               {!!searchError && (
                 <motion.div

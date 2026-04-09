@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useId } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { chatAboutTimeline, suggestTimelineQuestions } from "@/lib/api";
 import { ChatSuggestion, TimelineData } from "@/lib/types";
@@ -30,6 +30,7 @@ export function GlobalChatPanel({ data, onHighlight, onAddLineage, isExpanding }
   const msgIdRef = useRef(0);
   const endRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const panelId = useId();
 
   useEffect(() => {
     if (open) {
@@ -104,6 +105,7 @@ export function GlobalChatPanel({ data, onHighlight, onAddLineage, isExpanding }
       <AnimatePresence>
         {open && (
           <motion.div
+            id={panelId}
             initial={{ opacity: 0, y: 12, scale: 0.97 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 12, scale: 0.97 }}
@@ -159,6 +161,7 @@ export function GlobalChatPanel({ data, onHighlight, onAddLineage, isExpanding }
               </div>
               <button
                 onClick={handleClose}
+                aria-label="Close chat"
                 style={{
                   background: "none", border: "none", cursor: "pointer",
                   color: "var(--text-tertiary)", padding: 4, borderRadius: 6,
@@ -349,6 +352,7 @@ export function GlobalChatPanel({ data, onHighlight, onAddLineage, isExpanding }
               />
               <button
                 onClick={() => void send()}
+                aria-label="Send message"
                 disabled={!input.trim() || isThinking}
                 style={{
                   width: 30,
@@ -376,6 +380,9 @@ export function GlobalChatPanel({ data, onHighlight, onAddLineage, isExpanding }
       {/* Clippy button */}
       <motion.button
         onClick={() => setOpen((o) => !o)}
+        aria-label={open ? "Close timeline chat" : "Open timeline chat"}
+        aria-expanded={open}
+        aria-controls={panelId}
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
         animate={{ rotate: open ? 180 : 0 }}

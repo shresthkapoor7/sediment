@@ -63,6 +63,10 @@ export function TimelineCanvas({
     }
   }, [data]);
 
+  useEffect(() => {
+    setHighlightedPaperIds(new Set());
+  }, [data]);
+
   const allNodes = Object.values(data.nodes);
   const maxX =
     allNodes.length === 0

@@ -6,6 +6,8 @@ from typing import Optional
 from anthropic import AsyncAnthropic
 
 logger = logging.getLogger(__name__)
+MAX_TIMELINE_PAPERS = 25
+MAX_TIMELINE_SUMMARY_CHARS = 320
 
 
 class LLMParseError(Exception):
@@ -219,16 +221,42 @@ Respond with JSON only:
         return [q for q in questions if isinstance(q, str)][:3]
 
     async def chat_about_timeline(self, papers: list[dict], question: str) -> dict:
+        ranked_papers = sorted(
+            papers,
+            key=lambda paper: ((paper.get("year") is None), -(paper.get("year") or 0), paper.get("title", "")),
+        )
+        bounded_papers = [
+            {
+                "openalexId": paper["openalexId"],
+                "title": paper["title"],
+                "year": paper.get("year"),
+                "summary": (paper.get("summary", "") or "")[:160],
+            }
+            for paper in ranked_papers[:MAX_TIMELINE_PAPERS]
+        ]
+
+        if len(ranked_papers) > MAX_TIMELINE_PAPERS:
+            overflow = ranked_papers[MAX_TIMELINE_PAPERS:]
+            overflow_years = [paper.get("year") for paper in overflow if isinstance(paper.get("year"), int)]
+            overflow_summaries = [
+                summary.strip()
+                for summary in (paper.get("summary", "") for paper in overflow)
+                if summary and summary.strip()
+            ]
+            aggregate_summary = " ".join(overflow_summaries)[:MAX_TIMELINE_SUMMARY_CHARS]
+            bounded_papers.append({
+                "openalexId": "__overflow_summary__",
+                "title": f"{len(overflow)} additional papers omitted from prompt",
+                "year": None,
+                "summary": (
+                    f"Year range: {min(overflow_years)}-{max(overflow_years)}. {aggregate_summary}".strip()
+                    if overflow_years
+                    else aggregate_summary or f"{len(overflow)} additional papers not shown."
+                ),
+            })
+
         papers_json = json.dumps(
-            [
-                {
-                    "openalexId": p["openalexId"],
-                    "title": p["title"],
-                    "year": p.get("year"),
-                    "summary": p.get("summary", ""),
-                }
-                for p in papers
-            ],
+            bounded_papers,
             indent=2,
         )
 
