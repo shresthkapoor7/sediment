@@ -230,12 +230,13 @@ export function TimelineCanvas({
       };
       const query = chatInput.trim();
       const currentNode = activeNode;
+      const targetNodeId = activeNodeId;
       setChatInput("");
       setIsThinking(true);
 
       setChatHistories((prev) => ({
         ...prev,
-        [activeNodeId]: [...(prev[activeNodeId] ?? []), userMsg],
+        [targetNodeId]: [...(prev[targetNodeId] ?? []), userMsg],
       }));
 
       void chatAboutPaper(currentNode, query)
@@ -248,7 +249,7 @@ export function TimelineCanvas({
         };
         setChatHistories((prev) => ({
           ...prev,
-          [activeNodeId]: [...(prev[activeNodeId] ?? []), assistantMsg],
+          [targetNodeId]: [...(prev[targetNodeId] ?? []), assistantMsg],
         }));
         })
         .catch((error) => {
@@ -259,7 +260,7 @@ export function TimelineCanvas({
           };
           setChatHistories((prev) => ({
             ...prev,
-            [activeNodeId]: [...(prev[activeNodeId] ?? []), assistantMsg],
+            [targetNodeId]: [...(prev[targetNodeId] ?? []), assistantMsg],
           }));
         })
         .finally(() => {

@@ -189,7 +189,7 @@ async def expand_lineage(
             "disambiguation": None,
         }
 
-    ranked = await llm.rank_references(concept, source_paper, refs, top_n=min(5, resolved["top_n"]))
+    ranked = await llm.rank_references(concept, source_paper, refs, top_n=resolved["top_n"])
     papers = [_graph_paper(source_paper, summary="Expanded source paper.")]
     edges = []
     for paper in ranked:
@@ -244,7 +244,7 @@ def _empty_response(query: str) -> dict:
 
 def _graph_paper(paper: dict, summary: str = "") -> dict:
     return {
-        "openalexId": paper["openalexId"],
+        "openalexId": paper.get("openalexId", ""),
         "title": paper.get("title", ""),
         "year": paper.get("year"),
         "summary": summary,

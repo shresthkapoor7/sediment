@@ -66,12 +66,21 @@ def _build_detail(abstract: str, primary_topic: Optional[str], cited_by_count: i
 
 async def _get(session: aiohttp.ClientSession, url: str, params: dict) -> dict:
     await asyncio.sleep(REQUEST_DELAY)
-    async with session.get(url, params=params) as resp:
-        if resp.status == 200:
-            return await resp.json()
-        text = await resp.text()
-        logger.error("OpenAlex error %s for %s: %s", resp.status, url, text)
-        raise OpenAlexError(f"OpenAlex error {resp.status}")
+    try:
+        async with session.get(url, params=params) as resp:
+            if resp.status == 200:
+                return await resp.json()
+            text = await resp.text()
+            logger.error("OpenAlex error %s for %s: %s", resp.status, url, text)
+            raise OpenAlexError(f"OpenAlex error {resp.status}")
+    except OpenAlexError:
+        raise
+    except asyncio.TimeoutError as exc:
+        logger.error("Timeout fetching %s", url)
+        raise OpenAlexError(f"Timeout fetching {url}") from exc
+    except aiohttp.ClientError as exc:
+        logger.error("Transport error fetching %s: %s", url, exc)
+        raise OpenAlexError(f"Transport error: {exc}") from exc
 
 
 class OpenAlexClient:

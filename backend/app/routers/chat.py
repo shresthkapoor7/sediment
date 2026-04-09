@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException
+from pydantic import ValidationError
 
 from ..config import settings
 from ..models import ChatRequest, ChatResponse, GlobalChatRequest, GlobalChatResponse, PaperSummary
@@ -28,7 +29,10 @@ async def chat(req: ChatRequest):
     except LLMParseError as e:
         raise HTTPException(status_code=502, detail=f"LLM error: {e}") from e
 
-    return ChatResponse(**result)
+    try:
+        return ChatResponse(**result)
+    except ValidationError as e:
+        raise HTTPException(status_code=502, detail=f"Validation error: {e}") from e
 
 
 @router.post("/chat/global/suggestions", response_model=list[str])
@@ -56,4 +60,7 @@ async def chat_global(req: GlobalChatRequest):
     except LLMParseError as e:
         raise HTTPException(status_code=502, detail=f"LLM error: {e}") from e
 
-    return GlobalChatResponse(**result)
+    try:
+        return GlobalChatResponse(**result)
+    except ValidationError as e:
+        raise HTTPException(status_code=502, detail=f"Validation error: {e}") from e
