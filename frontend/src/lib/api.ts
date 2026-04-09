@@ -13,6 +13,17 @@ import {
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
 export const SEDIMENT_USER_ID_KEY = "sediment_user_id";
 export const LAST_GRAPH_ID_KEY = "last_graph_id";
+export const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || "0.1.0";
+
+export class APIError extends Error {
+  status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "APIError";
+    this.status = status;
+  }
+}
 
 export async function searchLineage(
   query: string,
@@ -31,7 +42,7 @@ export async function searchLineage(
 
   if (!response.ok) {
     const detail = await readErrorDetail(response);
-    throw new Error(detail || `Search failed with status ${response.status}`);
+    throw new APIError(detail || `Search failed with status ${response.status}`, response.status);
   }
 
   return response.json();
@@ -50,7 +61,7 @@ export async function expandLineage(
 
   if (!response.ok) {
     const detail = await readErrorDetail(response);
-    throw new Error(detail || `Expand failed with status ${response.status}`);
+    throw new APIError(detail || `Expand failed with status ${response.status}`, response.status);
   }
 
   return response.json();
@@ -72,7 +83,7 @@ export async function chatAboutPaper(node: TimelineNode, question: string): Prom
 
   if (!response.ok) {
     const detail = await readErrorDetail(response);
-    throw new Error(detail || `Chat failed with status ${response.status}`);
+    throw new APIError(detail || `Chat failed with status ${response.status}`, response.status);
   }
 
   return response.json();
@@ -102,7 +113,7 @@ export async function chatAboutTimeline(
 
   if (!response.ok) {
     const detail = await readErrorDetail(response);
-    throw new Error(detail || `Chat failed with status ${response.status}`);
+    throw new APIError(detail || `Chat failed with status ${response.status}`, response.status);
   }
 
   return response.json();
@@ -126,7 +137,7 @@ export async function registerAnonymousUser(userId: string): Promise<void> {
 
   if (!response.ok) {
     const detail = await readErrorDetail(response);
-    throw new Error(detail || `User registration failed with status ${response.status}`);
+    throw new APIError(detail || `User registration failed with status ${response.status}`, response.status);
   }
 }
 
@@ -145,7 +156,7 @@ export async function createSavedGraph(input: {
 
   if (!response.ok) {
     const detail = await readErrorDetail(response);
-    throw new Error(detail || `Save failed with status ${response.status}`);
+    throw new APIError(detail || `Save failed with status ${response.status}`, response.status);
   }
 
   return response.json();
@@ -169,7 +180,7 @@ export async function updateSavedGraph(
 
   if (!response.ok) {
     const detail = await readErrorDetail(response);
-    throw new Error(detail || `Update failed with status ${response.status}`);
+    throw new APIError(detail || `Update failed with status ${response.status}`, response.status);
   }
 
   return response.json();
@@ -180,7 +191,7 @@ export async function fetchSavedGraph(graphId: string, userId: string): Promise<
 
   if (!response.ok) {
     const detail = await readErrorDetail(response);
-    throw new Error(detail || `Load failed with status ${response.status}`);
+    throw new APIError(detail || `Load failed with status ${response.status}`, response.status);
   }
 
   return response.json();
@@ -191,7 +202,7 @@ export async function listSavedGraphs(userId: string): Promise<SavedGraphListIte
 
   if (!response.ok) {
     const detail = await readErrorDetail(response);
-    throw new Error(detail || `List failed with status ${response.status}`);
+    throw new APIError(detail || `List failed with status ${response.status}`, response.status);
   }
 
   return response.json();

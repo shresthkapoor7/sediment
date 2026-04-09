@@ -6,6 +6,8 @@ import { SearchInput } from "@/components/SearchInput";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { TimelineCanvas } from "@/components/TimelineCanvas";
 import {
+  APIError,
+  APP_VERSION,
   createSavedGraph,
   expandLineage,
   fetchSavedGraph,
@@ -51,7 +53,7 @@ export default function Home() {
     title: query,
     nodeCount: Object.keys(data.nodes).length,
     lastOpenedAt: new Date().toISOString(),
-    appVersion: "0.1.0",
+    appVersion: APP_VERSION,
   }), []);
 
   const persistLastGraphId = useCallback((nextGraphId: string | null) => {
@@ -81,8 +83,10 @@ export default function Home() {
         setGraphId(graph.id);
         setSelectedSeedOpenalexId(graph.seedPaperId ?? null);
       })
-      .catch(() => {
-        window.localStorage.removeItem(LAST_GRAPH_ID_KEY);
+      .catch((error) => {
+        if (error instanceof APIError && error.status === 404) {
+          window.localStorage.removeItem(LAST_GRAPH_ID_KEY);
+        }
       })
       .finally(() => {
         setIsRestoring(false);
@@ -146,7 +150,11 @@ export default function Home() {
     }, 700);
   }, [buildMetadata, graphId, userId]);
 
-  const runSearch = useCallback(async (query: string, seedOpenalexId?: string) => {
+  const runSearch = useCallback(async (
+    query: string,
+    seedOpenalexId?: string,
+    searchSettings: TraversalSettings = settings,
+  ) => {
     if (isExpanding) return;
     if (saveTimeoutRef.current) {
       window.clearTimeout(saveTimeoutRef.current);
@@ -160,7 +168,7 @@ export default function Home() {
     setSearchedQuery(query);
 
     try {
-      const response = await searchLineage(query, seedOpenalexId, settings);
+      const response = await searchLineage(query, seedOpenalexId, searchSettings);
       if (response.meta.mode === "needs_disambiguation") {
         setTimelineData(null);
         setGraphId(null);
@@ -662,7 +670,11 @@ export default function Home() {
                         if (isExpanding) return;
                         setSettings(draftSettings);
                         if (searchedQuery && !isSearching) {
-                          void runSearch(searchedQuery, selectedSeedOpenalexId ?? undefined);
+                          void runSearch(
+                            searchedQuery,
+                            selectedSeedOpenalexId ?? undefined,
+                            draftSettings,
+                          );
                         }
                         setSettingsOpen(false);
                       }}

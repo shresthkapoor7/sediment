@@ -19,15 +19,16 @@ class SupabaseAPIError(RuntimeError):
 
 class SupabaseClient:
     def __init__(self):
-        if not settings.supabase_url or not settings.supabase_service_role_key:
+        if not settings.supabase_url or not settings.supabase_service_role_key.get_secret_value():
             raise SupabaseConfigError(
                 "Supabase is not configured. Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.",
             )
 
         self.base_url = settings.supabase_url.rstrip("/")
+        service_role_key = settings.supabase_service_role_key.get_secret_value()
         self.headers = {
-            "apikey": settings.supabase_service_role_key,
-            "Authorization": f"Bearer {settings.supabase_service_role_key}",
+            "apikey": service_role_key,
+            "Authorization": f"Bearer {service_role_key}",
             "Content-Type": "application/json",
         }
 

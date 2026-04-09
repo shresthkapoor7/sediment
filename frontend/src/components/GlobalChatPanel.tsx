@@ -134,7 +134,7 @@ export function GlobalChatPanel({ data, onHighlight, onAddLineage, isExpanding }
             }}>
               <motion.div
                 initial={false}
-                animate={{ rotate: open ? 180 : 0 }}
+                animate={{ rotate: 180 }}
                 transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
                 style={{
                   width: 20,

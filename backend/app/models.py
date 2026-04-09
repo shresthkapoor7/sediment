@@ -1,5 +1,6 @@
 from typing import Any, Literal, Optional
 from pydantic import BaseModel, Field
+from .config import settings
 
 
 class TraversalSettings(BaseModel):
@@ -112,7 +113,7 @@ class SavedGraphMetadata(BaseModel):
     title: str = ""
     nodeCount: int = 0
     lastOpenedAt: Optional[str] = None
-    appVersion: str = "0.1.0"
+    appVersion: str = Field(default_factory=lambda: settings.app_version)
 
 
 class SaveGraphRequest(BaseModel):

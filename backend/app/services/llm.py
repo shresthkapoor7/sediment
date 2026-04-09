@@ -223,8 +223,10 @@ Respond with JSON only:
     async def chat_about_timeline(self, papers: list[dict], question: str) -> dict:
         ranked_papers = sorted(
             papers,
-            key=lambda paper: ((paper.get("year") is None), -(paper.get("year") or 0), paper.get("title", "")),
+            key=lambda paper: ((paper.get("year") is None), paper.get("year") or 0, paper.get("title", "")),
         )
+        selected_papers = ranked_papers[:MAX_TIMELINE_PAPERS]
+        overflow = ranked_papers[MAX_TIMELINE_PAPERS:]
         bounded_papers = [
             {
                 "openalexId": paper["openalexId"],
@@ -232,11 +234,10 @@ Respond with JSON only:
                 "year": paper.get("year"),
                 "summary": (paper.get("summary", "") or "")[:160],
             }
-            for paper in ranked_papers[:MAX_TIMELINE_PAPERS]
+            for paper in selected_papers
         ]
 
-        if len(ranked_papers) > MAX_TIMELINE_PAPERS:
-            overflow = ranked_papers[MAX_TIMELINE_PAPERS:]
+        if overflow:
             overflow_years = [paper.get("year") for paper in overflow if isinstance(paper.get("year"), int)]
             overflow_summaries = [
                 summary.strip()

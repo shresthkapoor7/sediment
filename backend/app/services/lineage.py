@@ -125,7 +125,7 @@ async def trace_lineage(
 
             if not refs_inferred:
                 edges.add((paper_id, current_paper["openalexId"]))
-            next_level_ids.append(paper_id)
+                next_level_ids.append(paper_id)
 
         for paper_id in next_level_ids[:resolved["breadth"]]:
             next_paper = next((paper for paper in refs if paper.get("openalexId") == paper_id), None)
@@ -295,7 +295,11 @@ async def _resolve_viable_seed(
 
     # No candidate had indexed references — fall back to topic-based related papers
     if best_ref_count < 3:
-        logger.info("No references found for any candidate, falling back to topic search for '%s'", best_candidate.get("title"))
+        logger.info(
+            "Fewer than 3 indexed refs for '%s' (found %d), falling back to topic search",
+            best_candidate.get("title"),
+            best_ref_count,
+        )
         fallback_refs = await openalex.fetch_related_earlier_papers(best_candidate, limit=reference_limit)
         if fallback_refs:
             return best_candidate, fallback_refs, True

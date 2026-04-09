@@ -80,7 +80,10 @@ async def update_graph(graph_id: str, req: UpdateGraphRequest):
 
     payload = {}
     if req.query is not None:
-        payload["query"] = req.query.strip()
+        query = req.query.strip()
+        if not query:
+            raise HTTPException(status_code=400, detail="query required")
+        payload["query"] = query
     if req.data is not None:
         payload["data"] = req.data
     if req.metadata is not None:
