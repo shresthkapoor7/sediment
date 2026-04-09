@@ -92,3 +92,32 @@ export interface Expansion {
   query: string;
   lane: number;
 }
+
+export interface SavedGraphMetadata {
+  title: string;
+  nodeCount: number;
+  lastOpenedAt?: string | null;
+  appVersion: string;
+}
+
+export interface SavedGraph {
+  id: string;
+  userId: string;
+  query: string;
+  data: TimelineData;
+  metadata: SavedGraphMetadata;
+  seedPaperId?: string | null;
+  isPublic: boolean;
+  shareId?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SavedGraphListItem {
+  id: string;
+  query: string;
+  seedPaperId?: string | null;
+  metadata: SavedGraphMetadata;
+  createdAt: string;
+  updatedAt: string;
+}

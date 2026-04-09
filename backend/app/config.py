@@ -9,6 +9,8 @@ class Settings(BaseSettings):
     openalex_api_key: str = ""
     openalex_mailto: str = ""
     llm_model: str = "claude-haiku-4-5-20251001"
+    supabase_url: str = ""
+    supabase_service_role_key: str = ""
 
     model_config = {"env_file": str(_ENV_FILE), "extra": "ignore"}
 
