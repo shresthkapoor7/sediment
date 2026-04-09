@@ -78,3 +78,21 @@ class ChatSuggestion(BaseModel):
 class ChatResponse(BaseModel):
     text: str
     suggestion: Optional[ChatSuggestion] = None
+
+
+class PaperSummary(BaseModel):
+    openalexId: str
+    title: str
+    year: Optional[int] = None
+    summary: str = ""
+
+
+class GlobalChatRequest(BaseModel):
+    papers: list[PaperSummary]
+    question: str
+
+
+class GlobalChatResponse(BaseModel):
+    text: str
+    highlightedPaperIds: list[str] = Field(default_factory=list)
+    suggestion: Optional[ChatSuggestion] = None

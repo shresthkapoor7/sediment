@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException
 
 from ..config import settings
-from ..models import ChatRequest, ChatResponse
+from ..models import ChatRequest, ChatResponse, GlobalChatRequest, GlobalChatResponse, PaperSummary
 from ..services.llm import LLMClient, LLMParseError
 
 router = APIRouter()
@@ -29,3 +29,31 @@ async def chat(req: ChatRequest):
         raise HTTPException(status_code=502, detail=f"LLM error: {e}") from e
 
     return ChatResponse(**result)
+
+
+@router.post("/chat/global/suggestions", response_model=list[str])
+async def suggest_questions(papers: list[PaperSummary]):
+    if not papers:
+        return []
+    try:
+        return await _llm.suggest_timeline_questions([p.model_dump() for p in papers])
+    except LLMParseError:
+        return []
+
+
+@router.post("/chat/global", response_model=GlobalChatResponse)
+async def chat_global(req: GlobalChatRequest):
+    if not req.question.strip():
+        raise HTTPException(status_code=400, detail="question required")
+    if not req.papers:
+        raise HTTPException(status_code=400, detail="papers required")
+
+    try:
+        result = await _llm.chat_about_timeline(
+            [p.model_dump() for p in req.papers],
+            req.question.strip(),
+        )
+    except LLMParseError as e:
+        raise HTTPException(status_code=502, detail=f"LLM error: {e}") from e
+
+    return GlobalChatResponse(**result)

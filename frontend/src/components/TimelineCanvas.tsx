@@ -7,6 +7,7 @@ import { TimelineData, ChatSuggestion } from "@/lib/types";
 import { NODE_DIMENSIONS } from "@/lib/dummy-data";
 import { TimelineNodeCard } from "./TimelineNode";
 import { TimelineEdgeLine } from "./TimelineEdge";
+import { GlobalChatPanel } from "./GlobalChatPanel";
 
 interface ChatMessage {
   id: number;
@@ -44,6 +45,7 @@ export function TimelineCanvas({
   const [isThinking, setIsThinking] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const msgIdRef = useRef(0);
+  const [highlightedPaperIds, setHighlightedPaperIds] = useState<Set<string>>(new Set());
 
   // Track the latest generation so only new nodes animate
   const latestGenRef = useRef(0);
@@ -293,28 +295,7 @@ export function TimelineCanvas({
         touchAction: "none",
       }}
     >
-      {/* Zoom indicator */}
-      <div
-        style={{
-          position: "absolute",
-          bottom: 16,
-          right: 16,
-          fontSize: 11,
-          fontFamily: "'JetBrains Mono', monospace",
-          color: "var(--text-tertiary)",
-          background: "var(--bg-secondary)",
-          border: "1px solid var(--border)",
-          borderRadius: 6,
-          padding: "4px 8px",
-          zIndex: 10,
-          userSelect: "none",
-          letterSpacing: "0.02em",
-        }}
-      >
-        {zoomDisplay}%
-      </div>
-
-      {/* Controls */}
+      {/* Controls + zoom indicator */}
       <div
         style={{
           position: "absolute",
@@ -323,6 +304,7 @@ export function TimelineCanvas({
           display: "flex",
           gap: 4,
           zIndex: 10,
+          alignItems: "center",
         }}
       >
         {[
@@ -408,6 +390,20 @@ export function TimelineCanvas({
             {btn.label}
           </button>
         ))}
+        <div style={{
+          fontSize: 11,
+          fontFamily: "'JetBrains Mono', monospace",
+          color: "var(--text-tertiary)",
+          background: "var(--bg-secondary)",
+          border: "1px solid var(--border)",
+          borderRadius: 6,
+          padding: "4px 8px",
+          userSelect: "none",
+          letterSpacing: "0.02em",
+          marginLeft: 4,
+        }}>
+          {zoomDisplay}%
+        </div>
       </div>
 
       <svg
@@ -456,6 +452,7 @@ export function TimelineCanvas({
               index={i}
               onClick={handleNodeClick}
               isActive={activeRelated.has(node.id)}
+              isHighlighted={highlightedPaperIds.has(node.paper.openalexId)}
               shouldAnimate={node.generation === latestGeneration}
             />
           ))}
@@ -802,6 +799,15 @@ export function TimelineCanvas({
           </motion.div>
         )}
       </AnimatePresence>
+
+      {!activeNodeId && (
+        <GlobalChatPanel
+          data={data}
+          onHighlight={(ids) => setHighlightedPaperIds(new Set(ids))}
+          onAddLineage={(query) => onExpandNode(data.rootId, query)}
+          isExpanding={isExpanding}
+        />
+      )}
     </motion.div>
   );
 }

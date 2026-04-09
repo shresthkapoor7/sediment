@@ -27,6 +27,12 @@ export interface ChatSuggestion {
   nodeCount: number;
 }
 
+export interface GlobalChatResponse {
+  text: string;
+  highlightedPaperIds: string[];
+  suggestion: ChatSuggestion | null;
+}
+
 export interface TraversalSettings {
   depth: number;
   breadth: number;

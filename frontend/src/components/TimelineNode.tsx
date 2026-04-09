@@ -9,6 +9,7 @@ interface TimelineNodeProps {
   index: number;
   onClick: (id: number) => void;
   isActive: boolean;
+  isHighlighted?: boolean;
   shouldAnimate: boolean;
 }
 
@@ -17,6 +18,7 @@ export function TimelineNodeCard({
   index,
   onClick,
   isActive,
+  isHighlighted = false,
   shouldAnimate,
 }: TimelineNodeProps) {
   const { width, height } = NODE_DIMENSIONS;
@@ -50,7 +52,7 @@ export function TimelineNodeCard({
             height,
             margin: 4,
             background: "var(--node-bg)",
-            border: `1.5px solid ${isActive ? "var(--accent)" : "var(--node-border)"}`,
+            border: `1.5px solid ${isActive || isHighlighted ? "var(--accent)" : "var(--node-border)"}`,
             borderRadius: 12,
             padding: "12px 14px",
             display: "flex",
@@ -58,6 +60,8 @@ export function TimelineNodeCard({
             gap: 6,
             boxShadow: isActive
               ? "0 0 0 3px var(--accent-soft), var(--node-shadow)"
+              : isHighlighted
+              ? "0 0 0 3px var(--accent-soft), 0 0 16px var(--accent-glow), var(--node-shadow)"
               : "var(--node-shadow)",
             transition: "border-color 0.2s, box-shadow 0.2s, transform 0.2s",
             overflow: "hidden",
@@ -73,9 +77,11 @@ export function TimelineNodeCard({
           onMouseLeave={(e) => {
             e.currentTarget.style.boxShadow = isActive
               ? "0 0 0 3px var(--accent-soft), var(--node-shadow)"
+              : isHighlighted
+              ? "0 0 0 3px var(--accent-soft), 0 0 16px var(--accent-glow), var(--node-shadow)"
               : "var(--node-shadow)";
             e.currentTarget.style.transform = "translateY(0)";
-            e.currentTarget.style.borderColor = isActive
+            e.currentTarget.style.borderColor = isActive || isHighlighted
               ? "var(--accent)"
               : "var(--node-border)";
           }}

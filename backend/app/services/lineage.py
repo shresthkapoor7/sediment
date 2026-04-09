@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 DEPTH = 1
 BREADTH = 2
-SEARCH_LIMIT = 8
+SEARCH_LIMIT = 10
 REFERENCE_LIMIT = 20
 TOP_N = 5
 DISAMBIGUATION_COUNT = 3
@@ -286,6 +286,13 @@ async def _resolve_viable_seed(
             best_ref_count = ref_count
         if ref_count >= 3:
             return candidate, refs
+
+    # No candidate had indexed references — fall back to topic-based related papers
+    if best_ref_count < 3:
+        logger.info("No references found for any candidate, falling back to topic search for '%s'", best_candidate.get("title"))
+        fallback_refs = await openalex.fetch_related_earlier_papers(best_candidate, limit=reference_limit)
+        if fallback_refs:
+            return best_candidate, fallback_refs
 
     return best_candidate, best_refs
 

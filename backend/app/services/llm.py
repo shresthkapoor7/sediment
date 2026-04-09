@@ -36,8 +36,10 @@ class LLMClient:
         prompt = f"""A user searched for: "{query}"
 
 Choose the single best seed paper from these OpenAlex candidates.
-Prefer the paper most likely to represent the user's intended topic, not just the most famous paper.
-Prefer a work with a usable scholarly reference graph over a result with no real references.
+- If the query looks like a specific paper title, strongly prefer an exact or near-exact title match.
+- Otherwise prefer the paper most likely to represent the user's intended topic.
+- Prefer a work with a usable scholarly reference graph over a result with no real references.
+- Reject any candidate that is clearly off-topic relative to the query.
 
 Candidates:
 {json.dumps(candidates, indent=2)}
@@ -194,6 +196,92 @@ Only include a suggestion when there is a clear worthwhile follow-up lineage to 
         text = parsed.get("text")
         return {
             "text": text if isinstance(text, str) else "I could not produce a useful answer for that question.",
+            "suggestion": cleaned_suggestion,
+        }
+
+    async def suggest_timeline_questions(self, papers: list[dict]) -> list[str]:
+        titles = [f"- {p['title']} ({p.get('year', '?')})" for p in papers[:20]]
+        prompt = f"""A user is exploring this research timeline:
+{chr(10).join(titles)}
+
+Suggest 3 short, specific questions they might want to ask about these papers and their relationships.
+Questions should be natural, curious, and relevant to the specific papers shown.
+
+Respond with JSON only:
+{{"questions": ["<question 1>", "<question 2>", "<question 3>"]}}"""
+
+        parsed = await self._prompt_json(prompt)
+        if not isinstance(parsed, dict):
+            return []
+        questions = parsed.get("questions", [])
+        if not isinstance(questions, list):
+            return []
+        return [q for q in questions if isinstance(q, str)][:3]
+
+    async def chat_about_timeline(self, papers: list[dict], question: str) -> dict:
+        papers_json = json.dumps(
+            [
+                {
+                    "openalexId": p["openalexId"],
+                    "title": p["title"],
+                    "year": p.get("year"),
+                    "summary": p.get("summary", ""),
+                }
+                for p in papers
+            ],
+            indent=2,
+        )
+
+        prompt = f"""You are an assistant embedded in a research lineage explorer. The user is viewing a timeline of interconnected research papers.
+
+Papers currently in the timeline:
+{papers_json}
+
+User question: {question}
+
+Respond with JSON only:
+{{
+  "text": "<helpful answer, 2–4 sentences. Reference specific paper titles where relevant.>",
+  "highlightedPaperIds": ["<openalexId of directly relevant papers — max 5>"],
+  "suggestion": {{
+    "topic": "<concept to trace lineage for>",
+    "query": "<search query for that concept>",
+    "nodeCount": 4
+  }} | null
+}}
+
+Rules:
+- highlightedPaperIds must only contain openalexIds from the provided list above, or an empty array.
+- Add a suggestion when the user references a concept not already in the timeline that would benefit from its own lineage branch (e.g. "how is this related to RNN" → suggest tracing RNN lineage).
+- Do not suggest lineage for concepts already well-covered by the existing papers."""
+
+        parsed = await self._prompt_json(prompt)
+        if not isinstance(parsed, dict):
+            raise LLMParseError("Global chat response was not an object")
+
+        highlighted = parsed.get("highlightedPaperIds", [])
+        if not isinstance(highlighted, list):
+            highlighted = []
+        valid_ids = {p["openalexId"] for p in papers}
+        highlighted = [h for h in highlighted if isinstance(h, str) and h in valid_ids]
+
+        suggestion = parsed.get("suggestion")
+        cleaned_suggestion = None
+        if isinstance(suggestion, dict):
+            topic = suggestion.get("topic")
+            query = suggestion.get("query")
+            node_count = suggestion.get("nodeCount", 4)
+            if isinstance(topic, str) and isinstance(query, str):
+                cleaned_suggestion = {
+                    "topic": topic,
+                    "query": query,
+                    "nodeCount": node_count if isinstance(node_count, int) else 4,
+                }
+
+        text = parsed.get("text")
+        return {
+            "text": text if isinstance(text, str) else "I couldn't produce a useful answer.",
+            "highlightedPaperIds": highlighted,
             "suggestion": cleaned_suggestion,
         }
 
