@@ -2,9 +2,7 @@
 
 import { useState, useRef, useEffect, useId } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import ReactMarkdown from "react-markdown";
-import remarkMath from "remark-math";
-import rehypeKatex from "rehype-katex";
+import { MarkdownContent } from "./MarkdownContent";
 import { chatAboutTimeline, suggestTimelineQuestions } from "@/lib/api";
 import { ChatSuggestion, TimelineData } from "@/lib/types";
 
@@ -237,16 +235,7 @@ export function GlobalChatPanel({ data, onHighlight, onAddLineage, isExpanding }
                     fontFamily: "'DM Sans', sans-serif",
                   }}>
                     {msg.role === "assistant" ? (
-                      <ReactMarkdown
-                        remarkPlugins={[remarkMath]}
-                        rehypePlugins={[rehypeKatex]}
-                        components={{
-                          p: ({ children }) => <p style={{ margin: 0 }}>{children}</p>,
-                          a: ({ href, children }) => <a href={href} target="_blank" rel="noopener noreferrer" style={{ color: "var(--accent)" }}>{children}</a>,
-                        }}
-                      >
-                        {msg.text}
-                      </ReactMarkdown>
+                      <MarkdownContent>{msg.text}</MarkdownContent>
                     ) : msg.text}
                   </div>
 

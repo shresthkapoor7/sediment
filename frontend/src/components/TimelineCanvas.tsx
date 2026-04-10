@@ -2,9 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import ReactMarkdown from "react-markdown";
-import remarkMath from "remark-math";
-import rehypeKatex from "rehype-katex";
+import { MarkdownContent } from "./MarkdownContent";
 import { chatAboutPaper } from "@/lib/api";
 import { TimelineData, ChatSuggestion } from "@/lib/types";
 import { NODE_DIMENSIONS } from "@/lib/dummy-data";
@@ -610,17 +608,13 @@ export function TimelineCanvas({
                   borderLeft: "3px solid var(--border)",
                 }}
               >
-                <div style={{ fontSize: 13, color: "var(--text-primary)", lineHeight: 1.6, fontFamily: "'DM Sans', sans-serif", fontStyle: "italic", marginBottom: activeNode.paper.detail ? 10 : 0 }}>
-                  <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]} components={{ p: ({ children }) => <p style={{ margin: 0 }}>{children}</p> }}>
-                    {activeNode.paper.summary}
-                  </ReactMarkdown>
-                </div>
+                <MarkdownContent style={{ fontSize: 13, color: "var(--text-primary)", lineHeight: 1.6, fontFamily: "'DM Sans', sans-serif", fontStyle: "italic", marginBottom: activeNode.paper.detail ? 10 : 0 }}>
+                  {activeNode.paper.summary}
+                </MarkdownContent>
                 {activeNode.paper.detail && (
-                  <div style={{ fontSize: 12.5, color: "var(--text-secondary)", lineHeight: 1.7, fontFamily: "'DM Sans', sans-serif" }}>
-                    <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]} components={{ p: ({ children }) => <p style={{ margin: 0 }}>{children}</p> }}>
-                      {activeNode.paper.detail}
-                    </ReactMarkdown>
-                  </div>
+                  <MarkdownContent style={{ fontSize: 12.5, color: "var(--text-secondary)", lineHeight: 1.7, fontFamily: "'DM Sans', sans-serif" }}>
+                    {activeNode.paper.detail}
+                  </MarkdownContent>
                 )}
                 {activeNode.paper.authors && activeNode.paper.authors.length > 0 && (
                   <p style={{ fontSize: 11, color: "var(--text-tertiary)", fontFamily: "'DM Sans', sans-serif", marginTop: 10 }}>
@@ -658,19 +652,9 @@ export function TimelineCanvas({
                     </div>
                   ) : (
                     <div>
-                      <div
-                        style={{
-                          fontSize: 13.5,
-                          color: "var(--text-primary)",
-                          lineHeight: 1.7,
-                          fontFamily: "'DM Sans', sans-serif",
-                          marginBottom: msg.suggestion ? 14 : 0,
-                        }}
-                      >
-                        <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]} components={{ p: ({ children }) => <p style={{ margin: 0 }}>{children}</p> }}>
-                          {msg.content}
-                        </ReactMarkdown>
-                      </div>
+                      <MarkdownContent style={{ fontSize: 13.5, color: "var(--text-primary)", lineHeight: 1.7, fontFamily: "'DM Sans', sans-serif", marginBottom: msg.suggestion ? 14 : 0 }}>
+                        {msg.content}
+                      </MarkdownContent>
 
                       {/* Lineage suggestion card */}
                       {msg.suggestion && (

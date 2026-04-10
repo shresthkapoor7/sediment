@@ -147,7 +147,7 @@ export function SearchInput({ onSearch, isSearching }: SearchInputProps) {
           letterSpacing: "0.03em",
         }}
       >
-        enter a concept, paper, or arXiv ID
+        enter a concept or paper
       </motion.p>
     </motion.form>
   );
