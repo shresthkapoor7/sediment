@@ -49,6 +49,12 @@ export default function Home() {
   const saveTimeoutRef = useRef<number | null>(null);
   const saveStateTimeoutRef = useRef<number | null>(null);
 
+  useEffect(() => {
+    document.title = searchedQuery
+      ? `${searchedQuery} — Sediment`
+      : "Sediment — Knowledge, layered.";
+  }, [searchedQuery]);
+
   const buildMetadata = useCallback((query: string, data: TimelineData) => ({
     title: query,
     nodeCount: Object.keys(data.nodes).length,
