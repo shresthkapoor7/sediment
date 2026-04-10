@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Optional
 import asyncio
 import logging
+import re
 
 import aiohttp
 
@@ -51,8 +52,37 @@ def _abstract_from_inverted_index(index: Optional[dict]) -> str:
     return " ".join(positions[i] for i in sorted(positions))
 
 
+_GREEK = {
+    "alpha": "α", "beta": "β", "gamma": "γ", "delta": "δ", "epsilon": "ε",
+    "zeta": "ζ", "eta": "η", "theta": "θ", "lambda": "λ", "mu": "μ",
+    "nu": "ν", "pi": "π", "rho": "ρ", "sigma": "σ", "tau": "τ",
+    "phi": "φ", "psi": "ψ", "omega": "ω",
+}
+
+_LAYOUT_CMDS = re.compile(
+    r"\\(?:noindent|newline|linebreak|pagebreak|smallskip|medskip|bigskip|hspace|vspace|par)\b"
+)
+
+
+def _clean_abstract(text: str) -> str:
+    """Clean LaTeX macros from raw abstract text so it reads as plain prose."""
+    # \frac{a}{b} -> a/b
+    text = re.sub(r"\\frac\{([^}]*)\}\{([^}]*)\}", r"\1/\2", text)
+    # formatting macros: unwrap content
+    text = re.sub(r"\\(?:emph|textbf|textit|textrm|mathrm|mathbf|mathit)\{([^}]*)\}", r"\1", text)
+    # any remaining \cmd{...} -> contents
+    text = re.sub(r"\\[a-zA-Z]+\{([^}]*)\}", r"\1", text)
+    # Greek letters -> unicode
+    text = re.sub(r"\\([a-zA-Z]+)\b", lambda m: _GREEK.get(m.group(1), ""), text)
+    # layout-only commands
+    text = _LAYOUT_CMDS.sub("", text)
+    # orphan braces
+    text = text.replace("{", "").replace("}", "")
+    return text.strip()
+
+
 def _build_detail(abstract: str, primary_topic: Optional[str], cited_by_count: int) -> str:
-    abstract = abstract.strip()
+    abstract = _clean_abstract(abstract.strip())
     if abstract:
         return abstract[:560]
 
