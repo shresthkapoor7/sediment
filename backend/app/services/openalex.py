@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Optional
 import asyncio
 import logging
+import re
 
 import aiohttp
 
@@ -51,8 +52,26 @@ def _abstract_from_inverted_index(index: Optional[dict]) -> str:
     return " ".join(positions[i] for i in sorted(positions))
 
 
+import re
+
+
+def _clean_abstract(text: str) -> str:
+    """Strip LaTeX macros from raw abstract text so it reads as plain prose."""
+    # \emph{...} -> ...
+    text = re.sub(r"\\emph\{([^}]*)\}", r"\1", text)
+    # \textbf{...} -> ...
+    text = re.sub(r"\\textbf\{([^}]*)\}", r"\1", text)
+    # \textit{...} -> ...
+    text = re.sub(r"\\textit\{([^}]*)\}", r"\1", text)
+    # any unknown \cmd{...} -> contents
+    text = re.sub(r"\\[a-zA-Z]+\{([^}]*)\}", r"\1", text)
+    # remove lone commands like \noindent, \newline
+    text = re.sub(r"\\[a-zA-Z]+\b", "", text)
+    return text.strip()
+
+
 def _build_detail(abstract: str, primary_topic: Optional[str], cited_by_count: int) -> str:
-    abstract = abstract.strip()
+    abstract = _clean_abstract(abstract.strip())
     if abstract:
         return abstract[:560]
 

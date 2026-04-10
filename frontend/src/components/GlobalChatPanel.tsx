@@ -2,6 +2,9 @@
 
 import { useState, useRef, useEffect, useId } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import ReactMarkdown from "react-markdown";
+import remarkMath from "remark-math";
+import rehypeKatex from "rehype-katex";
 import { chatAboutTimeline, suggestTimelineQuestions } from "@/lib/api";
 import { ChatSuggestion, TimelineData } from "@/lib/types";
 
@@ -29,6 +32,14 @@ export function GlobalChatPanel({ data, onHighlight, onAddLineage, isExpanding }
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
   const msgIdRef = useRef(0);
   const endRef = useRef<HTMLDivElement>(null);
+  const [expandingMsgId, setExpandingMsgId] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!isExpanding && expandingMsgId !== null) {
+      setMessages((prev) => prev.map((m) => m.id === expandingMsgId ? { ...m, suggestion: null } : m));
+      setExpandingMsgId(null);
+    }
+  }, [isExpanding, expandingMsgId]);
   const inputRef = useRef<HTMLInputElement>(null);
   const panelId = useId();
 
@@ -225,7 +236,18 @@ export function GlobalChatPanel({ data, onHighlight, onAddLineage, isExpanding }
                     lineHeight: 1.5,
                     fontFamily: "'DM Sans', sans-serif",
                   }}>
-                    {msg.text}
+                    {msg.role === "assistant" ? (
+                      <ReactMarkdown
+                        remarkPlugins={[remarkMath]}
+                        rehypePlugins={[rehypeKatex]}
+                        components={{
+                          p: ({ children }) => <p style={{ margin: 0 }}>{children}</p>,
+                          a: ({ href, children }) => <a href={href} target="_blank" rel="noopener noreferrer" style={{ color: "var(--accent)" }}>{children}</a>,
+                        }}
+                      >
+                        {msg.text}
+                      </ReactMarkdown>
+                    ) : msg.text}
                   </div>
 
                   {msg.highlightedPaperIds && msg.highlightedPaperIds.length > 0 && (
@@ -269,8 +291,8 @@ export function GlobalChatPanel({ data, onHighlight, onAddLineage, isExpanding }
                         onClick={() => {
                           if (isExpanding) return;
                           onAddLineage(msg.suggestion!.query);
-                          setOpen(false);
                           onHighlight([]);
+                          setExpandingMsgId(msg.id);
                         }}
                         disabled={isExpanding}
                         style={{
@@ -287,10 +309,10 @@ export function GlobalChatPanel({ data, onHighlight, onAddLineage, isExpanding }
                           display: "flex",
                           alignItems: "center",
                           gap: 6,
-                          opacity: isExpanding ? 0.7 : 1,
+                          opacity: expandingMsgId === msg.id ? 0.7 : 1,
                         }}
                       >
-                        {isExpanding ? (
+                        {expandingMsgId === msg.id ? (
                           <>
                             <motion.div
                               animate={{ rotate: 360 }}
