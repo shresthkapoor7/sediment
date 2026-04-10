@@ -1,5 +1,7 @@
 # Sediment
 
+![Sediment](home.jpg)
+
 > Trace any research concept back through time. Knowledge, layered.
 
 Sediment is an agent-powered research lineage explorer. Enter a concept or paper, and it traces the intellectual ancestry — surfacing the key papers, ideas, and breakthroughs that led to it, rendered as an interactive chronological timeline you can explore and expand.
