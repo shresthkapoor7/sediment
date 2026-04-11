@@ -208,6 +208,36 @@ export async function listSavedGraphs(userId: string): Promise<SavedGraphListIte
   return response.json();
 }
 
+export async function shareGraph(graphId: string, userId: string): Promise<{ shareId: string; shareUrl: string }> {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || window.location.origin;
+  const response = await fetch(
+    `${API_BASE}/api/graphs/${graphId}/share?userId=${encodeURIComponent(userId)}`,
+    { method: "POST" },
+  );
+
+  if (!response.ok) {
+    const detail = await readErrorDetail(response);
+    throw new APIError(detail || `Share failed with status ${response.status}`, response.status);
+  }
+
+  const data = await response.json();
+  return {
+    shareId: data.shareId,
+    shareUrl: `${appUrl}/s/${data.shareId}`,
+  };
+}
+
+export async function fetchSharedGraph(shareId: string): Promise<SavedGraph> {
+  const response = await fetch(`${API_BASE}/api/share/${shareId}`);
+
+  if (!response.ok) {
+    const detail = await readErrorDetail(response);
+    throw new APIError(detail || `Load failed with status ${response.status}`, response.status);
+  }
+
+  return response.json();
+}
+
 async function readErrorDetail(response: Response): Promise<string> {
   try {
     const data = await response.json();

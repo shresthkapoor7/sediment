@@ -76,6 +76,31 @@ class SupabaseClient:
         )
         return await self._request("GET", query, expect_single=True, allow_empty=True)
 
+    async def share_graph(self, graph_id: str, user_id: str, share_id: str) -> dict[str, Any] | None:
+        query = (
+            "/rest/v1/graphs"
+            f"?id=eq.{quote(graph_id, safe='')}"
+            f"&user_id=eq.{quote(user_id, safe='')}"
+        )
+        return await self._request(
+            "PATCH",
+            query,
+            json={"share_id": share_id, "is_public": True},
+            headers={"Prefer": "return=representation"},
+            expect_single=True,
+            allow_empty=True,
+        )
+
+    async def get_graph_by_share_id(self, share_id: str) -> dict[str, Any] | None:
+        query = (
+            "/rest/v1/graphs"
+            "?select=id,user_id,query,data,metadata,seed_paper_id,is_public,share_id,created_at,updated_at"
+            f"&share_id=eq.{quote(share_id, safe='')}"
+            "&is_public=eq.true"
+            "&limit=1"
+        )
+        return await self._request("GET", query, expect_single=True, allow_empty=True)
+
     async def list_graphs(self, user_id: str) -> list[dict[str, Any]]:
         query = (
             "/rest/v1/graphs"

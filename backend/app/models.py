@@ -152,3 +152,8 @@ class GraphListItem(BaseModel):
     metadata: SavedGraphMetadata = Field(default_factory=SavedGraphMetadata)
     createdAt: str
     updatedAt: str
+
+
+class ShareGraphResponse(BaseModel):
+    shareId: str
+    shareUrl: str

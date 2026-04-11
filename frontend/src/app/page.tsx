@@ -16,6 +16,7 @@ import {
   listSavedGraphs,
   registerAnonymousUser,
   searchLineage,
+  shareGraph,
   updateSavedGraph,
 } from "@/lib/api";
 import { buildTimelineFromGraph, mergeTimelineWithGraph } from "@/lib/timeline-builder";
@@ -46,6 +47,8 @@ export default function Home() {
   const [savedGraphs, setSavedGraphs] = useState<SavedGraphListItem[]>([]);
   const [isHistoryLoading, setIsHistoryLoading] = useState(false);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [shareState, setShareState] = useState<"idle" | "sharing" | "copied" | "error">("idle");
+  const shareStateTimeoutRef = useRef<number | null>(null);
   const saveTimeoutRef = useRef<number | null>(null);
   const saveStateTimeoutRef = useRef<number | null>(null);
 
@@ -105,6 +108,9 @@ export default function Home() {
     }
     if (saveStateTimeoutRef.current) {
       window.clearTimeout(saveStateTimeoutRef.current);
+    }
+    if (shareStateTimeoutRef.current) {
+      window.clearTimeout(shareStateTimeoutRef.current);
     }
   }, []);
 
@@ -294,6 +300,29 @@ export default function Home() {
     void runSearch(searchedQuery, selectedSeedOpenalexId ?? undefined);
   }, [isExpanding, runSearch, searchedQuery, selectedSeedOpenalexId]);
 
+  const handleShare = useCallback(async () => {
+    if (!graphId || !userId || shareState === "sharing") return;
+
+    if (shareStateTimeoutRef.current) {
+      window.clearTimeout(shareStateTimeoutRef.current);
+    }
+
+    setShareState("sharing");
+    try {
+      const { shareUrl } = await shareGraph(graphId, userId);
+      await navigator.clipboard.writeText(shareUrl);
+      setShareState("copied");
+      shareStateTimeoutRef.current = window.setTimeout(() => {
+        setShareState("idle");
+      }, 2500);
+    } catch {
+      setShareState("error");
+      shareStateTimeoutRef.current = window.setTimeout(() => {
+        setShareState("idle");
+      }, 2500);
+    }
+  }, [graphId, shareState, userId]);
+
   const handleLoadSavedGraph = useCallback((savedGraphId: string) => {
     if (!userId) return;
 
@@ -397,7 +426,7 @@ export default function Home() {
                 tracing: {searchedQuery}
               </motion.span>
 
-              {timelineData && (
+              {timelineData && saveState !== "idle" && (
                 <motion.span
                   initial={{ opacity: 0, y: -4 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -439,11 +468,10 @@ export default function Home() {
                     ? "Saving..."
                     : saveState === "saved"
                     ? "Saved"
-                    : saveState === "error"
-                    ? "Save failed"
-                    : "Local"}
+                    : "Save failed"}
                 </motion.span>
               )}
+
             </div>
           )}
         </AnimatePresence>
@@ -753,6 +781,8 @@ export default function Home() {
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -4 }}
                   transition={{ duration: 0.25, delay: 0.05 }}
+                  onClick={handleShare}
+                  disabled={shareState === "sharing"}
                   style={{
                     display: "flex",
                     alignItems: "center",
@@ -760,30 +790,34 @@ export default function Home() {
                     padding: "0 12px",
                     height: 32,
                     boxSizing: "border-box",
-                    background: "none",
-                    border: "1px solid var(--border)",
+                    background: shareState === "copied" ? "var(--accent-soft)" : "none",
+                    border: `1px solid ${shareState === "copied" ? "var(--accent)" : shareState === "error" ? "#d16f5b" : "var(--border)"}`,
                     borderRadius: 7,
-                    color: "var(--text-secondary)",
+                    color: shareState === "copied" ? "var(--accent)" : shareState === "error" ? "#d16f5b" : "var(--text-secondary)",
                     fontSize: 12,
                     fontFamily: "'DM Sans', sans-serif",
                     fontWeight: 500,
-                    cursor: "pointer",
-                    transition: "border-color 0.15s, color 0.15s",
+                    cursor: shareState === "sharing" ? "default" : "pointer",
+                    transition: "border-color 0.15s, color 0.15s, background 0.15s",
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.borderColor = "var(--accent)";
-                    e.currentTarget.style.color = "var(--accent)";
+                    if (shareState === "idle") {
+                      e.currentTarget.style.borderColor = "var(--accent)";
+                      e.currentTarget.style.color = "var(--accent)";
+                    }
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.borderColor = "var(--border)";
-                    e.currentTarget.style.color = "var(--text-secondary)";
+                    if (shareState === "idle") {
+                      e.currentTarget.style.borderColor = "var(--border)";
+                      e.currentTarget.style.color = "var(--text-secondary)";
+                    }
                   }}
                 >
                   <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M11 3a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM5 8a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM11 9a2 2 0 1 1 0 4 2 2 0 0 1 0-4z" />
                     <path d="M9 4.5l-4 3M9 11.5l-4-3" />
                   </svg>
-                  Share
+                  {shareState === "sharing" ? "Sharing..." : shareState === "copied" ? "Copied!" : shareState === "error" ? "Failed" : "Share"}
                 </motion.button>
               </>
             )}

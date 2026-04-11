@@ -21,12 +21,14 @@ interface TimelineCanvasProps {
   data: TimelineData;
   onExpandNode: (nodeId: number, query: string) => void;
   isExpanding: boolean;
+  readOnly?: boolean;
 }
 
 export function TimelineCanvas({
   data,
   onExpandNode,
   isExpanding,
+  readOnly = false,
 }: TimelineCanvasProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -690,8 +692,8 @@ export function TimelineCanvas({
                             </p>
                           </div>
                           <motion.button
-                            onClick={() => !suggestionAlreadyAdded && !isExpanding && handleAddLineage(msg.suggestion!.query)}
-                            disabled={suggestionAlreadyAdded || isExpanding}
+                            onClick={() => !readOnly && !suggestionAlreadyAdded && !isExpanding && handleAddLineage(msg.suggestion!.query)}
+                            disabled={readOnly || suggestionAlreadyAdded || isExpanding}
                             whileHover={!suggestionAlreadyAdded && !isExpanding ? { scale: 1.03 } : {}}
                             whileTap={!suggestionAlreadyAdded && !isExpanding ? { scale: 0.97 } : {}}
                             style={{
@@ -759,7 +761,7 @@ export function TimelineCanvas({
             </div>
 
             {/* Input bar */}
-            <div style={{ padding: "12px 16px", borderTop: "1px solid var(--border)", flexShrink: 0 }}>
+            {!readOnly && <div style={{ padding: "12px 16px", borderTop: "1px solid var(--border)", flexShrink: 0 }}>
               <form onSubmit={handleChatSubmit}>
                 <div
                   style={{
@@ -814,12 +816,12 @@ export function TimelineCanvas({
                   </button>
                 </div>
               </form>
-            </div>
+            </div>}
           </motion.div>
         )}
       </AnimatePresence>
 
-      {!activeNodeId && (
+      {!activeNodeId && !readOnly && (
         <GlobalChatPanel
           data={data}
           onHighlight={(ids) => setHighlightedPaperIds(new Set(ids))}
