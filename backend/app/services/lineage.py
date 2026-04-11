@@ -91,6 +91,9 @@ async def trace_lineage(
                 "detail": chosen_seed.get("detail", ""),
                 "authors": chosen_seed.get("authors", []),
                 "doi": chosen_seed.get("doi"),
+                "oaUrl": chosen_seed.get("oaUrl"),
+                "concepts": chosen_seed.get("concepts", []),
+                "type": chosen_seed.get("type"),
             }
         }
     }
@@ -210,6 +213,9 @@ async def expand_lineage(
             "detail": paper.get("detail", ""),
             "authors": paper.get("authors", []),
             "doi": paper.get("doi"),
+            "oaUrl": paper.get("oaUrl"),
+            "concepts": paper.get("concepts", []),
+            "type": paper.get("type"),
         })
         edges.append({
             "parentOpenalexId": paper_id_ranked,
@@ -257,6 +263,9 @@ def _graph_paper(paper: dict, summary: str = "") -> dict:
         "detail": paper.get("detail", ""),
         "authors": paper.get("authors", []),
         "doi": paper.get("doi"),
+        "oaUrl": paper.get("oaUrl"),
+        "concepts": paper.get("concepts", []),
+        "type": paper.get("type"),
     }
 
 

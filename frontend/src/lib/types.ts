@@ -6,6 +6,9 @@ export interface GraphPaper {
   detail?: string;
   authors?: string[];
   doi?: string | null;
+  oaUrl?: string | null;
+  concepts?: string[];
+  type?: string | null;
 }
 
 export interface GraphEdge {
@@ -65,6 +68,9 @@ export interface Paper {
   detail?: string;
   authors?: string[];
   doi?: string | null;
+  oaUrl?: string | null;
+  concepts?: string[];
+  type?: string | null;
   arxivId?: string;
 }
 

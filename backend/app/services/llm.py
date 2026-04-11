@@ -122,17 +122,20 @@ Respond with a JSON array only, ordered oldest to newest:
             if not isinstance(item, dict):
                 continue
             idx = item.get("index")
-            if not isinstance(idx, int) or not (0 <= idx < len(candidates)):
+            if not isinstance(idx, int) or not (0 <= idx < len(papers)):
                 continue
-            candidate = candidates[idx]
+            original = papers[idx]
             results.append({
-                "openalexId": candidate["openalexId"],
-                "title": candidate["title"],
-                "year": candidate["year"],
+                "openalexId": original.get("openalexId"),
+                "title": original.get("title", ""),
+                "year": original.get("year"),
                 "summary": item.get("summary", ""),
-                "detail": candidate.get("detail", ""),
-                "authors": candidate["authors"],
-                "doi": candidate["doi"],
+                "detail": original.get("detail", ""),
+                "authors": original.get("authors", []),
+                "doi": original.get("doi"),
+                "oaUrl": original.get("oaUrl"),
+                "concepts": original.get("concepts", []),
+                "type": original.get("type"),
             })
         return results
 

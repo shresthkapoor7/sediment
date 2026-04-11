@@ -39,6 +39,9 @@ class GraphPaper(BaseModel):
     detail: str = ""
     authors: list[str] = Field(default_factory=list)
     doi: Optional[str] = None
+    oaUrl: Optional[str] = None
+    concepts: list[str] = Field(default_factory=list)
+    type: Optional[str] = None
 
 
 class GraphEdge(BaseModel):

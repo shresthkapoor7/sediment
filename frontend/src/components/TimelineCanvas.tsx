@@ -569,19 +569,17 @@ export function TimelineCanvas({
                   fontFamily: "'DM Sans', sans-serif",
                   fontWeight: 500,
                   lineHeight: 1.35,
-                  display: "-webkit-box",
-                  WebkitLineClamp: 2,
-                  WebkitBoxOrient: "vertical",
                   overflow: "hidden",
-                  wordBreak: "break-word",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
                 }}
                 title={activeNode.paper.title}
               >
                 {activeNode.paper.title}
               </div>
-              {(activeNode.paper.doi || activeNode.paper.arxivId) && (
+              {(activeNode.paper.oaUrl || activeNode.paper.doi || activeNode.paper.arxivId) && (
                 <a
-                  href={activeNode.paper.doi ? activeNode.paper.doi : `https://arxiv.org/abs/${activeNode.paper.arxivId}`}
+                  href={activeNode.paper.oaUrl || (activeNode.paper.arxivId ? `https://arxiv.org/abs/${activeNode.paper.arxivId}` : activeNode.paper.doi!) }
                   target="_blank"
                   rel="noopener noreferrer"
                   style={{
@@ -608,18 +606,73 @@ export function TimelineCanvas({
                   padding: "14px 16px",
                   marginBottom: 20,
                   borderLeft: "3px solid var(--border)",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 10,
                 }}
               >
-                <MarkdownContent style={{ fontSize: 13, color: "var(--text-primary)", lineHeight: 1.6, fontFamily: "'DM Sans', sans-serif", fontStyle: "italic", marginBottom: activeNode.paper.detail ? 10 : 0 }}>
-                  {activeNode.paper.summary}
-                </MarkdownContent>
-                {activeNode.paper.detail && (
-                  <MarkdownContent style={{ fontSize: 12.5, color: "var(--text-secondary)", lineHeight: 1.7, fontFamily: "'DM Sans', sans-serif" }}>
-                    {activeNode.paper.detail}
-                  </MarkdownContent>
+                {/* Type badge */}
+                {activeNode.paper.type && (
+                  <span style={{
+                    alignSelf: "flex-start",
+                    fontSize: 10,
+                    fontFamily: "'JetBrains Mono', monospace",
+                    letterSpacing: "0.06em",
+                    textTransform: "uppercase",
+                    color: "var(--accent)",
+                    background: "var(--accent-soft)",
+                    border: "1px solid var(--accent)",
+                    borderRadius: 4,
+                    padding: "2px 6px",
+                  }}>
+                    {activeNode.paper.type.replace(/-/g, " ")}
+                  </span>
                 )}
+
+                {/* AI Summary */}
+                <div>
+                  <p style={{ fontSize: 10, color: "var(--text-tertiary)", fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 5 }}>
+                    AI Summary
+                  </p>
+                  <MarkdownContent style={{ fontSize: 13, color: "var(--text-primary)", lineHeight: 1.6, fontFamily: "'DM Sans', sans-serif", fontStyle: "italic" }}>
+                    {activeNode.paper.summary}
+                  </MarkdownContent>
+                </div>
+
+                {/* Abstract */}
+                {activeNode.paper.detail && (
+                  <div>
+                    <p style={{ fontSize: 10, color: "var(--text-tertiary)", fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 5 }}>
+                      Abstract
+                    </p>
+                    <MarkdownContent style={{ fontSize: 12.5, color: "var(--text-secondary)", lineHeight: 1.7, fontFamily: "'DM Sans', sans-serif" }}>
+                      {activeNode.paper.detail}
+                    </MarkdownContent>
+                  </div>
+                )}
+
+                {/* Concepts */}
+                {activeNode.paper.concepts && activeNode.paper.concepts.length > 0 && (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+                    {activeNode.paper.concepts.map((c) => (
+                      <span key={c} style={{
+                        fontSize: 10,
+                        fontFamily: "'DM Sans', sans-serif",
+                        color: "var(--text-tertiary)",
+                        background: "var(--bg-primary)",
+                        border: "1px solid var(--border)",
+                        borderRadius: 4,
+                        padding: "2px 6px",
+                      }}>
+                        {c}
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                {/* Authors */}
                 {activeNode.paper.authors && activeNode.paper.authors.length > 0 && (
-                  <p style={{ fontSize: 11, color: "var(--text-tertiary)", fontFamily: "'DM Sans', sans-serif", marginTop: 10 }}>
+                  <p style={{ fontSize: 11, color: "var(--text-tertiary)", fontFamily: "'DM Sans', sans-serif" }}>
                     {activeNode.paper.authors.join(", ")}
                   </p>
                 )}
