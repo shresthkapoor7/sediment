@@ -56,3 +56,4 @@ logs/
 # Misc
 .vercel
 *.pem
+.mcp.json
