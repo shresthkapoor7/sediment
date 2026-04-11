@@ -1,10 +1,15 @@
+import secrets
+
 from fastapi import APIRouter, HTTPException, Query
 
+from ..config import settings as app_settings
 from ..db.supabase import SupabaseAPIError, SupabaseClient, SupabaseConfigError
 from ..models import (
     GraphListItem,
     GraphRecord,
     SaveGraphRequest,
+    SharedGraphRecord,
+    ShareGraphResponse,
     UpdateGraphRequest,
     UserRecord,
     UserUpsertRequest,
@@ -103,6 +108,60 @@ async def update_graph(graph_id: str, req: UpdateGraphRequest):
         raise HTTPException(status_code=404, detail="graph not found")
 
     return to_graph_record(row)
+
+
+@router.post("/graphs/{graph_id}/share", response_model=ShareGraphResponse)
+async def share_graph(graph_id: str, userId: str = Query(...)):
+    if not userId.strip():
+        raise HTTPException(status_code=400, detail="userId required")
+
+    try:
+        db = get_db()
+        existing = await db.get_graph(graph_id, userId.strip())
+    except SupabaseAPIError as e:
+        raise HTTPException(status_code=502, detail=str(e)) from e
+
+    if not existing:
+        raise HTTPException(status_code=404, detail="graph not found")
+
+    share_id = existing.get("share_id") or secrets.token_urlsafe(6)
+
+    if not existing.get("share_id"):
+        try:
+            updated = await db.share_graph(graph_id, userId.strip(), share_id)
+        except SupabaseAPIError as e:
+            raise HTTPException(status_code=502, detail=str(e)) from e
+
+        if not updated or updated.get("share_id") != share_id:
+            raise HTTPException(status_code=502, detail="failed to persist share link")
+
+    app_url = getattr(app_settings, "app_url", "").rstrip("/")
+    share_url = f"{app_url}/s/{share_id}" if app_url else f"/s/{share_id}"
+
+    return ShareGraphResponse(shareId=share_id, shareUrl=share_url)
+
+
+@router.get("/share/{share_id}", response_model=SharedGraphRecord)
+async def get_shared_graph(share_id: str):
+    try:
+        row = await get_db().get_graph_by_share_id(share_id)
+    except SupabaseAPIError as e:
+        raise HTTPException(status_code=502, detail=str(e)) from e
+
+    if not row:
+        raise HTTPException(status_code=404, detail="shared graph not found")
+
+    return SharedGraphRecord(
+        id=row["id"],
+        query=row["query"],
+        data=row["data"],
+        metadata=row.get("metadata") or {},
+        seedPaperId=row.get("seed_paper_id"),
+        isPublic=row.get("is_public", True),
+        shareId=row.get("share_id"),
+        createdAt=row["created_at"],
+        updatedAt=row["updated_at"],
+    )
 
 
 @router.get("/graphs", response_model=list[GraphListItem])

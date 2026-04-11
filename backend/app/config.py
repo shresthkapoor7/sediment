@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     app_version: str = "0.1.0"
     supabase_url: str = ""
     supabase_service_role_key: SecretStr = SecretStr("")
+    app_url: str = ""
 
     model_config = {"env_file": str(_ENV_FILE), "extra": "ignore"}
 

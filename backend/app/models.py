@@ -152,3 +152,20 @@ class GraphListItem(BaseModel):
     metadata: SavedGraphMetadata = Field(default_factory=SavedGraphMetadata)
     createdAt: str
     updatedAt: str
+
+
+class ShareGraphResponse(BaseModel):
+    shareId: str
+    shareUrl: str
+
+
+class SharedGraphRecord(BaseModel):
+    id: str
+    query: str
+    data: dict[str, Any]
+    metadata: SavedGraphMetadata = Field(default_factory=SavedGraphMetadata)
+    seedPaperId: Optional[str] = None
+    isPublic: bool = True
+    shareId: Optional[str] = None
+    createdAt: str
+    updatedAt: str
