@@ -11,6 +11,7 @@ ROADMAP.md
 frontend/.next/
 frontend/out/
 frontend/build/
+frontend/.next/dev/
 
 # Python
 __pycache__/

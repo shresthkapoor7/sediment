@@ -94,7 +94,7 @@ class SupabaseClient:
     async def get_graph_by_share_id(self, share_id: str) -> dict[str, Any] | None:
         query = (
             "/rest/v1/graphs"
-            "?select=id,user_id,query,data,metadata,seed_paper_id,is_public,share_id,created_at,updated_at"
+            "?select=id,query,data,metadata,seed_paper_id,is_public,share_id,created_at,updated_at"
             f"&share_id=eq.{quote(share_id, safe='')}"
             "&is_public=eq.true"
             "&limit=1"

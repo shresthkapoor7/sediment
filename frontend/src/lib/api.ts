@@ -221,10 +221,10 @@ export async function shareGraph(graphId: string, userId: string): Promise<{ sha
   }
 
   const data = await response.json();
-  return {
-    shareId: data.shareId,
-    shareUrl: `${appUrl}/s/${data.shareId}`,
-  };
+  const shareUrl = data.shareUrl?.startsWith("/")
+    ? `${appUrl}${data.shareUrl}`
+    : data.shareUrl || `${appUrl}/s/${data.shareId}`;
+  return { shareId: data.shareId, shareUrl };
 }
 
 export async function fetchSharedGraph(shareId: string): Promise<SavedGraph> {

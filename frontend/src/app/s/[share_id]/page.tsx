@@ -18,7 +18,10 @@ export default function SharedGraphPage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    if (!shareId) return;
+    if (!shareId) {
+      setIsLoading(false);
+      return;
+    }
 
     void fetchSharedGraph(shareId)
       .then((graph) => {

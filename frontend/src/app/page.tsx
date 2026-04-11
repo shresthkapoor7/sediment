@@ -301,7 +301,7 @@ export default function Home() {
   }, [isExpanding, runSearch, searchedQuery, selectedSeedOpenalexId]);
 
   const handleShare = useCallback(async () => {
-    if (!graphId || !userId || shareState === "sharing") return;
+    if (!graphId || !userId || shareState === "sharing" || saveState === "saving") return;
 
     if (shareStateTimeoutRef.current) {
       window.clearTimeout(shareStateTimeoutRef.current);

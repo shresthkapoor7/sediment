@@ -8,6 +8,7 @@ from ..models import (
     GraphListItem,
     GraphRecord,
     SaveGraphRequest,
+    SharedGraphRecord,
     ShareGraphResponse,
     UpdateGraphRequest,
     UserRecord,
@@ -127,9 +128,12 @@ async def share_graph(graph_id: str, userId: str = Query(...)):
 
     if not existing.get("share_id"):
         try:
-            await db.share_graph(graph_id, userId.strip(), share_id)
+            updated = await db.share_graph(graph_id, userId.strip(), share_id)
         except SupabaseAPIError as e:
             raise HTTPException(status_code=502, detail=str(e)) from e
+
+        if not updated or updated.get("share_id") != share_id:
+            raise HTTPException(status_code=502, detail="failed to persist share link")
 
     app_url = getattr(app_settings, "app_url", "").rstrip("/")
     share_url = f"{app_url}/s/{share_id}" if app_url else f"/s/{share_id}"
@@ -137,7 +141,7 @@ async def share_graph(graph_id: str, userId: str = Query(...)):
     return ShareGraphResponse(shareId=share_id, shareUrl=share_url)
 
 
-@router.get("/share/{share_id}", response_model=GraphRecord)
+@router.get("/share/{share_id}", response_model=SharedGraphRecord)
 async def get_shared_graph(share_id: str):
     try:
         row = await get_db().get_graph_by_share_id(share_id)
@@ -147,7 +151,17 @@ async def get_shared_graph(share_id: str):
     if not row:
         raise HTTPException(status_code=404, detail="shared graph not found")
 
-    return to_graph_record(row)
+    return SharedGraphRecord(
+        id=row["id"],
+        query=row["query"],
+        data=row["data"],
+        metadata=row.get("metadata") or {},
+        seedPaperId=row.get("seed_paper_id"),
+        isPublic=row.get("is_public", True),
+        shareId=row.get("share_id"),
+        createdAt=row["created_at"],
+        updatedAt=row["updated_at"],
+    )
 
 
 @router.get("/graphs", response_model=list[GraphListItem])

@@ -694,8 +694,8 @@ export function TimelineCanvas({
                           <motion.button
                             onClick={() => !readOnly && !suggestionAlreadyAdded && !isExpanding && handleAddLineage(msg.suggestion!.query)}
                             disabled={readOnly || suggestionAlreadyAdded || isExpanding}
-                            whileHover={!suggestionAlreadyAdded && !isExpanding ? { scale: 1.03 } : {}}
-                            whileTap={!suggestionAlreadyAdded && !isExpanding ? { scale: 0.97 } : {}}
+                            whileHover={!readOnly && !suggestionAlreadyAdded && !isExpanding ? { scale: 1.03 } : {}}
+                            whileTap={!readOnly && !suggestionAlreadyAdded && !isExpanding ? { scale: 0.97 } : {}}
                             style={{
                               flexShrink: 0,
                               background: suggestionAlreadyAdded ? "var(--bg-tertiary)" : "var(--accent)",
@@ -705,7 +705,8 @@ export function TimelineCanvas({
                               padding: "7px 13px",
                               fontSize: 12,
                               fontWeight: 500,
-                              cursor: suggestionAlreadyAdded ? "default" : "pointer",
+                              cursor: readOnly || suggestionAlreadyAdded ? "default" : "pointer",
+                              pointerEvents: readOnly ? "none" : "auto",
                               fontFamily: "'DM Sans', sans-serif",
                               display: "flex",
                               alignItems: "center",
