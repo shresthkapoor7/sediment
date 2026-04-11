@@ -145,7 +145,8 @@ class OpenAlexClient:
         primary_topic = (work.get("primary_topic") or {}).get("display_name")
 
         oa_location = work.get("best_oa_location") or {}
-        oa_url = oa_location.get("pdf_url") or oa_location.get("landing_page_url") or None
+        _raw_oa_url = oa_location.get("pdf_url") or oa_location.get("landing_page_url") or None
+        oa_url = _raw_oa_url if _raw_oa_url and _raw_oa_url.startswith(("http://", "https://")) else None
 
         concepts = [
             t["display_name"]
@@ -184,12 +185,14 @@ class OpenAlexClient:
             "filter": f"display_name.search:{query}",
             "per-page": str(limit),
             "select": SEARCH_SELECT,
+            "sort": "cited_by_count:desc",
         }
         broad_params = {
             **self._base_params(),
             "filter": f"title_and_abstract.search:{query}",
             "per-page": str(limit),
             "select": SEARCH_SELECT,
+            "sort": "cited_by_count:desc",
         }
 
         title_data, broad_data = await asyncio.gather(
@@ -247,8 +250,7 @@ class OpenAlexClient:
             if normalized:
                 results.append(normalized)
 
-        order = {paper_id: i for i, paper_id in enumerate(unique_ids)}
-        results.sort(key=lambda item: order.get(item["openalexId"], 10**9))
+        results.sort(key=lambda item: item.get("citedByCount", 0), reverse=True)
         return results
 
     async def fetch_references(self, openalex_id: str, limit: int = 25) -> list[dict]:

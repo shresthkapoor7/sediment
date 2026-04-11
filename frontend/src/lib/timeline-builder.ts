@@ -399,7 +399,14 @@ function normalizeTitle(title: string): string {
 function preferPaper(current: GraphPaper, candidate: GraphPaper): GraphPaper {
   const currentScore = paperQualityScore(current);
   const candidateScore = paperQualityScore(candidate);
-  return candidateScore > currentScore ? candidate : current;
+  const winner = candidateScore > currentScore ? candidate : current;
+  const loser = winner === candidate ? current : candidate;
+  return {
+    ...winner,
+    oaUrl: winner.oaUrl ?? loser.oaUrl,
+    concepts: (winner.concepts?.length ?? 0) > 0 ? winner.concepts : loser.concepts,
+    type: winner.type ?? loser.type,
+  };
 }
 
 function paperQualityScore(paper: GraphPaper): number {
