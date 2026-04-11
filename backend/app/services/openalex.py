@@ -19,6 +19,9 @@ SEARCH_SELECT = ",".join([
     "doi",
     "cited_by_count",
     "primary_topic",
+    "topics",
+    "type",
+    "best_oa_location",
     "abstract_inverted_index",
     "referenced_works",
 ])
@@ -81,17 +84,8 @@ def _clean_abstract(text: str) -> str:
     return text.strip()
 
 
-def _build_detail(abstract: str, primary_topic: Optional[str], cited_by_count: int) -> str:
-    abstract = _clean_abstract(abstract.strip())
-    if abstract:
-        return abstract[:560]
-
-    parts = []
-    if primary_topic:
-        parts.append(f"Primary topic: {primary_topic}.")
-    if cited_by_count:
-        parts.append(f"Cited by {cited_by_count} works in OpenAlex.")
-    return " ".join(parts)
+def _build_detail(abstract: str) -> str:
+    return _clean_abstract(abstract.strip())
 
 
 async def _get(session: aiohttp.ClientSession, url: str, params: dict) -> dict:
@@ -150,11 +144,23 @@ class OpenAlexClient:
         abstract = _abstract_from_inverted_index(work.get("abstract_inverted_index"))
         primary_topic = (work.get("primary_topic") or {}).get("display_name")
 
+        oa_location = work.get("best_oa_location")
+        oa_location = oa_location if isinstance(oa_location, dict) else {}
+        _raw_oa_url = oa_location.get("pdf_url") or oa_location.get("landing_page_url") or None
+        oa_url = _raw_oa_url if _raw_oa_url and _raw_oa_url.startswith(("http://", "https://")) else None
+
+        topics = work.get("topics")
+        concepts = [
+            t["display_name"]
+            for t in (topics if isinstance(topics, list) else [])
+            if t.get("display_name")
+        ][:5]
+
         return {
             "openalexId": openalex_id,
             "title": title,
             "abstract": abstract,
-            "detail": _build_detail(abstract, primary_topic, work.get("cited_by_count", 0)),
+            "detail": _build_detail(abstract),
             "year": work.get("publication_year"),
             "authors": [
                 authorship.get("author", {}).get("display_name", "")
@@ -162,6 +168,9 @@ class OpenAlexClient:
                 if authorship.get("author", {}).get("display_name")
             ],
             "doi": work.get("doi"),
+            "oaUrl": oa_url,
+            "concepts": concepts,
+            "type": work.get("type"),
             "citedByCount": work.get("cited_by_count", 0),
             "primaryTopic": primary_topic,
             "referencedWorks": [
@@ -178,12 +187,14 @@ class OpenAlexClient:
             "filter": f"display_name.search:{query}",
             "per-page": str(limit),
             "select": SEARCH_SELECT,
+            "sort": "cited_by_count:desc",
         }
         broad_params = {
             **self._base_params(),
             "filter": f"title_and_abstract.search:{query}",
             "per-page": str(limit),
             "select": SEARCH_SELECT,
+            "sort": "cited_by_count:desc",
         }
 
         title_data, broad_data = await asyncio.gather(
@@ -241,8 +252,7 @@ class OpenAlexClient:
             if normalized:
                 results.append(normalized)
 
-        order = {paper_id: i for i, paper_id in enumerate(unique_ids)}
-        results.sort(key=lambda item: order.get(item["openalexId"], 10**9))
+        results.sort(key=lambda item: item.get("citedByCount") or 0, reverse=True)
         return results
 
     async def fetch_references(self, openalex_id: str, limit: int = 25) -> list[dict]:

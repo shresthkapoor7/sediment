@@ -82,17 +82,7 @@ async def trace_lineage(
 
     seed_id = chosen_seed["openalexId"]
     seen: dict[str, dict] = {
-        seed_id: {
-            "paper": {
-                "openalexId": seed_id,
-                "title": chosen_seed["title"],
-                "year": chosen_seed.get("year"),
-                "summary": "Seed paper selected for this query.",
-                "detail": chosen_seed.get("detail", ""),
-                "authors": chosen_seed.get("authors", []),
-                "doi": chosen_seed.get("doi"),
-            }
-        }
+        seed_id: {"paper": _graph_paper(chosen_seed, summary="Seed paper selected for this query.")}
     }
     edges: set[tuple[str, str]] = set()
 
@@ -202,15 +192,7 @@ async def expand_lineage(
         paper_id_ranked = paper.get("openalexId")
         if not paper_id_ranked:
             continue
-        papers.append({
-            "openalexId": paper_id_ranked,
-            "title": paper.get("title", ""),
-            "year": paper.get("year"),
-            "summary": paper.get("summary", ""),
-            "detail": paper.get("detail", ""),
-            "authors": paper.get("authors", []),
-            "doi": paper.get("doi"),
-        })
+        papers.append(_graph_paper(paper, summary=paper.get("summary", "")))
         edges.append({
             "parentOpenalexId": paper_id_ranked,
             "childOpenalexId": source_paper["openalexId"],
@@ -257,6 +239,9 @@ def _graph_paper(paper: dict, summary: str = "") -> dict:
         "detail": paper.get("detail", ""),
         "authors": paper.get("authors", []),
         "doi": paper.get("doi"),
+        "oaUrl": paper.get("oaUrl"),
+        "concepts": paper.get("concepts", []),
+        "type": paper.get("type"),
     }
 
 
