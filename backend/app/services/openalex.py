@@ -144,13 +144,15 @@ class OpenAlexClient:
         abstract = _abstract_from_inverted_index(work.get("abstract_inverted_index"))
         primary_topic = (work.get("primary_topic") or {}).get("display_name")
 
-        oa_location = work.get("best_oa_location") or {}
+        oa_location = work.get("best_oa_location")
+        oa_location = oa_location if isinstance(oa_location, dict) else {}
         _raw_oa_url = oa_location.get("pdf_url") or oa_location.get("landing_page_url") or None
         oa_url = _raw_oa_url if _raw_oa_url and _raw_oa_url.startswith(("http://", "https://")) else None
 
+        topics = work.get("topics")
         concepts = [
             t["display_name"]
-            for t in (work.get("topics") or [])
+            for t in (topics if isinstance(topics, list) else [])
             if t.get("display_name")
         ][:5]
 
@@ -250,7 +252,7 @@ class OpenAlexClient:
             if normalized:
                 results.append(normalized)
 
-        results.sort(key=lambda item: item.get("citedByCount", 0), reverse=True)
+        results.sort(key=lambda item: item.get("citedByCount") or 0, reverse=True)
         return results
 
     async def fetch_references(self, openalex_id: str, limit: int = 25) -> list[dict]:
