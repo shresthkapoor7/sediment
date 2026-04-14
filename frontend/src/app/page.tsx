@@ -364,8 +364,8 @@ export default function Home() {
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          padding: "14px 24px",
-          borderBottom: "1px solid var(--border)",
+          padding: "0.875rem 1.5rem",
+          borderBottom: "0.0625rem solid var(--border)",
           background: "var(--bg-primary)",
           zIndex: 50,
           flexShrink: 0,
@@ -376,7 +376,7 @@ export default function Home() {
           style={{
             display: "flex",
             alignItems: "center",
-            gap: 10,
+            gap: "0.625rem",
             background: "none",
             border: "none",
             cursor: "pointer",
@@ -400,7 +400,7 @@ export default function Home() {
           <span
             style={{
               fontFamily: "'Instrument Serif', Georgia, serif",
-              fontSize: 18,
+              fontSize: "1.125rem",
               fontWeight: 400,
               letterSpacing: "-0.01em",
             }}
@@ -411,13 +411,13 @@ export default function Home() {
 
         <AnimatePresence>
           {searchedQuery && (
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.625rem" }}>
               <motion.span
                 initial={{ opacity: 0, y: -4 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -4 }}
                 style={{
-                  fontSize: 12,
+                  fontSize: "0.75rem",
                   color: "var(--text-tertiary)",
                   fontFamily: "'JetBrains Mono', monospace",
                   letterSpacing: "0.02em",
@@ -434,12 +434,12 @@ export default function Home() {
                   style={{
                     display: "inline-flex",
                     alignItems: "center",
-                    gap: 6,
-                    padding: "4px 8px",
+                    gap: "0.375rem",
+                    padding: "0.25rem 0.5rem",
                     borderRadius: 999,
-                    border: "1px solid var(--border)",
+                    border: "0.0625rem solid var(--border)",
                     background: "var(--bg-secondary)",
-                    fontSize: 11,
+                    fontSize: "0.6875rem",
                     color:
                       saveState === "error"
                         ? "#d16f5b"
@@ -452,8 +452,8 @@ export default function Home() {
                 >
                   <span
                     style={{
-                      width: 6,
-                      height: 6,
+                      width: "0.375rem",
+                      height: "0.375rem",
                       borderRadius: 999,
                       background:
                         saveState === "error"
@@ -476,7 +476,7 @@ export default function Home() {
           )}
         </AnimatePresence>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
           {!timelineData && (
             <motion.button
               initial={{ opacity: 0, y: -4 }}
@@ -486,15 +486,15 @@ export default function Home() {
               style={{
                 display: "flex",
                 alignItems: "center",
-                gap: 6,
-                padding: "0 12px",
-                height: 32,
+                gap: "0.375rem",
+                padding: "0 0.75rem",
+                height: "2rem",
                 boxSizing: "border-box",
                 background: historyOpen ? "var(--accent-soft)" : "none",
-                border: `1px solid ${historyOpen ? "var(--accent)" : "var(--border)"}`,
-                borderRadius: 7,
+                border: `0.0625rem solid ${historyOpen ? "var(--accent)" : "var(--border)"}`,
+                borderRadius: "0.4375rem",
                 color: historyOpen ? "var(--accent)" : "var(--text-secondary)",
-                fontSize: 12,
+                fontSize: "0.75rem",
                 fontFamily: "'DM Sans', sans-serif",
                 fontWeight: 500,
                 cursor: "pointer",
@@ -514,33 +514,33 @@ export default function Home() {
             style={{
               display: "flex",
               alignItems: "center",
-              gap: 7,
-              padding: "0 10px",
-              height: 32,
-              border: "1px solid var(--border)",
-              borderRadius: 7,
+              gap: "0.4375rem",
+              padding: "0 0.625rem",
+              height: "2rem",
+              border: "0.0625rem solid var(--border)",
+              borderRadius: "0.4375rem",
               background: "var(--bg-secondary)",
               boxSizing: "border-box",
             }}
           >
             {/* Battery segments */}
-            <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.125rem" }}>
               {Array.from({ length: 10 }).map((_, i) => (
                 <div
                   key={i}
                   style={{
-                    width: 4,
-                    height: 10,
-                    borderRadius: 1.5,
+                    width: "0.25rem",
+                    height: "0.625rem",
+                    borderRadius: "0.125rem",
                     background: i < 10 ? "var(--accent)" : "var(--border)",
                     opacity: i < 10 ? 1 - i * 0.05 : 1,
                   }}
                 />
               ))}
               {/* Battery tip */}
-              <div style={{ width: 2, height: 5, borderRadius: "0 1px 1px 0", background: "var(--border)", marginLeft: 1 }} />
+              <div style={{ width: "0.125rem", height: "0.3125rem", borderRadius: "0 0.0625rem 0.0625rem 0", background: "var(--border)", marginLeft: "0.0625rem" }} />
             </div>
-            <span style={{ fontSize: 11, color: "var(--text-tertiary)", fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.02em" }}>
+            <span style={{ fontSize: "0.6875rem", color: "var(--text-tertiary)", fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.02em" }}>
               10
             </span>
           </div>
@@ -560,15 +560,15 @@ export default function Home() {
               style={{
                 display: "flex",
                 alignItems: "center",
-                gap: 6,
-                padding: "0 12px",
-                height: 32,
+                gap: "0.375rem",
+                padding: "0 0.75rem",
+                height: "2rem",
                 boxSizing: "border-box",
                 background: "none",
-                border: "1px solid var(--border)",
-                borderRadius: 7,
+                border: "0.0625rem solid var(--border)",
+                borderRadius: "0.4375rem",
                 color: "var(--text-secondary)",
-                fontSize: 12,
+                fontSize: "0.75rem",
                 fontFamily: "'DM Sans', sans-serif",
                 fontWeight: 500,
                 cursor: "pointer",
@@ -600,21 +600,21 @@ export default function Home() {
                   transition={{ duration: 0.15, ease: "easeOut" }}
                   style={{
                     position: "absolute",
-                    top: 40,
+                    top: "2.5rem",
                     right: 0,
-                    width: 240,
-                    padding: "14px 14px 12px",
+                    width: "15rem",
+                    padding: "0.875rem 0.875rem 0.75rem",
                     background: "var(--bg-secondary)",
-                    border: "1px solid var(--border-hover)",
-                    borderRadius: 10,
-                    boxShadow: "0 8px 24px rgba(0,0,0,0.10), 0 2px 6px rgba(0,0,0,0.06)",
+                    border: "0.0625rem solid var(--border-hover)",
+                    borderRadius: "0.625rem",
+                    boxShadow: "0 0.5rem 1.5rem rgba(0,0,0,0.10), 0 0.125rem 0.375rem rgba(0,0,0,0.06)",
                     zIndex: 100,
                     display: "flex",
                     flexDirection: "column",
-                    gap: 10,
+                    gap: "0.625rem",
                   }}
                 >
-                  <p style={{ fontSize: 10, color: "var(--text-tertiary)", fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.06em", textTransform: "uppercase" }}>
+                  <p style={{ fontSize: "0.625rem", color: "var(--text-tertiary)", fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.06em", textTransform: "uppercase" }}>
                     traversal settings
                   </p>
                   {[
@@ -623,19 +623,19 @@ export default function Home() {
                     { key: "referenceLimit", label: "Reference limit", min: 5, max: 50 },
                     { key: "topN", label: "Top N", min: 1, max: 8 },
                   ].map((item) => (
-                    <label key={item.key} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                    <label key={item.key} style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
                       <div
                         style={{
                           display: "flex",
                           justifyContent: "space-between",
                           alignItems: "baseline",
-                          fontSize: 11.5,
+                          fontSize: "0.71875rem",
                           color: "var(--text-secondary)",
                           fontFamily: "'DM Sans', sans-serif",
                         }}
                       >
                         <span style={{ fontWeight: 500 }}>{item.label}</span>
-                        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "var(--accent)" }}>
+                        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: "0.6875rem", color: "var(--accent)" }}>
                           {draftSettings[item.key as keyof TraversalSettings]}
                         </span>
                       </div>
@@ -644,11 +644,11 @@ export default function Home() {
                         const pct = ((val - item.min) / (item.max - item.min)) * 100;
                         const thumbSize = 13;
                         return (
-                          <div style={{ position: "relative", height: 20, display: "flex", alignItems: "center" }}>
+                          <div style={{ position: "relative", height: "1.25rem", display: "flex", alignItems: "center" }}>
                             {/* Track background */}
-                            <div style={{ position: "absolute", left: 0, right: 0, height: 3, top: "50%", transform: "translateY(-50%)", borderRadius: 2, background: "var(--bg-tertiary)" }} />
+                            <div style={{ position: "absolute", left: 0, right: 0, height: "0.1875rem", top: "50%", transform: "translateY(-50%)", borderRadius: "0.125rem", background: "var(--bg-tertiary)" }} />
                             {/* Filled portion */}
-                            <div style={{ position: "absolute", left: 0, height: 3, top: "50%", transform: "translateY(-50%)", borderRadius: 2, background: "var(--accent)", width: `${pct}%` }} />
+                            <div style={{ position: "absolute", left: 0, height: "0.1875rem", top: "50%", transform: "translateY(-50%)", borderRadius: "0.125rem", background: "var(--accent)", width: `${pct}%` }} />
                             {/* Thumb */}
                             <div style={{
                               position: "absolute",
@@ -658,7 +658,7 @@ export default function Home() {
                               transform: "translateY(-50%)",
                               borderRadius: "50%",
                               background: "var(--accent)",
-                              boxShadow: "0 1px 4px rgba(0,0,0,0.3)",
+                              boxShadow: "0 0.0625rem 0.25rem rgba(0,0,0,0.3)",
                               pointerEvents: "none",
                               left: `calc(${pct}% - ${pct / 100 * thumbSize}px)`,
                             }} />
@@ -679,18 +679,18 @@ export default function Home() {
                       })()}
                     </label>
                   ))}
-                  <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 2, borderTop: "1px solid var(--border)", paddingTop: 10 }}>
+                  <div style={{ display: "flex", gap: "0.375rem", alignItems: "center", marginTop: "0.125rem", borderTop: "0.0625rem solid var(--border)", paddingTop: "0.625rem" }}>
                     <button
                       onClick={() => setDraftSettings(DEFAULT_SETTINGS)}
                       style={{
-                        height: 26,
-                        padding: "0 8px",
-                        borderRadius: 6,
+                        height: "1.625rem",
+                        padding: "0 0.5rem",
+                        borderRadius: "0.375rem",
                         border: "none",
                         background: "none",
                         color: "var(--text-tertiary)",
                         cursor: "pointer",
-                        fontSize: 11,
+                        fontSize: "0.6875rem",
                         fontFamily: "'DM Sans', sans-serif",
                         fontWeight: 500,
                         letterSpacing: "0.01em",
@@ -713,14 +713,14 @@ export default function Home() {
                         setSettingsOpen(false);
                       }}
                       style={{
-                        height: 26,
-                        padding: "0 10px",
-                        borderRadius: 6,
-                        border: "1px solid var(--accent)",
+                        height: "1.625rem",
+                        padding: "0 0.625rem",
+                        borderRadius: "0.375rem",
+                        border: "0.0625rem solid var(--accent)",
                         background: "var(--accent-soft)",
                         color: "var(--accent)",
                         cursor: isExpanding ? "default" : "pointer",
-                        fontSize: 11,
+                        fontSize: "0.6875rem",
                         fontFamily: "'DM Sans', sans-serif",
                         fontWeight: 600,
                         letterSpacing: "0.01em",
@@ -746,15 +746,15 @@ export default function Home() {
                   style={{
                     display: "flex",
                     alignItems: "center",
-                    gap: 6,
-                    padding: "0 12px",
-                    height: 32,
+                    gap: "0.375rem",
+                    padding: "0 0.75rem",
+                    height: "2rem",
                     boxSizing: "border-box",
                     background: "none",
-                    border: "1px solid var(--border)",
-                    borderRadius: 7,
+                    border: "0.0625rem solid var(--border)",
+                    borderRadius: "0.4375rem",
                     color: "var(--text-secondary)",
-                    fontSize: 12,
+                    fontSize: "0.75rem",
                     fontFamily: "'DM Sans', sans-serif",
                     fontWeight: 500,
                     cursor: "pointer",
@@ -786,15 +786,15 @@ export default function Home() {
                   style={{
                     display: "flex",
                     alignItems: "center",
-                    gap: 6,
-                    padding: "0 12px",
-                    height: 32,
+                    gap: "0.375rem",
+                    padding: "0 0.75rem",
+                    height: "2rem",
                     boxSizing: "border-box",
                     background: shareState === "copied" ? "var(--accent-soft)" : "none",
-                    border: `1px solid ${shareState === "copied" ? "var(--accent)" : shareState === "error" ? "#d16f5b" : "var(--border)"}`,
-                    borderRadius: 7,
+                    border: `0.0625rem solid ${shareState === "copied" ? "var(--accent)" : shareState === "error" ? "#d16f5b" : "var(--border)"}`,
+                    borderRadius: "0.4375rem",
                     color: shareState === "copied" ? "var(--accent)" : shareState === "error" ? "#d16f5b" : "var(--text-secondary)",
-                    fontSize: 12,
+                    fontSize: "0.75rem",
                     fontFamily: "'DM Sans', sans-serif",
                     fontWeight: 500,
                     cursor: shareState === "sharing" ? "default" : "pointer",
@@ -855,16 +855,16 @@ export default function Home() {
                 transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
                 style={{
                   position: "absolute",
-                  top: 14,
-                  right: 14,
-                  bottom: 14,
-                  width: 340,
-                  maxWidth: "calc(100vw - 28px)",
-                  borderRadius: 20,
-                  border: "1px solid var(--border-hover)",
+                  top: "0.875rem",
+                  right: "0.875rem",
+                  bottom: "0.875rem",
+                  width: "21.25rem",
+                  maxWidth: "calc(100vw - 1.75rem)",
+                  borderRadius: "1.25rem",
+                  border: "0.0625rem solid var(--border-hover)",
                   background: "color-mix(in srgb, var(--bg-primary) 86%, #1e1510 14%)",
-                  boxShadow: "0 18px 48px rgba(0,0,0,0.22)",
-                  backdropFilter: "blur(18px)",
+                  boxShadow: "0 1.125rem 3rem rgba(0,0,0,0.22)",
+                  backdropFilter: "blur(1.125rem)",
                   zIndex: 30,
                   display: "flex",
                   flexDirection: "column",
@@ -876,26 +876,26 @@ export default function Home() {
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "space-between",
-                    padding: "18px 18px 14px",
-                    borderBottom: "1px solid var(--border)",
+                    padding: "1.125rem 1.125rem 0.875rem",
+                    borderBottom: "0.0625rem solid var(--border)",
                   }}
                 >
                   <div>
                     <p
                       style={{
-                        fontSize: 11,
+                        fontSize: "0.6875rem",
                         color: "var(--accent)",
                         fontFamily: "'JetBrains Mono', monospace",
                         letterSpacing: "0.08em",
                         textTransform: "uppercase",
-                        marginBottom: 6,
+                        marginBottom: "0.375rem",
                       }}
                     >
                       Saved graphs
                     </p>
                     <h2
                       style={{
-                        fontSize: 22,
+                        fontSize: "1.375rem",
                         lineHeight: 1.1,
                         color: "var(--text-primary)",
                         fontFamily: "'Instrument Serif', Georgia, serif",
@@ -909,14 +909,14 @@ export default function Home() {
                   <button
                     onClick={() => setHistoryOpen(false)}
                     style={{
-                      width: 32,
-                      height: 32,
-                      borderRadius: 8,
-                      border: "1px solid var(--border)",
+                      width: "2rem",
+                      height: "2rem",
+                      borderRadius: "0.5rem",
+                      border: "0.0625rem solid var(--border)",
                       background: "none",
                       color: "var(--text-tertiary)",
                       cursor: "pointer",
-                      fontSize: 18,
+                      fontSize: "1.125rem",
                       lineHeight: 1,
                     }}
                     aria-label="Close history"
@@ -927,22 +927,22 @@ export default function Home() {
 
                 <div
                   style={{
-                    padding: 14,
+                    padding: "0.875rem",
                     overflowY: "auto",
                     display: "flex",
                     flexDirection: "column",
-                    gap: 10,
+                    gap: "0.625rem",
                   }}
                 >
                   {isHistoryLoading ? (
                     <div
                       style={{
-                        padding: "18px 16px",
-                        borderRadius: 16,
-                        border: "1px solid var(--border)",
+                        padding: "1.125rem 1rem",
+                        borderRadius: "1rem",
+                        border: "0.0625rem solid var(--border)",
                         background: "var(--bg-secondary)",
                         color: "var(--text-tertiary)",
-                        fontSize: 13,
+                        fontSize: "0.8125rem",
                       }}
                     >
                       Loading saved graphs...
@@ -950,12 +950,12 @@ export default function Home() {
                   ) : savedGraphs.length === 0 ? (
                     <div
                       style={{
-                        padding: "18px 16px",
-                        borderRadius: 16,
-                        border: "1px solid var(--border)",
+                        padding: "1.125rem 1rem",
+                        borderRadius: "1rem",
+                        border: "0.0625rem solid var(--border)",
                         background: "var(--bg-secondary)",
                         color: "var(--text-secondary)",
-                        fontSize: 13,
+                        fontSize: "0.8125rem",
                         lineHeight: 1.6,
                       }}
                     >
@@ -968,9 +968,9 @@ export default function Home() {
                         onClick={() => handleLoadSavedGraph(graph.id)}
                         style={{
                           textAlign: "left",
-                          padding: "14px 14px 13px",
-                          borderRadius: 16,
-                          border: "1px solid var(--border)",
+                          padding: "0.875rem 0.875rem 0.8125rem",
+                          borderRadius: "1rem",
+                          border: "0.0625rem solid var(--border)",
                           background: "var(--bg-secondary)",
                           color: "var(--text-primary)",
                           cursor: "pointer",
@@ -990,13 +990,13 @@ export default function Home() {
                             display: "flex",
                             alignItems: "center",
                             justifyContent: "space-between",
-                            gap: 12,
-                            marginBottom: 8,
+                            gap: "0.75rem",
+                            marginBottom: "0.5rem",
                           }}
                         >
                           <div
                             style={{
-                              fontSize: 14,
+                              fontSize: "0.875rem",
                               fontWeight: 600,
                               lineHeight: 1.35,
                             }}
@@ -1006,11 +1006,11 @@ export default function Home() {
                           <div
                             style={{
                               flexShrink: 0,
-                              padding: "3px 7px",
+                              padding: "0.1875rem 0.4375rem",
                               borderRadius: 999,
                               background: "var(--accent-soft)",
                               color: "var(--accent)",
-                              fontSize: 10,
+                              fontSize: "0.625rem",
                               fontFamily: "'JetBrains Mono', monospace",
                               letterSpacing: "0.04em",
                             }}
@@ -1020,7 +1020,7 @@ export default function Home() {
                         </div>
                         <div
                           style={{
-                            fontSize: 11,
+                            fontSize: "0.6875rem",
                             color: "var(--text-tertiary)",
                             fontFamily: "'JetBrains Mono', monospace",
                             letterSpacing: "0.02em",
@@ -1052,8 +1052,8 @@ export default function Home() {
                 flexDirection: "column",
                 alignItems: "center",
                 justifyContent: "center",
-                gap: 24,
-                padding: 24,
+                gap: "1.5rem",
+                padding: "1.5rem",
                 position: "relative",
               }}
             >
@@ -1064,12 +1064,12 @@ export default function Home() {
                   top: "30%",
                   left: "50%",
                   transform: "translate(-50%, -50%)",
-                  width: 600,
-                  height: 400,
+                  width: "37.5rem",
+                  height: "25rem",
                   borderRadius: "50%",
                   background:
                     "radial-gradient(ellipse, var(--accent-glow) 0%, transparent 70%)",
-                  filter: "blur(80px)",
+                  filter: "blur(5rem)",
                   pointerEvents: "none",
                 }}
               />
@@ -1088,12 +1088,12 @@ export default function Home() {
                   animate={{ opacity: 1 }}
                   transition={{ delay: 0.1, duration: 0.5 }}
                   style={{
-                    fontSize: 12,
+                    fontSize: "0.75rem",
                     fontFamily: "'JetBrains Mono', monospace",
                     color: "var(--accent)",
                     letterSpacing: "0.12em",
                     textTransform: "uppercase",
-                    marginBottom: 16,
+                    marginBottom: "1rem",
                   }}
                 >
                   Research lineage explorer
@@ -1101,11 +1101,11 @@ export default function Home() {
                 <h1
                   style={{
                     fontFamily: "'Instrument Serif', Georgia, serif",
-                    fontSize: 56,
+                    fontSize: "3.5rem",
                     fontWeight: 400,
                     letterSpacing: "-0.03em",
                     lineHeight: 1.05,
-                    marginBottom: 16,
+                    marginBottom: "1rem",
                     color: "var(--text-primary)",
                   }}
                 >
@@ -1115,9 +1115,9 @@ export default function Home() {
                 </h1>
                 <p
                   style={{
-                    fontSize: 16,
+                    fontSize: "1rem",
                     color: "var(--text-secondary)",
-                    maxWidth: 440,
+                    maxWidth: "27.5rem",
                     lineHeight: 1.6,
                     margin: "0 auto",
                   }}
@@ -1134,16 +1134,16 @@ export default function Home() {
                   initial={{ opacity: 0, y: 6 }}
                   animate={{ opacity: 1, y: 0 }}
                   style={{
-                    marginTop: 16,
-                    padding: "12px 14px",
-                    borderRadius: 12,
-                    border: "1px solid var(--border)",
+                    marginTop: "1rem",
+                    padding: "0.75rem 0.875rem",
+                    borderRadius: "0.75rem",
+                    border: "0.0625rem solid var(--border)",
                     background: "var(--bg-secondary)",
                     color: "var(--text-secondary)",
-                    maxWidth: 520,
+                    maxWidth: "32.5rem",
                     width: "100%",
                     textAlign: "left",
-                    fontSize: 13,
+                    fontSize: "0.8125rem",
                   }}
                 >
                   {searchError}
@@ -1155,21 +1155,21 @@ export default function Home() {
                   initial={{ opacity: 0, y: 6 }}
                   animate={{ opacity: 1, y: 0 }}
                   style={{
-                    marginTop: 16,
-                    padding: 14,
-                    borderRadius: 16,
-                    border: "1px solid var(--border)",
+                    marginTop: "1rem",
+                    padding: "0.875rem",
+                    borderRadius: "1rem",
+                    border: "0.0625rem solid var(--border)",
                     background: "var(--bg-secondary)",
-                    maxWidth: 520,
+                    maxWidth: "32.5rem",
                     width: "100%",
                     display: "flex",
                     flexDirection: "column",
-                    gap: 10,
+                    gap: "0.625rem",
                   }}
                 >
                   <p
                     style={{
-                      fontSize: 12,
+                      fontSize: "0.75rem",
                       color: "var(--text-tertiary)",
                       fontFamily: "'JetBrains Mono', monospace",
                       letterSpacing: "0.03em",
@@ -1183,16 +1183,16 @@ export default function Home() {
                       onClick={() => handleSeedChoice(candidate.openalexId)}
                       style={{
                         textAlign: "left",
-                        padding: "12px 14px",
-                        borderRadius: 12,
-                        border: "1px solid var(--border)",
+                        padding: "0.75rem 0.875rem",
+                        borderRadius: "0.75rem",
+                        border: "0.0625rem solid var(--border)",
                         background: "var(--bg-primary)",
                         cursor: "pointer",
                         color: "var(--text-primary)",
                       }}
                     >
-                      <div style={{ fontSize: 13, fontWeight: 600 }}>{candidate.title}</div>
-                      <div style={{ fontSize: 11, color: "var(--text-tertiary)", marginTop: 4 }}>
+                      <div style={{ fontSize: "0.8125rem", fontWeight: 600 }}>{candidate.title}</div>
+                      <div style={{ fontSize: "0.6875rem", color: "var(--text-tertiary)", marginTop: "0.25rem" }}>
                         {candidate.year ?? "Unknown year"}
                       </div>
                     </button>
@@ -1207,21 +1207,21 @@ export default function Home() {
                 transition={{ delay: 0.6, duration: 1 }}
                 style={{
                   position: "absolute",
-                  bottom: 40,
+                  bottom: "2.5rem",
                   left: "50%",
                   transform: "translateX(-50%)",
                   display: "flex",
                   flexDirection: "column",
-                  gap: 6,
+                  gap: "0.375rem",
                   alignItems: "center",
                 }}
               >
-                {[80, 56, 36].map((w, i) => (
+                {["5rem", "3.5rem", "2.25rem"].map((w, i) => (
                   <div
                     key={i}
                     style={{
                       width: w,
-                      height: 1,
+                      height: "0.0625rem",
                       background: "var(--border)",
                       opacity: 0.6 - i * 0.15,
                     }}
@@ -1242,7 +1242,7 @@ export default function Home() {
                 flexDirection: "column",
                 alignItems: "center",
                 justifyContent: "center",
-                gap: 20,
+                gap: "1.25rem",
               }}
             >
               {/* Strata loading animation */}
@@ -1250,7 +1250,7 @@ export default function Home() {
                 style={{
                   display: "flex",
                   flexDirection: "column",
-                  gap: 4,
+                  gap: "0.25rem",
                   alignItems: "center",
                 }}
               >
@@ -1269,8 +1269,8 @@ export default function Home() {
                       ease: [0.16, 1, 0.3, 1],
                     }}
                     style={{
-                      height: 2,
-                      borderRadius: 1,
+                      height: "0.125rem",
+                      borderRadius: "0.0625rem",
                       background: "var(--accent)",
                     }}
                   />
@@ -1281,7 +1281,7 @@ export default function Home() {
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.3 }}
                 style={{
-                  fontSize: 13,
+                  fontSize: "0.8125rem",
                   color: "var(--text-tertiary)",
                   fontFamily: "'JetBrains Mono', monospace",
                   letterSpacing: "0.02em",
@@ -1299,7 +1299,7 @@ export default function Home() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ duration: 0.5 }}
-              style={{ height: "100%", padding: 8 }}
+              style={{ height: "100%", padding: "0.5rem" }}
             >
               <TimelineCanvas
                 data={timelineData!}

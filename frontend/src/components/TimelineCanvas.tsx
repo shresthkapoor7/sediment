@@ -308,7 +308,7 @@ export function TimelineCanvas({
         overflow: "hidden",
         cursor: cursorStyle,
         background: "var(--bg-canvas)",
-        borderRadius: 12,
+        borderRadius: "0.75rem",
         position: "relative",
         touchAction: "none",
       }}
@@ -317,10 +317,10 @@ export function TimelineCanvas({
       <div
         style={{
           position: "absolute",
-          bottom: 16,
-          left: 16,
+          bottom: "1rem",
+          left: "1rem",
           display: "flex",
-          gap: 4,
+          gap: "0.25rem",
           zIndex: 10,
           alignItems: "center",
         }}
@@ -382,17 +382,17 @@ export function TimelineCanvas({
             key={btn.label}
             onClick={btn.action}
             style={{
-              width: 28,
-              height: 28,
+              width: "1.75rem",
+              height: "1.75rem",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
               background: "var(--bg-secondary)",
-              border: "1px solid var(--border)",
-              borderRadius: 6,
+              border: "0.0625rem solid var(--border)",
+              borderRadius: "0.375rem",
               color: "var(--text-secondary)",
               cursor: "pointer",
-              fontSize: 14,
+              fontSize: "0.875rem",
               fontFamily: "inherit",
               transition: "all 0.2s ease",
             }}
@@ -409,16 +409,16 @@ export function TimelineCanvas({
           </button>
         ))}
         <div style={{
-          fontSize: 11,
+          fontSize: "0.6875rem",
           fontFamily: "'JetBrains Mono', monospace",
           color: "var(--text-tertiary)",
           background: "var(--bg-secondary)",
-          border: "1px solid var(--border)",
-          borderRadius: 6,
-          padding: "4px 8px",
+          border: "0.0625rem solid var(--border)",
+          borderRadius: "0.375rem",
+          padding: "0.25rem 0.5rem",
           userSelect: "none",
           letterSpacing: "0.02em",
-          marginLeft: 4,
+          marginLeft: "0.25rem",
         }}>
           {zoomDisplay}%
         </div>
@@ -512,13 +512,13 @@ export function TimelineCanvas({
               top: 0,
               right: 0,
               bottom: 0,
-              width: 380,
+              width: "23.75rem",
               background: "var(--bg-primary)",
-              borderLeft: "1px solid var(--border)",
+              borderLeft: "0.0625rem solid var(--border)",
               zIndex: 20,
               display: "flex",
               flexDirection: "column",
-              boxShadow: "-8px 0 32px rgba(0,0,0,0.08)",
+              boxShadow: "-0.5rem 0 2rem rgba(0,0,0,0.08)",
             }}
           >
             {/* Toolbar */}
@@ -526,19 +526,19 @@ export function TimelineCanvas({
               style={{
                 display: "flex",
                 alignItems: "center",
-                gap: 8,
-                padding: "10px 16px",
-                borderBottom: "1px solid var(--border)",
+                gap: "0.5rem",
+                padding: "0.625rem 1rem",
+                borderBottom: "0.0625rem solid var(--border)",
                 flexShrink: 0,
-                minHeight: 52,
+                minHeight: "3.25rem",
               }}
             >
               <button
                 onClick={() => setActiveNodeId(null)}
                 style={{
                   display: "flex", alignItems: "center", justifyContent: "center",
-                  width: 28, height: 28, background: "none", border: "none",
-                  borderRadius: 6, color: "var(--text-tertiary)", cursor: "pointer",
+                  width: "1.75rem", height: "1.75rem", background: "none", border: "none",
+                  borderRadius: "0.375rem", color: "var(--text-tertiary)", cursor: "pointer",
                   transition: "background 0.15s, color 0.15s",
                   flexShrink: 0,
                 }}
@@ -551,7 +551,7 @@ export function TimelineCanvas({
               </button>
               <span
                 style={{
-                  fontSize: 11,
+                  fontSize: "0.6875rem",
                   color: "var(--text-tertiary)",
                   fontFamily: "'JetBrains Mono', monospace",
                   letterSpacing: "0.04em",
@@ -564,14 +564,13 @@ export function TimelineCanvas({
                 style={{
                   flex: 1,
                   minWidth: 0,
-                  fontSize: 13,
+                  fontSize: "0.8125rem",
                   color: "var(--text-primary)",
                   fontFamily: "'DM Sans', sans-serif",
                   fontWeight: 500,
                   lineHeight: 1.35,
                   overflow: "hidden",
                   textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
                 }}
                 title={activeNode.paper.title}
               >
@@ -583,9 +582,9 @@ export function TimelineCanvas({
                   target="_blank"
                   rel="noopener noreferrer"
                   style={{
-                    flexShrink: 0, fontSize: 11, color: "var(--text-tertiary)", textDecoration: "none",
+                    flexShrink: 0, fontSize: "0.6875rem", color: "var(--text-tertiary)", textDecoration: "none",
                     fontFamily: "'JetBrains Mono', monospace", background: "var(--bg-secondary)",
-                    border: "1px solid var(--border)", borderRadius: 5, padding: "3px 7px", transition: "all 0.15s",
+                    border: "0.0625rem solid var(--border)", borderRadius: "0.3125rem", padding: "0.1875rem 0.4375rem", transition: "all 0.15s",
                   }}
                   onMouseEnter={(e) => { (e.currentTarget as HTMLAnchorElement).style.borderColor = "var(--accent)"; (e.currentTarget as HTMLAnchorElement).style.color = "var(--accent)"; }}
                   onMouseLeave={(e) => { (e.currentTarget as HTMLAnchorElement).style.borderColor = "var(--border)"; (e.currentTarget as HTMLAnchorElement).style.color = "var(--text-tertiary)"; }}
@@ -596,34 +595,33 @@ export function TimelineCanvas({
             </div>
 
             {/* Scrollable chat area */}
-            <div style={{ flex: 1, overflowY: "auto", padding: "20px 20px 8px" }}>
+            <div style={{ flex: 1, overflowY: "auto", padding: "1.25rem 1.25rem 0.5rem" }}>
 
               {/* Paper context — shown as a subtle block at the top */}
               <div
                 style={{
                   background: "var(--bg-secondary)",
-                  borderRadius: 10,
-                  padding: "14px 16px",
-                  marginBottom: 20,
-                  borderLeft: "3px solid var(--border)",
+                  borderRadius: "0.625rem",
+                  padding: "0.875rem 1rem",
+                  marginBottom: "1.25rem",
                   display: "flex",
                   flexDirection: "column",
-                  gap: 10,
+                  gap: "0.625rem",
                 }}
               >
                 {/* Type badge */}
                 {activeNode.paper.type && (
                   <span style={{
                     alignSelf: "flex-start",
-                    fontSize: 10,
+                    fontSize: "0.625rem",
                     fontFamily: "'JetBrains Mono', monospace",
                     letterSpacing: "0.06em",
                     textTransform: "uppercase",
                     color: "var(--accent)",
                     background: "var(--accent-soft)",
-                    border: "1px solid var(--accent)",
-                    borderRadius: 4,
-                    padding: "2px 6px",
+                    border: "0.0625rem solid var(--accent)",
+                    borderRadius: "0.25rem",
+                    padding: "0.125rem 0.375rem",
                   }}>
                     {activeNode.paper.type.replace(/-/g, " ")}
                   </span>
@@ -631,10 +629,10 @@ export function TimelineCanvas({
 
                 {/* AI Summary */}
                 <div>
-                  <p style={{ fontSize: 10, color: "var(--text-tertiary)", fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 5 }}>
+                  <p style={{ fontSize: "0.625rem", color: "var(--text-tertiary)", fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: "0.3125rem" }}>
                     AI Summary
                   </p>
-                  <MarkdownContent style={{ fontSize: 13, color: "var(--text-primary)", lineHeight: 1.6, fontFamily: "'DM Sans', sans-serif", fontStyle: "italic", overflowWrap: "break-word", wordBreak: "break-word" }}>
+                  <MarkdownContent style={{ fontSize: "0.8125rem", color: "var(--text-primary)", lineHeight: 1.6, fontFamily: "'DM Sans', sans-serif", fontStyle: "italic", overflowWrap: "break-word", wordBreak: "break-word" }}>
                     {activeNode.paper.summary}
                   </MarkdownContent>
                 </div>
@@ -642,10 +640,10 @@ export function TimelineCanvas({
                 {/* Abstract */}
                 {activeNode.paper.detail && (
                   <div>
-                    <p style={{ fontSize: 10, color: "var(--text-tertiary)", fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 5 }}>
+                    <p style={{ fontSize: "0.625rem", color: "var(--text-tertiary)", fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: "0.3125rem" }}>
                       Abstract
                     </p>
-                    <MarkdownContent style={{ fontSize: 12.5, color: "var(--text-secondary)", lineHeight: 1.7, fontFamily: "'DM Sans', sans-serif", overflowWrap: "break-word", wordBreak: "break-word" }}>
+                    <MarkdownContent style={{ fontSize: "0.78125rem", color: "var(--text-secondary)", lineHeight: 1.7, fontFamily: "'DM Sans', sans-serif", overflowWrap: "break-word", wordBreak: "break-word" }}>
                       {activeNode.paper.detail}
                     </MarkdownContent>
                   </div>
@@ -653,16 +651,16 @@ export function TimelineCanvas({
 
                 {/* Concepts */}
                 {activeNode.paper.concepts && activeNode.paper.concepts.length > 0 && (
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "0.3125rem" }}>
                     {activeNode.paper.concepts.map((c) => (
                       <span key={c} style={{
-                        fontSize: 10,
+                        fontSize: "0.625rem",
                         fontFamily: "'DM Sans', sans-serif",
                         color: "var(--text-tertiary)",
                         background: "var(--bg-primary)",
-                        border: "1px solid var(--border)",
-                        borderRadius: 4,
-                        padding: "2px 6px",
+                        border: "0.0625rem solid var(--border)",
+                        borderRadius: "0.25rem",
+                        padding: "0.125rem 0.375rem",
                       }}>
                         {c}
                       </span>
@@ -672,7 +670,7 @@ export function TimelineCanvas({
 
                 {/* Authors */}
                 {activeNode.paper.authors && activeNode.paper.authors.length > 0 && (
-                  <p style={{ fontSize: 11, color: "var(--text-tertiary)", fontFamily: "'DM Sans', sans-serif" }}>
+                  <p style={{ fontSize: "0.6875rem", color: "var(--text-tertiary)", fontFamily: "'DM Sans', sans-serif" }}>
                     {activeNode.paper.authors.join(", ")}
                   </p>
                 )}
@@ -685,18 +683,18 @@ export function TimelineCanvas({
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-                  style={{ marginBottom: 16 }}
+                  style={{ marginBottom: "1rem" }}
                 >
                   {msg.role === "user" ? (
                     <div style={{ display: "flex", justifyContent: "flex-end" }}>
                       <div
                         style={{
                           background: "var(--accent-soft)",
-                          border: "1px solid var(--accent)",
-                          borderRadius: "12px 12px 2px 12px",
-                          padding: "9px 13px",
+                          border: "0.0625rem solid var(--accent)",
+                          borderRadius: "0.75rem 0.75rem 0.125rem 0.75rem",
+                          padding: "0.5625rem 0.8125rem",
                           maxWidth: "80%",
-                          fontSize: 13,
+                          fontSize: "0.8125rem",
                           color: "var(--text-primary)",
                           fontFamily: "'DM Sans', sans-serif",
                           lineHeight: 1.5,
@@ -707,7 +705,7 @@ export function TimelineCanvas({
                     </div>
                   ) : (
                     <div>
-                      <MarkdownContent style={{ fontSize: 13.5, color: "var(--text-primary)", lineHeight: 1.7, fontFamily: "'DM Sans', sans-serif", marginBottom: msg.suggestion ? 14 : 0 }}>
+                      <MarkdownContent style={{ fontSize: "0.84375rem", color: "var(--text-primary)", lineHeight: 1.7, fontFamily: "'DM Sans', sans-serif", marginBottom: msg.suggestion ? "0.875rem" : 0 }}>
                         {msg.content}
                       </MarkdownContent>
 
@@ -719,13 +717,13 @@ export function TimelineCanvas({
                           transition={{ delay: 0.15, duration: 0.3 }}
                           style={{
                             background: "var(--bg-secondary)",
-                            border: "1px solid var(--border)",
-                            borderRadius: 10,
-                            padding: "12px 14px",
+                            border: "0.0625rem solid var(--border)",
+                            borderRadius: "0.625rem",
+                            padding: "0.75rem 0.875rem",
                             display: "flex",
                             alignItems: "center",
                             justifyContent: "space-between",
-                            gap: 10,
+                            gap: "0.625rem",
                           }}
                         >
                           {(() => {
@@ -737,10 +735,10 @@ export function TimelineCanvas({
                             return (
                               <>
                           <div>
-                            <p style={{ fontSize: 12, fontWeight: 600, color: "var(--text-primary)", fontFamily: "'DM Sans', sans-serif", marginBottom: 2 }}>
+                            <p style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--text-primary)", fontFamily: "'DM Sans', sans-serif", marginBottom: "0.125rem" }}>
                               {msg.suggestion.topic}
                             </p>
-                            <p style={{ fontSize: 11, color: "var(--text-tertiary)", fontFamily: "'JetBrains Mono', monospace" }}>
+                            <p style={{ fontSize: "0.6875rem", color: "var(--text-tertiary)", fontFamily: "'JetBrains Mono', monospace" }}>
                               {msg.suggestion.nodeCount} papers · trace lineage?
                             </p>
                           </div>
@@ -754,16 +752,16 @@ export function TimelineCanvas({
                               background: suggestionAlreadyAdded ? "var(--bg-tertiary)" : "var(--accent)",
                               color: suggestionAlreadyAdded ? "var(--text-tertiary)" : "white",
                               border: "none",
-                              borderRadius: 7,
-                              padding: "7px 13px",
-                              fontSize: 12,
+                              borderRadius: "0.4375rem",
+                              padding: "0.4375rem 0.8125rem",
+                              fontSize: "0.75rem",
                               fontWeight: 500,
                               cursor: readOnly || suggestionAlreadyAdded ? "default" : "pointer",
                               pointerEvents: readOnly ? "none" : "auto",
                               fontFamily: "'DM Sans', sans-serif",
                               display: "flex",
                               alignItems: "center",
-                              gap: 5,
+                              gap: "0.3125rem",
                               opacity: suggestionAlreadyAdded ? 0.5 : 1,
                               transition: "background 0.15s, opacity 0.15s",
                             }}
@@ -772,7 +770,7 @@ export function TimelineCanvas({
                               <motion.div
                                 animate={{ rotate: 360 }}
                                 transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                                style={{ width: 12, height: 12, border: "1.5px solid rgba(255,255,255,0.3)", borderTopColor: "white", borderRadius: "50%" }}
+                                style={{ width: "0.75rem", height: "0.75rem", border: "0.09375rem solid rgba(255,255,255,0.3)", borderTopColor: "white", borderRadius: "50%" }}
                               />
                             ) : suggestionAlreadyAdded ? (
                               "Added ✓"
@@ -797,14 +795,14 @@ export function TimelineCanvas({
                     initial={{ opacity: 0, y: 6 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0 }}
-                    style={{ display: "flex", gap: 4, alignItems: "center", paddingBottom: 12 }}
+                    style={{ display: "flex", gap: "0.25rem", alignItems: "center", paddingBottom: "0.75rem" }}
                   >
                     {[0, 1, 2].map((i) => (
                       <motion.div
                         key={i}
                         animate={{ opacity: [0.3, 1, 0.3] }}
                         transition={{ duration: 1, repeat: Infinity, delay: i * 0.2 }}
-                        style={{ width: 6, height: 6, borderRadius: 3, background: "var(--text-tertiary)" }}
+                        style={{ width: "0.375rem", height: "0.375rem", borderRadius: "0.1875rem", background: "var(--text-tertiary)" }}
                       />
                     ))}
                   </motion.div>
@@ -815,17 +813,17 @@ export function TimelineCanvas({
             </div>
 
             {/* Input bar */}
-            {!readOnly && <div style={{ padding: "12px 16px", borderTop: "1px solid var(--border)", flexShrink: 0 }}>
+            {!readOnly && <div style={{ padding: "0.75rem 1rem", borderTop: "0.0625rem solid var(--border)", flexShrink: 0 }}>
               <form onSubmit={handleChatSubmit}>
                 <div
                   style={{
                     display: "flex",
                     alignItems: "center",
-                    gap: 8,
+                    gap: "0.5rem",
                     background: "var(--bg-secondary)",
-                    border: "1px solid var(--border)",
-                    borderRadius: 10,
-                    padding: "9px 12px",
+                    border: "0.0625rem solid var(--border)",
+                    borderRadius: "0.625rem",
+                    padding: "0.5625rem 0.75rem",
                     transition: "border-color 0.15s",
                   }}
                 >
@@ -841,7 +839,7 @@ export function TimelineCanvas({
                       border: "none",
                       outline: "none",
                       color: "var(--text-primary)",
-                      fontSize: 13,
+                      fontSize: "0.8125rem",
                       fontFamily: "'DM Sans', sans-serif",
                     }}
                   />
@@ -851,9 +849,9 @@ export function TimelineCanvas({
                     style={{
                       background: "var(--accent)",
                       border: "none",
-                      borderRadius: 6,
-                      width: 28,
-                      height: 28,
+                      borderRadius: "0.375rem",
+                      width: "1.75rem",
+                      height: "1.75rem",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",

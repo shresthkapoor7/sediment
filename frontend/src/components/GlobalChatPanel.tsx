@@ -64,7 +64,7 @@ export function GlobalChatPanel({ data, onHighlight, onAddLineage, isExpanding }
     const next = Math.min(el.scrollHeight, 120);
     el.style.height = `${next}px`;
     el.style.overflow = el.scrollHeight > 120 ? "auto" : "hidden";
-  }, [input]);
+  }, [input, open]);
 
   const papers = Object.values(data.nodes).map((n) => ({
     openalexId: n.paper.openalexId,

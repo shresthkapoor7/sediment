@@ -23,7 +23,8 @@ export function SearchInput({ onSearch, isSearching }: SearchInputProps) {
   useEffect(() => {
     if (!borderRef.current) return;
     const update = () => {
-      const { width, height } = borderRef.current!.getBoundingClientRect();
+      if (!borderRef.current) return;
+      const { width, height } = borderRef.current.getBoundingClientRect();
       setBoxSize({ w: Math.round(width), h: Math.round(height) });
     };
     update();
@@ -63,7 +64,7 @@ export function SearchInput({ onSearch, isSearching }: SearchInputProps) {
       style={{
         position: "relative",
         width: "100%",
-        maxWidth: 520,
+        maxWidth: "32.5rem",
       }}
     >
       <div
@@ -72,14 +73,14 @@ export function SearchInput({ onSearch, isSearching }: SearchInputProps) {
           position: "relative",
           display: "flex",
           alignItems: "center",
-          gap: 12,
+          gap: "0.75rem",
           background: "var(--bg-secondary)",
-          border: "1px solid var(--border)",
-          borderRadius: 14,
-          padding: "14px 18px",
+          border: "0.0625rem solid var(--border)",
+          borderRadius: "0.875rem",
+          padding: "0.875rem 1.125rem",
           boxShadow: focused
-            ? "0 2px 16px rgba(0,0,0,0.08)"
-            : "0 2px 12px rgba(0,0,0,0.04)",
+            ? "0 0.125rem 1rem rgba(0,0,0,0.08)"
+            : "0 0.125rem 0.75rem rgba(0,0,0,0.04)",
           transition: "box-shadow 0.25s",
         }}
       >
@@ -88,9 +89,9 @@ export function SearchInput({ onSearch, isSearching }: SearchInputProps) {
           <svg
             style={{
               position: "absolute",
-              inset: -1,
-              width: "calc(100% + 2px)",
-              height: "calc(100% + 2px)",
+              inset: "-0.0625rem",
+              width: "calc(100% + 0.125rem)",
+              height: "calc(100% + 0.125rem)",
               pointerEvents: "none",
               overflow: "visible",
             }}
@@ -150,13 +151,13 @@ export function SearchInput({ onSearch, isSearching }: SearchInputProps) {
             border: "none",
             outline: "none",
             color: "var(--text-primary)",
-            fontSize: 15,
+            fontSize: "0.9375rem",
             fontFamily: "'DM Sans', sans-serif",
             letterSpacing: "-0.01em",
           }}
         />
 
-        <div style={{ position: "relative", flexShrink: 0, width: 34, height: 34 }}>
+        <div style={{ position: "relative", flexShrink: 0, width: "2.125rem", height: "2.125rem" }}>
           {/* Spinner — visible while searching */}
           <div
             style={{
@@ -171,8 +172,8 @@ export function SearchInput({ onSearch, isSearching }: SearchInputProps) {
               animate={{ rotate: 360 }}
               transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
               style={{
-                width: 18, height: 18,
-                border: "2px solid var(--border)",
+                width: "1.125rem", height: "1.125rem",
+                border: "0.125rem solid var(--border)",
                 borderTopColor: "var(--accent)",
                 borderRadius: "50%",
               }}
@@ -181,12 +182,13 @@ export function SearchInput({ onSearch, isSearching }: SearchInputProps) {
           {/* Submit button — visible when query is non-empty and not searching */}
           <button
             type="submit"
+            aria-label={query.trim() ? `Search: ${query.trim()}` : "Search"}
             disabled={isSearching || !query.trim()}
             style={{
               position: "absolute", inset: 0,
               background: "var(--accent)",
               border: "none",
-              borderRadius: 8,
+              borderRadius: "0.5rem",
               color: "white",
               display: "flex",
               alignItems: "center",
@@ -211,9 +213,10 @@ export function SearchInput({ onSearch, isSearching }: SearchInputProps) {
         transition={{ delay: 0.4, duration: 0.5 }}
         style={{
           display: "flex",
+          flexWrap: "wrap",
           justifyContent: "center",
-          gap: 8,
-          marginTop: 16,
+          gap: "0.5rem",
+          marginTop: "1rem",
         }}
       >
         {EXAMPLES.map((example, i) => (
@@ -229,12 +232,12 @@ export function SearchInput({ onSearch, isSearching }: SearchInputProps) {
             style={{
               display: "flex",
               alignItems: "center",
-              gap: 6,
+              gap: "0.375rem",
               background: "var(--bg-secondary)",
-              border: "1px solid var(--border)",
-              borderRadius: 8,
-              padding: "6px 12px",
-              fontSize: 12,
+              border: "0.0625rem solid var(--border)",
+              borderRadius: "0.5rem",
+              padding: "0.375rem 0.75rem",
+              fontSize: "0.75rem",
               color: "var(--text-secondary)",
               fontFamily: "'DM Sans', sans-serif",
               fontWeight: 500,
