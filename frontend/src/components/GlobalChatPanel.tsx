@@ -119,7 +119,7 @@ export function GlobalChatPanel({ data, onHighlight, onAddLineage, isExpanding }
   }
 
   return (
-    <div style={{ position: "absolute", bottom: 20, right: 20, zIndex: 50, display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8 }}>
+    <div style={{ position: "absolute", bottom: "1.25rem", right: "1.25rem", zIndex: 50, display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "0.5rem" }}>
       <AnimatePresence>
         {open && (
           <motion.div
@@ -130,12 +130,12 @@ export function GlobalChatPanel({ data, onHighlight, onAddLineage, isExpanding }
             transition={{ duration: 0.2, ease: "easeOut" }}
             onWheelCapture={(e) => e.stopPropagation()}
             style={{
-              width: 320,
-              maxHeight: 420,
+              width: "20rem",
+              maxHeight: "26.25rem",
               background: "var(--bg-primary)",
-              border: "1px solid var(--border-hover)",
-              borderRadius: 14,
-              boxShadow: "0 16px 48px rgba(0,0,0,0.18), 0 4px 12px rgba(0,0,0,0.10)",
+              border: "0.0625rem solid var(--border-hover)",
+              borderRadius: "0.875rem",
+              boxShadow: "0 1rem 3rem rgba(0,0,0,0.18), 0 0.25rem 0.75rem rgba(0,0,0,0.10)",
               display: "flex",
               flexDirection: "column",
               overflow: "hidden",
@@ -145,9 +145,9 @@ export function GlobalChatPanel({ data, onHighlight, onAddLineage, isExpanding }
             <div style={{
               display: "flex",
               alignItems: "center",
-              gap: 8,
-              padding: "10px 14px",
-              borderBottom: "1px solid var(--border)",
+              gap: "0.5rem",
+              padding: "0.625rem 0.875rem",
+              borderBottom: "0.0625rem solid var(--border)",
               flexShrink: 0,
             }}>
               <motion.div
@@ -155,8 +155,8 @@ export function GlobalChatPanel({ data, onHighlight, onAddLineage, isExpanding }
                 animate={{ rotate: 180 }}
                 transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
                 style={{
-                  width: 20,
-                  height: 20,
+                  width: "1.25rem",
+                  height: "1.25rem",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
@@ -170,10 +170,10 @@ export function GlobalChatPanel({ data, onHighlight, onAddLineage, isExpanding }
                 </svg>
               </motion.div>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-primary)", fontFamily: "'DM Sans', sans-serif" }}>
+                <div style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--text-primary)", fontFamily: "'DM Sans', sans-serif" }}>
                   Ask about this timeline
                 </div>
-                <div style={{ fontSize: 10, color: "var(--text-tertiary)", fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.03em" }}>
+                <div style={{ fontSize: "0.625rem", color: "var(--text-tertiary)", fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.03em" }}>
                   {papers.length} paper{papers.length !== 1 ? "s" : ""} in context
                 </div>
               </div>
@@ -182,7 +182,7 @@ export function GlobalChatPanel({ data, onHighlight, onAddLineage, isExpanding }
                 aria-label="Close chat"
                 style={{
                   background: "none", border: "none", cursor: "pointer",
-                  color: "var(--text-tertiary)", padding: 4, borderRadius: 6,
+                  color: "var(--text-tertiary)", padding: "0.25rem", borderRadius: "0.375rem",
                   display: "flex", alignItems: "center", justifyContent: "center",
                 }}
               >
@@ -193,16 +193,16 @@ export function GlobalChatPanel({ data, onHighlight, onAddLineage, isExpanding }
             </div>
 
             {/* Messages */}
-            <div style={{ flex: 1, overflowY: "auto", padding: "10px 14px", display: "flex", flexDirection: "column", gap: 8 }}>
+            <div style={{ flex: 1, overflowY: "auto", padding: "0.625rem 0.875rem", display: "flex", flexDirection: "column", gap: "0.5rem" }}>
               {messages.length === 0 && (
-                <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 4 }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem", marginTop: "0.25rem" }}>
                   {loadingSuggestions ? (
                     [0, 1, 2].map((i) => (
                       <div key={i} style={{
-                        height: 34,
-                        borderRadius: 8,
+                        height: "2.125rem",
+                        borderRadius: "0.5rem",
                         background: "var(--bg-secondary)",
-                        border: "1px solid var(--border)",
+                        border: "0.0625rem solid var(--border)",
                         opacity: 0.5 + i * 0.15,
                       }} />
                     ))
@@ -213,10 +213,10 @@ export function GlobalChatPanel({ data, onHighlight, onAddLineage, isExpanding }
                       style={{
                         textAlign: "left",
                         background: "var(--bg-secondary)",
-                        border: "1px solid var(--border)",
-                        borderRadius: 8,
-                        padding: "7px 10px",
-                        fontSize: 11.5,
+                        border: "0.0625rem solid var(--border)",
+                        borderRadius: "0.5rem",
+                        padding: "0.4375rem 0.625rem",
+                        fontSize: "0.71875rem",
                         color: "var(--text-secondary)",
                         fontFamily: "'DM Sans', sans-serif",
                         cursor: "pointer",
@@ -232,14 +232,14 @@ export function GlobalChatPanel({ data, onHighlight, onAddLineage, isExpanding }
               )}
 
               {messages.map((msg) => (
-                <div key={msg.id} style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: msg.role === "user" ? "flex-end" : "flex-start" }}>
+                <div key={msg.id} style={{ display: "flex", flexDirection: "column", gap: "0.25rem", alignItems: msg.role === "user" ? "flex-end" : "flex-start" }}>
                   <div style={{
                     maxWidth: "88%",
-                    padding: "7px 10px",
-                    borderRadius: msg.role === "user" ? "10px 10px 3px 10px" : "10px 10px 10px 3px",
+                    padding: "0.4375rem 0.625rem",
+                    borderRadius: msg.role === "user" ? "0.625rem 0.625rem 0.1875rem 0.625rem" : "0.625rem 0.625rem 0.625rem 0.1875rem",
                     background: msg.role === "user" ? "var(--accent)" : "var(--bg-secondary)",
                     color: msg.role === "user" ? "white" : "var(--text-primary)",
-                    fontSize: 12.5,
+                    fontSize: "0.78125rem",
                     lineHeight: 1.5,
                     fontFamily: "'DM Sans', sans-serif",
                   }}>
@@ -254,14 +254,14 @@ export function GlobalChatPanel({ data, onHighlight, onAddLineage, isExpanding }
                       style={{
                         background: "none",
                         border: "none",
-                        padding: "2px 4px",
-                        fontSize: 10.5,
+                        padding: "0.125rem 0.25rem",
+                        fontSize: "0.65625rem",
                         color: "var(--accent)",
                         fontFamily: "'JetBrains Mono', monospace",
                         cursor: "pointer",
                         textDecoration: "underline",
                         textDecorationStyle: "dotted",
-                        textUnderlineOffset: 3,
+                        textUnderlineOffset: "0.1875rem",
                       }}
                     >
                       ↑ {msg.highlightedPaperIds.length} paper{msg.highlightedPaperIds.length !== 1 ? "s" : ""} highlighted
@@ -271,18 +271,18 @@ export function GlobalChatPanel({ data, onHighlight, onAddLineage, isExpanding }
                   {msg.suggestion && (
                     <div style={{
                       background: "var(--accent-soft)",
-                      border: "1px solid var(--accent)",
-                      borderRadius: 8,
-                      padding: "8px 10px",
+                      border: "0.0625rem solid var(--accent)",
+                      borderRadius: "0.5rem",
+                      padding: "0.5rem 0.625rem",
                       maxWidth: "88%",
                       display: "flex",
                       flexDirection: "column",
-                      gap: 5,
+                      gap: "0.3125rem",
                     }}>
-                      <div style={{ fontSize: 11, color: "var(--accent)", fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.03em" }}>
+                      <div style={{ fontSize: "0.6875rem", color: "var(--accent)", fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.03em" }}>
                         suggested lineage
                       </div>
-                      <div style={{ fontSize: 12.5, fontWeight: 600, color: "var(--text-primary)", fontFamily: "'DM Sans', sans-serif" }}>
+                      <div style={{ fontSize: "0.78125rem", fontWeight: 600, color: "var(--text-primary)", fontFamily: "'DM Sans', sans-serif" }}>
                         {msg.suggestion.topic}
                       </div>
                       <button
@@ -297,16 +297,16 @@ export function GlobalChatPanel({ data, onHighlight, onAddLineage, isExpanding }
                           alignSelf: "flex-start",
                           background: "var(--accent)",
                           border: "none",
-                          borderRadius: 6,
-                          padding: "4px 10px",
-                          fontSize: 11,
+                          borderRadius: "0.375rem",
+                          padding: "0.25rem 0.625rem",
+                          fontSize: "0.6875rem",
                           fontWeight: 600,
                           color: "white",
                           cursor: isExpanding ? "default" : "pointer",
                           fontFamily: "'DM Sans', sans-serif",
                           display: "flex",
                           alignItems: "center",
-                          gap: 6,
+                          gap: "0.375rem",
                           opacity: expandingMsgId === msg.id ? 0.7 : 1,
                         }}
                       >
@@ -315,7 +315,7 @@ export function GlobalChatPanel({ data, onHighlight, onAddLineage, isExpanding }
                             <motion.div
                               animate={{ rotate: 360 }}
                               transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                              style={{ width: 10, height: 10, border: "1.5px solid rgba(255,255,255,0.4)", borderTopColor: "white", borderRadius: "50%" }}
+                              style={{ width: "0.625rem", height: "0.625rem", border: "0.09375rem solid rgba(255,255,255,0.4)", borderTopColor: "white", borderRadius: "50%" }}
                             />
                             Adding...
                           </>
@@ -327,13 +327,13 @@ export function GlobalChatPanel({ data, onHighlight, onAddLineage, isExpanding }
               ))}
 
               {isThinking && (
-                <div style={{ display: "flex", gap: 4, padding: "6px 2px", alignItems: "center" }}>
+                <div style={{ display: "flex", gap: "0.25rem", padding: "0.375rem 0.125rem", alignItems: "center" }}>
                   {[0, 1, 2].map((i) => (
                     <motion.div
                       key={i}
                       animate={{ opacity: [0.3, 1, 0.3] }}
                       transition={{ duration: 1.2, repeat: Infinity, delay: i * 0.2 }}
-                      style={{ width: 5, height: 5, borderRadius: "50%", background: "var(--accent)" }}
+                      style={{ width: "0.3125rem", height: "0.3125rem", borderRadius: "50%", background: "var(--accent)" }}
                     />
                   ))}
                 </div>
@@ -345,9 +345,9 @@ export function GlobalChatPanel({ data, onHighlight, onAddLineage, isExpanding }
             {/* Input */}
             <div style={{
               display: "flex",
-              gap: 6,
-              padding: "8px 10px",
-              borderTop: "1px solid var(--border)",
+              gap: "0.375rem",
+              padding: "0.5rem 0.625rem",
+              borderTop: "0.0625rem solid var(--border)",
               flexShrink: 0,
               alignItems: "flex-end",
             }}>
@@ -361,10 +361,10 @@ export function GlobalChatPanel({ data, onHighlight, onAddLineage, isExpanding }
                 style={{
                   flex: 1,
                   background: "var(--bg-secondary)",
-                  border: "1px solid var(--border)",
-                  borderRadius: 8,
-                  padding: "6px 10px",
-                  fontSize: 12,
+                  border: "0.0625rem solid var(--border)",
+                  borderRadius: "0.5rem",
+                  padding: "0.375rem 0.625rem",
+                  fontSize: "0.75rem",
                   color: "var(--text-primary)",
                   fontFamily: "'DM Sans', sans-serif",
                   outline: "none",
@@ -381,11 +381,11 @@ export function GlobalChatPanel({ data, onHighlight, onAddLineage, isExpanding }
                 aria-label="Send message"
                 disabled={!input.trim() || isThinking}
                 style={{
-                  width: 30,
-                  height: 30,
+                  width: "1.875rem",
+                  height: "1.875rem",
                   background: input.trim() && !isThinking ? "var(--accent)" : "var(--bg-tertiary)",
                   border: "none",
-                  borderRadius: 8,
+                  borderRadius: "0.5rem",
                   cursor: input.trim() && !isThinking ? "pointer" : "default",
                   display: "flex",
                   alignItems: "center",
@@ -414,8 +414,8 @@ export function GlobalChatPanel({ data, onHighlight, onAddLineage, isExpanding }
         animate={{ rotate: open ? 180 : 0 }}
         transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
         style={{
-          width: 32,
-          height: 32,
+          width: "2rem",
+          height: "2rem",
           background: "none",
           border: "none",
           boxShadow: "none",
