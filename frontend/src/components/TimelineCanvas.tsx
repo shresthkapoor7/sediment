@@ -569,8 +569,6 @@ export function TimelineCanvas({
                   fontFamily: "'DM Sans', sans-serif",
                   fontWeight: 500,
                   lineHeight: 1.35,
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
                 }}
                 title={activeNode.paper.title}
               >
@@ -632,7 +630,7 @@ export function TimelineCanvas({
                   <p style={{ fontSize: "0.625rem", color: "var(--text-tertiary)", fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: "0.3125rem" }}>
                     AI Summary
                   </p>
-                  <MarkdownContent style={{ fontSize: "0.8125rem", color: "var(--text-primary)", lineHeight: 1.6, fontFamily: "'DM Sans', sans-serif", fontStyle: "italic", overflowWrap: "break-word", wordBreak: "break-word" }}>
+                  <MarkdownContent style={{ fontSize: "0.8125rem", color: "var(--text-primary)", lineHeight: 1.6, fontFamily: "'DM Sans', sans-serif", fontStyle: "italic", overflowWrap: "break-word" }}>
                     {activeNode.paper.summary}
                   </MarkdownContent>
                 </div>
@@ -643,7 +641,7 @@ export function TimelineCanvas({
                     <p style={{ fontSize: "0.625rem", color: "var(--text-tertiary)", fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: "0.3125rem" }}>
                       Abstract
                     </p>
-                    <MarkdownContent style={{ fontSize: "0.78125rem", color: "var(--text-secondary)", lineHeight: 1.7, fontFamily: "'DM Sans', sans-serif", overflowWrap: "break-word", wordBreak: "break-word" }}>
+                    <MarkdownContent style={{ fontSize: "0.78125rem", color: "var(--text-secondary)", lineHeight: 1.7, fontFamily: "'DM Sans', sans-serif", overflowWrap: "break-word" }}>
                       {activeNode.paper.detail}
                     </MarkdownContent>
                   </div>
