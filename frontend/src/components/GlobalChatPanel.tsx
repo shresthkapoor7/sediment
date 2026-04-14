@@ -38,7 +38,7 @@ export function GlobalChatPanel({ data, onHighlight, onAddLineage, isExpanding }
       setExpandingMsgId(null);
     }
   }, [isExpanding, expandingMsgId]);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const panelId = useId();
 
   useEffect(() => {
@@ -56,6 +56,15 @@ export function GlobalChatPanel({ data, onHighlight, onAddLineage, isExpanding }
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isThinking]);
+
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    const next = Math.min(el.scrollHeight, 120);
+    el.style.height = `${next}px`;
+    el.style.overflow = el.scrollHeight > 120 ? "auto" : "hidden";
+  }, [input]);
 
   const papers = Object.values(data.nodes).map((n) => ({
     openalexId: n.paper.openalexId,
@@ -340,10 +349,12 @@ export function GlobalChatPanel({ data, onHighlight, onAddLineage, isExpanding }
               padding: "8px 10px",
               borderTop: "1px solid var(--border)",
               flexShrink: 0,
+              alignItems: "flex-end",
             }}>
-              <input
+              <textarea
                 ref={inputRef}
                 value={input}
+                rows={1}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKey}
                 placeholder="Ask about these papers..."
@@ -357,6 +368,10 @@ export function GlobalChatPanel({ data, onHighlight, onAddLineage, isExpanding }
                   color: "var(--text-primary)",
                   fontFamily: "'DM Sans', sans-serif",
                   outline: "none",
+                  resize: "none",
+                  overflow: "hidden",
+                  lineHeight: 1.5,
+                  maxHeight: 120,
                 }}
                 onFocus={(e) => { e.target.style.borderColor = "var(--accent)"; }}
                 onBlur={(e) => { e.target.style.borderColor = "var(--border)"; }}

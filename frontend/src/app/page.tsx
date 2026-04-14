@@ -1052,7 +1052,7 @@ export default function Home() {
                 flexDirection: "column",
                 alignItems: "center",
                 justifyContent: "center",
-                gap: 40,
+                gap: 24,
                 padding: 24,
                 position: "relative",
               }}

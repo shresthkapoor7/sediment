@@ -634,7 +634,7 @@ export function TimelineCanvas({
                   <p style={{ fontSize: 10, color: "var(--text-tertiary)", fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 5 }}>
                     AI Summary
                   </p>
-                  <MarkdownContent style={{ fontSize: 13, color: "var(--text-primary)", lineHeight: 1.6, fontFamily: "'DM Sans', sans-serif", fontStyle: "italic" }}>
+                  <MarkdownContent style={{ fontSize: 13, color: "var(--text-primary)", lineHeight: 1.6, fontFamily: "'DM Sans', sans-serif", fontStyle: "italic", overflowWrap: "break-word", wordBreak: "break-word" }}>
                     {activeNode.paper.summary}
                   </MarkdownContent>
                 </div>
@@ -645,7 +645,7 @@ export function TimelineCanvas({
                     <p style={{ fontSize: 10, color: "var(--text-tertiary)", fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 5 }}>
                       Abstract
                     </p>
-                    <MarkdownContent style={{ fontSize: 12.5, color: "var(--text-secondary)", lineHeight: 1.7, fontFamily: "'DM Sans', sans-serif" }}>
+                    <MarkdownContent style={{ fontSize: 12.5, color: "var(--text-secondary)", lineHeight: 1.7, fontFamily: "'DM Sans', sans-serif", overflowWrap: "break-word", wordBreak: "break-word" }}>
                       {activeNode.paper.detail}
                     </MarkdownContent>
                   </div>
