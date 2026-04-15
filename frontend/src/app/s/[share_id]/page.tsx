@@ -7,6 +7,7 @@ import { TimelineCanvas } from "@/components/TimelineCanvas";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { fetchSharedGraph } from "@/lib/api";
 import { TimelineData } from "@/lib/types";
+import { exportObsidianZip } from "@/lib/export";
 
 export default function SharedGraphPage() {
   const params = useParams();
@@ -118,7 +119,50 @@ export default function SharedGraphPage() {
           </span>
         )}
 
-        <ThemeToggle />
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+          {timelineData && query && (
+            <button
+              onClick={() => {
+                exportObsidianZip(timelineData, query).catch((err) => {
+                  console.error("Export failed:", err);
+                  alert("Export failed. Please try again.");
+                });
+              }}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "0.375rem",
+                padding: "0 0.75rem",
+                height: "2rem",
+                boxSizing: "border-box",
+                background: "none",
+                border: "0.0625rem solid var(--border)",
+                borderRadius: "0.4375rem",
+                color: "var(--text-secondary)",
+                fontSize: "0.75rem",
+                fontFamily: "'DM Sans', sans-serif",
+                fontWeight: 500,
+                cursor: "pointer",
+                transition: "border-color 0.15s, color 0.15s",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = "var(--accent)";
+                e.currentTarget.style.color = "var(--accent)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = "var(--border)";
+                e.currentTarget.style.color = "var(--text-secondary)";
+              }}
+            >
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M8 2v9M4 7l4 4 4-4" />
+                <path d="M2 13h12" />
+              </svg>
+              Export
+            </button>
+          )}
+          <ThemeToggle />
+        </div>
       </motion.header>
 
       <div style={{ flex: 1, overflow: "hidden", position: "relative" }}>

@@ -14,6 +14,7 @@
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "framer-motion": "^12.38.0",
+    "jszip": "^3.10.1",
     "katex": "^0.16.45",
     "next": "^16.2.1",
     "postcss": "^8.5.8",
@@ -26,6 +27,7 @@
     "typescript": "^6.0.2"
   },
   "devDependencies": {
+    "@types/jszip": "^3.4.0",
     "eslint": "^9.0.0",
     "eslint-config-next": "^16.2.1"
   }

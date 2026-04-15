@@ -21,6 +21,7 @@ import {
 } from "@/lib/api";
 import { buildTimelineFromGraph, mergeTimelineWithGraph } from "@/lib/timeline-builder";
 import { SavedGraphListItem, SeedCandidate, TimelineData, TraversalSettings } from "@/lib/types";
+import { exportObsidianZip } from "@/lib/export";
 
 const DEFAULT_SETTINGS: TraversalSettings = {
   depth: 1,
@@ -299,6 +300,14 @@ export default function Home() {
     if (!searchedQuery || isExpanding) return;
     void runSearch(searchedQuery, selectedSeedOpenalexId ?? undefined);
   }, [isExpanding, runSearch, searchedQuery, selectedSeedOpenalexId]);
+
+  const handleExport = useCallback(() => {
+    if (!timelineData || !searchedQuery) return;
+    exportObsidianZip(timelineData, searchedQuery).catch((err) => {
+      console.error("Export failed:", err);
+      alert("Export failed. Please try again.");
+    });
+  }, [timelineData, searchedQuery]);
 
   const handleShare = useCallback(async () => {
     if (!graphId || !userId || shareState === "sharing" || saveState === "saving") return;
@@ -743,6 +752,7 @@ export default function Home() {
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -4 }}
                   transition={{ duration: 0.25 }}
+                  onClick={handleExport}
                   style={{
                     display: "flex",
                     alignItems: "center",
