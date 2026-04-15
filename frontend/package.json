@@ -10,10 +10,12 @@
   },
   "dependencies": {
     "@tailwindcss/postcss": "^4.2.2",
+    "@types/jszip": "^3.4.0",
     "@types/node": "^25.5.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "framer-motion": "^12.38.0",
+    "jszip": "^3.10.1",
     "katex": "^0.16.45",
     "next": "^16.2.1",
     "postcss": "^8.5.8",
