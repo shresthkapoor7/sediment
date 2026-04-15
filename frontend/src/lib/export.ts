@@ -26,6 +26,7 @@ function paperToMarkdown(nodeId: number, data: TimelineData, folderName: string)
     `title: ${JSON.stringify(paper.title)}`,
     `year: ${paper.year ?? "unknown"}`,
     `authors: [${authors}]`,
+    `openalex: ${JSON.stringify(`https://openalex.org/${paper.openalexId}`)}`,
     (paper.oaUrl || paper.doi) ? `link: ${JSON.stringify(paper.oaUrl ?? `https://doi.org/${paper.doi}`)}` : null,
     paper.type ? `type: ${paper.type}` : null,
     tags ? `tags: [${tags}]` : null,
