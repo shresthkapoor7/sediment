@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+const API_BASE =
+  process.env.API_URL ||
+  (process.env.NODE_ENV === "development" ? "http://127.0.0.1:8000" : "");
 
 export async function generateMetadata({
   params,
@@ -9,10 +11,15 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { share_id } = await params;
 
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 5000);
+
   try {
-    const res = await fetch(`${API_BASE}/api/share/${share_id}`, {
+    const res = await fetch(`${API_BASE}/api/share/${encodeURIComponent(share_id)}`, {
       next: { revalidate: 3600 },
+      signal: controller.signal,
     });
+    clearTimeout(timeout);
 
     if (res.ok) {
       const graph = await res.json();
@@ -36,6 +43,7 @@ export async function generateMetadata({
       }
     }
   } catch {
+    clearTimeout(timeout);
     // fall through to defaults
   }
 

@@ -96,9 +96,8 @@ export function TimelineCanvas({
       const z = zoomRef.current;
       const contentRight = x + maxX * z;
       const contentBottom = y + maxY * z;
-      const outOfView =
-        contentRight < 0 || x > clientWidth ||
-        contentBottom < 0 || y > clientHeight;
+      const TOLERANCE = 2;
+      const outOfView = !(x >= -TOLERANCE && y >= -TOLERANCE && contentRight <= clientWidth + TOLERANCE && contentBottom <= clientHeight + TOLERANCE);
       setIsOutOfView(outOfView);
     }
   }, [maxX, maxY]);
@@ -415,13 +414,14 @@ export function TimelineCanvas({
           onClick={() => {
             if (containerRef.current) {
               const { clientWidth, clientHeight } = containerRef.current;
-              zoomRef.current = 1;
+              const fitZoom = Math.min(clientWidth / maxX, clientHeight / maxY, 1);
+              zoomRef.current = fitZoom;
               panRef.current = {
-                x: (clientWidth - maxX) / 2,
-                y: (clientHeight - maxY) / 2,
+                x: (clientWidth - maxX * fitZoom) / 2,
+                y: (clientHeight - maxY * fitZoom) / 2,
               };
               applyTransform();
-              setZoomDisplay(100);
+              setZoomDisplay(Math.round(fitZoom * 100));
             }
           }}
           style={{
