@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 
 const API_BASE =
   process.env.API_URL ||
-  (process.env.NODE_ENV === "development" ? "http://127.0.0.1:8000" : "");
+  process.env.NEXT_PUBLIC_API_URL ||
+  "http://127.0.0.1:8000";
 
 export async function generateMetadata({
   params,
@@ -42,8 +43,9 @@ export async function generateMetadata({
         };
       }
     }
-  } catch {
+  } catch (err) {
     clearTimeout(timeout);
+    console.error("[generateMetadata] share fetch failed:", err);
     // fall through to defaults
   }
 
