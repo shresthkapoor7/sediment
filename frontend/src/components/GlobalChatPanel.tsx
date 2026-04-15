@@ -19,9 +19,10 @@ interface GlobalChatPanelProps {
   onHighlight: (ids: string[]) => void;
   onAddLineage: (query: string) => void;
   isExpanding: boolean;
+  credits?: number;
 }
 
-export function GlobalChatPanel({ data, onHighlight, onAddLineage, isExpanding }: GlobalChatPanelProps) {
+export function GlobalChatPanel({ data, onHighlight, onAddLineage, isExpanding, credits = 10 }: GlobalChatPanelProps) {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -73,9 +74,11 @@ export function GlobalChatPanel({ data, onHighlight, onAddLineage, isExpanding }
     summary: n.paper.summary,
   }));
 
+  const limitReached = credits === 0;
+
   async function send() {
     const q = input.trim();
-    if (!q || isThinking) return;
+    if (!q || isThinking || limitReached) return;
     setInput("");
 
     const userMsg: Message = { id: ++msgIdRef.current, role: "user", text: q };
@@ -357,7 +360,8 @@ export function GlobalChatPanel({ data, onHighlight, onAddLineage, isExpanding }
                 rows={1}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKey}
-                placeholder="Ask about these papers..."
+                disabled={limitReached}
+                placeholder={limitReached ? "Daily limit reached. Resets at midnight." : "Ask about these papers..."}
                 style={{
                   flex: 1,
                   background: "var(--bg-secondary)",
@@ -365,28 +369,29 @@ export function GlobalChatPanel({ data, onHighlight, onAddLineage, isExpanding }
                   borderRadius: "0.5rem",
                   padding: "0.375rem 0.625rem",
                   fontSize: "0.75rem",
-                  color: "var(--text-primary)",
+                  color: limitReached ? "var(--text-tertiary)" : "var(--text-primary)",
                   fontFamily: "'DM Sans', sans-serif",
                   outline: "none",
                   resize: "none",
                   overflow: "hidden",
                   lineHeight: 1.5,
                   maxHeight: 120,
+                  cursor: limitReached ? "not-allowed" : "text",
                 }}
-                onFocus={(e) => { e.target.style.borderColor = "var(--accent)"; }}
+                onFocus={(e) => { if (!limitReached) e.target.style.borderColor = "var(--accent)"; }}
                 onBlur={(e) => { e.target.style.borderColor = "var(--border)"; }}
               />
               <button
                 onClick={() => void send()}
                 aria-label="Send message"
-                disabled={!input.trim() || isThinking}
+                disabled={!input.trim() || isThinking || limitReached}
                 style={{
                   width: "1.875rem",
                   height: "1.875rem",
-                  background: input.trim() && !isThinking ? "var(--accent)" : "var(--bg-tertiary)",
+                  background: input.trim() && !isThinking && !limitReached ? "var(--accent)" : "var(--bg-tertiary)",
                   border: "none",
                   borderRadius: "0.5rem",
-                  cursor: input.trim() && !isThinking ? "pointer" : "default",
+                  cursor: input.trim() && !isThinking && !limitReached ? "pointer" : "default",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
