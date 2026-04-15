@@ -41,6 +41,7 @@ export function TimelineCanvas({
   const panStartRef = useRef({ x: 0, y: 0 });
 
   const [zoomDisplay, setZoomDisplay] = useState(1);
+  const [isOutOfView, setIsOutOfView] = useState(false);
   const [cursorStyle, setCursorStyle] = useState("default");
   const [activeNodeId, setActiveNodeId] = useState<number | null>(null);
   const [chatHistories, setChatHistories] = useState<Record<number, ChatMessage[]>>({});
@@ -89,7 +90,17 @@ export function TimelineCanvas({
         `translate(${x}, ${y}) scale(${z})`
       );
     }
-  }, []);
+    if (containerRef.current) {
+      const { clientWidth, clientHeight } = containerRef.current;
+      const { x, y } = panRef.current;
+      const z = zoomRef.current;
+      const contentRight = x + maxX * z;
+      const contentBottom = y + maxY * z;
+      const TOLERANCE = 2;
+      const outOfView = !(x >= -TOLERANCE && y >= -TOLERANCE && contentRight <= clientWidth + TOLERANCE && contentBottom <= clientHeight + TOLERANCE);
+      setIsOutOfView(outOfView);
+    }
+  }, [maxX, maxY]);
 
   // Wheel: zoom (pinch / ctrl+scroll) or pan (plain scroll)
   useEffect(() => {
@@ -328,6 +339,7 @@ export function TimelineCanvas({
         {[
           {
             label: "\u2212",
+            title: "Zoom out",
             action: () => {
               if (!containerRef.current) return;
               const { clientWidth, clientHeight } = containerRef.current;
@@ -346,6 +358,7 @@ export function TimelineCanvas({
           },
           {
             label: "+",
+            title: "Zoom in",
             action: () => {
               if (!containerRef.current) return;
               const { clientWidth, clientHeight } = containerRef.current;
@@ -362,25 +375,11 @@ export function TimelineCanvas({
               setZoomDisplay(Math.round(newZoom * 100));
             },
           },
-          {
-            label: "\u2302",
-            action: () => {
-              if (containerRef.current) {
-                const { clientWidth, clientHeight } = containerRef.current;
-                zoomRef.current = 1;
-                panRef.current = {
-                  x: (clientWidth - maxX) / 2,
-                  y: (clientHeight - maxY) / 2,
-                };
-                applyTransform();
-                setZoomDisplay(100);
-              }
-            },
-          },
         ].map((btn) => (
           <button
             key={btn.label}
             onClick={btn.action}
+            title={btn.title}
             style={{
               width: "1.75rem",
               height: "1.75rem",
@@ -408,6 +407,50 @@ export function TimelineCanvas({
             {btn.label}
           </button>
         ))}
+
+        {/* Home / fit button — highlights when content is off-screen */}
+        <button
+          title="Fit to view"
+          onClick={() => {
+            if (containerRef.current) {
+              const { clientWidth, clientHeight } = containerRef.current;
+              const fitZoom = Math.min(clientWidth / maxX, clientHeight / maxY, 1);
+              zoomRef.current = fitZoom;
+              panRef.current = {
+                x: (clientWidth - maxX * fitZoom) / 2,
+                y: (clientHeight - maxY * fitZoom) / 2,
+              };
+              applyTransform();
+              setZoomDisplay(Math.round(fitZoom * 100));
+            }
+          }}
+          style={{
+            width: "1.75rem",
+            height: "1.75rem",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: isOutOfView ? "var(--accent-soft)" : "var(--bg-secondary)",
+            border: `0.0625rem solid ${isOutOfView ? "var(--accent)" : "var(--border)"}`,
+            borderRadius: "0.375rem",
+            color: isOutOfView ? "var(--accent)" : "var(--text-secondary)",
+            cursor: "pointer",
+            fontSize: "0.875rem",
+            fontFamily: "inherit",
+            transition: "all 0.2s ease",
+            boxShadow: isOutOfView ? "0 0 0 0.1875rem var(--accent-soft)" : "none",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.borderColor = "var(--accent)";
+            e.currentTarget.style.color = "var(--accent)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.borderColor = isOutOfView ? "var(--accent)" : "var(--border)";
+            e.currentTarget.style.color = isOutOfView ? "var(--accent)" : "var(--text-secondary)";
+          }}
+        >
+          ⌂
+        </button>
         <div style={{
           fontSize: "0.6875rem",
           fontFamily: "'JetBrains Mono', monospace",
