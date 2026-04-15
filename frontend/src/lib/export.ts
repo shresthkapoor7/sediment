@@ -14,6 +14,10 @@ function formatTag(concept: string): string {
   return concept.toLowerCase().replace(/\s+/g, "-").replace(/[^\w-]/g, "");
 }
 
+function getFilename(title: string, openalexId: string): string {
+  return slugify(title) || openalexId;
+}
+
 function paperToMarkdown(nodeId: number, data: TimelineData, folderName: string): string {
   const node = data.nodes[nodeId];
   const paper = node.paper;
@@ -45,22 +49,22 @@ function paperToMarkdown(nodeId: number, data: TimelineData, folderName: string)
     lines.push("## Abstract", "", paper.detail, "");
   }
 
-  const wikilink = (title: string, year: number | null) =>
-    `[[${folderName}/${slugify(title)}|${title}]] (${year ?? "?"})`;
+  const wikilink = (title: string, openalexId: string, year: number | null) =>
+    `[[${folderName}/${getFilename(title, openalexId)}|${title}]] (${year ?? "?"})`;
 
   // Built on — immediate parent node
   const parentNodeId = node.parentId;
   const parents: string[] = [];
   if (parentNodeId !== null && data.nodes[parentNodeId]) {
     const parent = data.nodes[parentNodeId].paper;
-    parents.push(wikilink(parent.title, parent.year));
+    parents.push(wikilink(parent.title, parent.openalexId, parent.year));
   }
 
   // Led to — child nodes in adjacency
   const ledTo: string[] = (data.adjacency[nodeId] ?? [])
     .map((childId) => data.nodes[childId])
     .filter(Boolean)
-    .map((childNode) => wikilink(childNode.paper.title, childNode.paper.year));
+    .map((childNode) => wikilink(childNode.paper.title, childNode.paper.openalexId, childNode.paper.year));
 
   if (parents.length > 0 || ledTo.length > 0) {
     if (parents.length > 0) {
@@ -84,7 +88,7 @@ export async function exportObsidianZip(
 
   const nodeList = Object.values(timelineData.nodes)
     .sort((a, b) => (a.paper.year ?? 0) - (b.paper.year ?? 0))
-    .map((n) => `- [[${folderName}/${slugify(n.paper.title)}|${n.paper.title}]] (${n.paper.year ?? "?"})`)
+    .map((n) => `- [[${folderName}/${getFilename(n.paper.title, n.paper.openalexId)}|${n.paper.title}]] (${n.paper.year ?? "?"})`)
     .join("\n");
 
   const agentsMd = [
@@ -118,10 +122,17 @@ export async function exportObsidianZip(
 
   folder.file("agents.md", agentsMd);
 
+  const usedFilenames = new Set<string>();
   for (const nodeIdStr of Object.keys(timelineData.nodes)) {
     const nodeId = Number(nodeIdStr);
     const node = timelineData.nodes[nodeId];
-    const filename = slugify(node.paper.title) || node.paper.openalexId;
+    const baseName = getFilename(node.paper.title, node.paper.openalexId);
+    let filename = baseName;
+    let counter = 1;
+    while (usedFilenames.has(filename)) {
+      filename = `${baseName}-${counter++}`;
+    }
+    usedFilenames.add(filename);
     const content = paperToMarkdown(nodeId, timelineData, folderName);
     folder.file(`${filename}.md`, content);
   }

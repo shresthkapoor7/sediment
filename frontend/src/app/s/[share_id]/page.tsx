@@ -120,9 +120,14 @@ export default function SharedGraphPage() {
         )}
 
         <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-          {timelineData && (
+          {timelineData && query && (
             <button
-              onClick={() => exportObsidianZip(timelineData, query)}
+              onClick={() => {
+                exportObsidianZip(timelineData, query).catch((err) => {
+                  console.error("Export failed:", err);
+                  alert("Export failed. Please try again.");
+                });
+              }}
               style={{
                 display: "flex",
                 alignItems: "center",

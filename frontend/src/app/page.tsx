@@ -303,7 +303,10 @@ export default function Home() {
 
   const handleExport = useCallback(() => {
     if (!timelineData || !searchedQuery) return;
-    void exportObsidianZip(timelineData, searchedQuery);
+    exportObsidianZip(timelineData, searchedQuery).catch((err) => {
+      console.error("Export failed:", err);
+      alert("Export failed. Please try again.");
+    });
   }, [timelineData, searchedQuery]);
 
   const handleShare = useCallback(async () => {
