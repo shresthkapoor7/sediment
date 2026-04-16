@@ -40,6 +40,12 @@ export function TimelineCanvas({
   const isPanningRef = useRef(false);
   const panStartRef = useRef({ x: 0, y: 0 });
 
+  // Touch tracking
+  const activePointersRef = useRef<Map<number, { x: number; y: number }>>(new Map());
+  const lastPinchDistRef = useRef<number | null>(null);
+  const touchStartRef = useRef({ x: 0, y: 0 });
+  const touchDidMoveRef = useRef(false);
+
   const [zoomDisplay, setZoomDisplay] = useState(1);
   const [isOutOfView, setIsOutOfView] = useState(false);
   const [cursorStyle, setCursorStyle] = useState("default");
@@ -146,12 +152,26 @@ export function TimelineCanvas({
     return () => el.removeEventListener("wheel", onWheel);
   }, [applyTransform]);
 
-  // Pointer-based panning
+  // Pointer-based panning (mouse + touch + pinch-to-zoom)
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
 
     const onPointerDown = (e: PointerEvent) => {
+      if (e.pointerType === "touch") {
+        activePointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        el.setPointerCapture(e.pointerId);
+        // Prepare for single-finger pan (committed only after threshold movement)
+        if (activePointersRef.current.size === 1) {
+          touchStartRef.current = { x: e.clientX, y: e.clientY };
+          touchDidMoveRef.current = false;
+          panStartRef.current = {
+            x: e.clientX - panRef.current.x,
+            y: e.clientY - panRef.current.y,
+          };
+        }
+        return;
+      }
       if (e.button === 1 || (e.button === 0 && e.altKey)) {
         isPanningRef.current = true;
         panStartRef.current = {
@@ -164,6 +184,52 @@ export function TimelineCanvas({
     };
 
     const onPointerMove = (e: PointerEvent) => {
+      if (e.pointerType === "touch") {
+        activePointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        const pointers = Array.from(activePointersRef.current.values());
+
+        if (pointers.length >= 2) {
+          // Pinch-to-zoom — cancel any single-finger pan
+          isPanningRef.current = false;
+          const dx = pointers[0].x - pointers[1].x;
+          const dy = pointers[0].y - pointers[1].y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (lastPinchDistRef.current !== null && dist > 0) {
+            const scale = dist / lastPinchDistRef.current;
+            const rect = el.getBoundingClientRect();
+            const cx = (pointers[0].x + pointers[1].x) / 2 - rect.left;
+            const cy = (pointers[0].y + pointers[1].y) / 2 - rect.top;
+            const oldZoom = zoomRef.current;
+            const newZoom = Math.min(Math.max(oldZoom * scale, 0.3), 2.5);
+            panRef.current = {
+              x: cx + (panRef.current.x - cx) * (newZoom / oldZoom),
+              y: cy + (panRef.current.y - cy) * (newZoom / oldZoom),
+            };
+            zoomRef.current = newZoom;
+            applyTransform();
+            setZoomDisplay(Math.round(newZoom * 100));
+          }
+          lastPinchDistRef.current = dist;
+          return;
+        }
+
+        // Single-finger pan — commit after 8px threshold so taps still work
+        const ddx = e.clientX - touchStartRef.current.x;
+        const ddy = e.clientY - touchStartRef.current.y;
+        if (!touchDidMoveRef.current && Math.sqrt(ddx * ddx + ddy * ddy) > 8) {
+          touchDidMoveRef.current = true;
+          isPanningRef.current = true;
+          setCursorStyle("grabbing");
+        }
+        if (!isPanningRef.current) return;
+        panRef.current = {
+          x: e.clientX - panStartRef.current.x,
+          y: e.clientY - panStartRef.current.y,
+        };
+        applyTransform();
+        return;
+      }
+
       if (!isPanningRef.current) return;
       panRef.current = {
         x: e.clientX - panStartRef.current.x,
@@ -172,8 +238,26 @@ export function TimelineCanvas({
       applyTransform();
     };
 
-    const onPointerUp = () => {
+    const onPointerUp = (e: PointerEvent) => {
+      if (e.pointerType === "touch") {
+        activePointersRef.current.delete(e.pointerId);
+        lastPinchDistRef.current = null;
+        if (activePointersRef.current.size === 0) {
+          isPanningRef.current = false;
+          touchDidMoveRef.current = false;
+          setCursorStyle("default");
+        }
+        return;
+      }
       if (isPanningRef.current) {
+        isPanningRef.current = false;
+        setCursorStyle("default");
+      }
+    };
+
+    const onPointerLeave = (e: PointerEvent) => {
+      // Only cancel for mouse/pen, not touch (touch fires pointerleave on scroll)
+      if (e.pointerType !== "touch" && isPanningRef.current) {
         isPanningRef.current = false;
         setCursorStyle("default");
       }
@@ -182,12 +266,12 @@ export function TimelineCanvas({
     el.addEventListener("pointerdown", onPointerDown);
     el.addEventListener("pointermove", onPointerMove);
     el.addEventListener("pointerup", onPointerUp);
-    el.addEventListener("pointerleave", onPointerUp);
+    el.addEventListener("pointerleave", onPointerLeave);
     return () => {
       el.removeEventListener("pointerdown", onPointerDown);
       el.removeEventListener("pointermove", onPointerMove);
       el.removeEventListener("pointerup", onPointerUp);
-      el.removeEventListener("pointerleave", onPointerUp);
+      el.removeEventListener("pointerleave", onPointerLeave);
     };
   }, [applyTransform]);
 
@@ -197,15 +281,20 @@ export function TimelineCanvas({
     setIsThinking(false);
   }, []);
 
-  // Center on initial mount only
+  // Initial mount: fit-to-view on mobile, 1:1 centered on desktop
   useEffect(() => {
     if (containerRef.current && !hasCentered.current) {
       const { clientWidth, clientHeight } = containerRef.current;
+      const isMobile = clientWidth <= 768;
+      const fitZoom = Math.min(clientWidth / maxX, clientHeight / maxY, 1);
+      const initialZoom = isMobile ? fitZoom : 1;
+      zoomRef.current = initialZoom;
       panRef.current = {
-        x: (clientWidth - maxX) / 2,
-        y: (clientHeight - maxY) / 2,
+        x: (clientWidth - maxX * initialZoom) / 2,
+        y: (clientHeight - maxY * initialZoom) / 2,
       };
       applyTransform();
+      setZoomDisplay(Math.round(initialZoom * 100));
       hasCentered.current = true;
     }
   }, [applyTransform, maxX, maxY]);
@@ -555,7 +644,7 @@ export function TimelineCanvas({
               top: 0,
               right: 0,
               bottom: 0,
-              width: "23.75rem",
+              width: "min(23.75rem, 100%)",
               background: "var(--bg-primary)",
               borderLeft: "0.0625rem solid var(--border)",
               zIndex: 20,
