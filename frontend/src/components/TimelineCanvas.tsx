@@ -44,6 +44,7 @@ export function TimelineCanvas({
   const lastPinchDistRef = useRef<number | null>(null);
   const touchStartRef = useRef({ x: 0, y: 0 });
   const touchDidMoveRef = useRef(false);
+  const touchOnCanvasRef = useRef(false); // true when touch started on SVG, not a UI panel
 
   const [zoomDisplay, setZoomDisplay] = useState(1);
   const [isOutOfView, setIsOutOfView] = useState(false);
@@ -197,6 +198,12 @@ export function TimelineCanvas({
     if (!el) return;
 
     const onTouchStart = (e: TouchEvent) => {
+      // Only treat as canvas gesture if the touch started on the SVG itself,
+      // not on a UI panel (chat, side drawer, zoom buttons) that sits on top.
+      const target = e.target as Node;
+      touchOnCanvasRef.current = svgRef.current?.contains(target) ?? false;
+      if (!touchOnCanvasRef.current) return;
+
       if (e.touches.length === 1) {
         const t = e.touches[0];
         touchStartRef.current = { x: t.clientX, y: t.clientY };
@@ -214,7 +221,8 @@ export function TimelineCanvas({
     };
 
     const onTouchMove = (e: TouchEvent) => {
-      e.preventDefault(); // block browser scroll / bounce
+      if (!touchOnCanvasRef.current) return; // let chat panels / UI scroll normally
+      e.preventDefault(); // block browser scroll on the canvas
 
       if (e.touches.length === 2) {
         const t0 = e.touches[0];
@@ -262,6 +270,7 @@ export function TimelineCanvas({
         isPanningRef.current = false;
         touchDidMoveRef.current = false;
         lastPinchDistRef.current = null;
+        touchOnCanvasRef.current = false;
       } else if (e.touches.length === 1) {
         // 2→1 finger: reset single-finger state without committing a pan
         lastPinchDistRef.current = null;
@@ -420,7 +429,7 @@ export function TimelineCanvas({
         background: "var(--bg-canvas)",
         borderRadius: "0.75rem",
         position: "relative",
-        touchAction: "none",
+        // touchAction is set on the <svg> only so chat panels inside can still scroll
       }}
     >
       {/* Controls + zoom indicator */}
@@ -570,7 +579,7 @@ export function TimelineCanvas({
         ref={svgRef}
         width="100%"
         height="100%"
-        style={{ position: "absolute", top: 0, left: 0 }}
+        style={{ position: "absolute", top: 0, left: 0, touchAction: "none" }}
       >
         <defs>
           <marker id="arrow-default" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto" markerUnits="strokeWidth">
