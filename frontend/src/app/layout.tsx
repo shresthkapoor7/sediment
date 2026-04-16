@@ -6,6 +6,10 @@ import "katex/dist/katex.min.css";
 export const metadata: Metadata = {
   title: "Sediment — Knowledge, layered.",
   description: "Trace any research concept back through time.",
+  appleWebApp: {
+    capable: true,
+    title: "Sediment",
+  },
 };
 
 export default function RootLayout({
