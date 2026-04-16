@@ -130,7 +130,7 @@ export function GlobalChatPanel({ data, onHighlight, onAddLineage, isExpanding }
             transition={{ duration: 0.2, ease: "easeOut" }}
             onWheelCapture={(e) => e.stopPropagation()}
             style={{
-              width: "20rem",
+              width: "min(20rem, calc(100vw - 2.5rem))",
               maxHeight: "26.25rem",
               background: "var(--bg-primary)",
               border: "0.0625rem solid var(--border-hover)",

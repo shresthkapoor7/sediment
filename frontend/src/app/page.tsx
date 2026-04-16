@@ -25,6 +25,45 @@ import { exportObsidianZip } from "@/lib/export";
 
 const GITHUB_REPO_URL = "https://github.com/shresthkapoor7/sediment";
 
+const THUMB_SIZE = 13;
+
+function SettingsSlider({
+  item,
+  value,
+  onChange,
+}: {
+  item: { key: string; label: string; min: number; max: number };
+  value: number;
+  onChange: (v: number) => void;
+}) {
+  const pct = ((value - item.min) / (item.max - item.min)) * 100;
+  return (
+    <label style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", fontSize: "0.71875rem", color: "var(--text-secondary)", fontFamily: "'DM Sans', sans-serif" }}>
+        <span style={{ fontWeight: 500 }}>{item.label}</span>
+        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: "0.6875rem", color: "var(--accent)" }}>{value}</span>
+      </div>
+      <div style={{ position: "relative", height: "1.25rem", display: "flex", alignItems: "center" }}>
+        {/* Track */}
+        <div style={{ position: "absolute", left: 0, right: 0, height: "0.1875rem", top: "50%", transform: "translateY(-50%)", borderRadius: "0.125rem", background: "var(--bg-tertiary)" }} />
+        {/* Fill */}
+        <div style={{ position: "absolute", left: 0, height: "0.1875rem", top: "50%", transform: "translateY(-50%)", borderRadius: "0.125rem", background: "var(--accent)", width: `${pct}%` }} />
+        {/* Thumb */}
+        <div style={{ position: "absolute", width: THUMB_SIZE, height: THUMB_SIZE, top: "50%", transform: "translateY(-50%)", borderRadius: "50%", background: "var(--accent)", boxShadow: "0 0.0625rem 0.25rem rgba(0,0,0,0.3)", pointerEvents: "none", left: `calc(${pct}% - ${(pct / 100) * THUMB_SIZE}px)` }} />
+        {/* Hidden native input */}
+        <input
+          type="range"
+          min={item.min}
+          max={item.max}
+          value={value}
+          onChange={(e) => onChange(Number(e.currentTarget.value))}
+          style={{ position: "absolute", inset: 0, width: "100%", margin: 0, opacity: 0, cursor: "pointer", height: "100%" }}
+        />
+      </div>
+    </label>
+  );
+}
+
 const DEFAULT_SETTINGS: TraversalSettings = {
   depth: 1,
   breadth: 2,
@@ -51,6 +90,7 @@ export default function Home() {
   const [isHistoryLoading, setIsHistoryLoading] = useState(false);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [shareState, setShareState] = useState<"idle" | "sharing" | "copied" | "error">("idle");
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const shareStateTimeoutRef = useRef<number | null>(null);
   const saveTimeoutRef = useRef<number | null>(null);
   const saveStateTimeoutRef = useRef<number | null>(null);
@@ -372,9 +412,11 @@ export default function Home() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
         style={{
+          position: "relative",
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
+          gap: "0.75rem",
           padding: "0.875rem 1.5rem",
           borderBottom: "0.0625rem solid var(--border)",
           background: "var(--bg-primary)",
@@ -422,7 +464,7 @@ export default function Home() {
 
         <AnimatePresence>
           {searchedQuery && (
-            <div style={{ display: "flex", alignItems: "center", gap: "0.625rem" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.625rem", minWidth: 0, overflow: "hidden", flexShrink: 1 }}>
               <motion.span
                 initial={{ opacity: 0, y: -4 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -432,6 +474,10 @@ export default function Home() {
                   color: "var(--text-tertiary)",
                   fontFamily: "'JetBrains Mono', monospace",
                   letterSpacing: "0.02em",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                  minWidth: 0,
                 }}
               >
                 tracing: {searchedQuery}
@@ -487,7 +533,11 @@ export default function Home() {
           )}
         </AnimatePresence>
 
-        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+        {/* ── Right side: desktop buttons + always-visible controls ── */}
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexShrink: 0 }}>
+
+        {/* Desktop buttons (hidden on mobile) */}
+        <div className="desktop-only" style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
           {!timelineData && (
             <motion.button
               initial={{ opacity: 0, y: -4 }}
@@ -534,7 +584,6 @@ export default function Home() {
               boxSizing: "border-box",
             }}
           >
-            {/* Battery segments */}
             <div style={{ display: "flex", alignItems: "center", gap: "0.125rem" }}>
               {Array.from({ length: 10 }).map((_, i) => (
                 <div
@@ -548,7 +597,6 @@ export default function Home() {
                   }}
                 />
               ))}
-              {/* Battery tip */}
               <div style={{ width: "0.125rem", height: "0.3125rem", borderRadius: "0 0.0625rem 0.0625rem 0", background: "var(--border)", marginLeft: "0.0625rem" }} />
             </div>
             <span style={{ fontSize: "0.6875rem", color: "var(--text-tertiary)", fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.02em" }}>
@@ -556,16 +604,13 @@ export default function Home() {
             </span>
           </div>
 
+          {/* Settings */}
           <div style={{ position: "relative" }}>
             <button
               onClick={() => {
                 setSettingsOpen((open) => {
-                  if (!open) {
-                    setDraftSettings(settings);
-                    return true;
-                  }
                   setDraftSettings(settings);
-                  return false;
+                  return !open;
                 });
               }}
               style={{
@@ -585,14 +630,8 @@ export default function Home() {
                 cursor: "pointer",
                 transition: "border-color 0.15s, color 0.15s",
               }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = "var(--accent)";
-                e.currentTarget.style.color = "var(--accent)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.borderColor = "var(--border)";
-                e.currentTarget.style.color = "var(--text-secondary)";
-              }}
+              onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--accent)"; e.currentTarget.style.color = "var(--accent)"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.color = "var(--text-secondary)"; }}
             >
               <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M6.5 1.5h3M6 14.5h4M3.5 5.5h9M2.5 10.5h11" />
@@ -628,118 +667,32 @@ export default function Home() {
                   <p style={{ fontSize: "0.625rem", color: "var(--text-tertiary)", fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.06em", textTransform: "uppercase" }}>
                     traversal settings
                   </p>
-                  {[
+                  {([
                     { key: "depth", label: "Depth", min: 1, max: 3 },
                     { key: "breadth", label: "Breadth", min: 1, max: 5 },
                     { key: "referenceLimit", label: "Reference limit", min: 5, max: 50 },
                     { key: "topN", label: "Top N", min: 1, max: 8 },
-                  ].map((item) => (
-                    <label key={item.key} style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-                      <div
-                        style={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          alignItems: "baseline",
-                          fontSize: "0.71875rem",
-                          color: "var(--text-secondary)",
-                          fontFamily: "'DM Sans', sans-serif",
-                        }}
-                      >
-                        <span style={{ fontWeight: 500 }}>{item.label}</span>
-                        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: "0.6875rem", color: "var(--accent)" }}>
-                          {draftSettings[item.key as keyof TraversalSettings]}
-                        </span>
-                      </div>
-                      {(() => {
-                        const val = draftSettings[item.key as keyof TraversalSettings];
-                        const pct = ((val - item.min) / (item.max - item.min)) * 100;
-                        const thumbSize = 13;
-                        return (
-                          <div style={{ position: "relative", height: "1.25rem", display: "flex", alignItems: "center" }}>
-                            {/* Track background */}
-                            <div style={{ position: "absolute", left: 0, right: 0, height: "0.1875rem", top: "50%", transform: "translateY(-50%)", borderRadius: "0.125rem", background: "var(--bg-tertiary)" }} />
-                            {/* Filled portion */}
-                            <div style={{ position: "absolute", left: 0, height: "0.1875rem", top: "50%", transform: "translateY(-50%)", borderRadius: "0.125rem", background: "var(--accent)", width: `${pct}%` }} />
-                            {/* Thumb */}
-                            <div style={{
-                              position: "absolute",
-                              width: thumbSize,
-                              height: thumbSize,
-                              top: "50%",
-                              transform: "translateY(-50%)",
-                              borderRadius: "50%",
-                              background: "var(--accent)",
-                              boxShadow: "0 0.0625rem 0.25rem rgba(0,0,0,0.3)",
-                              pointerEvents: "none",
-                              left: `calc(${pct}% - ${pct / 100 * thumbSize}px)`,
-                            }} />
-                            {/* Invisible native input for interaction */}
-                            <input
-                              type="range"
-                              min={item.min}
-                              max={item.max}
-                              value={val}
-                              onChange={(e) => {
-                                const value = Number(e.currentTarget.value);
-                                setDraftSettings((prev) => ({ ...prev, [item.key]: value }));
-                              }}
-                              style={{ position: "absolute", inset: 0, width: "100%", margin: 0, opacity: 0, cursor: "pointer", height: "100%" }}
-                            />
-                          </div>
-                        );
-                      })()}
-                    </label>
+                  ] as const).map((item) => (
+                    <SettingsSlider
+                      key={item.key}
+                      item={item}
+                      value={draftSettings[item.key]}
+                      onChange={(v) => setDraftSettings((prev) => ({ ...prev, [item.key]: v }))}
+                    />
                   ))}
                   <div style={{ display: "flex", gap: "0.375rem", alignItems: "center", marginTop: "0.125rem", borderTop: "0.0625rem solid var(--border)", paddingTop: "0.625rem" }}>
-                    <button
-                      onClick={() => setDraftSettings(DEFAULT_SETTINGS)}
-                      style={{
-                        height: "1.625rem",
-                        padding: "0 0.5rem",
-                        borderRadius: "0.375rem",
-                        border: "none",
-                        background: "none",
-                        color: "var(--text-tertiary)",
-                        cursor: "pointer",
-                        fontSize: "0.6875rem",
-                        fontFamily: "'DM Sans', sans-serif",
-                        fontWeight: 500,
-                        letterSpacing: "0.01em",
-                      }}
-                    >
-                      reset
-                    </button>
+                    <button onClick={() => setDraftSettings(DEFAULT_SETTINGS)} style={{ height: "1.625rem", padding: "0 0.5rem", borderRadius: "0.375rem", border: "none", background: "none", color: "var(--text-tertiary)", cursor: "pointer", fontSize: "0.6875rem", fontFamily: "'DM Sans', sans-serif", fontWeight: 500, letterSpacing: "0.01em" }}>reset</button>
                     <div style={{ flex: 1 }} />
                     <button
                       onClick={() => {
                         if (isExpanding) return;
                         setSettings(draftSettings);
-                        if (searchedQuery && !isSearching) {
-                          void runSearch(
-                            searchedQuery,
-                            selectedSeedOpenalexId ?? undefined,
-                            draftSettings,
-                          );
-                        }
+                        if (searchedQuery && !isSearching) void runSearch(searchedQuery, selectedSeedOpenalexId ?? undefined, draftSettings);
                         setSettingsOpen(false);
                       }}
-                      style={{
-                        height: "1.625rem",
-                        padding: "0 0.625rem",
-                        borderRadius: "0.375rem",
-                        border: "0.0625rem solid var(--accent)",
-                        background: "var(--accent-soft)",
-                        color: "var(--accent)",
-                        cursor: isExpanding ? "default" : "pointer",
-                        fontSize: "0.6875rem",
-                        fontFamily: "'DM Sans', sans-serif",
-                        fontWeight: 600,
-                        letterSpacing: "0.01em",
-                      }}
                       disabled={isExpanding}
-                    >
-                      Apply
-                    </button>
+                      style={{ height: "1.625rem", padding: "0 0.625rem", borderRadius: "0.375rem", border: "0.0625rem solid var(--accent)", background: "var(--accent-soft)", color: "var(--accent)", cursor: isExpanding ? "default" : "pointer", fontSize: "0.6875rem", fontFamily: "'DM Sans', sans-serif", fontWeight: 600, letterSpacing: "0.01em" }}
+                    >Apply</button>
                   </div>
                 </motion.div>
               )}
@@ -750,85 +703,25 @@ export default function Home() {
             {timelineData && (
               <>
                 <motion.button
-                  initial={{ opacity: 0, y: -4 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -4 }}
-                  transition={{ duration: 0.25 }}
+                  initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.25 }}
                   onClick={handleExport}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "0.375rem",
-                    padding: "0 0.75rem",
-                    height: "2rem",
-                    boxSizing: "border-box",
-                    background: "none",
-                    border: "0.0625rem solid var(--border)",
-                    borderRadius: "0.4375rem",
-                    color: "var(--text-secondary)",
-                    fontSize: "0.75rem",
-                    fontFamily: "'DM Sans', sans-serif",
-                    fontWeight: 500,
-                    cursor: "pointer",
-                    transition: "border-color 0.15s, color 0.15s",
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.borderColor = "var(--accent)";
-                    e.currentTarget.style.color = "var(--accent)";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.borderColor = "var(--border)";
-                    e.currentTarget.style.color = "var(--text-secondary)";
-                  }}
+                  style={{ display: "flex", alignItems: "center", gap: "0.375rem", padding: "0 0.75rem", height: "2rem", boxSizing: "border-box", background: "none", border: "0.0625rem solid var(--border)", borderRadius: "0.4375rem", color: "var(--text-secondary)", fontSize: "0.75rem", fontFamily: "'DM Sans', sans-serif", fontWeight: 500, cursor: "pointer", transition: "border-color 0.15s, color 0.15s" }}
+                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--accent)"; e.currentTarget.style.color = "var(--accent)"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.color = "var(--text-secondary)"; }}
                 >
-                  <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M8 2v9M4 7l4 4 4-4" />
-                    <path d="M2 13h12" />
-                  </svg>
+                  <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M8 2v9M4 7l4 4 4-4" /><path d="M2 13h12" /></svg>
                   Export
                 </motion.button>
 
                 <motion.button
-                  initial={{ opacity: 0, y: -4 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -4 }}
-                  transition={{ duration: 0.25, delay: 0.05 }}
+                  initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.25, delay: 0.05 }}
                   onClick={handleShare}
                   disabled={shareState === "sharing"}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "0.375rem",
-                    padding: "0 0.75rem",
-                    height: "2rem",
-                    boxSizing: "border-box",
-                    background: shareState === "copied" ? "var(--accent-soft)" : "none",
-                    border: `0.0625rem solid ${shareState === "copied" ? "var(--accent)" : shareState === "error" ? "#d16f5b" : "var(--border)"}`,
-                    borderRadius: "0.4375rem",
-                    color: shareState === "copied" ? "var(--accent)" : shareState === "error" ? "#d16f5b" : "var(--text-secondary)",
-                    fontSize: "0.75rem",
-                    fontFamily: "'DM Sans', sans-serif",
-                    fontWeight: 500,
-                    cursor: shareState === "sharing" ? "default" : "pointer",
-                    transition: "border-color 0.15s, color 0.15s, background 0.15s",
-                  }}
-                  onMouseEnter={(e) => {
-                    if (shareState === "idle") {
-                      e.currentTarget.style.borderColor = "var(--accent)";
-                      e.currentTarget.style.color = "var(--accent)";
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (shareState === "idle") {
-                      e.currentTarget.style.borderColor = "var(--border)";
-                      e.currentTarget.style.color = "var(--text-secondary)";
-                    }
-                  }}
+                  style={{ display: "flex", alignItems: "center", gap: "0.375rem", padding: "0 0.75rem", height: "2rem", boxSizing: "border-box", background: shareState === "copied" ? "var(--accent-soft)" : "none", border: `0.0625rem solid ${shareState === "copied" ? "var(--accent)" : shareState === "error" ? "#d16f5b" : "var(--border)"}`, borderRadius: "0.4375rem", color: shareState === "copied" ? "var(--accent)" : shareState === "error" ? "#d16f5b" : "var(--text-secondary)", fontSize: "0.75rem", fontFamily: "'DM Sans', sans-serif", fontWeight: 500, cursor: shareState === "sharing" ? "default" : "pointer", transition: "border-color 0.15s, color 0.15s, background 0.15s" }}
+                  onMouseEnter={(e) => { if (shareState === "idle") { e.currentTarget.style.borderColor = "var(--accent)"; e.currentTarget.style.color = "var(--accent)"; } }}
+                  onMouseLeave={(e) => { if (shareState === "idle") { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.color = "var(--text-secondary)"; } }}
                 >
-                  <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M11 3a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM5 8a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM11 9a2 2 0 1 1 0 4 2 2 0 0 1 0-4z" />
-                    <path d="M9 4.5l-4 3M9 11.5l-4-3" />
-                  </svg>
+                  <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M11 3a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM5 8a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM11 9a2 2 0 1 1 0 4 2 2 0 0 1 0-4z" /><path d="M9 4.5l-4 3M9 11.5l-4-3" /></svg>
                   {shareState === "sharing" ? "Sharing..." : shareState === "copied" ? "Copied!" : shareState === "error" ? "Failed" : "Share"}
                 </motion.button>
               </>
@@ -836,38 +729,190 @@ export default function Home() {
           </AnimatePresence>
 
           <a
-            href={GITHUB_REPO_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label="View on GitHub"
+            href={GITHUB_REPO_URL} target="_blank" rel="noopener noreferrer" aria-label="View on GitHub"
+            style={{ display: "flex", alignItems: "center", justifyContent: "center", width: "2rem", height: "2rem", borderRadius: "0.4375rem", border: "0.0625rem solid var(--border)", color: "var(--text-secondary)", transition: "border-color 0.15s, color 0.15s", flexShrink: 0 }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLAnchorElement).style.borderColor = "var(--accent)"; (e.currentTarget as HTMLAnchorElement).style.color = "var(--accent)"; }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLAnchorElement).style.borderColor = "var(--border)"; (e.currentTarget as HTMLAnchorElement).style.color = "var(--text-secondary)"; }}
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.477 2 2 6.477 2 12c0 4.418 2.865 8.166 6.839 9.489.5.092.682-.217.682-.482 0-.237-.009-.868-.013-1.703-2.782.604-3.369-1.342-3.369-1.342-.454-1.155-1.11-1.463-1.11-1.463-.908-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.831.092-.646.35-1.086.636-1.336-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.029-2.683-.103-.253-.446-1.27.098-2.647 0 0 .84-.269 2.75 1.025A9.578 9.578 0 0 1 12 6.836a9.59 9.59 0 0 1 2.504.337c1.909-1.294 2.747-1.025 2.747-1.025.546 1.377.203 2.394.1 2.647.64.699 1.028 1.592 1.028 2.683 0 3.842-2.339 4.687-4.566 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.741 0 .267.18.578.688.48C19.138 20.163 22 16.418 22 12c0-5.523-4.477-10-10-10z" /></svg>
+          </a>
+        </div>
+
+        {/* Always-visible: theme toggle + mobile hamburger */}
+        <div style={{ display: "flex", alignItems: "center", gap: "0.375rem" }}>
+          <ThemeToggle />
+
+          {/* Hamburger — mobile only */}
+          <button
+            className="show-mobile"
+            onClick={() => {
+              setMobileMenuOpen((o) => !o);
+              setDraftSettings(settings);
+            }}
+            aria-label="Menu"
             style={{
               display: "flex",
+              flexDirection: "column",
               alignItems: "center",
               justifyContent: "center",
+              gap: "0.3rem",
               width: "2rem",
               height: "2rem",
+              background: mobileMenuOpen ? "var(--accent-soft)" : "none",
+              border: `0.0625rem solid ${mobileMenuOpen ? "var(--accent)" : "var(--border)"}`,
               borderRadius: "0.4375rem",
-              border: "0.0625rem solid var(--border)",
-              color: "var(--text-secondary)",
-              transition: "border-color 0.15s, color 0.15s",
-              flexShrink: 0,
-            }}
-            onMouseEnter={(e) => {
-              (e.currentTarget as HTMLAnchorElement).style.borderColor = "var(--accent)";
-              (e.currentTarget as HTMLAnchorElement).style.color = "var(--accent)";
-            }}
-            onMouseLeave={(e) => {
-              (e.currentTarget as HTMLAnchorElement).style.borderColor = "var(--border)";
-              (e.currentTarget as HTMLAnchorElement).style.color = "var(--text-secondary)";
+              cursor: "pointer",
+              padding: 0,
+              transition: "border-color 0.15s, background 0.15s",
             }}
           >
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 2C6.477 2 2 6.477 2 12c0 4.418 2.865 8.166 6.839 9.489.5.092.682-.217.682-.482 0-.237-.009-.868-.013-1.703-2.782.604-3.369-1.342-3.369-1.342-.454-1.155-1.11-1.463-1.11-1.463-.908-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.831.092-.646.35-1.086.636-1.336-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.029-2.683-.103-.253-.446-1.27.098-2.647 0 0 .84-.269 2.75 1.025A9.578 9.578 0 0 1 12 6.836a9.59 9.59 0 0 1 2.504.337c1.909-1.294 2.747-1.025 2.747-1.025.546 1.377.203 2.394.1 2.647.64.699 1.028 1.592 1.028 2.683 0 3.842-2.339 4.687-4.566 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.741 0 .267.18.578.688.48C19.138 20.163 22 16.418 22 12c0-5.523-4.477-10-10-10z" />
-            </svg>
-          </a>
-
-          <ThemeToggle />
+            {mobileMenuOpen ? (
+              /* × close icon */
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke={mobileMenuOpen ? "var(--accent)" : "var(--text-secondary)"} strokeWidth="1.75" strokeLinecap="round">
+                <path d="M2 2l10 10M12 2L2 12" />
+              </svg>
+            ) : (
+              /* ☰ hamburger lines */
+              <svg width="14" height="12" viewBox="0 0 14 12" fill="none" stroke="var(--text-secondary)" strokeWidth="1.5" strokeLinecap="round">
+                <path d="M1 1h12M1 6h12M1 11h12" />
+              </svg>
+            )}
+          </button>
         </div>
+
+        </div>{/* end right-side wrapper */}
+
+        {/* ── Mobile dropdown menu ── */}
+        <AnimatePresence>
+          {mobileMenuOpen && (
+            <motion.div
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+              className="show-mobile"
+              style={{
+                position: "absolute",
+                top: "100%",
+                left: 0,
+                right: 0,
+                background: "var(--bg-primary)",
+                borderBottom: "0.0625rem solid var(--border)",
+                boxShadow: "0 0.5rem 1.5rem rgba(0,0,0,0.12)",
+                zIndex: 200,
+                padding: "0.625rem 1rem 0.875rem",
+                display: "flex",
+                flexDirection: "column",
+                gap: "0.25rem",
+              }}
+            >
+              {/* Credits row */}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0.5rem 0.25rem", borderBottom: "0.0625rem solid var(--border)", marginBottom: "0.25rem" }}>
+                <span style={{ fontSize: "0.6875rem", color: "var(--text-tertiary)", fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.04em" }}>credits</span>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.375rem" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.125rem" }}>
+                    {Array.from({ length: 10 }).map((_, i) => (
+                      <div key={i} style={{ width: "0.25rem", height: "0.5rem", borderRadius: "0.0625rem", background: "var(--accent)", opacity: 1 - i * 0.05 }} />
+                    ))}
+                  </div>
+                  <span style={{ fontSize: "0.6875rem", color: "var(--accent)", fontFamily: "'JetBrains Mono', monospace" }}>10</span>
+                </div>
+              </div>
+
+              {/* History */}
+              {!timelineData && (
+                <button
+                  onClick={() => { setHistoryOpen((o) => !o); setMobileMenuOpen(false); }}
+                  style={{ display: "flex", alignItems: "center", gap: "0.625rem", width: "100%", padding: "0.625rem 0.5rem", background: "none", border: "none", borderRadius: "0.5rem", color: "var(--text-primary)", fontSize: "0.875rem", fontFamily: "'DM Sans', sans-serif", fontWeight: 500, cursor: "pointer", textAlign: "left", transition: "background 0.15s" }}
+                  onTouchStart={(e) => { e.currentTarget.style.background = "var(--bg-secondary)"; }}
+                  onTouchEnd={(e) => { e.currentTarget.style.background = "none"; }}
+                  onTouchCancel={(e) => { e.currentTarget.style.background = "none"; }}
+                >
+                  <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="var(--text-tertiary)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2.5 3.5h11M2.5 8h11M2.5 12.5h11" /><path d="M4.5 3.5v9" opacity="0.35" /></svg>
+                  History
+                </button>
+              )}
+
+              {/* Settings — inline sliders */}
+              <div style={{ padding: "0.5rem 0.5rem 0.25rem" }}>
+                <p style={{ fontSize: "0.625rem", color: "var(--text-tertiary)", fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: "0.625rem" }}>traversal settings</p>
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.625rem" }}>
+                  {([
+                    { key: "depth", label: "Depth", min: 1, max: 3 },
+                    { key: "breadth", label: "Breadth", min: 1, max: 5 },
+                    { key: "referenceLimit", label: "Ref limit", min: 5, max: 50 },
+                    { key: "topN", label: "Top N", min: 1, max: 8 },
+                  ] as const).map((item) => (
+                    <SettingsSlider
+                      key={item.key}
+                      item={item}
+                      value={draftSettings[item.key]}
+                      onChange={(v) => setDraftSettings((prev) => ({ ...prev, [item.key]: v }))}
+                    />
+                  ))}
+                </div>
+                <div style={{ display: "flex", gap: "0.375rem", marginTop: "0.75rem" }}>
+                  <button
+                    onClick={() => setDraftSettings(DEFAULT_SETTINGS)}
+                    style={{ flex: 1, height: "2.25rem", borderRadius: "0.5rem", border: "0.0625rem solid var(--border)", background: "none", color: "var(--text-secondary)", cursor: "pointer", fontSize: "0.8125rem", fontFamily: "'DM Sans', sans-serif", fontWeight: 500 }}
+                  >Reset</button>
+                  <button
+                    onClick={() => {
+                      if (isExpanding) return;
+                      setSettings(draftSettings);
+                      if (searchedQuery && !isSearching) void runSearch(searchedQuery, selectedSeedOpenalexId ?? undefined, draftSettings);
+                      setMobileMenuOpen(false);
+                    }}
+                    disabled={isExpanding}
+                    style={{ flex: 1, height: "2.25rem", borderRadius: "0.5rem", border: "0.0625rem solid var(--accent)", background: "var(--accent)", color: "#fff", cursor: isExpanding ? "default" : "pointer", fontSize: "0.8125rem", fontFamily: "'DM Sans', sans-serif", fontWeight: 600 }}
+                  >Apply</button>
+                </div>
+              </div>
+
+              {/* Divider before action buttons */}
+              {timelineData && <div style={{ height: "0.0625rem", background: "var(--border)", margin: "0.25rem 0" }} />}
+
+              {/* Export */}
+              {timelineData && (
+                <button
+                  onClick={() => { handleExport(); setMobileMenuOpen(false); }}
+                  style={{ display: "flex", alignItems: "center", gap: "0.625rem", width: "100%", padding: "0.625rem 0.5rem", background: "none", border: "none", borderRadius: "0.5rem", color: "var(--text-primary)", fontSize: "0.875rem", fontFamily: "'DM Sans', sans-serif", fontWeight: 500, cursor: "pointer", textAlign: "left" }}
+                  onTouchStart={(e) => { e.currentTarget.style.background = "var(--bg-secondary)"; }}
+                  onTouchEnd={(e) => { e.currentTarget.style.background = "none"; }}
+                  onTouchCancel={(e) => { e.currentTarget.style.background = "none"; }}
+                >
+                  <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="var(--text-tertiary)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M8 2v9M4 7l4 4 4-4" /><path d="M2 13h12" /></svg>
+                  Export to Obsidian
+                </button>
+              )}
+
+              {/* Share */}
+              {timelineData && (
+                <button
+                  onClick={() => { void handleShare(); setMobileMenuOpen(false); }}
+                  disabled={shareState === "sharing"}
+                  style={{ display: "flex", alignItems: "center", gap: "0.625rem", width: "100%", padding: "0.625rem 0.5rem", background: "none", border: "none", borderRadius: "0.5rem", color: shareState === "copied" ? "var(--accent)" : "var(--text-primary)", fontSize: "0.875rem", fontFamily: "'DM Sans', sans-serif", fontWeight: 500, cursor: shareState === "sharing" ? "default" : "pointer", textAlign: "left" }}
+                  onTouchStart={(e) => { e.currentTarget.style.background = "var(--bg-secondary)"; }}
+                  onTouchEnd={(e) => { e.currentTarget.style.background = "none"; }}
+                  onTouchCancel={(e) => { e.currentTarget.style.background = "none"; }}
+                >
+                  <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke={shareState === "copied" ? "var(--accent)" : "var(--text-tertiary)"} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M11 3a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM5 8a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM11 9a2 2 0 1 1 0 4 2 2 0 0 1 0-4z" /><path d="M9 4.5l-4 3M9 11.5l-4-3" /></svg>
+                  {shareState === "sharing" ? "Sharing..." : shareState === "copied" ? "Link copied!" : shareState === "error" ? "Share failed" : "Copy share link"}
+                </button>
+              )}
+
+              {/* GitHub */}
+              <a
+                href={GITHUB_REPO_URL} target="_blank" rel="noopener noreferrer"
+                onClick={() => setMobileMenuOpen(false)}
+                style={{ display: "flex", alignItems: "center", gap: "0.625rem", padding: "0.625rem 0.5rem", borderRadius: "0.5rem", color: "var(--text-secondary)", fontSize: "0.875rem", fontFamily: "'DM Sans', sans-serif", fontWeight: 500, textDecoration: "none" }}
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="var(--text-tertiary)"><path d="M12 2C6.477 2 2 6.477 2 12c0 4.418 2.865 8.166 6.839 9.489.5.092.682-.217.682-.482 0-.237-.009-.868-.013-1.703-2.782.604-3.369-1.342-3.369-1.342-.454-1.155-1.11-1.463-1.11-1.463-.908-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.831.092-.646.35-1.086.636-1.336-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.029-2.683-.103-.253-.446-1.27.098-2.647 0 0 .84-.269 2.75 1.025A9.578 9.578 0 0 1 12 6.836a9.59 9.59 0 0 1 2.504.337c1.909-1.294 2.747-1.025 2.747-1.025.546 1.377.203 2.394.1 2.647.64.699 1.028 1.592 1.028 2.683 0 3.842-2.339 4.687-4.566 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.741 0 .267.18.578.688.48C19.138 20.163 22 16.418 22 12c0-5.523-4.477-10-10-10z" /></svg>
+                View source
+              </a>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </motion.header>
 
       {/* Main content */}
