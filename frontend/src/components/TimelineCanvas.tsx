@@ -198,10 +198,17 @@ export function TimelineCanvas({
     if (!el) return;
 
     const onTouchStart = (e: TouchEvent) => {
-      // Only treat as canvas gesture if the touch started on the SVG itself,
-      // not on a UI panel (chat, side drawer, zoom buttons) that sits on top.
-      const target = e.target as Node;
-      touchOnCanvasRef.current = svgRef.current?.contains(target) ?? false;
+      // Treat touches as canvas gestures unless they start inside explicit UI chrome.
+      // This is more reliable on mobile than checking SVG containment because nodes
+      // render through foreignObject and can be retargeted inconsistently.
+      const target = e.target;
+      const targetElement =
+        target instanceof Element
+          ? target
+          : target instanceof Node
+            ? target.parentElement
+            : null;
+      touchOnCanvasRef.current = !targetElement?.closest("[data-canvas-ui='true']");
       if (!touchOnCanvasRef.current) return;
 
       if (e.touches.length === 1) {
@@ -434,6 +441,7 @@ export function TimelineCanvas({
     >
       {/* Controls + zoom indicator */}
       <div
+        data-canvas-ui="true"
         style={{
           position: "absolute",
           bottom: "1rem",
@@ -502,6 +510,7 @@ export function TimelineCanvas({
               fontSize: "0.875rem",
               fontFamily: "inherit",
               transition: "all 0.2s ease",
+              touchAction: "manipulation",
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.borderColor = "var(--accent)";
@@ -518,6 +527,7 @@ export function TimelineCanvas({
 
         {/* Home / fit button — highlights when content is off-screen */}
         <button
+          data-canvas-ui="true"
           title="Fit to view"
           onClick={() => {
             if (containerRef.current) {
@@ -547,6 +557,7 @@ export function TimelineCanvas({
             fontFamily: "inherit",
             transition: "all 0.2s ease",
             boxShadow: isOutOfView ? "0 0 0 0.1875rem var(--accent-soft)" : "none",
+            touchAction: "manipulation",
           }}
           onMouseEnter={(e) => {
             e.currentTarget.style.borderColor = "var(--accent)";
@@ -632,6 +643,7 @@ export function TimelineCanvas({
       <AnimatePresence>
         {activeNodeId && activeNode && (
           <motion.div
+            data-canvas-ui="true"
             key="backdrop"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -652,6 +664,7 @@ export function TimelineCanvas({
       <AnimatePresence>
         {activeNodeId && activeNode && (
           <motion.div
+            data-canvas-ui="true"
             key={activeNodeId}
             initial={{ x: "100%" }}
             animate={{ x: 0 }}
@@ -744,7 +757,14 @@ export function TimelineCanvas({
             </div>
 
             {/* Scrollable chat area */}
-            <div style={{ flex: 1, overflowY: "auto", padding: "1.25rem 1.25rem 0.5rem" }}>
+            <div
+              style={{
+                flex: 1,
+                overflowY: "auto",
+                padding: "1.25rem 1.25rem 0.5rem",
+                touchAction: "pan-y",
+              }}
+            >
 
               {/* Paper context — shown as a subtle block at the top */}
               <div

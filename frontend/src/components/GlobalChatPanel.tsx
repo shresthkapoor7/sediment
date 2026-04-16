@@ -119,7 +119,10 @@ export function GlobalChatPanel({ data, onHighlight, onAddLineage, isExpanding }
   }
 
   return (
-    <div style={{ position: "absolute", bottom: "1.25rem", right: "1.25rem", zIndex: 50, display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "0.5rem" }}>
+    <div
+      data-canvas-ui="true"
+      style={{ position: "absolute", bottom: "1.25rem", right: "1.25rem", zIndex: 50, display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "0.5rem" }}
+    >
       <AnimatePresence>
         {open && (
           <motion.div
