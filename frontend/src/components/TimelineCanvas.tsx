@@ -40,8 +40,7 @@ export function TimelineCanvas({
   const isPanningRef = useRef(false);
   const panStartRef = useRef({ x: 0, y: 0 });
 
-  // Touch tracking
-  const activePointersRef = useRef<Map<number, { x: number; y: number }>>(new Map());
+  // Touch tracking (used by TouchEvent handlers below)
   const lastPinchDistRef = useRef<number | null>(null);
   const touchStartRef = useRef({ x: 0, y: 0 });
   const touchDidMoveRef = useRef(false);
@@ -152,115 +151,32 @@ export function TimelineCanvas({
     return () => el.removeEventListener("wheel", onWheel);
   }, [applyTransform]);
 
-  // Pointer-based panning (mouse + touch + pinch-to-zoom)
+  // Mouse/pen panning — middle-click or alt+left-drag
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
 
     const onPointerDown = (e: PointerEvent) => {
-      if (e.pointerType === "touch") {
-        activePointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
-        el.setPointerCapture(e.pointerId);
-        // Prepare for single-finger pan (committed only after threshold movement)
-        if (activePointersRef.current.size === 1) {
-          touchStartRef.current = { x: e.clientX, y: e.clientY };
-          touchDidMoveRef.current = false;
-          panStartRef.current = {
-            x: e.clientX - panRef.current.x,
-            y: e.clientY - panRef.current.y,
-          };
-        }
-        return;
-      }
+      if (e.pointerType === "touch") return; // handled by TouchEvent listeners
       if (e.button === 1 || (e.button === 0 && e.altKey)) {
         isPanningRef.current = true;
-        panStartRef.current = {
-          x: e.clientX - panRef.current.x,
-          y: e.clientY - panRef.current.y,
-        };
+        panStartRef.current = { x: e.clientX - panRef.current.x, y: e.clientY - panRef.current.y };
         setCursorStyle("grabbing");
         el.setPointerCapture(e.pointerId);
       }
     };
-
     const onPointerMove = (e: PointerEvent) => {
-      if (e.pointerType === "touch") {
-        activePointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
-        const pointers = Array.from(activePointersRef.current.values());
-
-        if (pointers.length >= 2) {
-          // Pinch-to-zoom — cancel any single-finger pan
-          isPanningRef.current = false;
-          const dx = pointers[0].x - pointers[1].x;
-          const dy = pointers[0].y - pointers[1].y;
-          const dist = Math.sqrt(dx * dx + dy * dy);
-          if (lastPinchDistRef.current !== null && dist > 0) {
-            const scale = dist / lastPinchDistRef.current;
-            const rect = el.getBoundingClientRect();
-            const cx = (pointers[0].x + pointers[1].x) / 2 - rect.left;
-            const cy = (pointers[0].y + pointers[1].y) / 2 - rect.top;
-            const oldZoom = zoomRef.current;
-            const newZoom = Math.min(Math.max(oldZoom * scale, 0.3), 2.5);
-            panRef.current = {
-              x: cx + (panRef.current.x - cx) * (newZoom / oldZoom),
-              y: cy + (panRef.current.y - cy) * (newZoom / oldZoom),
-            };
-            zoomRef.current = newZoom;
-            applyTransform();
-            setZoomDisplay(Math.round(newZoom * 100));
-          }
-          lastPinchDistRef.current = dist;
-          return;
-        }
-
-        // Single-finger pan — commit after 8px threshold so taps still work
-        const ddx = e.clientX - touchStartRef.current.x;
-        const ddy = e.clientY - touchStartRef.current.y;
-        if (!touchDidMoveRef.current && Math.sqrt(ddx * ddx + ddy * ddy) > 8) {
-          touchDidMoveRef.current = true;
-          isPanningRef.current = true;
-          setCursorStyle("grabbing");
-        }
-        if (!isPanningRef.current) return;
-        panRef.current = {
-          x: e.clientX - panStartRef.current.x,
-          y: e.clientY - panStartRef.current.y,
-        };
-        applyTransform();
-        return;
-      }
-
+      if (e.pointerType === "touch") return;
       if (!isPanningRef.current) return;
-      panRef.current = {
-        x: e.clientX - panStartRef.current.x,
-        y: e.clientY - panStartRef.current.y,
-      };
+      panRef.current = { x: e.clientX - panStartRef.current.x, y: e.clientY - panStartRef.current.y };
       applyTransform();
     };
-
     const onPointerUp = (e: PointerEvent) => {
-      if (e.pointerType === "touch") {
-        activePointersRef.current.delete(e.pointerId);
-        lastPinchDistRef.current = null;
-        if (activePointersRef.current.size === 0) {
-          isPanningRef.current = false;
-          touchDidMoveRef.current = false;
-          setCursorStyle("default");
-        }
-        return;
-      }
-      if (isPanningRef.current) {
-        isPanningRef.current = false;
-        setCursorStyle("default");
-      }
+      if (e.pointerType === "touch") return;
+      if (isPanningRef.current) { isPanningRef.current = false; setCursorStyle("default"); }
     };
-
     const onPointerLeave = (e: PointerEvent) => {
-      // Only cancel for mouse/pen, not touch (touch fires pointerleave on scroll)
-      if (e.pointerType !== "touch" && isPanningRef.current) {
-        isPanningRef.current = false;
-        setCursorStyle("default");
-      }
+      if (e.pointerType !== "touch" && isPanningRef.current) { isPanningRef.current = false; setCursorStyle("default"); }
     };
 
     el.addEventListener("pointerdown", onPointerDown);
@@ -272,6 +188,100 @@ export function TimelineCanvas({
       el.removeEventListener("pointermove", onPointerMove);
       el.removeEventListener("pointerup", onPointerUp);
       el.removeEventListener("pointerleave", onPointerLeave);
+    };
+  }, [applyTransform]);
+
+  // Touch panning + pinch-to-zoom — uses TouchEvent directly for reliable mobile support
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const onTouchStart = (e: TouchEvent) => {
+      if (e.touches.length === 1) {
+        const t = e.touches[0];
+        touchStartRef.current = { x: t.clientX, y: t.clientY };
+        touchDidMoveRef.current = false;
+        isPanningRef.current = false;
+        panStartRef.current = { x: t.clientX - panRef.current.x, y: t.clientY - panRef.current.y };
+      } else if (e.touches.length === 2) {
+        isPanningRef.current = false;
+        const t0 = e.touches[0];
+        const t1 = e.touches[1];
+        const dx = t0.clientX - t1.clientX;
+        const dy = t0.clientY - t1.clientY;
+        lastPinchDistRef.current = Math.sqrt(dx * dx + dy * dy);
+      }
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      e.preventDefault(); // block browser scroll / bounce
+
+      if (e.touches.length === 2) {
+        const t0 = e.touches[0];
+        const t1 = e.touches[1];
+        const dx = t0.clientX - t1.clientX;
+        const dy = t0.clientY - t1.clientY;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (lastPinchDistRef.current !== null && dist > 0) {
+          const scale = dist / lastPinchDistRef.current;
+          const rect = el.getBoundingClientRect();
+          const cx = (t0.clientX + t1.clientX) / 2 - rect.left;
+          const cy = (t0.clientY + t1.clientY) / 2 - rect.top;
+          const oldZoom = zoomRef.current;
+          const newZoom = Math.min(Math.max(oldZoom * scale, 0.3), 2.5);
+          panRef.current = {
+            x: cx + (panRef.current.x - cx) * (newZoom / oldZoom),
+            y: cy + (panRef.current.y - cy) * (newZoom / oldZoom),
+          };
+          zoomRef.current = newZoom;
+          applyTransform();
+          setZoomDisplay(Math.round(newZoom * 100));
+        }
+        lastPinchDistRef.current = dist;
+        return;
+      }
+
+      if (e.touches.length === 1) {
+        const t = e.touches[0];
+        if (!touchDidMoveRef.current) {
+          const ddx = t.clientX - touchStartRef.current.x;
+          const ddy = t.clientY - touchStartRef.current.y;
+          if (Math.sqrt(ddx * ddx + ddy * ddy) > 8) {
+            touchDidMoveRef.current = true;
+            isPanningRef.current = true;
+          }
+        }
+        if (!isPanningRef.current) return;
+        panRef.current = { x: t.clientX - panStartRef.current.x, y: t.clientY - panStartRef.current.y };
+        applyTransform();
+      }
+    };
+
+    const onTouchEnd = (e: TouchEvent) => {
+      if (e.touches.length === 0) {
+        isPanningRef.current = false;
+        touchDidMoveRef.current = false;
+        lastPinchDistRef.current = null;
+      } else if (e.touches.length === 1) {
+        // 2→1 finger: reset single-finger state without committing a pan
+        lastPinchDistRef.current = null;
+        isPanningRef.current = false;
+        touchDidMoveRef.current = false;
+        const t = e.touches[0];
+        touchStartRef.current = { x: t.clientX, y: t.clientY };
+        panStartRef.current = { x: t.clientX - panRef.current.x, y: t.clientY - panRef.current.y };
+      }
+    };
+
+    el.addEventListener("touchstart", onTouchStart, { passive: true });
+    el.addEventListener("touchmove", onTouchMove, { passive: false }); // false so preventDefault works
+    el.addEventListener("touchend", onTouchEnd, { passive: true });
+    el.addEventListener("touchcancel", onTouchEnd, { passive: true });
+    return () => {
+      el.removeEventListener("touchstart", onTouchStart);
+      el.removeEventListener("touchmove", onTouchMove);
+      el.removeEventListener("touchend", onTouchEnd);
+      el.removeEventListener("touchcancel", onTouchEnd);
     };
   }, [applyTransform]);
 
