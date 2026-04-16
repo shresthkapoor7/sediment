@@ -23,6 +23,8 @@ import { buildTimelineFromGraph, mergeTimelineWithGraph } from "@/lib/timeline-b
 import { SavedGraphListItem, SeedCandidate, TimelineData, TraversalSettings } from "@/lib/types";
 import { exportObsidianZip } from "@/lib/export";
 
+const GITHUB_REPO_URL = "https://github.com/shresthkapoor7/sediment";
+
 const DEFAULT_SETTINGS: TraversalSettings = {
   depth: 1,
   breadth: 2,
@@ -834,7 +836,7 @@ export default function Home() {
           </AnimatePresence>
 
           <a
-            href="https://github.com/shresthkapoor7/sediment"
+            href={GITHUB_REPO_URL}
             target="_blank"
             rel="noopener noreferrer"
             aria-label="View on GitHub"
@@ -1269,7 +1271,7 @@ export default function Home() {
                   />
                 ))}
                 <a
-                  href="https://github.com/shresthkapoor7/sediment"
+                  href={GITHUB_REPO_URL}
                   target="_blank"
                   rel="noopener noreferrer"
                   style={{
