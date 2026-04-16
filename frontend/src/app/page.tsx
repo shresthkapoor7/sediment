@@ -25,6 +25,45 @@ import { exportObsidianZip } from "@/lib/export";
 
 const GITHUB_REPO_URL = "https://github.com/shresthkapoor7/sediment";
 
+const THUMB_SIZE = 13;
+
+function SettingsSlider({
+  item,
+  value,
+  onChange,
+}: {
+  item: { key: string; label: string; min: number; max: number };
+  value: number;
+  onChange: (v: number) => void;
+}) {
+  const pct = ((value - item.min) / (item.max - item.min)) * 100;
+  return (
+    <label style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", fontSize: "0.71875rem", color: "var(--text-secondary)", fontFamily: "'DM Sans', sans-serif" }}>
+        <span style={{ fontWeight: 500 }}>{item.label}</span>
+        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: "0.6875rem", color: "var(--accent)" }}>{value}</span>
+      </div>
+      <div style={{ position: "relative", height: "1.25rem", display: "flex", alignItems: "center" }}>
+        {/* Track */}
+        <div style={{ position: "absolute", left: 0, right: 0, height: "0.1875rem", top: "50%", transform: "translateY(-50%)", borderRadius: "0.125rem", background: "var(--bg-tertiary)" }} />
+        {/* Fill */}
+        <div style={{ position: "absolute", left: 0, height: "0.1875rem", top: "50%", transform: "translateY(-50%)", borderRadius: "0.125rem", background: "var(--accent)", width: `${pct}%` }} />
+        {/* Thumb */}
+        <div style={{ position: "absolute", width: THUMB_SIZE, height: THUMB_SIZE, top: "50%", transform: "translateY(-50%)", borderRadius: "50%", background: "var(--accent)", boxShadow: "0 0.0625rem 0.25rem rgba(0,0,0,0.3)", pointerEvents: "none", left: `calc(${pct}% - ${(pct / 100) * THUMB_SIZE}px)` }} />
+        {/* Hidden native input */}
+        <input
+          type="range"
+          min={item.min}
+          max={item.max}
+          value={value}
+          onChange={(e) => onChange(Number(e.currentTarget.value))}
+          style={{ position: "absolute", inset: 0, width: "100%", margin: 0, opacity: 0, cursor: "pointer", height: "100%" }}
+        />
+      </div>
+    </label>
+  );
+}
+
 const DEFAULT_SETTINGS: TraversalSettings = {
   depth: 1,
   breadth: 2,
@@ -628,33 +667,18 @@ export default function Home() {
                   <p style={{ fontSize: "0.625rem", color: "var(--text-tertiary)", fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.06em", textTransform: "uppercase" }}>
                     traversal settings
                   </p>
-                  {[
+                  {([
                     { key: "depth", label: "Depth", min: 1, max: 3 },
                     { key: "breadth", label: "Breadth", min: 1, max: 5 },
                     { key: "referenceLimit", label: "Reference limit", min: 5, max: 50 },
                     { key: "topN", label: "Top N", min: 1, max: 8 },
-                  ].map((item) => (
-                    <label key={item.key} style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", fontSize: "0.71875rem", color: "var(--text-secondary)", fontFamily: "'DM Sans', sans-serif" }}>
-                        <span style={{ fontWeight: 500 }}>{item.label}</span>
-                        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: "0.6875rem", color: "var(--accent)" }}>
-                          {draftSettings[item.key as keyof TraversalSettings]}
-                        </span>
-                      </div>
-                      {(() => {
-                        const val = draftSettings[item.key as keyof TraversalSettings];
-                        const pct = ((val - item.min) / (item.max - item.min)) * 100;
-                        const thumbSize = 13;
-                        return (
-                          <div style={{ position: "relative", height: "1.25rem", display: "flex", alignItems: "center" }}>
-                            <div style={{ position: "absolute", left: 0, right: 0, height: "0.1875rem", top: "50%", transform: "translateY(-50%)", borderRadius: "0.125rem", background: "var(--bg-tertiary)" }} />
-                            <div style={{ position: "absolute", left: 0, height: "0.1875rem", top: "50%", transform: "translateY(-50%)", borderRadius: "0.125rem", background: "var(--accent)", width: `${pct}%` }} />
-                            <div style={{ position: "absolute", width: thumbSize, height: thumbSize, top: "50%", transform: "translateY(-50%)", borderRadius: "50%", background: "var(--accent)", boxShadow: "0 0.0625rem 0.25rem rgba(0,0,0,0.3)", pointerEvents: "none", left: `calc(${pct}% - ${(pct / 100) * thumbSize}px)` }} />
-                            <input type="range" min={item.min} max={item.max} value={val} onChange={(e) => setDraftSettings((prev) => ({ ...prev, [item.key]: Number(e.currentTarget.value) }))} style={{ position: "absolute", inset: 0, width: "100%", margin: 0, opacity: 0, cursor: "pointer", height: "100%" }} />
-                          </div>
-                        );
-                      })()}
-                    </label>
+                  ] as const).map((item) => (
+                    <SettingsSlider
+                      key={item.key}
+                      item={item}
+                      value={draftSettings[item.key]}
+                      onChange={(v) => setDraftSettings((prev) => ({ ...prev, [item.key]: v }))}
+                    />
                   ))}
                   <div style={{ display: "flex", gap: "0.375rem", alignItems: "center", marginTop: "0.125rem", borderTop: "0.0625rem solid var(--border)", paddingTop: "0.625rem" }}>
                     <button onClick={() => setDraftSettings(DEFAULT_SETTINGS)} style={{ height: "1.625rem", padding: "0 0.5rem", borderRadius: "0.375rem", border: "none", background: "none", color: "var(--text-tertiary)", cursor: "pointer", fontSize: "0.6875rem", fontFamily: "'DM Sans', sans-serif", fontWeight: 500, letterSpacing: "0.01em" }}>reset</button>
@@ -802,6 +826,7 @@ export default function Home() {
                   style={{ display: "flex", alignItems: "center", gap: "0.625rem", width: "100%", padding: "0.625rem 0.5rem", background: "none", border: "none", borderRadius: "0.5rem", color: "var(--text-primary)", fontSize: "0.875rem", fontFamily: "'DM Sans', sans-serif", fontWeight: 500, cursor: "pointer", textAlign: "left", transition: "background 0.15s" }}
                   onTouchStart={(e) => { e.currentTarget.style.background = "var(--bg-secondary)"; }}
                   onTouchEnd={(e) => { e.currentTarget.style.background = "none"; }}
+                  onTouchCancel={(e) => { e.currentTarget.style.background = "none"; }}
                 >
                   <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="var(--text-tertiary)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2.5 3.5h11M2.5 8h11M2.5 12.5h11" /><path d="M4.5 3.5v9" opacity="0.35" /></svg>
                   History
@@ -812,30 +837,19 @@ export default function Home() {
               <div style={{ padding: "0.5rem 0.5rem 0.25rem" }}>
                 <p style={{ fontSize: "0.625rem", color: "var(--text-tertiary)", fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: "0.625rem" }}>traversal settings</p>
                 <div style={{ display: "flex", flexDirection: "column", gap: "0.625rem" }}>
-                  {[
+                  {([
                     { key: "depth", label: "Depth", min: 1, max: 3 },
                     { key: "breadth", label: "Breadth", min: 1, max: 5 },
                     { key: "referenceLimit", label: "Ref limit", min: 5, max: 50 },
                     { key: "topN", label: "Top N", min: 1, max: 8 },
-                  ].map((item) => {
-                    const val = draftSettings[item.key as keyof TraversalSettings];
-                    const pct = ((val - item.min) / (item.max - item.min)) * 100;
-                    const thumbSize = 13;
-                    return (
-                      <label key={item.key} style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.75rem", color: "var(--text-secondary)", fontFamily: "'DM Sans', sans-serif" }}>
-                          <span style={{ fontWeight: 500 }}>{item.label}</span>
-                          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: "0.6875rem", color: "var(--accent)" }}>{val}</span>
-                        </div>
-                        <div style={{ position: "relative", height: "1.25rem", display: "flex", alignItems: "center" }}>
-                          <div style={{ position: "absolute", left: 0, right: 0, height: "0.1875rem", top: "50%", transform: "translateY(-50%)", borderRadius: "0.125rem", background: "var(--bg-tertiary)" }} />
-                          <div style={{ position: "absolute", left: 0, height: "0.1875rem", top: "50%", transform: "translateY(-50%)", borderRadius: "0.125rem", background: "var(--accent)", width: `${pct}%` }} />
-                          <div style={{ position: "absolute", width: thumbSize, height: thumbSize, top: "50%", transform: "translateY(-50%)", borderRadius: "50%", background: "var(--accent)", boxShadow: "0 0.0625rem 0.25rem rgba(0,0,0,0.3)", pointerEvents: "none", left: `calc(${pct}% - ${(pct / 100) * thumbSize}px)` }} />
-                          <input type="range" min={item.min} max={item.max} value={val} onChange={(e) => setDraftSettings((prev) => ({ ...prev, [item.key]: Number(e.currentTarget.value) }))} style={{ position: "absolute", inset: 0, width: "100%", margin: 0, opacity: 0, cursor: "pointer", height: "100%" }} />
-                        </div>
-                      </label>
-                    );
-                  })}
+                  ] as const).map((item) => (
+                    <SettingsSlider
+                      key={item.key}
+                      item={item}
+                      value={draftSettings[item.key]}
+                      onChange={(v) => setDraftSettings((prev) => ({ ...prev, [item.key]: v }))}
+                    />
+                  ))}
                 </div>
                 <div style={{ display: "flex", gap: "0.375rem", marginTop: "0.75rem" }}>
                   <button
@@ -865,6 +879,7 @@ export default function Home() {
                   style={{ display: "flex", alignItems: "center", gap: "0.625rem", width: "100%", padding: "0.625rem 0.5rem", background: "none", border: "none", borderRadius: "0.5rem", color: "var(--text-primary)", fontSize: "0.875rem", fontFamily: "'DM Sans', sans-serif", fontWeight: 500, cursor: "pointer", textAlign: "left" }}
                   onTouchStart={(e) => { e.currentTarget.style.background = "var(--bg-secondary)"; }}
                   onTouchEnd={(e) => { e.currentTarget.style.background = "none"; }}
+                  onTouchCancel={(e) => { e.currentTarget.style.background = "none"; }}
                 >
                   <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="var(--text-tertiary)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M8 2v9M4 7l4 4 4-4" /><path d="M2 13h12" /></svg>
                   Export to Obsidian
@@ -879,6 +894,7 @@ export default function Home() {
                   style={{ display: "flex", alignItems: "center", gap: "0.625rem", width: "100%", padding: "0.625rem 0.5rem", background: "none", border: "none", borderRadius: "0.5rem", color: shareState === "copied" ? "var(--accent)" : "var(--text-primary)", fontSize: "0.875rem", fontFamily: "'DM Sans', sans-serif", fontWeight: 500, cursor: shareState === "sharing" ? "default" : "pointer", textAlign: "left" }}
                   onTouchStart={(e) => { e.currentTarget.style.background = "var(--bg-secondary)"; }}
                   onTouchEnd={(e) => { e.currentTarget.style.background = "none"; }}
+                  onTouchCancel={(e) => { e.currentTarget.style.background = "none"; }}
                 >
                   <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke={shareState === "copied" ? "var(--accent)" : "var(--text-tertiary)"} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M11 3a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM5 8a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM11 9a2 2 0 1 1 0 4 2 2 0 0 1 0-4z" /><path d="M9 4.5l-4 3M9 11.5l-4-3" /></svg>
                   {shareState === "sharing" ? "Sharing..." : shareState === "copied" ? "Link copied!" : shareState === "error" ? "Share failed" : "Copy share link"}

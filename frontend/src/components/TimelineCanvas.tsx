@@ -285,7 +285,7 @@ export function TimelineCanvas({
   useEffect(() => {
     if (containerRef.current && !hasCentered.current) {
       const { clientWidth, clientHeight } = containerRef.current;
-      const isMobile = clientWidth <= 768;
+      const isMobile = clientWidth <= 640; // matches globals.css 40rem breakpoint
       const fitZoom = Math.min(clientWidth / maxX, clientHeight / maxY, 1);
       const initialZoom = isMobile ? fitZoom : 1;
       zoomRef.current = initialZoom;
