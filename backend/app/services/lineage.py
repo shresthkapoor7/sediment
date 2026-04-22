@@ -23,6 +23,7 @@ async def trace_lineage(
     llm: LLMClient,
     seed_openalex_id: str | None = None,
     settings: TraversalSettings | None = None,
+    ip: str = "unknown",
 ) -> dict:
     concept = concept.strip()
     if not concept:
@@ -42,7 +43,7 @@ async def trace_lineage(
             chosen_seed = await openalex.fetch_work(seed_openalex_id)
         confidence = "high"
     else:
-        decision = await llm.choose_seed(concept, search_results)
+        decision = await llm.choose_seed(concept, search_results, ip=ip)
         confidence = decision.get("confidence")
         seed_index = decision.get("index")
         if confidence == "low" or seed_index is None:
@@ -100,7 +101,7 @@ async def trace_lineage(
         if not refs:
             continue
 
-        ranked = await llm.rank_references(concept, current_paper, refs, top_n=resolved["top_n"])
+        ranked = await llm.rank_references(concept, current_paper, refs, top_n=resolved["top_n"], ip=ip)
         next_level_ids = []
         for paper in ranked:
             paper_id = paper.get("openalexId")
@@ -162,6 +163,7 @@ async def expand_lineage(
     openalex: OpenAlexClient,
     llm: LLMClient,
     settings: TraversalSettings | None = None,
+    ip: str = "unknown",
 ) -> dict:
     concept = concept.strip()
     resolved = _resolve_settings(settings)
@@ -185,7 +187,7 @@ async def expand_lineage(
             "disambiguation": None,
         }
 
-    ranked = await llm.rank_references(concept, source_paper, refs, top_n=resolved["top_n"])
+    ranked = await llm.rank_references(concept, source_paper, refs, top_n=resolved["top_n"], ip=ip)
     papers = [_graph_paper(source_paper, summary="Expanded source paper.")]
     edges = []
     for paper in ranked:
@@ -300,11 +302,11 @@ def _resolve_settings(settings: TraversalSettings | None) -> dict[str, int]:
 
     if settings:
         if settings.depth is not None:
-            depth = max(1, min(settings.depth, 3))
+            depth = max(1, min(settings.depth, 2))
         if settings.breadth is not None:
             breadth = max(1, min(settings.breadth, 5))
         if settings.referenceLimit is not None:
-            reference_limit = max(5, min(settings.referenceLimit, 50))
+            reference_limit = max(5, min(settings.referenceLimit, 30))
         if settings.topN is not None:
             top_n = max(1, min(settings.topN, 8))
 

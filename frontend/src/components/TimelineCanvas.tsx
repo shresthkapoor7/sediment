@@ -22,6 +22,7 @@ interface TimelineCanvasProps {
   onExpandNode: (nodeId: number, query: string) => void;
   isExpanding: boolean;
   readOnly?: boolean;
+  credits?: number;
 }
 
 export function TimelineCanvas({
@@ -29,6 +30,7 @@ export function TimelineCanvas({
   onExpandNode,
   isExpanding,
   readOnly = false,
+  credits = 10,
 }: TimelineCanvasProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -920,6 +922,7 @@ export function TimelineCanvas({
           onHighlight={(ids) => setHighlightedPaperIds(new Set(ids))}
           onAddLineage={(query) => onExpandNode(data.rootId, query)}
           isExpanding={isExpanding}
+          credits={credits}
         />
       )}
     </motion.div>
