@@ -8,6 +8,25 @@ from anthropic import AsyncAnthropic
 logger = logging.getLogger(__name__)
 MAX_TIMELINE_PAPERS = 25
 MAX_TIMELINE_SUMMARY_CHARS = 320
+MAX_SUGGESTION_WORDS = 6
+_NON_ALNUM = re.compile(r"[^a-z0-9]+")
+_GENERIC_SUGGESTIONS = {
+    "background",
+    "history",
+    "lineage",
+    "related work",
+    "more papers",
+    "paper",
+    "papers",
+    "research paper",
+    "this paper",
+    "the paper",
+}
+_STOPWORDS = {
+    "a", "an", "and", "are", "as", "at", "be", "by", "for", "from", "how",
+    "in", "into", "is", "it", "of", "on", "or", "relate", "related", "the",
+    "this", "to", "what", "with",
+}
 
 
 class LLMParseError(Exception):
@@ -158,14 +177,16 @@ User question:
 Important:
 - If the user explicitly asks about a concept like "what is X" or "explain X", prefer that exact concept for any follow-up lineage suggestion.
 - Do not default the suggestion to the current paper family unless that is clearly what the user asked for.
+- Only suggest a short concept or method name, not a full sentence and not the current paper title.
+- Omit the suggestion if the best follow-up is already covered by the current paper.
 
 Respond with JSON only:
 {{
   "text": "<helpful short answer, 2-5 sentences>",
   "suggestion": {{
-    "topic": "<optional follow-up lineage topic>",
-    "query": "<optional search query for that topic>",
-    "nodeCount": <small integer>
+    "topic": "<optional follow-up lineage topic, usually 1-5 words>",
+    "query": "<optional search query for that topic, usually same as topic>",
+    "nodeCount": 4
   }} | null
 }}
 
@@ -179,24 +200,11 @@ Only include a suggestion when there is a clear worthwhile follow-up lineage to 
         if suggestion is not None and not isinstance(suggestion, dict):
             suggestion = None
 
-        cleaned_suggestion = None
-        if isinstance(suggestion, dict):
-            topic = suggestion.get("topic")
-            query = suggestion.get("query")
-            node_count = suggestion.get("nodeCount", 4)
-            if isinstance(topic, str) and isinstance(query, str):
-                cleaned_suggestion = {
-                    "topic": topic,
-                    "query": query,
-                    "nodeCount": node_count if isinstance(node_count, int) else 4,
-                }
-
-        if explicit_topic:
-            cleaned_suggestion = {
-                "topic": explicit_topic,
-                "query": explicit_topic,
-                "nodeCount": 4,
-            }
+        cleaned_suggestion = _sanitize_suggestion(
+            suggestion if isinstance(suggestion, dict) else None,
+            context_texts=[paper.get("title", ""), paper.get("summary", "")],
+            explicit_topic=explicit_topic,
+        )
 
         text = parsed.get("text")
         return {
@@ -298,17 +306,14 @@ Rules:
         highlighted = [h for h in highlighted if isinstance(h, str) and h in valid_ids]
 
         suggestion = parsed.get("suggestion")
-        cleaned_suggestion = None
-        if isinstance(suggestion, dict):
-            topic = suggestion.get("topic")
-            query = suggestion.get("query")
-            node_count = suggestion.get("nodeCount", 4)
-            if isinstance(topic, str) and isinstance(query, str):
-                cleaned_suggestion = {
-                    "topic": topic,
-                    "query": query,
-                    "nodeCount": node_count if isinstance(node_count, int) else 4,
-                }
+        cleaned_suggestion = _sanitize_suggestion(
+            suggestion if isinstance(suggestion, dict) else None,
+            context_texts=[
+                *[paper.get("title", "") for paper in selected_papers],
+                *[paper.get("summary", "") for paper in selected_papers],
+            ],
+            explicit_topic=_extract_explicit_topic(question),
+        )
 
         text = parsed.get("text")
         return {
@@ -345,6 +350,10 @@ def _extract_explicit_topic(question: str) -> Optional[str]:
         r"^explain (?:a |an |the )?(?P<topic>.+)$",
         r"^tell me about (?:a |an |the )?(?P<topic>.+)$",
         r"^trace (?:the )?lineage of (?:a |an |the )?(?P<topic>.+)$",
+        r"^how is (?:this|it) related to (?:a |an |the )?(?P<topic>.+)$",
+        r"^how does (?:this|it) relate to (?:a |an |the )?(?P<topic>.+)$",
+        r"^compare (?:this|it) to (?:a |an |the )?(?P<topic>.+)$",
+        r"^what about (?:a |an |the )?(?P<topic>.+)$",
     ]
 
     for pattern in patterns:
@@ -352,5 +361,83 @@ def _extract_explicit_topic(question: str) -> Optional[str]:
         if match:
             topic = match.group("topic").strip()
             if topic:
-                return topic
+                return _clean_suggestion_text(topic)
     return None
+
+
+def _normalize_text(text: str) -> str:
+    return _NON_ALNUM.sub(" ", text.lower()).strip()
+
+
+def _meaningful_tokens(text: str) -> set[str]:
+    return {
+        token
+        for token in _normalize_text(text).split()
+        if len(token) > 2 and token not in _STOPWORDS
+    }
+
+
+def _clean_suggestion_text(text: str) -> str:
+    cleaned = text.strip().strip("\"'`.,:;!?()[]{}")
+    cleaned = re.sub(r"\s+", " ", cleaned)
+    return cleaned
+
+
+def _is_already_covered(topic: str, context_texts: list[str]) -> bool:
+    topic_tokens = _meaningful_tokens(topic)
+    if not topic_tokens:
+        return True
+
+    for text in context_texts:
+        context_tokens = _meaningful_tokens(text)
+        if not context_tokens:
+            continue
+        overlap = len(topic_tokens & context_tokens)
+        if overlap == len(topic_tokens):
+            return True
+        if overlap >= 2 and overlap / max(1, len(topic_tokens)) >= 0.75:
+            return True
+    return False
+
+
+def _sanitize_suggestion(
+    suggestion: Optional[dict],
+    context_texts: list[str],
+    explicit_topic: Optional[str] = None,
+) -> Optional[dict]:
+    raw_topic = explicit_topic
+    raw_query = explicit_topic
+
+    if raw_topic is None and suggestion:
+        topic = suggestion.get("topic")
+        query = suggestion.get("query")
+        if isinstance(topic, str):
+            raw_topic = topic
+        if isinstance(query, str):
+            raw_query = query
+
+    if not raw_topic and not raw_query:
+        return None
+
+    topic = _clean_suggestion_text(raw_topic or raw_query or "")
+    query = _clean_suggestion_text(raw_query or raw_topic or "")
+    if not topic:
+        return None
+
+    if len(topic.split()) > MAX_SUGGESTION_WORDS:
+        return None
+    if len(query.split()) > MAX_SUGGESTION_WORDS:
+        query = topic
+
+    normalized_topic = _normalize_text(topic)
+    if not normalized_topic or normalized_topic in _GENERIC_SUGGESTIONS:
+        return None
+
+    if _is_already_covered(topic, context_texts):
+        return None
+
+    return {
+        "topic": topic,
+        "query": query or topic,
+        "nodeCount": 4,
+    }
