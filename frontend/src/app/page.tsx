@@ -1170,7 +1170,11 @@ export default function Home() {
                   justifyContent: "center",
                   gap: "1.5rem",
                   padding: "1.5rem",
+                  paddingBottom: "2rem",
                   width: "100%",
+                  maxHeight: "100%",
+                  overflowY: "auto",
+                  WebkitOverflowScrolling: "touch",
                   position: "relative",
                 }}
               >
@@ -1265,6 +1269,9 @@ export default function Home() {
                       display: "flex",
                       flexDirection: "column",
                       gap: "0.625rem",
+                      maxHeight: "min(24rem, 50vh)",
+                      overflowY: "auto",
+                      WebkitOverflowScrolling: "touch",
                     }}
                   >
                     <p
