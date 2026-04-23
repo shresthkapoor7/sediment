@@ -46,6 +46,7 @@ export function TimelineCanvas({
   const touchStartRef = useRef({ x: 0, y: 0 });
   const touchDidMoveRef = useRef(false);
   const touchOnCanvasRef = useRef(false); // true when touch started on SVG, not a UI panel
+  const suppressNodeClickRef = useRef(false);
 
   const [zoomDisplay, setZoomDisplay] = useState(1);
   const [isOutOfView, setIsOutOfView] = useState(false);
@@ -218,6 +219,10 @@ export function TimelineCanvas({
             : null;
       touchOnCanvasRef.current = !targetElement?.closest("[data-canvas-ui='true']");
       if (!touchOnCanvasRef.current) return;
+      suppressNodeClickRef.current = false;
+      if (e.touches.length > 1) {
+        e.preventDefault();
+      }
 
       if (e.touches.length === 1) {
         const t = e.touches[0];
@@ -227,6 +232,7 @@ export function TimelineCanvas({
         panStartRef.current = { x: t.clientX - panRef.current.x, y: t.clientY - panRef.current.y };
       } else if (e.touches.length === 2) {
         isPanningRef.current = false;
+        suppressNodeClickRef.current = true;
         const t0 = e.touches[0];
         const t1 = e.touches[1];
         const dx = t0.clientX - t1.clientX;
@@ -272,6 +278,7 @@ export function TimelineCanvas({
           if (Math.sqrt(ddx * ddx + ddy * ddy) > 8) {
             touchDidMoveRef.current = true;
             isPanningRef.current = true;
+            suppressNodeClickRef.current = true;
           }
         }
         if (!isPanningRef.current) return;
@@ -286,6 +293,11 @@ export function TimelineCanvas({
         touchDidMoveRef.current = false;
         lastPinchDistRef.current = null;
         touchOnCanvasRef.current = false;
+        if (suppressNodeClickRef.current) {
+          window.setTimeout(() => {
+            suppressNodeClickRef.current = false;
+          }, 0);
+        }
       } else if (e.touches.length === 1) {
         // 2→1 finger: reset single-finger state without committing a pan
         lastPinchDistRef.current = null;
@@ -297,7 +309,7 @@ export function TimelineCanvas({
       }
     };
 
-    el.addEventListener("touchstart", onTouchStart, { passive: true });
+    el.addEventListener("touchstart", onTouchStart, { passive: false });
     el.addEventListener("touchmove", onTouchMove, { passive: false }); // false so preventDefault works
     el.addEventListener("touchend", onTouchEnd, { passive: true });
     el.addEventListener("touchcancel", onTouchEnd, { passive: true });
@@ -310,6 +322,7 @@ export function TimelineCanvas({
   }, [applyTransform]);
 
   const handleNodeClick = useCallback((id: number) => {
+    if (suppressNodeClickRef.current) return;
     setActiveNodeId((prev) => (prev === id ? null : id));
     setChatInput("");
     setIsThinking(false);
