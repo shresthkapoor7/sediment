@@ -219,7 +219,10 @@ export function TimelineCanvas({
             : null;
       touchOnCanvasRef.current = !targetElement?.closest("[data-canvas-ui='true']");
       if (!touchOnCanvasRef.current) return;
-      e.preventDefault();
+      suppressNodeClickRef.current = false;
+      if (e.touches.length > 1) {
+        e.preventDefault();
+      }
 
       if (e.touches.length === 1) {
         const t = e.touches[0];
