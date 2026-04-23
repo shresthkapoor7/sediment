@@ -1139,9 +1139,7 @@ export default function Home() {
                 display: "flex",
                 flexDirection: "column",
                 alignItems: "center",
-                justifyContent: "center",
-                gap: "1.5rem",
-                padding: "1.5rem",
+                overflow: "hidden",
                 position: "relative",
               }}
             >
@@ -1162,146 +1160,159 @@ export default function Home() {
                 }}
               />
 
-              <motion.div
-                initial={{ opacity: 0, y: 16 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{
-                  duration: 0.7,
-                  ease: [0.16, 1, 0.3, 1],
+              {/* Center content */}
+              <div
+                style={{
+                  flex: 1,
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "1.5rem",
+                  padding: "1.5rem",
+                  width: "100%",
+                  position: "relative",
                 }}
-                style={{ textAlign: "center", position: "relative" }}
               >
-                <motion.p
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.1, duration: 0.5 }}
-                  style={{
-                    fontSize: "0.75rem",
-                    fontFamily: "'JetBrains Mono', monospace",
-                    color: "var(--accent)",
-                    letterSpacing: "0.12em",
-                    textTransform: "uppercase",
-                    marginBottom: "1rem",
-                  }}
-                >
-                  Research lineage explorer
-                </motion.p>
-                <h1
-                  style={{
-                    fontFamily: "'Instrument Serif', Georgia, serif",
-                    fontSize: "3.5rem",
-                    fontWeight: 400,
-                    letterSpacing: "-0.03em",
-                    lineHeight: 1.05,
-                    marginBottom: "1rem",
-                    color: "var(--text-primary)",
-                  }}
-                >
-                  Knowledge,
-                  <br />
-                  <em style={{ fontStyle: "italic" }}>layered.</em>
-                </h1>
-                <p
-                  style={{
-                    fontSize: "1rem",
-                    color: "var(--text-secondary)",
-                    maxWidth: "27.5rem",
-                    lineHeight: 1.6,
-                    margin: "0 auto",
-                  }}
-                >
-                  Trace any research concept back through time. See the papers,
-                  ideas, and breakthroughs that built on each other.
-                </p>
-              </motion.div>
-
-              <SearchInput onSearch={handleSearch} isSearching={isSearching || isExpanding} />
-
-              {!!searchError && (
                 <motion.div
-                  initial={{ opacity: 0, y: 6 }}
+                  initial={{ opacity: 0, y: 16 }}
                   animate={{ opacity: 1, y: 0 }}
-                  style={{
-                    marginTop: "1rem",
-                    padding: "0.75rem 0.875rem",
-                    borderRadius: "0.75rem",
-                    border: "0.0625rem solid var(--border)",
-                    background: "var(--bg-secondary)",
-                    color: "var(--text-secondary)",
-                    maxWidth: "32.5rem",
-                    width: "100%",
-                    textAlign: "left",
-                    fontSize: "0.8125rem",
+                  transition={{
+                    duration: 0.7,
+                    ease: [0.16, 1, 0.3, 1],
                   }}
+                  style={{ textAlign: "center" }}
                 >
-                  {searchError}
-                </motion.div>
-              )}
-
-              {disambiguation.length > 0 && (
-                <motion.div
-                  initial={{ opacity: 0, y: 6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  style={{
-                    marginTop: "1rem",
-                    padding: "0.875rem",
-                    borderRadius: "1rem",
-                    border: "0.0625rem solid var(--border)",
-                    background: "var(--bg-secondary)",
-                    maxWidth: "32.5rem",
-                    width: "100%",
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "0.625rem",
-                  }}
-                >
-                  <p
+                  <motion.p
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.1, duration: 0.5 }}
                     style={{
                       fontSize: "0.75rem",
-                      color: "var(--text-tertiary)",
                       fontFamily: "'JetBrains Mono', monospace",
-                      letterSpacing: "0.03em",
+                      color: "var(--accent)",
+                      letterSpacing: "0.12em",
+                      textTransform: "uppercase",
+                      marginBottom: "1rem",
                     }}
                   >
-                    pick the intended seed paper
+                    Research lineage explorer
+                  </motion.p>
+                  <h1
+                    style={{
+                      fontFamily: "'Instrument Serif', Georgia, serif",
+                      fontSize: "3.5rem",
+                      fontWeight: 400,
+                      letterSpacing: "-0.03em",
+                      lineHeight: 1.05,
+                      marginBottom: "1rem",
+                      color: "var(--text-primary)",
+                    }}
+                  >
+                    Knowledge,
+                    <br />
+                    <em style={{ fontStyle: "italic" }}>layered.</em>
+                  </h1>
+                  <p
+                    style={{
+                      fontSize: "1rem",
+                      color: "var(--text-secondary)",
+                      maxWidth: "27.5rem",
+                      lineHeight: 1.6,
+                      margin: "0 auto",
+                    }}
+                  >
+                    Trace any research concept back through time. See the papers,
+                    ideas, and breakthroughs that built on each other.
                   </p>
-                  {disambiguation.map((candidate) => (
-                    <button
-                      key={candidate.openalexId}
-                      onClick={() => handleSeedChoice(candidate.openalexId)}
+                </motion.div>
+
+                <SearchInput onSearch={handleSearch} isSearching={isSearching || isExpanding} />
+
+                {!!searchError && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    style={{
+                      marginTop: "1rem",
+                      padding: "0.75rem 0.875rem",
+                      borderRadius: "0.75rem",
+                      border: "0.0625rem solid var(--border)",
+                      background: "var(--bg-secondary)",
+                      color: "var(--text-secondary)",
+                      maxWidth: "32.5rem",
+                      width: "100%",
+                      textAlign: "left",
+                      fontSize: "0.8125rem",
+                    }}
+                  >
+                    {searchError}
+                  </motion.div>
+                )}
+
+                {disambiguation.length > 0 && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    style={{
+                      marginTop: "1rem",
+                      padding: "0.875rem",
+                      borderRadius: "1rem",
+                      border: "0.0625rem solid var(--border)",
+                      background: "var(--bg-secondary)",
+                      maxWidth: "32.5rem",
+                      width: "100%",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "0.625rem",
+                    }}
+                  >
+                    <p
                       style={{
-                        textAlign: "left",
-                        padding: "0.75rem 0.875rem",
-                        borderRadius: "0.75rem",
-                        border: "0.0625rem solid var(--border)",
-                        background: "var(--bg-primary)",
-                        cursor: "pointer",
-                        color: "var(--text-primary)",
+                        fontSize: "0.75rem",
+                        color: "var(--text-tertiary)",
+                        fontFamily: "'JetBrains Mono', monospace",
+                        letterSpacing: "0.03em",
                       }}
                     >
-                      <div style={{ fontSize: "0.8125rem", fontWeight: 600 }}>{candidate.title}</div>
-                      <div style={{ fontSize: "0.6875rem", color: "var(--text-tertiary)", marginTop: "0.25rem" }}>
-                        {candidate.year ?? "Unknown year"}
-                      </div>
-                    </button>
-                  ))}
-                </motion.div>
-              )}
+                      pick the intended seed paper
+                    </p>
+                    {disambiguation.map((candidate) => (
+                      <button
+                        key={candidate.openalexId}
+                        onClick={() => handleSeedChoice(candidate.openalexId)}
+                        style={{
+                          textAlign: "left",
+                          padding: "0.75rem 0.875rem",
+                          borderRadius: "0.75rem",
+                          border: "0.0625rem solid var(--border)",
+                          background: "var(--bg-primary)",
+                          cursor: "pointer",
+                          color: "var(--text-primary)",
+                        }}
+                      >
+                        <div style={{ fontSize: "0.8125rem", fontWeight: 600 }}>{candidate.title}</div>
+                        <div style={{ fontSize: "0.6875rem", color: "var(--text-tertiary)", marginTop: "0.25rem" }}>
+                          {candidate.year ?? "Unknown year"}
+                        </div>
+                      </button>
+                    ))}
+                  </motion.div>
+                )}
+              </div>
 
-              {/* Decorative strata lines + GitHub link */}
+              {/* Decorative strata lines + GitHub link — in normal flow so it never bleeds over the search input */}
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.6, duration: 1 }}
                 style={{
-                  position: "absolute",
-                  bottom: "2.5rem",
-                  left: "50%",
-                  transform: "translateX(-50%)",
                   display: "flex",
                   flexDirection: "column",
                   gap: "0.375rem",
                   alignItems: "center",
+                  paddingBottom: "2.5rem",
+                  flexShrink: 0,
                 }}
               >
                 {["5rem", "3.5rem", "2.25rem"].map((w, i) => (

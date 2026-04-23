@@ -55,11 +55,13 @@ export default function SharedGraphPage() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
         style={{
+          position: "relative",
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          padding: "14px 24px",
-          borderBottom: "1px solid var(--border)",
+          gap: "0.75rem",
+          padding: "0.875rem 1.5rem",
+          borderBottom: "0.0625rem solid var(--border)",
           background: "var(--bg-primary)",
           zIndex: 50,
           flexShrink: 0,
@@ -70,7 +72,7 @@ export default function SharedGraphPage() {
           style={{
             display: "flex",
             alignItems: "center",
-            gap: 10,
+            gap: "0.625rem",
             textDecoration: "none",
             color: "var(--text-primary)",
             flexShrink: 0,
@@ -92,7 +94,7 @@ export default function SharedGraphPage() {
           <span
             style={{
               fontFamily: "'Instrument Serif', Georgia, serif",
-              fontSize: 18,
+              fontSize: "1.125rem",
               fontWeight: 400,
               letterSpacing: "-0.01em",
             }}
@@ -103,11 +105,12 @@ export default function SharedGraphPage() {
 
         {query && (
           <span
+            className="hide-mobile"
             style={{
               position: "absolute",
               left: "50%",
               transform: "translateX(-50%)",
-              fontSize: 12,
+              fontSize: "0.75rem",
               color: "var(--text-tertiary)",
               fontFamily: "'JetBrains Mono', monospace",
               letterSpacing: "0.02em",
@@ -115,13 +118,14 @@ export default function SharedGraphPage() {
               overflow: "hidden",
               textOverflow: "ellipsis",
               maxWidth: "40%",
+              pointerEvents: "none",
             }}
           >
             tracing: {query}
           </span>
         )}
 
-        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexShrink: 0 }}>
           <a
             href={GITHUB_REPO_URL}
             target="_blank"
