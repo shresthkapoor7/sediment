@@ -206,8 +206,10 @@ export function TimelineCanvas({
 
     const onTouchStart = (e: TouchEvent) => {
       // Treat touches as canvas gestures unless they start inside explicit UI chrome.
-      // This is more reliable on mobile than checking SVG containment because nodes
-      // render through foreignObject and can be retargeted inconsistently.
+      // Nodes render in a plain HTML overlay layer while edges stay in SVG, and
+      // touch retargeting can be inconsistent across browsers and between those
+      // layers. Checking for explicit UI chrome is more reliable than trying to
+      // infer whether the touch started on the "canvas" itself.
       const target = e.target;
       const targetElement =
         target instanceof Element
