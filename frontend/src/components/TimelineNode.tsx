@@ -22,6 +22,17 @@ export function TimelineNodeCard({
   shouldAnimate,
 }: TimelineNodeProps) {
   const { width, height } = NODE_DIMENSIONS;
+  const getBorderColor = (active: boolean, highlighted: boolean) =>
+    active || highlighted ? "var(--accent)" : "var(--node-border)";
+  const getBoxShadow = (active: boolean, highlighted: boolean) =>
+    active
+      ? "0 0 0 0.1875rem var(--accent-soft), var(--node-shadow)"
+      : highlighted
+        ? "0 0 0 0.1875rem var(--accent-soft), 0 0 1rem var(--accent-glow), var(--node-shadow)"
+        : "var(--node-shadow)";
+  const getHoverBoxShadow = () => "var(--node-shadow-hover)";
+  const borderColor = getBorderColor(isActive, isHighlighted);
+  const boxShadow = getBoxShadow(isActive, isHighlighted);
 
   return (
     <motion.div
@@ -53,37 +64,27 @@ export function TimelineNodeCard({
           height,
           margin: 4,
           background: "var(--node-bg)",
-          border: `0.09375rem solid ${isActive || isHighlighted ? "var(--accent)" : "var(--node-border)"}`,
+          border: `0.09375rem solid ${borderColor}`,
           borderRadius: "0.75rem",
           padding: "0.75rem 0.875rem",
           display: "flex",
           flexDirection: "column",
           gap: "0.375rem",
-          boxShadow: isActive
-            ? "0 0 0 0.1875rem var(--accent-soft), var(--node-shadow)"
-            : isHighlighted
-            ? "0 0 0 0.1875rem var(--accent-soft), 0 0 1rem var(--accent-glow), var(--node-shadow)"
-            : "var(--node-shadow)",
+          boxShadow,
           transition: "border-color 0.2s, box-shadow 0.2s, transform 0.2s",
           overflow: "hidden",
           position: "relative",
           userSelect: "none",
         }}
         onMouseEnter={(e) => {
-          e.currentTarget.style.boxShadow = "var(--node-shadow-hover)";
+          e.currentTarget.style.boxShadow = getHoverBoxShadow();
           e.currentTarget.style.transform = "translateY(-0.125rem)";
           e.currentTarget.style.borderColor = "var(--accent)";
         }}
         onMouseLeave={(e) => {
-          e.currentTarget.style.boxShadow = isActive
-            ? "0 0 0 0.1875rem var(--accent-soft), var(--node-shadow)"
-            : isHighlighted
-            ? "0 0 0 0.1875rem var(--accent-soft), 0 0 1rem var(--accent-glow), var(--node-shadow)"
-            : "var(--node-shadow)";
+          e.currentTarget.style.boxShadow = getBoxShadow(isActive, isHighlighted);
           e.currentTarget.style.transform = "translateY(0)";
-          e.currentTarget.style.borderColor = isActive || isHighlighted
-            ? "var(--accent)"
-            : "var(--node-border)";
+          e.currentTarget.style.borderColor = getBorderColor(isActive, isHighlighted);
         }}
       >
         {/* Expanded indicator */}
