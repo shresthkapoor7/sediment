@@ -33,6 +33,7 @@ export function TimelineCanvas({
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const gRef = useRef<SVGGElement>(null);
+  const nodeLayerRef = useRef<HTMLDivElement>(null);
   const hasCentered = useRef(false);
 
   const panRef = useRef({ x: 0, y: 0 });
@@ -95,6 +96,11 @@ export function TimelineCanvas({
         "transform",
         `translate(${x}, ${y}) scale(${z})`
       );
+    }
+    if (nodeLayerRef.current) {
+      const { x, y } = panRef.current;
+      const z = zoomRef.current;
+      nodeLayerRef.current.style.transform = `translate(${x}px, ${y}px) scale(${z})`;
     }
     if (containerRef.current) {
       const { clientWidth, clientHeight } = containerRef.current;
@@ -624,7 +630,29 @@ export function TimelineCanvas({
             );
           })}
 
-          {/* Nodes */}
+        </g>
+      </svg>
+
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          overflow: "hidden",
+          touchAction: "none",
+        }}
+      >
+        <div
+          ref={nodeLayerRef}
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            width: maxX,
+            height: maxY,
+            transformOrigin: "0 0",
+            willChange: "transform",
+          }}
+        >
           {nodeArray.map((node, i) => (
             <TimelineNodeCard
               key={node.id}
@@ -636,8 +664,8 @@ export function TimelineCanvas({
               shouldAnimate={node.generation === latestGeneration}
             />
           ))}
-        </g>
-      </svg>
+        </div>
+      </div>
 
       {/* Side panel backdrop */}
       <AnimatePresence>
