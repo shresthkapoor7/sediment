@@ -9,6 +9,8 @@ export interface GraphPaper {
   oaUrl?: string | null;
   concepts?: string[];
   type?: string | null;
+  citedByCount?: number;
+  referencesCount?: number;
 }
 
 export interface GraphEdge {
@@ -72,6 +74,8 @@ export interface Paper {
   concepts?: string[];
   type?: string | null;
   arxivId?: string;
+  citedByCount?: number;
+  referencesCount?: number;
 }
 
 export interface TimelineNode {

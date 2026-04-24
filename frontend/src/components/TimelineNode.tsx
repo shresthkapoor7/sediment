@@ -8,6 +8,8 @@ interface TimelineNodeProps {
   node: TNode;
   index: number;
   onClick: (id: number) => void;
+  onHoverStart?: (id: number, rect: DOMRect) => void;
+  onHoverEnd?: (id: number) => void;
   isActive: boolean;
   isHighlighted?: boolean;
   shouldAnimate: boolean;
@@ -17,6 +19,8 @@ export function TimelineNodeCard({
   node,
   index,
   onClick,
+  onHoverStart,
+  onHoverEnd,
   isActive,
   isHighlighted = false,
   shouldAnimate,
@@ -57,6 +61,8 @@ export function TimelineNodeCard({
         touchAction: "none",
       }}
       onClick={() => onClick(node.id)}
+      onMouseEnter={(e) => onHoverStart?.(node.id, e.currentTarget.getBoundingClientRect())}
+      onMouseLeave={() => onHoverEnd?.(node.id)}
     >
       <div
         style={{

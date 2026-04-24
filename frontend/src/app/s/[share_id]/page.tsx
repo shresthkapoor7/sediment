@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { TimelineCanvas } from "@/components/TimelineCanvas";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { fetchSharedGraph } from "@/lib/api";
+import { useHoverPreviewToggle } from "@/lib/hover-preview";
 import { TimelineData } from "@/lib/types";
 import { exportObsidianZip } from "@/lib/export";
 
@@ -20,6 +21,7 @@ export default function SharedGraphPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { hoverPreviewEnabled, onToggleHoverPreview } = useHoverPreviewToggle();
 
   useEffect(() => {
     if (!shareId) {
@@ -338,6 +340,8 @@ export default function SharedGraphPage() {
             isExpanding={false}
             onExpandNode={() => {}}
             readOnly
+            hoverPreviewEnabled={hoverPreviewEnabled}
+            onToggleHoverPreview={onToggleHoverPreview}
           />
         )}
       </div>

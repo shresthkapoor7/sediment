@@ -19,6 +19,7 @@ import {
   shareGraph,
   updateSavedGraph,
 } from "@/lib/api";
+import { useHoverPreviewToggle } from "@/lib/hover-preview";
 import { buildTimelineFromGraph, mergeTimelineWithGraph } from "@/lib/timeline-builder";
 import { SavedGraphListItem, SeedCandidate, TimelineData, TraversalSettings } from "@/lib/types";
 import { exportObsidianZip } from "@/lib/export";
@@ -82,6 +83,7 @@ export default function Home() {
   const [settings, setSettings] = useState<TraversalSettings>(DEFAULT_SETTINGS);
   const [draftSettings, setDraftSettings] = useState<TraversalSettings>(DEFAULT_SETTINGS);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const { hoverPreviewEnabled, onToggleHoverPreview } = useHoverPreviewToggle();
   const [userId, setUserId] = useState<string | null>(null);
   const [graphId, setGraphId] = useState<string | null>(null);
   const [selectedSeedOpenalexId, setSelectedSeedOpenalexId] = useState<string | null>(null);
@@ -1422,6 +1424,8 @@ export default function Home() {
                 data={timelineData!}
                 onExpandNode={handleExpandNode}
                 isExpanding={isExpanding}
+                hoverPreviewEnabled={hoverPreviewEnabled}
+                onToggleHoverPreview={onToggleHoverPreview}
               />
             </motion.div>
           )}

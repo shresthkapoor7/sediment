@@ -253,6 +253,8 @@ def _graph_paper(paper: dict, summary: str = "") -> dict:
         "oaUrl": paper.get("oaUrl"),
         "concepts": paper.get("concepts", []),
         "type": paper.get("type"),
+        "citedByCount": paper.get("citedByCount", 0),
+        "referencesCount": paper.get("referencedWorksCount", 0),
     }
 
 

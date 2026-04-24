@@ -92,6 +92,8 @@ export function mergeTimelineWithGraph(
         oaUrl: paper.oaUrl,
         concepts: paper.concepts ?? [],
         type: paper.type,
+        citedByCount: paper.citedByCount ?? 0,
+        referencesCount: paper.referencesCount ?? 0,
       },
       x,
       y,
@@ -201,6 +203,8 @@ function buildTimelineData(papers: GraphPaper[], edges: GraphEdge[]): TimelineDa
         oaUrl: paper.oaUrl,
         concepts: paper.concepts ?? [],
         type: paper.type,
+        citedByCount: paper.citedByCount ?? 0,
+        referencesCount: paper.referencesCount ?? 0,
       },
       x: PADDING_X + generation * (NODE_DIMENSIONS.width + GAP_X),
       y: PADDING_Y + lane * LANE_HEIGHT,
@@ -304,6 +308,8 @@ function existingGraphPapers(data: TimelineData): GraphPaper[] {
     oaUrl: node.paper.oaUrl ?? null,
     concepts: node.paper.concepts ?? [],
     type: node.paper.type ?? null,
+    citedByCount: node.paper.citedByCount ?? 0,
+    referencesCount: node.paper.referencesCount ?? 0,
   }));
 }
 
@@ -384,6 +390,8 @@ function mergePaper(node: TimelineNode, paper: GraphPaper): TimelineNode["paper"
     oaUrl: paper.oaUrl ?? node.paper.oaUrl,
     concepts: (paper.concepts && paper.concepts.length > 0) ? paper.concepts : node.paper.concepts,
     type: paper.type ?? node.paper.type,
+    citedByCount: paper.citedByCount ?? node.paper.citedByCount,
+    referencesCount: paper.referencesCount ?? node.paper.referencesCount,
   };
 }
 
