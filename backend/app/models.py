@@ -47,7 +47,7 @@ class GraphPaper(BaseModel):
 class GraphEdge(BaseModel):
     parentOpenalexId: str
     childOpenalexId: str
-    relation: Literal["influenced"] = "influenced"
+    relation: Literal["influenced", "inferred"] = "influenced"
 
 
 class SeedCandidate(BaseModel):
@@ -59,7 +59,7 @@ class SeedCandidate(BaseModel):
 
 class SearchMeta(BaseModel):
     query: str
-    mode: Literal["resolved", "needs_disambiguation"] = "resolved"
+    mode: Literal["resolved", "resolved_inferred", "needs_disambiguation"] = "resolved"
     confidence: Optional[Literal["high", "medium", "low"]] = None
     cacheHit: bool = False
 

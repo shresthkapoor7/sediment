@@ -352,7 +352,11 @@ export function TimelineCanvas({
   const edgesForRender = Object.entries(data.adjacency).flatMap(
     ([fromIdStr, children]) => {
       const fromId = Number(fromIdStr);
-      return children.map((toId) => ({ from: fromId, to: toId }));
+      return children.map((toId) => ({
+        from: fromId,
+        to: toId,
+        relation: data.edgeRelations?.[`${fromId}->${toId}`] ?? "influenced",
+      }));
     }
   );
 
@@ -641,6 +645,7 @@ export function TimelineCanvas({
                 index={i}
                 isActive={isActive}
                 isCrossLane={isCrossLane}
+                isInferred={edge.relation === "inferred"}
               />
             );
           })}

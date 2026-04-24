@@ -7,6 +7,7 @@ import re
 from math import log10
 
 import aiohttp
+from .text_utils import meaningful_token_list, meaningful_tokens, normalize_text
 
 logger = logging.getLogger(__name__)
 
@@ -66,12 +67,7 @@ _GREEK = {
 _LAYOUT_CMDS = re.compile(
     r"\\(?:noindent|newline|linebreak|pagebreak|smallskip|medskip|bigskip|hspace|vspace|par)\b"
 )
-_NON_ALNUM = re.compile(r"[^a-z0-9]+")
-_STOPWORDS = {
-    "a", "an", "and", "are", "as", "at", "be", "by", "for", "from", "in",
-    "into", "of", "on", "or", "the", "through", "to", "with", "using",
-    "via", "based", "toward", "towards",
-}
+GENERIC_LEAD_TOKENS = {"deep", "learning", "neural", "novel", "new", "efficient", "robust", "scalable", "adaptive"}
 
 
 def _clean_abstract(text: str) -> str:
@@ -95,19 +91,8 @@ def _build_detail(abstract: str) -> str:
     return _clean_abstract(abstract.strip())
 
 
-def _normalize_text(text: str) -> str:
-    return _NON_ALNUM.sub(" ", text.lower()).strip()
-
-
 def _informative_tokens(text: str) -> list[str]:
-    tokens: list[str] = []
-    for token in _normalize_text(text).split():
-        if len(token) <= 2 or token in _STOPWORDS:
-            continue
-        if token.endswith("s") and len(token) > 4:
-            token = token[:-1]
-        tokens.append(token)
-    return tokens
+    return meaningful_token_list(text)
 
 
 async def _get(session: aiohttp.ClientSession, url: str, params: dict) -> dict:
@@ -326,7 +311,11 @@ class OpenAlexClient:
         title_head = title.split(":")[0].strip() if ":" in title else title.strip()
         title_tokens = _informative_tokens(title)
         query_tokens = _informative_tokens(user_query)
-        title_anchor_tokens = title_tokens[1:] if len(title_tokens) > 3 else title_tokens
+        title_anchor_tokens = (
+            title_tokens[1:]
+            if len(title_tokens) > 3 and title_tokens[0] in GENERIC_LEAD_TOKENS
+            else title_tokens
+        )
 
         title_phrase_tokens = title_anchor_tokens[:4]
         query_phrase_tokens = query_tokens[:4]
@@ -376,16 +365,16 @@ class OpenAlexClient:
 
         merged: dict[str, tuple[float, dict]] = {}
         seen_title_keys: set[str] = set()
-        target_tokens = set(title_anchor_tokens)
+        target_tokens = meaningful_tokens(" ".join(title_anchor_tokens))
         query_only_tokens = {token for token in query_tokens if token not in title_tokens}
         for batch in batches:
             if isinstance(batch, Exception):
                 continue
             for candidate in batch:
                 candidate_id = candidate["openalexId"]
-                candidate_tokens = set(_informative_tokens(candidate.get("title", "")))
+                candidate_tokens = meaningful_tokens(candidate.get("title", ""))
                 overlap = len(target_tokens & candidate_tokens)
-                if overlap == 0:
+                if target_tokens and overlap == 0:
                     continue
                 query_overlap = len(query_only_tokens & candidate_tokens)
                 if overlap < 2 and query_overlap == 0:

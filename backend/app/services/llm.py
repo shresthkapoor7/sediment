@@ -4,12 +4,12 @@ import re
 from typing import Optional
 
 from anthropic import AsyncAnthropic
+from .text_utils import meaningful_tokens, normalize_text
 
 logger = logging.getLogger(__name__)
 MAX_TIMELINE_PAPERS = 25
 MAX_TIMELINE_SUMMARY_CHARS = 320
 MAX_SUGGESTION_WORDS = 6
-_NON_ALNUM = re.compile(r"[^a-z0-9]+")
 _GENERIC_SUGGESTIONS = {
     "background",
     "history",
@@ -21,11 +21,6 @@ _GENERIC_SUGGESTIONS = {
     "research paper",
     "this paper",
     "the paper",
-}
-_STOPWORDS = {
-    "a", "an", "and", "are", "as", "at", "be", "by", "for", "from", "how",
-    "in", "into", "is", "it", "of", "on", "or", "relate", "related", "the",
-    "this", "to", "what", "with",
 }
 
 
@@ -365,16 +360,8 @@ def _extract_explicit_topic(question: str) -> Optional[str]:
     return None
 
 
-def _normalize_text(text: str) -> str:
-    return _NON_ALNUM.sub(" ", text.lower()).strip()
-
-
 def _meaningful_tokens(text: str) -> set[str]:
-    return {
-        token
-        for token in _normalize_text(text).split()
-        if len(token) > 2 and token not in _STOPWORDS
-    }
+    return meaningful_tokens(text)
 
 
 def _clean_suggestion_text(text: str) -> str:
@@ -393,7 +380,7 @@ def _is_already_covered(topic: str, context_texts: list[str]) -> bool:
         if not context_tokens:
             continue
         overlap = len(topic_tokens & context_tokens)
-        if overlap == len(topic_tokens):
+        if len(topic_tokens) >= 2 and overlap == len(topic_tokens):
             return True
         if overlap >= 2 and overlap / max(1, len(topic_tokens)) >= 0.75:
             return True
@@ -433,7 +420,7 @@ def _sanitize_suggestion(
     if not normalized_topic or normalized_topic in _GENERIC_SUGGESTIONS:
         return None
 
-    if _is_already_covered(topic, context_texts):
+    if explicit_topic is None and _is_already_covered(topic, context_texts):
         return None
 
     return {
