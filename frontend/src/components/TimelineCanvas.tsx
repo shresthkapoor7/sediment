@@ -4,6 +4,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { MarkdownContent } from "./MarkdownContent";
 import { chatAboutPaper } from "@/lib/api";
+import { TIMELINE_MOBILE_BREAKPOINT_PX } from "@/lib/hover-preview";
 import { TimelineData, ChatSuggestion, TimelineNode } from "@/lib/types";
 import { NODE_DIMENSIONS } from "@/lib/dummy-data";
 import { TimelineNodeCard } from "./TimelineNode";
@@ -355,13 +356,23 @@ export function TimelineCanvas({
     }
   }, []);
 
+  const clearHoveredPreview = useCallback(() => {
+    clearHoverHideTimeout();
+    setHoveredNode(null);
+  }, [clearHoverHideTimeout]);
+
   const handleNodeHoverStart = useCallback(
     (id: number, rect: DOMRect) => {
-      if (!hoverPreviewEnabled || activeNodeId || typeof window === "undefined" || window.innerWidth <= 900) return;
+      if (
+        !hoverPreviewEnabled ||
+        activeNodeId ||
+        typeof window === "undefined" ||
+        window.innerWidth <= TIMELINE_MOBILE_BREAKPOINT_PX
+      ) return;
       clearHoverHideTimeout();
       setHoveredNode({ nodeId: id, rect });
     },
-    [activeNodeId, clearHoverHideTimeout]
+    [activeNodeId, clearHoverHideTimeout, hoverPreviewEnabled]
   );
 
   const handleNodeHoverEnd = useCallback(
@@ -376,11 +387,36 @@ export function TimelineCanvas({
     [clearHoverHideTimeout, hoveredNode]
   );
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const mediaQuery = window.matchMedia(`(max-width: ${TIMELINE_MOBILE_BREAKPOINT_PX}px)`);
+    const handleBreakpointChange = (event?: MediaQueryListEvent) => {
+      if (event?.matches ?? mediaQuery.matches) {
+        clearHoveredPreview();
+      }
+    };
+
+    handleBreakpointChange();
+
+    if (typeof mediaQuery.addEventListener === "function") {
+      mediaQuery.addEventListener("change", handleBreakpointChange);
+      return () => {
+        mediaQuery.removeEventListener("change", handleBreakpointChange);
+      };
+    }
+
+    mediaQuery.addListener(handleBreakpointChange);
+    return () => {
+      mediaQuery.removeListener(handleBreakpointChange);
+    };
+  }, [clearHoveredPreview]);
+
   // Initial mount: fit-to-view on mobile, 1:1 centered on desktop
   useEffect(() => {
     if (containerRef.current && !hasCentered.current) {
       const { clientWidth, clientHeight } = containerRef.current;
-      const isMobile = clientWidth <= 640; // matches globals.css 40rem breakpoint
+      const isMobile = clientWidth <= TIMELINE_MOBILE_BREAKPOINT_PX; // matches globals.css 40rem breakpoint
       const fitZoom = Math.min(clientWidth / maxX, clientHeight / maxY, 1);
       const initialZoom = isMobile ? fitZoom : 1;
       zoomRef.current = initialZoom;
