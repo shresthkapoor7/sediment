@@ -42,6 +42,8 @@ class GraphPaper(BaseModel):
     oaUrl: Optional[str] = None
     concepts: list[str] = Field(default_factory=list)
     type: Optional[str] = None
+    citedByCount: int = 0
+    referencesCount: int = 0
 
 
 class GraphEdge(BaseModel):

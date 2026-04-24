@@ -22,6 +22,8 @@ interface TimelineCanvasProps {
   onExpandNode: (nodeId: number, query: string) => void;
   isExpanding: boolean;
   readOnly?: boolean;
+  hoverPreviewEnabled?: boolean;
+  onToggleHoverPreview?: () => void;
 }
 
 interface HoverPreviewState {
@@ -34,6 +36,8 @@ export function TimelineCanvas({
   onExpandNode,
   isExpanding,
   readOnly = false,
+  hoverPreviewEnabled = true,
+  onToggleHoverPreview,
 }: TimelineCanvasProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -353,7 +357,7 @@ export function TimelineCanvas({
 
   const handleNodeHoverStart = useCallback(
     (id: number, rect: DOMRect) => {
-      if (activeNodeId || typeof window === "undefined" || window.innerWidth <= 900) return;
+      if (!hoverPreviewEnabled || activeNodeId || typeof window === "undefined" || window.innerWidth <= 900) return;
       clearHoverHideTimeout();
       setHoveredNode({ nodeId: id, rect });
     },
@@ -660,6 +664,39 @@ export function TimelineCanvas({
         }}>
           {zoomDisplay}%
         </div>
+
+        {onToggleHoverPreview && (
+          <button
+            className="hide-mobile"
+            onClick={onToggleHoverPreview}
+            title={hoverPreviewEnabled ? "Disable hover preview" : "Enable hover preview"}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: "1.75rem",
+              height: "1.75rem",
+              padding: 0,
+              background: hoverPreviewEnabled ? "var(--accent-soft)" : "var(--bg-secondary)",
+              border: `0.0625rem solid ${hoverPreviewEnabled ? "var(--accent)" : "var(--border)"}`,
+              borderRadius: "0.375rem",
+              color: hoverPreviewEnabled ? "var(--accent)" : "var(--text-tertiary)",
+              cursor: "pointer",
+              fontSize: "0.625rem",
+              fontFamily: "'JetBrains Mono', monospace",
+              letterSpacing: "0.04em",
+              transition: "all 0.15s",
+              marginLeft: "0.25rem",
+              userSelect: "none",
+            }}
+          >
+            <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M1 8s3-5 7-5 7 5 7 5-3 5-7 5-7-5-7-5z" />
+              <circle cx="8" cy="8" r="2" />
+              {!hoverPreviewEnabled && <path d="M2 2l12 12" />}
+            </svg>
+          </button>
+        )}
       </div>
 
       <svg
@@ -741,7 +778,7 @@ export function TimelineCanvas({
       </div>
 
       <AnimatePresence>
-        {!activeNodeId && hoveredNode && hoveredTimelineNode && hoverPreviewLayout && (
+        {hoverPreviewEnabled && !activeNodeId && hoveredNode && hoveredTimelineNode && hoverPreviewLayout && (
           <motion.div
             data-canvas-ui="true"
             key={`hover-${hoveredNode.nodeId}`}
@@ -812,7 +849,7 @@ export function TimelineCanvas({
                     boxShadow: "inset 0 0.0625rem 0 rgba(255,255,255,0.08)",
                   }}
                 >
-                  Paper Preview
+                  {getPreviewLabel(hoveredTimelineNode.paper.type)}
                 </span>
 
                 <div style={{ display: "flex", flexDirection: "column", gap: "0.45rem" }}>
@@ -872,36 +909,32 @@ export function TimelineCanvas({
                       textDecoration: "none",
                       fontSize: "0.75rem",
                       fontWeight: 600,
-                      color: "var(--bg-primary)",
+                      color: "var(--text-primary)",
                       fontFamily: "'DM Sans', sans-serif",
-                      background: "var(--text-primary)",
-                      border: "0.0625rem solid color-mix(in srgb, var(--text-primary) 78%, transparent)",
+                      background: "var(--bg-secondary)",
+                      border: "0.0625rem solid var(--border)",
                       borderRadius: "0.8rem",
                       padding: "0.65rem 0.8rem",
-                      boxShadow: "0 0.5rem 1.2rem rgba(0,0,0,0.14)",
-                      transition: "transform 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease",
+                      boxShadow: "0 0.125rem 0.375rem rgba(0,0,0,0.10)",
+                      transition: "transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease, color 0.18s ease",
                     }}
                     onMouseEnter={(e) => {
                       e.currentTarget.style.transform = "translateY(-1px)";
-                      e.currentTarget.style.boxShadow = "0 0.7rem 1.6rem rgba(0,0,0,0.2)";
-                      e.currentTarget.style.opacity = "0.94";
+                      e.currentTarget.style.boxShadow = "0 0.25rem 0.75rem rgba(0,0,0,0.16)";
+                      e.currentTarget.style.borderColor = "var(--accent)";
+                      e.currentTarget.style.color = "var(--accent)";
                     }}
                     onMouseLeave={(e) => {
                       e.currentTarget.style.transform = "translateY(0)";
-                      e.currentTarget.style.boxShadow = "0 0.5rem 1.2rem rgba(0,0,0,0.14)";
-                      e.currentTarget.style.opacity = "1";
+                      e.currentTarget.style.boxShadow = "0 0.125rem 0.375rem rgba(0,0,0,0.10)";
+                      e.currentTarget.style.borderColor = "var(--border)";
+                      e.currentTarget.style.color = "var(--text-primary)";
                     }}
                   >
-                    <span>Open paper</span>
-                    <span
-                      style={{
-                        fontFamily: "'JetBrains Mono', monospace",
-                        color: "var(--accent)",
-                        fontSize: "0.6875rem",
-                      }}
-                    >
-                      ↗
-                    </span>
+                    <span>{getOpenLabel(hoveredTimelineNode.paper.type)}</span>
+                    <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="var(--accent)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                      <path d="M2 8L8 2M8 2H3.5M8 2V6.5" />
+                    </svg>
                   </a>
                 )}
                 <div
@@ -1015,6 +1048,58 @@ export function TimelineCanvas({
                 </div>
               )}
             </div>
+
+            {/* Stats bar — spans both columns */}
+            {(hoveredTimelineNode.paper.citedByCount || hoveredTimelineNode.paper.referencesCount || (hoveredTimelineNode.paper.concepts?.length ?? 0) > 0) && (
+              <div
+                style={{
+                  gridColumn: "1 / -1",
+                  display: "flex",
+                  alignItems: "baseline",
+                  gap: "1.5rem",
+                  paddingTop: "0.75rem",
+                  borderTop: "0.0625rem solid var(--border)",
+                }}
+              >
+                {(hoveredTimelineNode.paper.citedByCount != null && hoveredTimelineNode.paper.citedByCount > 0) && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "0.2rem", flexShrink: 0 }}>
+                    <span style={{ fontSize: "0.5rem", fontFamily: "'JetBrains Mono', monospace", color: "var(--accent)", letterSpacing: "0.1em", textTransform: "uppercase" }}>
+                      cited by
+                    </span>
+                    <span style={{ fontSize: "1.125rem", fontWeight: 700, fontFamily: "'DM Sans', sans-serif", color: "var(--text-primary)", lineHeight: 1, letterSpacing: "-0.02em" }}>
+                      {formatCount(hoveredTimelineNode.paper.citedByCount)}
+                    </span>
+                  </div>
+                )}
+                {(hoveredTimelineNode.paper.referencesCount != null && hoveredTimelineNode.paper.referencesCount > 0) && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "0.2rem", flexShrink: 0 }}>
+                    <span style={{ fontSize: "0.5rem", fontFamily: "'JetBrains Mono', monospace", color: "var(--text-tertiary)", letterSpacing: "0.1em", textTransform: "uppercase" }}>
+                      cites
+                    </span>
+                    <span style={{ fontSize: "1.125rem", fontWeight: 700, fontFamily: "'DM Sans', sans-serif", color: "var(--text-primary)", lineHeight: 1, letterSpacing: "-0.02em" }}>
+                      {formatCount(hoveredTimelineNode.paper.referencesCount)}
+                    </span>
+                  </div>
+                )}
+                {hoveredTimelineNode.paper.concepts && hoveredTimelineNode.paper.concepts.length > 0 && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "0.2rem", flex: 1, minWidth: 0 }}>
+                    <span style={{ fontSize: "0.5rem", fontFamily: "'JetBrains Mono', monospace", color: "var(--text-tertiary)", letterSpacing: "0.1em", textTransform: "uppercase" }}>
+                      topics
+                    </span>
+                    <div style={{ overflow: "hidden", position: "relative" }}>
+                      <motion.span
+                        key={hoveredTimelineNode.paper.openalexId}
+                        style={{ fontSize: "0.75rem", fontFamily: "'DM Sans', sans-serif", color: "var(--text-secondary)", lineHeight: 1.3, whiteSpace: "nowrap", display: "inline-block" }}
+                        animate={{ x: ["0%", "-50%"] }}
+                        transition={{ duration: 12, ease: "linear", repeat: Infinity }}
+                      >
+                        {`${hoveredTimelineNode.paper.concepts.join(" · ")}     ${hoveredTimelineNode.paper.concepts.join(" · ")}     `}
+                      </motion.span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </motion.div>
         )}
       </AnimatePresence>
@@ -1446,6 +1531,33 @@ function getPaperSourceLabel(node: TimelineNode): string {
   if (node.paper.arxivId) return "arXiv";
   if (node.paper.doi) return "DOI";
   return "metadata";
+}
+
+function formatCount(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1).replace(/\.0$/, "")}k`;
+  return String(n);
+}
+
+function getPreviewLabel(type?: string | null): string {
+  if (!type) return "Paper Preview";
+  const t = type.toLowerCase().replace(/-/g, " ");
+  if (t.includes("article")) return "Article Preview";
+  if (t.includes("preprint")) return "Preprint Preview";
+  if (t.includes("book chapter") || t.includes("chapter")) return "Chapter Preview";
+  if (t.includes("book")) return "Book Preview";
+  if (t.includes("dataset")) return "Dataset Preview";
+  return "Paper Preview";
+}
+
+function getOpenLabel(type?: string | null): string {
+  if (!type) return "Open paper";
+  const t = type.toLowerCase().replace(/-/g, " ");
+  if (t.includes("article")) return "Open article";
+  if (t.includes("preprint")) return "Open preprint";
+  if (t.includes("book chapter") || t.includes("chapter")) return "Open chapter";
+  if (t.includes("book")) return "Open book";
+  return "Open paper";
 }
 
 function getHoverPreviewLayout(container: HTMLDivElement, rect: DOMRect) {

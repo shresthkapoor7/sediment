@@ -82,6 +82,7 @@ export default function Home() {
   const [settings, setSettings] = useState<TraversalSettings>(DEFAULT_SETTINGS);
   const [draftSettings, setDraftSettings] = useState<TraversalSettings>(DEFAULT_SETTINGS);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [hoverPreviewEnabled, setHoverPreviewEnabled] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
   const [graphId, setGraphId] = useState<string | null>(null);
   const [selectedSeedOpenalexId, setSelectedSeedOpenalexId] = useState<string | null>(null);
@@ -1422,6 +1423,8 @@ export default function Home() {
                 data={timelineData!}
                 onExpandNode={handleExpandNode}
                 isExpanding={isExpanding}
+                hoverPreviewEnabled={hoverPreviewEnabled}
+                onToggleHoverPreview={() => setHoverPreviewEnabled((v) => !v)}
               />
             </motion.div>
           )}

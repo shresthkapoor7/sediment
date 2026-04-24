@@ -20,6 +20,7 @@ export default function SharedGraphPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [hoverPreviewEnabled, setHoverPreviewEnabled] = useState(true);
 
   useEffect(() => {
     if (!shareId) {
@@ -338,6 +339,8 @@ export default function SharedGraphPage() {
             isExpanding={false}
             onExpandNode={() => {}}
             readOnly
+            hoverPreviewEnabled={hoverPreviewEnabled}
+            onToggleHoverPreview={() => setHoverPreviewEnabled((v) => !v)}
           />
         )}
       </div>
