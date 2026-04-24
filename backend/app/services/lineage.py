@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import logging
+import re
 from collections import deque
 
 from .llm import LLMClient
 from .openalex import OpenAlexClient
+from .text_utils import meaningful_token_list, normalize_text
 from ..models import TraversalSettings
 
 logger = logging.getLogger(__name__)
@@ -15,6 +17,7 @@ SEARCH_LIMIT = 10
 REFERENCE_LIMIT = 20
 TOP_N = 5
 DISAMBIGUATION_COUNT = 3
+_NON_ALNUM = re.compile(r"[^a-z0-9]+")
 
 
 async def trace_lineage(
@@ -42,38 +45,42 @@ async def trace_lineage(
             chosen_seed = await openalex.fetch_work(seed_openalex_id)
         confidence = "high"
     else:
-        decision = await llm.choose_seed(concept, search_results)
-        confidence = decision.get("confidence")
-        seed_index = decision.get("index")
-        if confidence == "low" or seed_index is None:
-            return {
-                "seedPaperId": None,
-                "papers": [],
-                "edges": [],
-                "rootIds": [],
-                "meta": {
-                    "query": concept,
-                    "mode": "needs_disambiguation",
-                    "confidence": confidence or "low",
-                    "cacheHit": False,
-                },
-                "disambiguation": [
-                    {
-                        "openalexId": paper["openalexId"],
-                        "title": paper["title"],
-                        "year": paper.get("year"),
-                    }
-                    for paper in search_results[:DISAMBIGUATION_COUNT]
-                ],
-            }
-        chosen_seed = search_results[seed_index]
+        chosen_seed = _pick_clear_title_match(concept, search_results)
+        if chosen_seed is not None:
+            confidence = "high"
+        else:
+            decision = await llm.choose_seed(concept, search_results)
+            confidence = decision.get("confidence")
+            seed_index = decision.get("index")
+            if confidence == "low" or seed_index is None:
+                return {
+                    "seedPaperId": None,
+                    "papers": [],
+                    "edges": [],
+                    "rootIds": [],
+                    "meta": {
+                        "query": concept,
+                        "mode": "needs_disambiguation",
+                        "confidence": confidence or "low",
+                        "cacheHit": False,
+                    },
+                    "disambiguation": [
+                        {
+                            "openalexId": paper["openalexId"],
+                            "title": paper["title"],
+                            "year": paper.get("year"),
+                        }
+                        for paper in search_results[:DISAMBIGUATION_COUNT]
+                    ],
+                }
+            chosen_seed = search_results[seed_index]
 
     if not chosen_seed:
         return _empty_response(concept)
 
     chosen_seed, seed_refs, seed_refs_inferred = await _resolve_viable_seed(
         chosen_seed,
-        search_results,
+        concept,
         openalex,
         resolved["reference_limit"],
     )
@@ -84,7 +91,8 @@ async def trace_lineage(
     seen: dict[str, dict] = {
         seed_id: {"paper": _graph_paper(chosen_seed, summary="Seed paper selected for this query.")}
     }
-    edges: set[tuple[str, str]] = set()
+    edges: set[tuple[str, str, str]] = set()
+    has_inferred_edges = False
 
     queue: deque[tuple[dict, int, list[dict] | None, bool]] = deque([(chosen_seed, 0, seed_refs, seed_refs_inferred)])
 
@@ -113,8 +121,11 @@ async def trace_lineage(
                 if paper.get("summary") and not seen[paper_id]["paper"].get("summary"):
                     seen[paper_id]["paper"]["summary"] = paper["summary"]
 
-            if not refs_inferred:
-                edges.add((paper_id, current_paper["openalexId"]))
+            relation = "inferred" if refs_inferred else "influenced"
+            edges.add((paper_id, current_paper["openalexId"], relation))
+            if refs_inferred:
+                has_inferred_edges = True
+            else:
                 next_level_ids.append(paper_id)
 
         for paper_id in next_level_ids[:resolved["breadth"]]:
@@ -127,7 +138,7 @@ async def trace_lineage(
         key=lambda paper: ((paper.get("year") is None), paper.get("year") or 0, paper.get("title", "")),
     )
 
-    child_ids = {child_id for _, child_id in edges}
+    child_ids = {child_id for _, child_id, _ in edges}
     root_ids = [
         paper["openalexId"]
         for paper in papers
@@ -141,14 +152,14 @@ async def trace_lineage(
             {
                 "parentOpenalexId": parent_id,
                 "childOpenalexId": child_id,
-                "relation": "influenced",
+                "relation": relation,
             }
-            for parent_id, child_id in sorted(edges)
+            for parent_id, child_id, relation in sorted(edges)
         ],
         "rootIds": root_ids,
         "meta": {
             "query": concept,
-            "mode": "resolved",
+            "mode": "resolved_inferred" if has_inferred_edges else "resolved",
             "confidence": confidence or "high",
             "cacheHit": False,
         },
@@ -247,49 +258,75 @@ def _graph_paper(paper: dict, summary: str = "") -> dict:
 
 async def _resolve_viable_seed(
     chosen_seed: dict,
-    search_results: list[dict],
+    concept: str,
     openalex: OpenAlexClient,
     reference_limit: int,
 ) -> tuple[dict | None, list[dict], bool]:
-    candidates = [chosen_seed] + [
-        paper for paper in search_results
-        if paper.get("openalexId") != chosen_seed.get("openalexId")
-    ]
+    refs = await openalex.fetch_references(chosen_seed["openalexId"], limit=reference_limit)
+    if len(refs) >= 3:
+        return chosen_seed, refs, False
 
-    candidates.sort(
-        key=lambda paper: (
-            paper.get("openalexId") != chosen_seed.get("openalexId"),
-            -(paper.get("referencedWorksCount") or 0),
-            -(paper.get("citedByCount") or 0),
-        ),
+    logger.info(
+        "Fewer than 3 indexed refs for chosen seed '%s' (found %d), falling back to related earlier papers",
+        chosen_seed.get("title"),
+        len(refs),
     )
+    fallback_refs = await openalex.fetch_related_earlier_papers_for_query(
+        chosen_seed,
+        concept,
+        limit=reference_limit,
+    )
+    if fallback_refs:
+        return chosen_seed, fallback_refs, True
 
-    best_candidate = chosen_seed
-    best_refs: list[dict] = []
-    best_ref_count = -1
+    return chosen_seed, refs, False
 
-    for candidate in candidates[:4]:
-        refs = await openalex.fetch_references(candidate["openalexId"], limit=reference_limit)
-        ref_count = len(refs)
-        if ref_count > best_ref_count:
-            best_candidate = candidate
-            best_refs = refs
-            best_ref_count = ref_count
-        if ref_count >= 3:
-            return candidate, refs, False
 
-    # No candidate had indexed references — fall back to topic-based related papers
-    if best_ref_count < 3:
-        logger.info(
-            "Fewer than 3 indexed refs for '%s' (found %d), falling back to topic search",
-            best_candidate.get("title"),
-            best_ref_count,
-        )
-        fallback_refs = await openalex.fetch_related_earlier_papers(best_candidate, limit=reference_limit)
-        if fallback_refs:
-            return best_candidate, fallback_refs, True
+def _normalize_query_text(text: str) -> str:
+    return normalize_text(text)
 
-    return best_candidate, best_refs, False
+
+def _pick_clear_title_match(concept: str, papers: list[dict]) -> dict | None:
+    query_norm = _normalize_query_text(concept)
+    if not query_norm:
+        return None
+
+    query_tokens = list(dict.fromkeys(meaningful_token_list(query_norm, min_len=2)))
+    if not query_tokens:
+        return None
+
+    scored: list[tuple[float, dict]] = []
+    for paper in papers:
+        title_norm = _normalize_query_text(paper.get("title", ""))
+        if not title_norm:
+            continue
+
+        title_tokens = set(title_norm.split())
+        overlap = sum(1 for token in query_tokens if token in title_tokens)
+        if overlap == 0:
+            continue
+
+        score = overlap / len(query_tokens)
+        if title_norm == query_norm:
+            score += 3.0
+        elif query_norm in title_norm or title_norm in query_norm:
+            score += 1.5
+        if title_norm.startswith(query_tokens[0]):
+            score += 0.5
+        score += min((paper.get("citedByCount") or 0) / 10000, 0.2)
+        scored.append((score, paper))
+
+    if not scored:
+        return None
+
+    scored.sort(key=lambda item: item[0], reverse=True)
+    best_score, best_paper = scored[0]
+    second_score = scored[1][0] if len(scored) > 1 else 0.0
+
+    if best_score >= 0.8 and best_score >= second_score + 0.25:
+        return best_paper
+
+    return None
 
 
 def _resolve_settings(settings: TraversalSettings | None) -> dict[str, int]:

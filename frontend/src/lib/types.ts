@@ -14,7 +14,7 @@ export interface GraphPaper {
 export interface GraphEdge {
   parentOpenalexId: string;
   childOpenalexId: string;
-  relation: "influenced";
+  relation: "influenced" | "inferred";
 }
 
 export interface SeedCandidate {
@@ -45,7 +45,7 @@ export interface TraversalSettings {
 
 export interface SearchMeta {
   query: string;
-  mode: "resolved" | "needs_disambiguation";
+  mode: "resolved" | "resolved_inferred" | "needs_disambiguation";
   confidence?: "high" | "medium" | "low" | null;
   cacheHit: boolean;
 }
@@ -88,6 +88,7 @@ export interface TimelineNode {
 export interface TimelineData {
   nodes: Record<number, TimelineNode>;
   adjacency: Record<number, number[]>;
+  edgeRelations?: Record<string, GraphEdge["relation"]>;
   lanes: number;
   rootId: number;
   expansions: Expansion[];

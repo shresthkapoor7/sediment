@@ -4,8 +4,10 @@ from typing import Optional
 import asyncio
 import logging
 import re
+from math import log10
 
 import aiohttp
+from .text_utils import meaningful_token_list, meaningful_tokens, normalize_text
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +67,7 @@ _GREEK = {
 _LAYOUT_CMDS = re.compile(
     r"\\(?:noindent|newline|linebreak|pagebreak|smallskip|medskip|bigskip|hspace|vspace|par)\b"
 )
+GENERIC_LEAD_TOKENS = {"deep", "learning", "neural", "novel", "new", "efficient", "robust", "scalable", "adaptive"}
 
 
 def _clean_abstract(text: str) -> str:
@@ -86,6 +89,10 @@ def _clean_abstract(text: str) -> str:
 
 def _build_detail(abstract: str) -> str:
     return _clean_abstract(abstract.strip())
+
+
+def _informative_tokens(text: str) -> list[str]:
+    return meaningful_token_list(text)
 
 
 async def _get(session: aiohttp.ClientSession, url: str, params: dict) -> dict:
@@ -288,3 +295,109 @@ class OpenAlexClient:
             if normalized and normalized["openalexId"] != paper.get("openalexId"):
                 results.append(normalized)
         return results[:limit]
+
+    async def fetch_related_earlier_papers_for_query(
+        self,
+        paper: dict,
+        user_query: str,
+        limit: int = 20,
+    ) -> list[dict]:
+        """Fallback for missing references using the user's query plus seed title cues."""
+        year = paper.get("year")
+        title = paper.get("title", "")
+        if not year:
+            return await self.fetch_related_earlier_papers(paper, limit=limit)
+
+        title_head = title.split(":")[0].strip() if ":" in title else title.strip()
+        title_tokens = _informative_tokens(title)
+        query_tokens = _informative_tokens(user_query)
+        title_anchor_tokens = (
+            title_tokens[1:]
+            if len(title_tokens) > 3 and title_tokens[0] in GENERIC_LEAD_TOKENS
+            else title_tokens
+        )
+
+        title_phrase_tokens = title_anchor_tokens[:4]
+        query_phrase_tokens = query_tokens[:4]
+
+        search_queries: list[str] = []
+        if title_phrase_tokens:
+            search_queries.append(f"\"{' '.join(title_phrase_tokens)}\"")
+        if query_phrase_tokens:
+            search_queries.append(" ".join(query_phrase_tokens))
+        if title_phrase_tokens and query_phrase_tokens:
+            search_queries.append(f"\"{' '.join(title_phrase_tokens)}\" {' '.join(query_phrase_tokens)}")
+        if title_head and title_head.lower() != title.lower():
+            search_queries.append(f"\"{title_head}\"")
+        if paper.get("primaryTopic"):
+            topic_tokens = _informative_tokens(paper["primaryTopic"])[:4]
+            if topic_tokens and query_phrase_tokens:
+                search_queries.append(f"{' '.join(topic_tokens)} {' '.join(query_phrase_tokens)}")
+
+        deduped_queries: list[str] = []
+        seen_queries: set[str] = set()
+        for query in search_queries:
+            normalized_query = " ".join(query.split())
+            if normalized_query and normalized_query not in seen_queries:
+                seen_queries.add(normalized_query)
+                deduped_queries.append(normalized_query)
+
+        if not deduped_queries:
+            return await self.fetch_related_earlier_papers(paper, limit=limit)
+
+        async def _search(query: str) -> list[dict]:
+            params: dict[str, str] = {
+                **self._base_params(),
+                "filter": f"title_and_abstract.search:{query},publication_year:<{year}",
+                "per-page": str(limit),
+                "select": SEARCH_SELECT,
+                "sort": "cited_by_count:desc",
+            }
+            data = await _get(self._session_or_raise(), f"{BASE}/works", params)
+            results: list[dict] = []
+            for work in data.get("results", []):
+                normalized = self._normalize_work(work)
+                if normalized and normalized["openalexId"] != paper.get("openalexId"):
+                    results.append(normalized)
+            return results
+
+        batches = await asyncio.gather(*[_search(query) for query in deduped_queries], return_exceptions=True)
+
+        merged: dict[str, tuple[float, dict]] = {}
+        seen_title_keys: set[str] = set()
+        target_tokens = meaningful_tokens(" ".join(title_anchor_tokens))
+        query_only_tokens = {token for token in query_tokens if token not in title_tokens}
+        for batch in batches:
+            if isinstance(batch, Exception):
+                continue
+            for candidate in batch:
+                candidate_id = candidate["openalexId"]
+                candidate_tokens = meaningful_tokens(candidate.get("title", ""))
+                overlap = len(target_tokens & candidate_tokens)
+                if target_tokens and overlap == 0:
+                    continue
+                query_overlap = len(query_only_tokens & candidate_tokens)
+                if overlap < 2 and query_overlap == 0:
+                    continue
+
+                score = overlap * 2.0
+                score += query_overlap * 1.5
+                score += min(log10((candidate.get("citedByCount") or 0) + 1), 4.0) * 0.35
+                if candidate.get("year") is not None:
+                    score += max(0, (year - candidate["year"])) * 0.01
+
+                existing = merged.get(candidate_id)
+                if existing is None or score > existing[0]:
+                    merged[candidate_id] = (score, candidate)
+
+        ranked: list[dict] = []
+        for _, candidate in sorted(merged.values(), key=lambda item: item[0], reverse=True):
+            title_key = normalize_text(candidate.get("title", "")) or candidate["openalexId"]
+            if title_key in seen_title_keys:
+                continue
+            seen_title_keys.add(title_key)
+            ranked.append(candidate)
+        if ranked:
+            return ranked[:limit]
+
+        return await self.fetch_related_earlier_papers(paper, limit=limit)
