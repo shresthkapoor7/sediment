@@ -360,10 +360,6 @@ def _extract_explicit_topic(question: str) -> Optional[str]:
     return None
 
 
-def _meaningful_tokens(text: str) -> set[str]:
-    return meaningful_tokens(text)
-
-
 def _clean_suggestion_text(text: str) -> str:
     cleaned = text.strip().strip("\"'`.,:;!?()[]{}")
     cleaned = re.sub(r"\s+", " ", cleaned)
@@ -371,12 +367,12 @@ def _clean_suggestion_text(text: str) -> str:
 
 
 def _is_already_covered(topic: str, context_texts: list[str]) -> bool:
-    topic_tokens = _meaningful_tokens(topic)
+    topic_tokens = meaningful_tokens(topic)
     if not topic_tokens:
         return True
 
     for text in context_texts:
-        context_tokens = _meaningful_tokens(text)
+        context_tokens = meaningful_tokens(text)
         if not context_tokens:
             continue
         overlap = len(topic_tokens & context_tokens)
@@ -416,7 +412,7 @@ def _sanitize_suggestion(
     if len(query.split()) > MAX_SUGGESTION_WORDS:
         query = topic
 
-    normalized_topic = _normalize_text(topic)
+    normalized_topic = normalize_text(topic)
     if not normalized_topic or normalized_topic in _GENERIC_SUGGESTIONS:
         return None
 

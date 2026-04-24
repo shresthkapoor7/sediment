@@ -392,7 +392,7 @@ class OpenAlexClient:
 
         ranked: list[dict] = []
         for _, candidate in sorted(merged.values(), key=lambda item: item[0], reverse=True):
-            title_key = _normalize_text(candidate.get("title", ""))
+            title_key = normalize_text(candidate.get("title", "")) or candidate["openalexId"]
             if title_key in seen_title_keys:
                 continue
             seen_title_keys.add(title_key)

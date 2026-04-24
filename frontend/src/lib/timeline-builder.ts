@@ -115,7 +115,11 @@ export function mergeTimelineWithGraph(
     if (!mergedAdjacency[fromId].includes(toId)) {
       mergedAdjacency[fromId].push(toId);
     }
-    mergedEdgeRelations[edgeKey(fromId, toId)] = edge.relation;
+    const relationKey = edgeKey(fromId, toId);
+    mergedEdgeRelations[relationKey] = strongerRelation(
+      mergedEdgeRelations[relationKey],
+      edge.relation,
+    );
 
     const childNode = mergedNodes[toId];
     const parentNode = mergedNodes[fromId];
@@ -264,10 +268,13 @@ function canonicalizeGraph(papers: GraphPaper[], edges: GraphEdge[]): CanonicalG
     const parentOpenalexId = aliasToCanonical.get(edge.parentOpenalexId) ?? edge.parentOpenalexId;
     const childOpenalexId = aliasToCanonical.get(edge.childOpenalexId) ?? edge.childOpenalexId;
     if (parentOpenalexId === childOpenalexId) return;
-    dedupedEdges.set(`${parentOpenalexId}->${childOpenalexId}`, {
+    const key = `${parentOpenalexId}->${childOpenalexId}`;
+    const existing = dedupedEdges.get(key);
+    const relation = strongerRelation(existing?.relation, edge.relation);
+    dedupedEdges.set(key, {
       parentOpenalexId,
       childOpenalexId,
-      relation: edge.relation,
+      relation,
     });
   });
 
@@ -449,6 +456,16 @@ function timelineEdges(data: TimelineData): GraphEdge[] {
 
 function edgeKey(fromId: number, toId: number): string {
   return `${fromId}->${toId}`;
+}
+
+function strongerRelation(
+  current: GraphEdge["relation"] | undefined,
+  incoming: GraphEdge["relation"],
+): GraphEdge["relation"] {
+  if (current === "influenced" || incoming === "influenced") {
+    return "influenced";
+  }
+  return incoming;
 }
 
 function buildParentsMap(edges: GraphEdge[]): Map<string, string[]> {
