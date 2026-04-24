@@ -6,6 +6,7 @@ from collections import deque
 
 from .llm import LLMClient
 from .openalex import OpenAlexClient
+from .text_utils import meaningful_token_list, normalize_text
 from ..models import TraversalSettings
 
 logger = logging.getLogger(__name__)
@@ -90,7 +91,8 @@ async def trace_lineage(
     seen: dict[str, dict] = {
         seed_id: {"paper": _graph_paper(chosen_seed, summary="Seed paper selected for this query.")}
     }
-    edges: set[tuple[str, str]] = set()
+    edges: set[tuple[str, str, str]] = set()
+    has_inferred_edges = False
 
     queue: deque[tuple[dict, int, list[dict] | None, bool]] = deque([(chosen_seed, 0, seed_refs, seed_refs_inferred)])
 
@@ -119,8 +121,11 @@ async def trace_lineage(
                 if paper.get("summary") and not seen[paper_id]["paper"].get("summary"):
                     seen[paper_id]["paper"]["summary"] = paper["summary"]
 
-            if not refs_inferred:
-                edges.add((paper_id, current_paper["openalexId"]))
+            relation = "inferred" if refs_inferred else "influenced"
+            edges.add((paper_id, current_paper["openalexId"], relation))
+            if refs_inferred:
+                has_inferred_edges = True
+            else:
                 next_level_ids.append(paper_id)
 
         for paper_id in next_level_ids[:resolved["breadth"]]:
@@ -133,7 +138,7 @@ async def trace_lineage(
         key=lambda paper: ((paper.get("year") is None), paper.get("year") or 0, paper.get("title", "")),
     )
 
-    child_ids = {child_id for _, child_id in edges}
+    child_ids = {child_id for _, child_id, _ in edges}
     root_ids = [
         paper["openalexId"]
         for paper in papers
@@ -147,14 +152,14 @@ async def trace_lineage(
             {
                 "parentOpenalexId": parent_id,
                 "childOpenalexId": child_id,
-                "relation": "influenced",
+                "relation": relation,
             }
-            for parent_id, child_id in sorted(edges)
+            for parent_id, child_id, relation in sorted(edges)
         ],
         "rootIds": root_ids,
         "meta": {
             "query": concept,
-            "mode": "resolved",
+            "mode": "resolved_inferred" if has_inferred_edges else "resolved",
             "confidence": confidence or "high",
             "cacheHit": False,
         },
@@ -278,7 +283,7 @@ async def _resolve_viable_seed(
 
 
 def _normalize_query_text(text: str) -> str:
-    return _NON_ALNUM.sub(" ", text.lower()).strip()
+    return normalize_text(text)
 
 
 def _pick_clear_title_match(concept: str, papers: list[dict]) -> dict | None:
@@ -286,7 +291,7 @@ def _pick_clear_title_match(concept: str, papers: list[dict]) -> dict | None:
     if not query_norm:
         return None
 
-    query_tokens = [token for token in query_norm.split() if len(token) > 2]
+    query_tokens = list(dict.fromkeys(meaningful_token_list(query_norm, min_len=2)))
     if not query_tokens:
         return None
 

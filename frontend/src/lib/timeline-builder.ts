@@ -43,6 +43,7 @@ export function mergeTimelineWithGraph(
   const allPapersById = new Map(canonical.papers.map((paper) => [paper.openalexId, paper]));
   const mergedNodes: Record<number, TimelineNode> = cloneNodes(existing.nodes);
   const mergedAdjacency: Record<number, number[]> = cloneAdjacency(existing.adjacency);
+  const mergedEdgeRelations = cloneEdgeRelations(existing.edgeRelations);
   const numericIdByOpenalexId = new Map(
     Object.values(mergedNodes).map((node) => [node.paper.openalexId, node.id]),
   );
@@ -114,6 +115,11 @@ export function mergeTimelineWithGraph(
     if (!mergedAdjacency[fromId].includes(toId)) {
       mergedAdjacency[fromId].push(toId);
     }
+    const relationKey = edgeKey(fromId, toId);
+    mergedEdgeRelations[relationKey] = strongerRelation(
+      mergedEdgeRelations[relationKey],
+      edge.relation,
+    );
 
     const childNode = mergedNodes[toId];
     const parentNode = mergedNodes[fromId];
@@ -135,6 +141,7 @@ export function mergeTimelineWithGraph(
   return {
     nodes: mergedNodes,
     adjacency: mergedAdjacency,
+    edgeRelations: mergedEdgeRelations,
     lanes: Math.max(existing.lanes, newLane + 1),
     rootId: existing.rootId,
     expansions: expansionQuery
@@ -157,6 +164,7 @@ function buildTimelineData(papers: GraphPaper[], edges: GraphEdge[]): TimelineDa
   const openalexIdByNumericId = new Map<number, string>();
   const nodes: Record<number, TimelineNode> = {};
   const adjacency: Record<number, number[]> = {};
+  const edgeRelations: Record<string, GraphEdge["relation"]> = {};
   const memoDepth = new Map<string, number>();
   const nextRootLane = { value: 0 };
   const occupiedLanesByColumn = new Map<number, Set<number>>();
@@ -209,6 +217,7 @@ function buildTimelineData(papers: GraphPaper[], edges: GraphEdge[]): TimelineDa
     const toId = numericIdByOpenalexId.get(edge.childOpenalexId);
     if (!fromId || !toId) return;
     adjacency[fromId].push(toId);
+    edgeRelations[edgeKey(fromId, toId)] = edge.relation;
   });
 
   Object.values(adjacency).forEach((children) => children.sort((a, b) => comparePapers(
@@ -223,6 +232,7 @@ function buildTimelineData(papers: GraphPaper[], edges: GraphEdge[]): TimelineDa
   return {
     nodes,
     adjacency,
+    edgeRelations,
     lanes,
     rootId,
     expansions: [],
@@ -258,10 +268,13 @@ function canonicalizeGraph(papers: GraphPaper[], edges: GraphEdge[]): CanonicalG
     const parentOpenalexId = aliasToCanonical.get(edge.parentOpenalexId) ?? edge.parentOpenalexId;
     const childOpenalexId = aliasToCanonical.get(edge.childOpenalexId) ?? edge.childOpenalexId;
     if (parentOpenalexId === childOpenalexId) return;
-    dedupedEdges.set(`${parentOpenalexId}->${childOpenalexId}`, {
+    const key = `${parentOpenalexId}->${childOpenalexId}`;
+    const existing = dedupedEdges.get(key);
+    const relation = strongerRelation(existing?.relation, edge.relation);
+    dedupedEdges.set(key, {
       parentOpenalexId,
       childOpenalexId,
-      relation: "influenced",
+      relation,
     });
   });
 
@@ -307,6 +320,12 @@ function cloneAdjacency(adjacency: Record<number, number[]>): Record<number, num
   return Object.fromEntries(
     Object.entries(adjacency).map(([id, children]) => [Number(id), [...children]]),
   );
+}
+
+function cloneEdgeRelations(
+  edgeRelations?: Record<string, GraphEdge["relation"]>,
+): Record<string, GraphEdge["relation"]> {
+  return { ...(edgeRelations ?? {}) };
 }
 
 function topologicallyOrderedFragmentIds(
@@ -420,7 +439,8 @@ function paperQualityScore(paper: GraphPaper): number {
 
 function timelineEdges(data: TimelineData): GraphEdge[] {
   return Object.entries(data.adjacency).flatMap(([fromId, children]) => {
-    const fromNode = data.nodes[Number(fromId)];
+    const fromNumericId = Number(fromId);
+    const fromNode = data.nodes[fromNumericId];
     if (!fromNode) return [];
     return children.flatMap((toId) => {
       const toNode = data.nodes[toId];
@@ -428,10 +448,24 @@ function timelineEdges(data: TimelineData): GraphEdge[] {
       return [{
         parentOpenalexId: fromNode.paper.openalexId,
         childOpenalexId: toNode.paper.openalexId,
-        relation: "influenced" as const,
+        relation: data.edgeRelations?.[edgeKey(fromNumericId, toId)] ?? "influenced",
       }];
     });
   });
+}
+
+function edgeKey(fromId: number, toId: number): string {
+  return `${fromId}->${toId}`;
+}
+
+function strongerRelation(
+  current: GraphEdge["relation"] | undefined,
+  incoming: GraphEdge["relation"],
+): GraphEdge["relation"] {
+  if (current === "influenced" || incoming === "influenced") {
+    return "influenced";
+  }
+  return incoming;
 }
 
 function buildParentsMap(edges: GraphEdge[]): Map<string, string[]> {

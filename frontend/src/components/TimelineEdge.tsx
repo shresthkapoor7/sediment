@@ -10,6 +10,7 @@ interface TimelineEdgeProps {
   index: number;
   isActive: boolean;
   isCrossLane?: boolean;
+  isInferred?: boolean;
 }
 
 export function TimelineEdgeLine({
@@ -18,6 +19,7 @@ export function TimelineEdgeLine({
   index,
   isActive,
   isCrossLane = false,
+  isInferred = false,
 }: TimelineEdgeProps) {
   const { width, height } = NODE_DIMENSIONS;
 
@@ -32,7 +34,9 @@ export function TimelineEdgeLine({
   const midX = (x1 + x2) / 2;
   const path = `M ${x1} ${y1} C ${midX} ${y1}, ${midX} ${y2}, ${x2} ${y2}`;
 
-  const markerId = isActive ? "arrow-active" : isCrossLane ? "arrow-cross" : "arrow-default";
+  const markerId = isActive ? "arrow-active" : isInferred || isCrossLane ? "arrow-cross" : "arrow-default";
+  const strokeDasharray = isInferred ? "6 4" : isCrossLane ? "4 3" : undefined;
+  const baseOpacity = isActive ? 1 : isInferred ? 0.42 : isCrossLane ? 0.5 : 0.7;
 
   return (
     <g>
@@ -62,10 +66,10 @@ export function TimelineEdgeLine({
         stroke={isActive ? "var(--edge-color-active)" : "var(--edge-color)"}
         strokeWidth={isActive ? 2 : 1.5}
         strokeLinecap="round"
-        strokeDasharray={isCrossLane ? "4 3" : undefined}
+        strokeDasharray={strokeDasharray}
         markerEnd={`url(#${markerId})`}
         initial={{ pathLength: 0, opacity: 0 }}
-        animate={{ pathLength: 1, opacity: isActive ? 1 : isCrossLane ? 0.5 : 0.7 }}
+        animate={{ pathLength: 1, opacity: baseOpacity }}
         transition={{
           pathLength: {
             duration: 0.6,
