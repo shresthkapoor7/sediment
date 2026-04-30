@@ -1,6 +1,6 @@
 # Sediment
 
-![Sediment](home.jpg)
+[![Sediment](home.jpg)](https://sediment-seven.vercel.app)
 
 > Trace any research concept back through time. Knowledge, layered.
 
@@ -35,6 +35,13 @@ sediment/
 - **Shareable URLs** — no login, tree state persisted via Supabase short ID
 - **Anonymous usage cap** — backend enforces a daily spend limit and burst limit using hashed anonymous actor keys instead of storing raw caller IPs
 
+## Security And Privacy Notes
+
+- Sediment currently uses a server-derived anonymous actor key for usage limits on expensive API routes.
+- That actor key is derived from the caller's IP address using a server-only HMAC secret.
+- The usage limiter stores the derived actor key, not the raw IP address, for daily budget and burst-limit enforcement.
+- This is intended for abuse prevention and cost control, not account-level identity or behavioral profiling.
+
 ## Environment Variables
 
 ### Frontend (`frontend/.env.local`)
@@ -42,7 +49,13 @@ sediment/
 | Variable | Required | Description |
 |---|---|---|
 | `NEXT_PUBLIC_API_URL` | No | Backend URL (defaults to `http://127.0.0.1:8000`) |
+| `NEXT_PUBLIC_USE_API_PROXY` | No | Set to `true` to route expensive API calls through Next.js server-side proxy handlers instead of calling the backend directly |
 | `NEXT_PUBLIC_APP_VERSION` | No | App version string (defaults to `0.1.0`) |
+
+When `NEXT_PUBLIC_USE_API_PROXY=true`, configure one of these server-only frontend env vars for the proxy target:
+
+- `BACKEND_INTERNAL_URL`
+- `RAILWAY_API_URL`
 
 ### Backend (`backend/.env`)
 
