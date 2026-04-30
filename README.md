@@ -42,7 +42,13 @@ sediment/
 | Variable | Required | Description |
 |---|---|---|
 | `NEXT_PUBLIC_API_URL` | No | Backend URL (defaults to `http://127.0.0.1:8000`) |
+| `NEXT_PUBLIC_USE_API_PROXY` | No | Set to `true` to route expensive API calls through Next.js server-side proxy handlers instead of calling the backend directly |
 | `NEXT_PUBLIC_APP_VERSION` | No | App version string (defaults to `0.1.0`) |
+
+When `NEXT_PUBLIC_USE_API_PROXY=true`, configure one of these server-only frontend env vars for the proxy target:
+
+- `BACKEND_INTERNAL_URL`
+- `RAILWAY_API_URL`
 
 ### Backend (`backend/.env`)
 

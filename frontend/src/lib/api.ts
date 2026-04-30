@@ -11,6 +11,9 @@ import {
 } from "./types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+const USE_API_PROXY = process.env.NEXT_PUBLIC_USE_API_PROXY === "true";
+const PROXY_API_BASE = "";
+const EXPENSIVE_API_BASE = USE_API_PROXY ? PROXY_API_BASE : API_BASE;
 export const SEDIMENT_USER_ID_KEY = "sediment_user_id";
 export const LAST_GRAPH_ID_KEY = "last_graph_id";
 export const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || "0.1.0";
@@ -30,7 +33,7 @@ export async function searchLineage(
   seedOpenalexId?: string,
   settings?: TraversalSettings,
 ): Promise<LineageGraphResponse> {
-  const response = await fetch(`${API_BASE}/api/search`, {
+  const response = await fetch(`${EXPENSIVE_API_BASE}/api/search`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -53,7 +56,7 @@ export async function expandLineage(
   conceptContext: string,
   settings?: TraversalSettings,
 ): Promise<LineageGraphResponse> {
-  const response = await fetch(`${API_BASE}/api/expand`, {
+  const response = await fetch(`${EXPENSIVE_API_BASE}/api/expand`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ paperId, conceptContext, ...(settings ? { settings } : {}) }),
@@ -68,7 +71,7 @@ export async function expandLineage(
 }
 
 export async function chatAboutPaper(node: TimelineNode, question: string): Promise<{ text: string; suggestion?: ChatSuggestion | null }> {
-  const response = await fetch(`${API_BASE}/api/chat`, {
+  const response = await fetch(`${EXPENSIVE_API_BASE}/api/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -92,7 +95,7 @@ export async function chatAboutPaper(node: TimelineNode, question: string): Prom
 export async function suggestTimelineQuestions(
   papers: { openalexId: string; title: string; year?: number | null; summary?: string }[],
 ): Promise<string[]> {
-  const response = await fetch(`${API_BASE}/api/chat/global/suggestions`, {
+  const response = await fetch(`${EXPENSIVE_API_BASE}/api/chat/global/suggestions`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(papers),
@@ -105,7 +108,7 @@ export async function chatAboutTimeline(
   papers: { openalexId: string; title: string; year?: number | null; summary?: string }[],
   question: string,
 ): Promise<GlobalChatResponse> {
-  const response = await fetch(`${API_BASE}/api/chat/global`, {
+  const response = await fetch(`${EXPENSIVE_API_BASE}/api/chat/global`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ papers, question }),
@@ -239,7 +242,7 @@ export async function fetchSharedGraph(shareId: string): Promise<SavedGraph> {
 }
 
 export async function fetchUsage(): Promise<{ used: number; remaining: number; segments: number; requestCount: number; dailyLimit: number }> {
-  const response = await fetch(`${API_BASE}/api/usage`, {
+  const response = await fetch(`${EXPENSIVE_API_BASE}/api/usage`, {
     cache: "no-store",
   });
 
