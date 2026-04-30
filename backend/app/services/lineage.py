@@ -341,13 +341,13 @@ def _resolve_settings(settings: TraversalSettings | None) -> dict[str, int]:
 
     if settings:
         if settings.depth is not None:
-            depth = max(1, min(settings.depth, 3))
+            depth = max(1, min(settings.depth, 2))
         if settings.breadth is not None:
-            breadth = max(1, min(settings.breadth, 5))
+            breadth = max(1, min(settings.breadth, 4))
         if settings.referenceLimit is not None:
-            reference_limit = max(5, min(settings.referenceLimit, 50))
+            reference_limit = max(5, min(settings.referenceLimit, 30))
         if settings.topN is not None:
-            top_n = max(1, min(settings.topN, 8))
+            top_n = max(1, min(settings.topN, 6))
 
     return {
         "depth": depth,

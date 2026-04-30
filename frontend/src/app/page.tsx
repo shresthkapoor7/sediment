@@ -95,6 +95,7 @@ export default function Home() {
   const [shareState, setShareState] = useState<"idle" | "sharing" | "copied" | "error">("idle");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [credits, setCredits] = useState<number>(10);
+  const [showCreditsHint, setShowCreditsHint] = useState(false);
   const shareStateTimeoutRef = useRef<number | null>(null);
   const saveTimeoutRef = useRef<number | null>(null);
   const saveStateTimeoutRef = useRef<number | null>(null);
@@ -588,40 +589,68 @@ export default function Home() {
 
           {/* Credits indicator */}
           <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "0.4375rem",
-              padding: "0 0.625rem",
-              height: "2rem",
-              border: "0.0625rem solid var(--border)",
-              borderRadius: "0.4375rem",
-              background: "var(--bg-secondary)",
-              boxSizing: "border-box",
-            }}
+            style={{ position: "relative" }}
+            onMouseEnter={() => setShowCreditsHint(true)}
+            onMouseLeave={() => setShowCreditsHint(false)}
           >
-            <div style={{ display: "flex", alignItems: "center", gap: "0.125rem" }}>
-              {Array.from({ length: 10 }).map((_, i) => {
-                const filled = i < credits;
-                const segColor = credits <= 3 ? "#ef4444" : credits <= 6 ? "#f59e0b" : "var(--accent)";
-                return (
-                  <div
-                    key={i}
-                    style={{
-                      width: "0.25rem",
-                      height: "0.625rem",
-                      borderRadius: "0.125rem",
-                      background: filled ? segColor : "var(--border)",
-                      opacity: filled ? 1 - i * 0.05 : 1,
-                    }}
-                  />
-                );
-              })}
-              <div style={{ width: "0.125rem", height: "0.3125rem", borderRadius: "0 0.0625rem 0.0625rem 0", background: "var(--border)", marginLeft: "0.0625rem" }} />
+            {showCreditsHint && (
+              <div
+                style={{
+                  position: "absolute",
+                  top: "calc(100% + 0.5rem)",
+                  right: 0,
+                  width: "11.5rem",
+                  padding: "0.5rem 0.625rem",
+                  borderRadius: "0.5rem",
+                  border: "0.0625rem solid var(--border-hover)",
+                  background: "var(--bg-secondary)",
+                  boxShadow: "0 0.5rem 1.5rem rgba(0,0,0,0.10), 0 0.125rem 0.375rem rgba(0,0,0,0.06)",
+                  color: "var(--text-secondary)",
+                  fontSize: "0.6875rem",
+                  lineHeight: 1.45,
+                  zIndex: 110,
+                  pointerEvents: "none",
+                }}
+              >
+                Daily usage credits. Resets every day.
+              </div>
+            )}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "0.4375rem",
+                padding: "0 0.625rem",
+                height: "2rem",
+                border: "0.0625rem solid var(--border)",
+                borderRadius: "0.4375rem",
+                background: "var(--bg-secondary)",
+                boxSizing: "border-box",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: "0.125rem" }}>
+                {Array.from({ length: 10 }).map((_, i) => {
+                  const filled = i < credits;
+                  const segColor = credits <= 3 ? "#ef4444" : credits <= 6 ? "#f59e0b" : "var(--accent)";
+                  return (
+                    <div
+                      key={i}
+                      style={{
+                        width: "0.25rem",
+                        height: "0.625rem",
+                        borderRadius: "0.125rem",
+                        background: filled ? segColor : "var(--border)",
+                        opacity: filled ? 1 - i * 0.05 : 1,
+                      }}
+                    />
+                  );
+                })}
+                <div style={{ width: "0.125rem", height: "0.3125rem", borderRadius: "0 0.0625rem 0.0625rem 0", background: "var(--border)", marginLeft: "0.0625rem" }} />
+              </div>
+              <span style={{ fontSize: "0.6875rem", color: credits <= 3 ? "#ef4444" : credits <= 6 ? "#f59e0b" : "var(--text-tertiary)", fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.02em" }}>
+                {credits}
+              </span>
             </div>
-            <span style={{ fontSize: "0.6875rem", color: credits <= 3 ? "#ef4444" : credits <= 6 ? "#f59e0b" : "var(--text-tertiary)", fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.02em" }}>
-              {credits}
-            </span>
           </div>
 
           {/* Settings */}
@@ -688,10 +717,10 @@ export default function Home() {
                     traversal settings
                   </p>
                   {([
-                    { key: "depth", label: "Depth", min: 1, max: 3 },
-                    { key: "breadth", label: "Breadth", min: 1, max: 5 },
-                    { key: "referenceLimit", label: "Reference limit", min: 5, max: 50 },
-                    { key: "topN", label: "Top N", min: 1, max: 8 },
+                    { key: "depth", label: "Depth", min: 1, max: 2 },
+                    { key: "breadth", label: "Breadth", min: 1, max: 4 },
+                    { key: "referenceLimit", label: "Reference limit", min: 5, max: 30 },
+                    { key: "topN", label: "Top N", min: 1, max: 6 },
                   ] as const).map((item) => (
                     <SettingsSlider
                       key={item.key}
@@ -700,6 +729,16 @@ export default function Home() {
                       onChange={(v) => setDraftSettings((prev) => ({ ...prev, [item.key]: v }))}
                     />
                   ))}
+                  <p
+                    style={{
+                      margin: "0.125rem 0 0",
+                      fontSize: "0.6875rem",
+                      lineHeight: 1.5,
+                      color: "var(--text-tertiary)",
+                    }}
+                  >
+                    Daily limits use an anonymous server-derived identifier for abuse prevention and API cost control.
+                  </p>
                   <div style={{ display: "flex", gap: "0.375rem", alignItems: "center", marginTop: "0.125rem", borderTop: "0.0625rem solid var(--border)", paddingTop: "0.625rem" }}>
                     <button onClick={() => setDraftSettings(DEFAULT_SETTINGS)} style={{ height: "1.625rem", padding: "0 0.5rem", borderRadius: "0.375rem", border: "none", background: "none", color: "var(--text-tertiary)", cursor: "pointer", fontSize: "0.6875rem", fontFamily: "'DM Sans', sans-serif", fontWeight: 500, letterSpacing: "0.01em" }}>reset</button>
                     <div style={{ flex: 1 }} />
@@ -827,7 +866,10 @@ export default function Home() {
               }}
             >
               {/* Credits row */}
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0.5rem 0.25rem", borderBottom: "0.0625rem solid var(--border)", marginBottom: "0.25rem" }}>
+              <div
+                title="Daily usage credits. Resets every day."
+                style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0.5rem 0.25rem", borderBottom: "0.0625rem solid var(--border)", marginBottom: "0.25rem" }}
+              >
                 <span style={{ fontSize: "0.6875rem", color: "var(--text-tertiary)", fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.04em" }}>credits</span>
                 <div style={{ display: "flex", alignItems: "center", gap: "0.375rem" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: "0.125rem" }}>
@@ -867,10 +909,10 @@ export default function Home() {
                 <p style={{ fontSize: "0.625rem", color: "var(--text-tertiary)", fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: "0.625rem" }}>traversal settings</p>
                 <div style={{ display: "flex", flexDirection: "column", gap: "0.625rem" }}>
                   {([
-                    { key: "depth", label: "Depth", min: 1, max: 3 },
-                    { key: "breadth", label: "Breadth", min: 1, max: 5 },
-                    { key: "referenceLimit", label: "Ref limit", min: 5, max: 50 },
-                    { key: "topN", label: "Top N", min: 1, max: 8 },
+                    { key: "depth", label: "Depth", min: 1, max: 2 },
+                    { key: "breadth", label: "Breadth", min: 1, max: 4 },
+                    { key: "referenceLimit", label: "Ref limit", min: 5, max: 30 },
+                    { key: "topN", label: "Top N", min: 1, max: 6 },
                   ] as const).map((item) => (
                     <SettingsSlider
                       key={item.key}
@@ -880,6 +922,16 @@ export default function Home() {
                     />
                   ))}
                 </div>
+                <p
+                  style={{
+                    marginTop: "0.625rem",
+                    fontSize: "0.75rem",
+                    lineHeight: 1.5,
+                    color: "var(--text-tertiary)",
+                  }}
+                >
+                  Daily limits use an anonymous server-derived identifier for abuse prevention and API cost control.
+                </p>
                 <div style={{ display: "flex", gap: "0.375rem", marginTop: "0.75rem" }}>
                   <button
                     onClick={() => setDraftSettings(DEFAULT_SETTINGS)}

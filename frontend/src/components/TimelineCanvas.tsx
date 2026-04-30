@@ -11,6 +11,11 @@ import { TimelineNodeCard } from "./TimelineNode";
 import { TimelineEdgeLine } from "./TimelineEdge";
 import { GlobalChatPanel } from "./GlobalChatPanel";
 
+const DETAIL_PANEL_WIDTH_KEY = "sediment_detail_panel_width";
+const DETAIL_PANEL_DEFAULT_WIDTH = 380;
+const DETAIL_PANEL_MIN_WIDTH = 320;
+const DETAIL_PANEL_MAX_WIDTH = 640;
+
 interface ChatMessage {
   id: number;
   role: "user" | "assistant";
@@ -67,11 +72,15 @@ export function TimelineCanvas({
   const [chatHistories, setChatHistories] = useState<Record<number, ChatMessage[]>>({});
   const [chatInput, setChatInput] = useState("");
   const [isThinking, setIsThinking] = useState(false);
+  const [isMobileViewport, setIsMobileViewport] = useState(false);
+  const [detailPanelWidth, setDetailPanelWidth] = useState(DETAIL_PANEL_DEFAULT_WIDTH);
+  const detailPanelWidthRef = useRef(DETAIL_PANEL_DEFAULT_WIDTH);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const msgIdRef = useRef(0);
   const [highlightedPaperIds, setHighlightedPaperIds] = useState<Set<string>>(new Set());
   const [hoveredNode, setHoveredNode] = useState<HoverPreviewState | null>(null);
   const hoverHideTimeoutRef = useRef<number | null>(null);
+  const panelResizeStateRef = useRef<{ startX: number; startWidth: number } | null>(null);
 
   // Track the latest generation so only new nodes animate
   const latestGenRef = useRef(0);
@@ -100,6 +109,20 @@ export function TimelineCanvas({
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const storedWidth = window.localStorage.getItem(DETAIL_PANEL_WIDTH_KEY);
+    if (!storedWidth) return;
+    const parsed = Number(storedWidth);
+    if (Number.isFinite(parsed)) {
+      setDetailPanelWidth(parsed);
+    }
+  }, []);
+
+  useEffect(() => {
+    detailPanelWidthRef.current = detailPanelWidth;
+  }, [detailPanelWidth]);
 
   const allNodes = Object.values(data.nodes);
   const maxX =
@@ -394,7 +417,9 @@ export function TimelineCanvas({
 
     const mediaQuery = window.matchMedia(`(max-width: ${TIMELINE_MOBILE_BREAKPOINT_PX}px)`);
     const handleBreakpointChange = (event?: MediaQueryListEvent) => {
-      if (event?.matches ?? mediaQuery.matches) {
+      const matches = event?.matches ?? mediaQuery.matches;
+      setIsMobileViewport(matches);
+      if (matches) {
         clearHoveredPreview();
       }
     };
@@ -413,6 +438,56 @@ export function TimelineCanvas({
       mediaQuery.removeListener(handleBreakpointChange);
     };
   }, [clearHoveredPreview]);
+
+  const getClampedDetailPanelWidth = useCallback(
+    (desiredWidth: number) => {
+      const containerWidth = containerRef.current?.clientWidth ?? DETAIL_PANEL_MAX_WIDTH;
+      const safeMax = Math.min(
+        DETAIL_PANEL_MAX_WIDTH,
+        Math.max(DETAIL_PANEL_MIN_WIDTH, containerWidth - 120),
+      );
+      return Math.min(safeMax, Math.max(DETAIL_PANEL_MIN_WIDTH, desiredWidth));
+    },
+    []
+  );
+
+  useEffect(() => {
+    if (isMobileViewport) return;
+    const clamped = getClampedDetailPanelWidth(detailPanelWidth);
+    if (clamped !== detailPanelWidth) {
+      setDetailPanelWidth(clamped);
+    }
+  }, [detailPanelWidth, getClampedDetailPanelWidth, isMobileViewport]);
+
+  const handleDetailPanelResizeStart = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      if (isMobileViewport) return;
+      event.preventDefault();
+      event.stopPropagation();
+      panelResizeStateRef.current = {
+        startX: event.clientX,
+        startWidth: detailPanelWidth,
+      };
+
+      const handlePointerMove = (moveEvent: PointerEvent) => {
+        const current = panelResizeStateRef.current;
+        if (!current) return;
+        const nextWidth = getClampedDetailPanelWidth(current.startWidth - (moveEvent.clientX - current.startX));
+        setDetailPanelWidth(nextWidth);
+      };
+
+      const handlePointerUp = () => {
+        panelResizeStateRef.current = null;
+        window.removeEventListener("pointermove", handlePointerMove);
+        window.removeEventListener("pointerup", handlePointerUp);
+        window.localStorage.setItem(DETAIL_PANEL_WIDTH_KEY, String(detailPanelWidthRef.current));
+      };
+
+      window.addEventListener("pointermove", handlePointerMove);
+      window.addEventListener("pointerup", handlePointerUp);
+    },
+    [detailPanelWidth, getClampedDetailPanelWidth, isMobileViewport]
+  );
 
   // Initial mount: fit-to-view on mobile, 1:1 centered on desktop
   useEffect(() => {
@@ -539,6 +614,9 @@ export function TimelineCanvas({
     hoveredNode && hoveredTimelineNode && containerRef.current
       ? getHoverPreviewLayout(containerRef.current, hoveredNode.rect)
       : null;
+  const resolvedDetailPanelWidth = isMobileViewport
+    ? "100%"
+    : `${getClampedDetailPanelWidth(detailPanelWidth)}px`;
 
   return (
     <motion.div
@@ -1180,7 +1258,8 @@ export function TimelineCanvas({
               top: 0,
               right: 0,
               bottom: 0,
-              width: "min(23.75rem, 100%)",
+              width: resolvedDetailPanelWidth,
+              maxWidth: "100%",
               background: "var(--bg-primary)",
               borderLeft: "0.0625rem solid var(--border)",
               zIndex: 20,
@@ -1189,6 +1268,36 @@ export function TimelineCanvas({
               boxShadow: "-0.5rem 0 2rem rgba(0,0,0,0.08)",
             }}
           >
+            {!isMobileViewport && (
+              <div
+                data-canvas-ui="true"
+                onPointerDown={handleDetailPanelResizeStart}
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  left: "-0.375rem",
+                  bottom: 0,
+                  width: "0.75rem",
+                  cursor: "ew-resize",
+                  zIndex: 21,
+                  touchAction: "none",
+                }}
+              >
+                <div
+                  style={{
+                    position: "absolute",
+                    top: "50%",
+                    left: "50%",
+                    transform: "translate(-50%, -50%)",
+                    width: "0.1875rem",
+                    height: "3rem",
+                    borderRadius: "999px",
+                    background: "var(--border-hover)",
+                    opacity: 0.9,
+                  }}
+                />
+              </div>
+            )}
             {/* Toolbar */}
             <div
               style={{
