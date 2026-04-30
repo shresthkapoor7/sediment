@@ -6,7 +6,7 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from .config import settings
-from .routers import chat, expand, persistence, search
+from .routers import chat, expand, persistence, search, usage
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +50,7 @@ app.include_router(search.router, prefix="/api")
 app.include_router(expand.router, prefix="/api")
 app.include_router(chat.router, prefix="/api")
 app.include_router(persistence.router, prefix="/api")
+app.include_router(usage.router, prefix="/api")
 
 
 @app.get("/health")

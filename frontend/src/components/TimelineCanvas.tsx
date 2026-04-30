@@ -22,6 +22,7 @@ interface TimelineCanvasProps {
   data: TimelineData;
   onExpandNode: (nodeId: number, query: string) => void;
   isExpanding: boolean;
+  onUsageChanged?: () => void;
   readOnly?: boolean;
   hoverPreviewEnabled?: boolean;
   onToggleHoverPreview?: () => void;
@@ -36,6 +37,7 @@ export function TimelineCanvas({
   data,
   onExpandNode,
   isExpanding,
+  onUsageChanged,
   readOnly = false,
   hoverPreviewEnabled = true,
   onToggleHoverPreview,
@@ -507,9 +509,10 @@ export function TimelineCanvas({
         })
         .finally(() => {
         setIsThinking(false);
+        onUsageChanged?.();
         });
     },
-    [activeNode, activeNodeId, chatInput, isThinking]
+    [activeNode, activeNodeId, chatInput, isThinking, onUsageChanged]
   );
 
   const handleAddLineage = useCallback(
@@ -1549,6 +1552,7 @@ export function TimelineCanvas({
           onHighlight={(ids) => setHighlightedPaperIds(new Set(ids))}
           onAddLineage={(query) => onExpandNode(data.rootId, query)}
           isExpanding={isExpanding}
+          onUsageChanged={onUsageChanged}
         />
       )}
     </motion.div>

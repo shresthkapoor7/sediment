@@ -1,11 +1,12 @@
 import logging
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 
 from ..models import LineageGraphResponse, SearchRequest
 from ..services.llm import LLMClient, LLMParseError
 from ..services.openalex import OpenAlexClient, OpenAlexError
 from ..services.lineage import trace_lineage
+from ..services.usage_limiter import limiter
 from ..config import settings
 
 router = APIRouter()
@@ -15,10 +16,23 @@ logger = logging.getLogger(__name__)
 _llm = LLMClient(api_key=settings.anthropic_api_key, model=settings.llm_model)
 
 
+def get_request_ip(request: Request) -> str:
+    forwarded_for = request.headers.get("X-Forwarded-For")
+    if forwarded_for:
+        return forwarded_for.split(",")[0].strip()
+    real_ip = request.headers.get("X-Real-IP")
+    if real_ip:
+        return real_ip.strip()
+    return request.client.host if request.client else "unknown"
+
+
 @router.post("/search", response_model=LineageGraphResponse)
-async def search(req: SearchRequest):
+async def search(req: SearchRequest, request: Request):
     if not req.query.strip():
         raise HTTPException(status_code=400, detail="query required")
+
+    request_ip = get_request_ip(request)
+    await limiter.claim_request(request_ip, "search")
 
     try:
         async with OpenAlexClient(
@@ -31,6 +45,7 @@ async def search(req: SearchRequest):
                 _llm,
                 seed_openalex_id=req.seedOpenalexId,
                 settings=req.settings,
+                ip=request_ip,
             )
     except LLMParseError as e:
         logger.warning("Search failed due to LLM parse error for query=%r", req.query, exc_info=e)

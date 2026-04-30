@@ -238,6 +238,17 @@ export async function fetchSharedGraph(shareId: string): Promise<SavedGraph> {
   return response.json();
 }
 
+export async function fetchUsage(): Promise<{ used: number; remaining: number; segments: number; requestCount: number; dailyLimit: number }> {
+  const response = await fetch(`${API_BASE}/api/usage`);
+
+  if (!response.ok) {
+    const detail = await readErrorDetail(response);
+    throw new APIError(detail || `Usage failed with status ${response.status}`, response.status);
+  }
+
+  return response.json();
+}
+
 async function readErrorDetail(response: Response): Promise<string> {
   try {
     const data = await response.json();

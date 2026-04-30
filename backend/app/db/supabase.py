@@ -110,6 +110,14 @@ class SupabaseClient:
         )
         return await self._request("GET", query)
 
+    async def rpc(self, function_name: str, params: dict[str, Any], *, expect_single: bool = False) -> Any:
+        return await self._request(
+            "POST",
+            f"/rest/v1/rpc/{quote(function_name, safe='')}",
+            json=params,
+            expect_single=expect_single,
+        )
+
     async def _request(
         self,
         method: str,

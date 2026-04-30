@@ -16,6 +16,10 @@ class Settings(BaseSettings):
     supabase_service_role_key: SecretStr = SecretStr("")
     app_url: str = ""
     max_request_bytes: int = 1_000_000
+    daily_usage_limit_usd: float = 0.10
+    burst_limit_requests: int = 8
+    burst_limit_window_seconds: int = 60
+    actor_key_secret: SecretStr = SecretStr("")
 
     model_config = {"env_file": str(_ENV_FILE), "extra": "ignore"}
 
