@@ -1,5 +1,5 @@
 import logging
-from ipaddress import ip_address
+from ipaddress import ip_address, ip_network
 from typing import Optional
 
 from fastapi import FastAPI, Request
@@ -34,8 +34,40 @@ def _normalize_ip(value: Optional[str]) -> Optional[str]:
         return None
 
 
+def _split_csv(value: str) -> list[str]:
+    return [item.strip() for item in value.split(",") if item.strip()]
+
+
+def _trusted_proxy_ips() -> set[str]:
+    return set(_split_csv(settings.trusted_proxies))
+
+
+def _trusted_proxy_networks() -> list:
+    networks = []
+    for value in _split_csv(settings.trusted_proxy_cidrs):
+        try:
+            networks.append(ip_network(value, strict=False))
+        except ValueError:
+            logger.warning("Ignoring invalid trusted proxy CIDR %r", value)
+    return networks
+
+
+def _is_trusted_proxy(peer_host: Optional[str]) -> bool:
+    normalized_peer = _normalize_ip(peer_host)
+    if not normalized_peer:
+        return False
+
+    if normalized_peer in _trusted_proxy_ips():
+        return True
+
+    peer_ip = ip_address(normalized_peer)
+    return any(peer_ip in network for network in _trusted_proxy_networks())
+
+
 def _resolve_verified_client_ip(request: Request) -> Optional[str]:
-    if settings.trust_railway_proxy_headers:
+    peer_host = request.client.host if request.client else None
+
+    if settings.trust_railway_proxy_headers and _is_trusted_proxy(peer_host):
         real_ip = _normalize_ip(request.headers.get("X-Real-IP"))
         if real_ip:
             return real_ip
