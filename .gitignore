@@ -6,6 +6,8 @@ node_modules/
 claude.md
 PLAN.md
 ROADMAP.md
+security-patch.md
+frontend/next-env.d.ts
 
 # Next.js
 frontend/.next/
