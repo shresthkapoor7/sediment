@@ -27,7 +27,7 @@ def _micro_usd_to_usd(micro_usd: int) -> float:
 
 
 def _usd_to_micro_usd(usd: float) -> int:
-    return int(round(usd * MICRO_USD_PER_USD))
+    return round(usd * MICRO_USD_PER_USD)
 
 
 def _normalize_ip(ip: str) -> str:

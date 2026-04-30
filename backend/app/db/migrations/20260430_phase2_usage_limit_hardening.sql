@@ -28,21 +28,14 @@ begin
     perform pg_advisory_xact_lock(v_lock_key);
 
     select
-        coalesce((
-            select d.spent_microusd
-            from public.api_usage_daily as d
-            where d.actor_key = p_actor_key
-              and d.usage_date = v_usage_date
-        ), 0),
-        coalesce((
-            select d.llm_call_count
-            from public.api_usage_daily as d
-            where d.actor_key = p_actor_key
-              and d.usage_date = v_usage_date
-        ), 0)
+        coalesce(d.spent_microusd, 0),
+        coalesce(d.llm_call_count, 0)
     into
         v_spent,
-        v_llm_calls;
+        v_llm_calls
+    from public.api_usage_daily as d
+    where d.actor_key = p_actor_key
+      and d.usage_date = v_usage_date;
 
     if v_spent >= p_daily_limit_microusd then
         raise exception 'DAILY_LIMIT_EXCEEDED';
