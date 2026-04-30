@@ -199,6 +199,27 @@ class UpdateGraphRequest(StrictRequestModel):
             raise ValueError("Graph payload is too large.")
         return data
 
+    @field_validator("query", "seedPaperId")
+    @classmethod
+    def normalize_optional_text(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        stripped = value.strip()
+        if not stripped:
+            return None
+        return stripped
+
+    @field_validator("metadata")
+    @classmethod
+    def validate_optional_metadata(cls, metadata: Optional[SavedGraphMetadata]) -> Optional[SavedGraphMetadata]:
+        if metadata is None:
+            return None
+        title = metadata.title.strip()
+        if len(title) > MAX_METADATA_TITLE_LENGTH:
+            raise ValueError(f"Metadata title must be at most {MAX_METADATA_TITLE_LENGTH} characters.")
+        metadata.title = title
+        return metadata
+
     @model_validator(mode="after")
     def ensure_update_has_fields(self) -> "UpdateGraphRequest":
         if self.query is None and self.data is None and self.seedPaperId is None and self.metadata is None:

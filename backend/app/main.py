@@ -23,14 +23,9 @@ app.add_middleware(
 @app.middleware("http")
 async def enforce_request_size(request: Request, call_next):
     if request.method in {"POST", "PATCH", "PUT"} and request.url.path.startswith("/api/"):
-        content_length = request.headers.get("content-length")
-        if content_length:
-            try:
-                body_size = int(content_length)
-            except ValueError:
-                return JSONResponse(status_code=400, content={"detail": "Invalid Content-Length header."})
-            if body_size > settings.max_request_bytes:
-                return JSONResponse(status_code=413, content={"detail": "Request body too large."})
+        body = await request.body()
+        if len(body) > settings.max_request_bytes:
+            return JSONResponse(status_code=413, content={"detail": "Request body too large."})
     return await call_next(request)
 
 

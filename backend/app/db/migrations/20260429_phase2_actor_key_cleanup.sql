@@ -24,19 +24,23 @@ declare
     v_spent bigint := 0;
     v_llm_calls integer := 0;
     v_recent integer := 0;
+    v_usage_date date := ((current_timestamp at time zone 'UTC')::date);
+    v_lock_key bigint := hashtextextended(p_actor_key, 0);
 begin
+    perform pg_advisory_xact_lock(v_lock_key);
+
     select
         coalesce((
             select d.spent_microusd
             from public.api_usage_daily as d
             where d.actor_key = p_actor_key
-              and d.usage_date = current_date
+              and d.usage_date = v_usage_date
         ), 0),
         coalesce((
             select d.llm_call_count
             from public.api_usage_daily as d
             where d.actor_key = p_actor_key
-              and d.usage_date = current_date
+              and d.usage_date = v_usage_date
         ), 0)
     into
         v_spent,

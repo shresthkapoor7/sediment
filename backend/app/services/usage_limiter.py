@@ -36,16 +36,7 @@ def _normalize_ip(ip: str) -> str:
 
 
 def _actor_secret() -> bytes:
-    configured = settings.actor_key_secret.get_secret_value()
-    if configured:
-        return configured.encode("utf-8")
-
-    fallback = settings.supabase_service_role_key.get_secret_value()
-    if fallback:
-        return fallback.encode("utf-8")
-
-    logger.error("ACTOR_KEY_SECRET is unset and no fallback secret is available")
-    raise HTTPException(status_code=503, detail="Usage limiter is unavailable.")
+    return settings.actor_key_secret.get_secret_value().encode("utf-8")
 
 
 def _actor_key(ip: str) -> str:

@@ -325,12 +325,24 @@ Rules:
             max_tokens=1024,
             messages=[{"role": "user", "content": prompt}],
         )
-        await limiter.record_usage(
-            ip,
-            getattr(resp.usage, "input_tokens", 0),
-            getattr(resp.usage, "output_tokens", 0),
-            self.model,
-        )
+        input_tokens = getattr(resp.usage, "input_tokens", 0)
+        output_tokens = getattr(resp.usage, "output_tokens", 0)
+        try:
+            await limiter.record_usage(
+                ip,
+                input_tokens,
+                output_tokens,
+                self.model,
+            )
+        except Exception as e:
+            logger.warning(
+                "Usage recording failed for ip=%r model=%r input_tokens=%r output_tokens=%r",
+                ip,
+                self.model,
+                input_tokens,
+                output_tokens,
+                exc_info=e,
+            )
 
         raw = resp.content[0].text.strip()
         if raw.startswith("```"):

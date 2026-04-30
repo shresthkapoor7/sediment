@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from pydantic import SecretStr
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings
 
 _ENV_FILE = Path(__file__).resolve().parent.parent / ".env"
@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     daily_usage_limit_usd: float = 0.10
     burst_limit_requests: int = 8
     burst_limit_window_seconds: int = 60
-    actor_key_secret: SecretStr = SecretStr("")
+    actor_key_secret: SecretStr = Field(...)
 
     model_config = {"env_file": str(_ENV_FILE), "extra": "ignore"}
 

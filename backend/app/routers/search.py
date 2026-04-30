@@ -17,12 +17,9 @@ _llm = LLMClient(api_key=settings.anthropic_api_key, model=settings.llm_model)
 
 
 def get_request_ip(request: Request) -> str:
-    forwarded_for = request.headers.get("X-Forwarded-For")
-    if forwarded_for:
-        return forwarded_for.split(",")[0].strip()
-    real_ip = request.headers.get("X-Real-IP")
-    if real_ip:
-        return real_ip.strip()
+    verified_client_ip = getattr(request.state, "verified_client_ip", None)
+    if isinstance(verified_client_ip, str) and verified_client_ip.strip():
+        return verified_client_ip.strip()
     return request.client.host if request.client else "unknown"
 
 
