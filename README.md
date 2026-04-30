@@ -1,6 +1,6 @@
 # Sediment
 
-![Sediment](home.jpg)
+[![Sediment](home.jpg)](https://sediment-seven.vercel.app)
 
 > Trace any research concept back through time. Knowledge, layered.
 
@@ -34,6 +34,13 @@ sediment/
 - **Obsidian export** — full tree as wikilinked markdown, frontmatter per paper
 - **Shareable URLs** — no login, tree state persisted via Supabase short ID
 - **Anonymous usage cap** — backend enforces a daily spend limit and burst limit using hashed anonymous actor keys instead of storing raw caller IPs
+
+## Security And Privacy Notes
+
+- Sediment currently uses a server-derived anonymous actor key for usage limits on expensive API routes.
+- That actor key is derived from the caller's IP address using a server-only HMAC secret.
+- The usage limiter stores the derived actor key, not the raw IP address, for daily budget and burst-limit enforcement.
+- This is intended for abuse prevention and cost control, not account-level identity or behavioral profiling.
 
 ## Environment Variables
 
