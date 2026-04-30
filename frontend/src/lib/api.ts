@@ -239,7 +239,9 @@ export async function fetchSharedGraph(shareId: string): Promise<SavedGraph> {
 }
 
 export async function fetchUsage(): Promise<{ used: number; remaining: number; segments: number; requestCount: number; dailyLimit: number }> {
-  const response = await fetch(`${API_BASE}/api/usage`);
+  const response = await fetch(`${API_BASE}/api/usage`, {
+    cache: "no-store",
+  });
 
   if (!response.ok) {
     const detail = await readErrorDetail(response);
