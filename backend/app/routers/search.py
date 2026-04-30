@@ -1,4 +1,7 @@
+import logging
+
 from fastapi import APIRouter, HTTPException
+
 from ..models import LineageGraphResponse, SearchRequest
 from ..services.llm import LLMClient, LLMParseError
 from ..services.openalex import OpenAlexClient, OpenAlexError
@@ -6,6 +9,7 @@ from ..services.lineage import trace_lineage
 from ..config import settings
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 # Singletons — created once, reused per request
 _llm = LLMClient(api_key=settings.anthropic_api_key, model=settings.llm_model)
@@ -29,8 +33,10 @@ async def search(req: SearchRequest):
                 settings=req.settings,
             )
     except LLMParseError as e:
-        raise HTTPException(status_code=502, detail=f"LLM error: {e}") from e
+        logger.warning("Search failed due to LLM parse error for query=%r", req.query, exc_info=e)
+        raise HTTPException(status_code=502, detail="Search service returned an invalid response.") from e
     except OpenAlexError as e:
-        raise HTTPException(status_code=502, detail=f"OpenAlex error: {e}") from e
+        logger.warning("Search failed due to OpenAlex error for query=%r", req.query, exc_info=e)
+        raise HTTPException(status_code=502, detail="Search data provider is currently unavailable.") from e
 
     return LineageGraphResponse(**graph)

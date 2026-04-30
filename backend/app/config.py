@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     supabase_url: str = ""
     supabase_service_role_key: SecretStr = SecretStr("")
     app_url: str = ""
+    max_request_bytes: int = 1_000_000
 
     model_config = {"env_file": str(_ENV_FILE), "extra": "ignore"}
 

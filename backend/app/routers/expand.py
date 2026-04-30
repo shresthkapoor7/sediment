@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, HTTPException
 from pydantic import ValidationError
 
@@ -8,6 +10,7 @@ from ..services.llm import LLMClient, LLMParseError
 from ..services.openalex import OpenAlexClient, OpenAlexError
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 _llm = LLMClient(api_key=settings.anthropic_api_key, model=settings.llm_model)
 
@@ -30,11 +33,14 @@ async def expand(req: ExpandRequest):
                 settings=req.settings,
             )
     except LLMParseError as e:
-        raise HTTPException(status_code=502, detail=f"LLM error: {e}") from e
+        logger.warning("Expand failed due to LLM parse error for paper_id=%r", req.paperId, exc_info=e)
+        raise HTTPException(status_code=502, detail="Expansion service returned an invalid response.") from e
     except OpenAlexError as e:
-        raise HTTPException(status_code=502, detail=f"OpenAlex error: {e}") from e
+        logger.warning("Expand failed due to OpenAlex error for paper_id=%r", req.paperId, exc_info=e)
+        raise HTTPException(status_code=502, detail="Expansion data provider is currently unavailable.") from e
 
     try:
         return LineageGraphResponse(**graph)
     except ValidationError as e:
-        raise HTTPException(status_code=502, detail=f"Validation error: {e}") from e
+        logger.warning("Expand produced invalid graph payload for paper_id=%r", req.paperId, exc_info=e)
+        raise HTTPException(status_code=502, detail="Expansion service returned an invalid graph payload.") from e
