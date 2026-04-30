@@ -19,9 +19,10 @@ interface GlobalChatPanelProps {
   onHighlight: (ids: string[]) => void;
   onAddLineage: (query: string) => void;
   isExpanding: boolean;
+  onUsageChanged?: () => void;
 }
 
-export function GlobalChatPanel({ data, onHighlight, onAddLineage, isExpanding }: GlobalChatPanelProps) {
+export function GlobalChatPanel({ data, onHighlight, onAddLineage, isExpanding, onUsageChanged }: GlobalChatPanelProps) {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -103,6 +104,7 @@ export function GlobalChatPanel({ data, onHighlight, onAddLineage, isExpanding }
       ]);
     } finally {
       setIsThinking(false);
+      onUsageChanged?.();
     }
   }
 

@@ -1,34 +1,68 @@
+import json
 from typing import Any, Literal, Optional
-from pydantic import BaseModel, Field
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
 from .config import settings
+
+MAX_QUERY_LENGTH = 300
+MAX_OPENALEX_ID_LENGTH = 64
+MAX_TITLE_LENGTH = 500
+MAX_SUMMARY_LENGTH = 4_000
+MAX_DETAIL_LENGTH = 12_000
+MAX_AUTHOR_NAME_LENGTH = 120
+MAX_AUTHORS = 20
+MAX_CONCEPTS = 20
+MAX_CONCEPT_CONTEXT_LENGTH = 500
+MAX_CHAT_QUESTION_LENGTH = 1_000
+MAX_TIMELINE_PAPERS = 25
+MAX_USER_ID_LENGTH = 128
+MAX_GRAPH_ID_LENGTH = 128
+MAX_SHARE_ID_LENGTH = 64
+MAX_METADATA_TITLE_LENGTH = 200
+MAX_GRAPH_JSON_BYTES = 1_000_000
+
+
+class StrictRequestModel(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
 
 
 class TraversalSettings(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     depth: Optional[int] = None
     breadth: Optional[int] = None
     referenceLimit: Optional[int] = None
     topN: Optional[int] = None
 
 
-class SearchRequest(BaseModel):
-    query: str
-    seedOpenalexId: Optional[str] = None
+class SearchRequest(StrictRequestModel):
+    query: str = Field(min_length=1, max_length=MAX_QUERY_LENGTH)
+    seedOpenalexId: Optional[str] = Field(default=None, max_length=MAX_OPENALEX_ID_LENGTH)
     settings: Optional[TraversalSettings] = None
 
 
-class ExpandRequest(BaseModel):
-    paperId: str
-    conceptContext: str
+class ExpandRequest(StrictRequestModel):
+    paperId: str = Field(min_length=1, max_length=MAX_OPENALEX_ID_LENGTH)
+    conceptContext: str = Field(min_length=1, max_length=MAX_CONCEPT_CONTEXT_LENGTH)
     settings: Optional[TraversalSettings] = None
 
 
-class ChatRequest(BaseModel):
-    paperId: str
-    title: str
+class ChatRequest(StrictRequestModel):
+    paperId: str = Field(min_length=1, max_length=MAX_OPENALEX_ID_LENGTH)
+    title: str = Field(min_length=1, max_length=MAX_TITLE_LENGTH)
     year: Optional[int] = None
-    summary: str = ""
-    authors: list[str] = Field(default_factory=list)
-    question: str
+    summary: str = Field(default="", max_length=MAX_SUMMARY_LENGTH)
+    authors: list[str] = Field(default_factory=list, max_length=MAX_AUTHORS)
+    question: str = Field(min_length=1, max_length=MAX_CHAT_QUESTION_LENGTH)
+
+    @field_validator("authors")
+    @classmethod
+    def validate_authors(cls, authors: list[str]) -> list[str]:
+        cleaned = [author.strip() for author in authors if author.strip()]
+        for author in cleaned:
+            if len(author) > MAX_AUTHOR_NAME_LENGTH:
+                raise ValueError(f"Author names must be at most {MAX_AUTHOR_NAME_LENGTH} characters.")
+        return cleaned
 
 
 class GraphPaper(BaseModel):
@@ -86,16 +120,16 @@ class ChatResponse(BaseModel):
     suggestion: Optional[ChatSuggestion] = None
 
 
-class PaperSummary(BaseModel):
-    openalexId: str
-    title: str
+class PaperSummary(StrictRequestModel):
+    openalexId: str = Field(min_length=1, max_length=MAX_OPENALEX_ID_LENGTH)
+    title: str = Field(min_length=1, max_length=MAX_TITLE_LENGTH)
     year: Optional[int] = None
-    summary: str = ""
+    summary: str = Field(default="", max_length=MAX_SUMMARY_LENGTH)
 
 
-class GlobalChatRequest(BaseModel):
-    papers: list[PaperSummary]
-    question: str
+class GlobalChatRequest(StrictRequestModel):
+    papers: list[PaperSummary] = Field(min_length=1, max_length=MAX_TIMELINE_PAPERS)
+    question: str = Field(min_length=1, max_length=MAX_CHAT_QUESTION_LENGTH)
 
 
 class GlobalChatResponse(BaseModel):
@@ -104,8 +138,8 @@ class GlobalChatResponse(BaseModel):
     suggestion: Optional[ChatSuggestion] = None
 
 
-class UserUpsertRequest(BaseModel):
-    id: str
+class UserUpsertRequest(StrictRequestModel):
+    id: str = Field(min_length=1, max_length=MAX_USER_ID_LENGTH)
 
 
 class UserRecord(BaseModel):
@@ -120,21 +154,77 @@ class SavedGraphMetadata(BaseModel):
     lastOpenedAt: Optional[str] = None
     appVersion: str = Field(default_factory=lambda: settings.app_version)
 
+    model_config = ConfigDict(extra="forbid")
 
-class SaveGraphRequest(BaseModel):
-    userId: str
-    query: str
+
+class SaveGraphRequest(StrictRequestModel):
+    userId: str = Field(min_length=1, max_length=MAX_USER_ID_LENGTH)
+    query: str = Field(min_length=1, max_length=MAX_QUERY_LENGTH)
     data: dict[str, Any]
-    seedPaperId: Optional[str] = None
+    seedPaperId: Optional[str] = Field(default=None, max_length=MAX_OPENALEX_ID_LENGTH)
     metadata: SavedGraphMetadata = Field(default_factory=SavedGraphMetadata)
 
+    @field_validator("data")
+    @classmethod
+    def validate_data_size(cls, data: dict[str, Any]) -> dict[str, Any]:
+        encoded = json.dumps(data, separators=(",", ":"))
+        if len(encoded.encode("utf-8")) > MAX_GRAPH_JSON_BYTES:
+            raise ValueError("Graph payload is too large.")
+        return data
 
-class UpdateGraphRequest(BaseModel):
-    userId: str
-    query: Optional[str] = None
+    @field_validator("metadata")
+    @classmethod
+    def validate_metadata(cls, metadata: SavedGraphMetadata) -> SavedGraphMetadata:
+        title = metadata.title.strip()
+        if len(title) > MAX_METADATA_TITLE_LENGTH:
+            raise ValueError(f"Metadata title must be at most {MAX_METADATA_TITLE_LENGTH} characters.")
+        metadata.title = title
+        return metadata
+
+
+class UpdateGraphRequest(StrictRequestModel):
+    userId: str = Field(min_length=1, max_length=MAX_USER_ID_LENGTH)
+    query: Optional[str] = Field(default=None, max_length=MAX_QUERY_LENGTH)
     data: Optional[dict[str, Any]] = None
-    seedPaperId: Optional[str] = None
+    seedPaperId: Optional[str] = Field(default=None, max_length=MAX_OPENALEX_ID_LENGTH)
     metadata: Optional[SavedGraphMetadata] = None
+
+    @field_validator("data")
+    @classmethod
+    def validate_optional_data_size(cls, data: Optional[dict[str, Any]]) -> Optional[dict[str, Any]]:
+        if data is None:
+            return None
+        encoded = json.dumps(data, separators=(",", ":"))
+        if len(encoded.encode("utf-8")) > MAX_GRAPH_JSON_BYTES:
+            raise ValueError("Graph payload is too large.")
+        return data
+
+    @field_validator("query", "seedPaperId")
+    @classmethod
+    def normalize_optional_text(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        stripped = value.strip()
+        if not stripped:
+            return None
+        return stripped
+
+    @field_validator("metadata")
+    @classmethod
+    def validate_optional_metadata(cls, metadata: Optional[SavedGraphMetadata]) -> Optional[SavedGraphMetadata]:
+        if metadata is None:
+            return None
+        title = metadata.title.strip()
+        if len(title) > MAX_METADATA_TITLE_LENGTH:
+            raise ValueError(f"Metadata title must be at most {MAX_METADATA_TITLE_LENGTH} characters.")
+        metadata.title = title
+        return metadata
+
+    @model_validator(mode="after")
+    def ensure_update_has_fields(self) -> "UpdateGraphRequest":
+        if self.query is None and self.data is None and self.seedPaperId is None and self.metadata is None:
+            raise ValueError("At least one graph field must be provided.")
+        return self
 
 
 class GraphRecord(BaseModel):

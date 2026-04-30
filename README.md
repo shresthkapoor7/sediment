@@ -33,6 +33,7 @@ sediment/
 - **Click to branch** — drill into any node, a new parallel lane expands in place
 - **Obsidian export** — full tree as wikilinked markdown, frontmatter per paper
 - **Shareable URLs** — no login, tree state persisted via Supabase short ID
+- **Anonymous usage cap** — backend enforces a daily spend limit and burst limit using hashed anonymous actor keys instead of storing raw caller IPs
 
 ## Environment Variables
 
@@ -50,6 +51,7 @@ sediment/
 | `ANTHROPIC_API_KEY` | Yes | Anthropic API key for Claude |
 | `SUPABASE_URL` | Yes | Supabase project URL |
 | `SUPABASE_SERVICE_ROLE_KEY` | Yes | Supabase service role key |
+| `ACTOR_KEY_SECRET` | Yes | Server-only secret used to HMAC-hash caller IPs into anonymous usage buckets for rate limiting and daily spend caps |
 | `OPENALEX_API_KEY` | No | OpenAlex API key (polite pool, optional) |
 | `OPENALEX_MAILTO` | No | Email for OpenAlex polite pool |
 | `LLM_MODEL` | No | Claude model ID (defaults to `claude-haiku-4-5-20251001`) |
@@ -70,4 +72,10 @@ python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 uvicorn main:app --reload
+```
+
+Generate `ACTOR_KEY_SECRET` once and keep it stable across restarts and deployments:
+
+```bash
+openssl rand -hex 32
 ```

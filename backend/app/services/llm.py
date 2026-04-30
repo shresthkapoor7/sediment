@@ -4,7 +4,9 @@ import re
 from typing import Optional
 
 from anthropic import AsyncAnthropic
+
 from .text_utils import meaningful_tokens, normalize_text
+from .usage_limiter import limiter
 
 logger = logging.getLogger(__name__)
 MAX_TIMELINE_PAPERS = 25
@@ -33,7 +35,7 @@ class LLMClient:
         self.client = AsyncAnthropic(api_key=api_key)
         self.model = model
 
-    async def choose_seed(self, query: str, papers: list[dict]) -> dict:
+    async def choose_seed(self, query: str, papers: list[dict], ip: str = "unknown") -> dict:
         if not papers:
             return {"index": None, "confidence": "low", "reason": "No candidates"}
 
@@ -67,7 +69,7 @@ Respond with JSON only:
   "reason": "<short reason>"
 }}"""
 
-        parsed = await self._prompt_json(prompt)
+        parsed = await self._prompt_json(prompt, ip=ip)
         if not isinstance(parsed, dict):
             raise LLMParseError("Seed choice response was not an object")
 
@@ -84,7 +86,7 @@ Respond with JSON only:
             "reason": parsed.get("reason", ""),
         }
 
-    async def rank_references(self, concept: str, seed_paper: dict, papers: list[dict], top_n: int = 8) -> list[dict]:
+    async def rank_references(self, concept: str, seed_paper: dict, papers: list[dict], top_n: int = 8, ip: str = "unknown") -> list[dict]:
         if not papers:
             return []
 
@@ -127,7 +129,7 @@ Respond with a JSON array only, ordered oldest to newest:
   }}
 ]"""
 
-        parsed = await self._prompt_json(prompt)
+        parsed = await self._prompt_json(prompt, ip=ip)
         if not isinstance(parsed, list):
             raise LLMParseError("Lineage ranking response was not a list")
 
@@ -153,7 +155,7 @@ Respond with a JSON array only, ordered oldest to newest:
             })
         return results
 
-    async def chat_about_paper(self, paper: dict, question: str) -> dict:
+    async def chat_about_paper(self, paper: dict, question: str, ip: str = "unknown") -> dict:
         explicit_topic = _extract_explicit_topic(question)
 
         prompt = f"""You are helping a user understand a research paper in a lineage explorer.
@@ -187,7 +189,7 @@ Respond with JSON only:
 
 Only include a suggestion when there is a clear worthwhile follow-up lineage to trace."""
 
-        parsed = await self._prompt_json(prompt)
+        parsed = await self._prompt_json(prompt, ip=ip)
         if not isinstance(parsed, dict):
             raise LLMParseError("Chat response was not an object")
 
@@ -207,7 +209,7 @@ Only include a suggestion when there is a clear worthwhile follow-up lineage to 
             "suggestion": cleaned_suggestion,
         }
 
-    async def suggest_timeline_questions(self, papers: list[dict]) -> list[str]:
+    async def suggest_timeline_questions(self, papers: list[dict], ip: str = "unknown") -> list[str]:
         titles = [f"- {p['title']} ({p.get('year', '?')})" for p in papers[:20]]
         prompt = f"""A user is exploring this research timeline:
 {chr(10).join(titles)}
@@ -218,7 +220,7 @@ Questions should be natural, curious, and relevant to the specific papers shown.
 Respond with JSON only:
 {{"questions": ["<question 1>", "<question 2>", "<question 3>"]}}"""
 
-        parsed = await self._prompt_json(prompt)
+        parsed = await self._prompt_json(prompt, ip=ip)
         if not isinstance(parsed, dict):
             return []
         questions = parsed.get("questions", [])
@@ -226,7 +228,7 @@ Respond with JSON only:
             return []
         return [q for q in questions if isinstance(q, str)][:3]
 
-    async def chat_about_timeline(self, papers: list[dict], question: str) -> dict:
+    async def chat_about_timeline(self, papers: list[dict], question: str, ip: str = "unknown") -> dict:
         ranked_papers = sorted(
             papers,
             key=lambda paper: ((paper.get("year") is None), paper.get("year") or 0, paper.get("title", "")),
@@ -290,7 +292,7 @@ Rules:
 - Add a suggestion when the user references a concept not already in the timeline that would benefit from its own lineage branch (e.g. "how is this related to RNN" → suggest tracing RNN lineage).
 - Do not suggest lineage for concepts already well-covered by the existing papers."""
 
-        parsed = await self._prompt_json(prompt)
+        parsed = await self._prompt_json(prompt, ip=ip)
         if not isinstance(parsed, dict):
             raise LLMParseError("Global chat response was not an object")
 
@@ -317,12 +319,30 @@ Rules:
             "suggestion": cleaned_suggestion,
         }
 
-    async def _prompt_json(self, prompt: str):
+    async def _prompt_json(self, prompt: str, ip: str = "unknown"):
         resp = await self.client.messages.create(
             model=self.model,
             max_tokens=1024,
             messages=[{"role": "user", "content": prompt}],
         )
+        input_tokens = getattr(resp.usage, "input_tokens", 0)
+        output_tokens = getattr(resp.usage, "output_tokens", 0)
+        try:
+            await limiter.record_usage(
+                ip,
+                input_tokens,
+                output_tokens,
+                self.model,
+            )
+        except Exception as e:
+            logger.warning(
+                "Usage recording failed for ip=%r model=%r input_tokens=%r output_tokens=%r",
+                ip,
+                self.model,
+                input_tokens,
+                output_tokens,
+                exc_info=e,
+            )
 
         raw = resp.content[0].text.strip()
         if raw.startswith("```"):

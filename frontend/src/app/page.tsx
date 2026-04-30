@@ -11,6 +11,7 @@ import {
   createSavedGraph,
   expandLineage,
   fetchSavedGraph,
+  fetchUsage,
   getOrCreateAnonymousUserId,
   LAST_GRAPH_ID_KEY,
   listSavedGraphs,
@@ -93,6 +94,7 @@ export default function Home() {
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [shareState, setShareState] = useState<"idle" | "sharing" | "copied" | "error">("idle");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [credits, setCredits] = useState<number>(10);
   const shareStateTimeoutRef = useRef<number | null>(null);
   const saveTimeoutRef = useRef<number | null>(null);
   const saveStateTimeoutRef = useRef<number | null>(null);
@@ -117,6 +119,16 @@ export default function Home() {
     }
     window.localStorage.removeItem(LAST_GRAPH_ID_KEY);
   }, []);
+
+  const refreshCredits = useCallback(() => {
+    void fetchUsage()
+      .then((data) => setCredits(data.segments))
+      .catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
+    refreshCredits();
+  }, [refreshCredits]);
 
   useEffect(() => {
     const nextUserId = getOrCreateAnonymousUserId();
@@ -269,8 +281,9 @@ export default function Home() {
       setSearchError(error instanceof Error ? error.message : "Search failed");
     } finally {
       setIsSearching(false);
+      refreshCredits();
     }
-  }, [buildMetadata, isExpanding, persistLastGraphId, settings, userId]);
+  }, [buildMetadata, isExpanding, persistLastGraphId, refreshCredits, settings, userId]);
 
   const handleSearch = useCallback((query: string) => {
     void runSearch(query);
@@ -335,9 +348,10 @@ export default function Home() {
         })
         .finally(() => {
           setIsExpanding(false);
+          refreshCredits();
         });
     },
-    [scheduleGraphUpdate, searchedQuery, settings, timelineData]
+    [refreshCredits, scheduleGraphUpdate, searchedQuery, settings, timelineData]
   );
 
   const handleRefreshCurrent = useCallback(() => {
@@ -587,22 +601,26 @@ export default function Home() {
             }}
           >
             <div style={{ display: "flex", alignItems: "center", gap: "0.125rem" }}>
-              {Array.from({ length: 10 }).map((_, i) => (
-                <div
-                  key={i}
-                  style={{
-                    width: "0.25rem",
-                    height: "0.625rem",
-                    borderRadius: "0.125rem",
-                    background: i < 10 ? "var(--accent)" : "var(--border)",
-                    opacity: i < 10 ? 1 - i * 0.05 : 1,
-                  }}
-                />
-              ))}
+              {Array.from({ length: 10 }).map((_, i) => {
+                const filled = i < credits;
+                const segColor = credits <= 3 ? "#ef4444" : credits <= 6 ? "#f59e0b" : "var(--accent)";
+                return (
+                  <div
+                    key={i}
+                    style={{
+                      width: "0.25rem",
+                      height: "0.625rem",
+                      borderRadius: "0.125rem",
+                      background: filled ? segColor : "var(--border)",
+                      opacity: filled ? 1 - i * 0.05 : 1,
+                    }}
+                  />
+                );
+              })}
               <div style={{ width: "0.125rem", height: "0.3125rem", borderRadius: "0 0.0625rem 0.0625rem 0", background: "var(--border)", marginLeft: "0.0625rem" }} />
             </div>
-            <span style={{ fontSize: "0.6875rem", color: "var(--text-tertiary)", fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.02em" }}>
-              10
+            <span style={{ fontSize: "0.6875rem", color: credits <= 3 ? "#ef4444" : credits <= 6 ? "#f59e0b" : "var(--text-tertiary)", fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.02em" }}>
+              {credits}
             </span>
           </div>
 
@@ -814,10 +832,19 @@ export default function Home() {
                 <div style={{ display: "flex", alignItems: "center", gap: "0.375rem" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: "0.125rem" }}>
                     {Array.from({ length: 10 }).map((_, i) => (
-                      <div key={i} style={{ width: "0.25rem", height: "0.5rem", borderRadius: "0.0625rem", background: "var(--accent)", opacity: 1 - i * 0.05 }} />
+                      <div
+                        key={i}
+                        style={{
+                          width: "0.25rem",
+                          height: "0.5rem",
+                          borderRadius: "0.0625rem",
+                          background: i < credits ? (credits <= 3 ? "#ef4444" : credits <= 6 ? "#f59e0b" : "var(--accent)") : "var(--border)",
+                          opacity: i < credits ? 1 - i * 0.05 : 1,
+                        }}
+                      />
                     ))}
                   </div>
-                  <span style={{ fontSize: "0.6875rem", color: "var(--accent)", fontFamily: "'JetBrains Mono', monospace" }}>10</span>
+                  <span style={{ fontSize: "0.6875rem", color: credits <= 3 ? "#ef4444" : credits <= 6 ? "#f59e0b" : "var(--accent)", fontFamily: "'JetBrains Mono', monospace" }}>{credits}</span>
                 </div>
               </div>
 
@@ -1424,6 +1451,7 @@ export default function Home() {
                 data={timelineData!}
                 onExpandNode={handleExpandNode}
                 isExpanding={isExpanding}
+                onUsageChanged={refreshCredits}
                 hoverPreviewEnabled={hoverPreviewEnabled}
                 onToggleHoverPreview={onToggleHoverPreview}
               />

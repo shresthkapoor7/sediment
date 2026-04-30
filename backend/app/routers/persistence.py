@@ -1,3 +1,4 @@
+import logging
 import secrets
 
 from fastapi import APIRouter, HTTPException, Query
@@ -16,13 +17,15 @@ from ..models import (
 )
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 def get_db() -> SupabaseClient:
     try:
         return SupabaseClient()
     except SupabaseConfigError as e:
-        raise HTTPException(status_code=503, detail=str(e)) from e
+        logger.error("Supabase configuration error", exc_info=e)
+        raise HTTPException(status_code=503, detail="Persistence service is not configured.") from e
 
 
 def to_graph_record(row: dict) -> GraphRecord:
@@ -48,7 +51,8 @@ async def upsert_user(req: UserUpsertRequest):
     try:
         row = await get_db().upsert_user(req.id.strip())
     except SupabaseAPIError as e:
-        raise HTTPException(status_code=502, detail=str(e)) from e
+        logger.warning("User upsert failed for user_id=%r", req.id, exc_info=e)
+        raise HTTPException(status_code=502, detail="Persistence service is currently unavailable.") from e
 
     return UserRecord(**row)
 
@@ -73,7 +77,8 @@ async def create_graph(req: SaveGraphRequest):
         await db.upsert_user(req.userId.strip())
         row = await db.create_graph(payload)
     except SupabaseAPIError as e:
-        raise HTTPException(status_code=502, detail=str(e)) from e
+        logger.warning("Graph create failed for user_id=%r", req.userId, exc_info=e)
+        raise HTTPException(status_code=502, detail="Failed to save graph.") from e
 
     return to_graph_record(row)
 
@@ -96,13 +101,11 @@ async def update_graph(graph_id: str, req: UpdateGraphRequest):
     if req.seedPaperId is not None:
         payload["seed_paper_id"] = req.seedPaperId
 
-    if not payload:
-        raise HTTPException(status_code=400, detail="no fields to update")
-
     try:
         row = await get_db().update_graph(graph_id, req.userId.strip(), payload)
     except SupabaseAPIError as e:
-        raise HTTPException(status_code=502, detail=str(e)) from e
+        logger.warning("Graph update failed for graph_id=%r user_id=%r", graph_id, req.userId, exc_info=e)
+        raise HTTPException(status_code=502, detail="Failed to update graph.") from e
 
     if not row:
         raise HTTPException(status_code=404, detail="graph not found")
@@ -119,7 +122,8 @@ async def share_graph(graph_id: str, userId: str = Query(...)):
         db = get_db()
         existing = await db.get_graph(graph_id, userId.strip())
     except SupabaseAPIError as e:
-        raise HTTPException(status_code=502, detail=str(e)) from e
+        logger.warning("Graph lookup failed before share for graph_id=%r user_id=%r", graph_id, userId, exc_info=e)
+        raise HTTPException(status_code=502, detail="Failed to load graph.") from e
 
     if not existing:
         raise HTTPException(status_code=404, detail="graph not found")
@@ -130,7 +134,8 @@ async def share_graph(graph_id: str, userId: str = Query(...)):
         try:
             updated = await db.share_graph(graph_id, userId.strip(), share_id)
         except SupabaseAPIError as e:
-            raise HTTPException(status_code=502, detail=str(e)) from e
+            logger.warning("Graph share failed for graph_id=%r user_id=%r", graph_id, userId, exc_info=e)
+            raise HTTPException(status_code=502, detail="Failed to create share link.") from e
 
         if not updated or updated.get("share_id") != share_id:
             raise HTTPException(status_code=502, detail="failed to persist share link")
@@ -146,7 +151,8 @@ async def get_shared_graph(share_id: str):
     try:
         row = await get_db().get_graph_by_share_id(share_id)
     except SupabaseAPIError as e:
-        raise HTTPException(status_code=502, detail=str(e)) from e
+        logger.warning("Shared graph lookup failed for share_id=%r", share_id, exc_info=e)
+        raise HTTPException(status_code=502, detail="Failed to load shared graph.") from e
 
     if not row:
         raise HTTPException(status_code=404, detail="shared graph not found")
@@ -172,7 +178,8 @@ async def list_graphs(userId: str = Query(...)):
     try:
         rows = await get_db().list_graphs(userId.strip())
     except SupabaseAPIError as e:
-        raise HTTPException(status_code=502, detail=str(e)) from e
+        logger.warning("Graph list failed for user_id=%r", userId, exc_info=e)
+        raise HTTPException(status_code=502, detail="Failed to list graphs.") from e
 
     return [
         GraphListItem(
@@ -195,7 +202,8 @@ async def get_graph(graph_id: str, userId: str = Query(...)):
     try:
         row = await get_db().get_graph(graph_id, userId.strip())
     except SupabaseAPIError as e:
-        raise HTTPException(status_code=502, detail=str(e)) from e
+        logger.warning("Graph fetch failed for graph_id=%r user_id=%r", graph_id, userId, exc_info=e)
+        raise HTTPException(status_code=502, detail="Failed to load graph.") from e
 
     if not row:
         raise HTTPException(status_code=404, detail="graph not found")
