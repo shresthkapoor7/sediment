@@ -1,4 +1,6 @@
 import logging
+from ipaddress import ip_address
+from typing import Optional
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -18,6 +20,43 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+def _normalize_ip(value: Optional[str]) -> Optional[str]:
+    if not value:
+        return None
+    candidate = value.strip()
+    if not candidate:
+        return None
+    try:
+        return str(ip_address(candidate))
+    except ValueError:
+        return None
+
+
+def _resolve_verified_client_ip(request: Request) -> Optional[str]:
+    if settings.trust_railway_proxy_headers:
+        real_ip = _normalize_ip(request.headers.get("X-Real-IP"))
+        if real_ip:
+            return real_ip
+
+        forwarded_for = request.headers.get("X-Forwarded-For")
+        if forwarded_for:
+            forwarded_ip = _normalize_ip(forwarded_for.split(",")[0])
+            if forwarded_ip:
+                return forwarded_ip
+
+    if request.client:
+        return _normalize_ip(request.client.host) or request.client.host
+    return None
+
+
+@app.middleware("http")
+async def resolve_client_ip(request: Request, call_next):
+    verified_client_ip = _resolve_verified_client_ip(request)
+    if verified_client_ip:
+        request.state.verified_client_ip = verified_client_ip
+    return await call_next(request)
 
 
 @app.middleware("http")

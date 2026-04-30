@@ -52,6 +52,7 @@ sediment/
 | `SUPABASE_URL` | Yes | Supabase project URL |
 | `SUPABASE_SERVICE_ROLE_KEY` | Yes | Supabase service role key |
 | `ACTOR_KEY_SECRET` | Yes | Server-only secret used to HMAC-hash caller IPs into anonymous usage buckets for rate limiting and daily spend caps |
+| `TRUST_RAILWAY_PROXY_HEADERS` | No | Set to `true` on Railway so the backend uses Railway-provided client IP headers instead of the proxy peer IP |
 | `OPENALEX_API_KEY` | No | OpenAlex API key (polite pool, optional) |
 | `OPENALEX_MAILTO` | No | Email for OpenAlex polite pool |
 | `LLM_MODEL` | No | Claude model ID (defaults to `claude-haiku-4-5-20251001`) |

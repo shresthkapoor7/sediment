@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     burst_limit_requests: int = 8
     burst_limit_window_seconds: int = 60
     actor_key_secret: SecretStr = Field(...)
+    trust_railway_proxy_headers: bool = False
 
     model_config = {"env_file": str(_ENV_FILE), "extra": "ignore"}
 
