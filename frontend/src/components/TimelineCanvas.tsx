@@ -112,11 +112,15 @@ export function TimelineCanvas({
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const storedWidth = window.localStorage.getItem(DETAIL_PANEL_WIDTH_KEY);
-    if (!storedWidth) return;
-    const parsed = Number(storedWidth);
-    if (Number.isFinite(parsed)) {
-      setDetailPanelWidth(parsed);
+    try {
+      const storedWidth = window.localStorage.getItem(DETAIL_PANEL_WIDTH_KEY);
+      if (!storedWidth) return;
+      const parsed = Number(storedWidth);
+      if (Number.isFinite(parsed)) {
+        setDetailPanelWidth(parsed);
+      }
+    } catch {
+      // Ignore restricted-storage failures and keep the in-memory default.
     }
   }, []);
 
@@ -473,6 +477,7 @@ export function TimelineCanvas({
         const current = panelResizeStateRef.current;
         if (!current) return;
         const nextWidth = getClampedDetailPanelWidth(current.startWidth - (moveEvent.clientX - current.startX));
+        detailPanelWidthRef.current = nextWidth;
         setDetailPanelWidth(nextWidth);
       };
 
@@ -480,7 +485,11 @@ export function TimelineCanvas({
         panelResizeStateRef.current = null;
         window.removeEventListener("pointermove", handlePointerMove);
         window.removeEventListener("pointerup", handlePointerUp);
-        window.localStorage.setItem(DETAIL_PANEL_WIDTH_KEY, String(detailPanelWidthRef.current));
+        try {
+          window.localStorage.setItem(DETAIL_PANEL_WIDTH_KEY, String(detailPanelWidthRef.current));
+        } catch {
+          // Ignore restricted-storage failures and keep the in-memory width.
+        }
       };
 
       window.addEventListener("pointermove", handlePointerMove);
