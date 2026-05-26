@@ -51,6 +51,55 @@ export async function searchLineage(
   return response.json();
 }
 
+export interface ClarifyResult {
+  needsClarification: boolean;
+  refinedQuery?: string;
+  question?: string;
+  options?: string[];
+}
+
+export async function clarifyQuery(query: string): Promise<ClarifyResult> {
+  const response = await fetch(`${EXPENSIVE_API_BASE}/api/clarify`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ query }),
+  });
+
+  if (!response.ok) {
+    if (response.status === 429) {
+      const detail = await readErrorDetail(response);
+      throw new APIError(detail || "Clarification rate limited", response.status);
+    }
+    return { needsClarification: false, refinedQuery: query };
+  }
+
+  const data = await response.json();
+  const payload = data && typeof data === "object" && !Array.isArray(data)
+    ? data as Record<string, unknown>
+    : {};
+  const rawNeedsClarification = payload.needs_clarification;
+  const needsClarification = typeof rawNeedsClarification === "boolean"
+    ? rawNeedsClarification
+    : typeof rawNeedsClarification === "string"
+      ? ["true", "1", "yes"].includes(rawNeedsClarification.trim().toLowerCase())
+      : typeof rawNeedsClarification === "number"
+        ? rawNeedsClarification === 1
+        : false;
+  const refinedQuery = typeof payload.refined_query === "string" && payload.refined_query.trim()
+    ? payload.refined_query
+    : query;
+  const question = typeof payload.question === "string" ? payload.question : "";
+  const options = Array.isArray(payload.options)
+    ? payload.options.filter((option): option is string => typeof option === "string")
+    : [];
+  return {
+    needsClarification,
+    refinedQuery,
+    question,
+    options,
+  };
+}
+
 export async function expandLineage(
   paperId: string,
   conceptContext: string,

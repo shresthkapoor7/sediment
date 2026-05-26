@@ -8,7 +8,7 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from .config import settings
-from .routers import chat, expand, persistence, search, usage
+from .routers import chat, clarify, expand, persistence, search, usage
 
 logger = logging.getLogger(__name__)
 
@@ -112,6 +112,7 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
     logger.exception("Unhandled error on %s", request.url.path, exc_info=exc)
     return JSONResponse(status_code=500, content={"detail": "Internal server error."})
 
+app.include_router(clarify.router, prefix="/api")
 app.include_router(search.router, prefix="/api")
 app.include_router(expand.router, prefix="/api")
 app.include_router(chat.router, prefix="/api")

@@ -2,12 +2,15 @@
 
 import { useState, useCallback, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { ClarificationModal } from "@/components/ClarificationModal";
 import { SearchInput } from "@/components/SearchInput";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { TimelineCanvas } from "@/components/TimelineCanvas";
 import {
   APIError,
   APP_VERSION,
+  clarifyQuery,
+  ClarifyResult,
   createSavedGraph,
   expandLineage,
   fetchSavedGraph,
@@ -96,6 +99,9 @@ export default function Home() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [credits, setCredits] = useState<number>(10);
   const [showCreditsHint, setShowCreditsHint] = useState(false);
+  const [isClarifying, setIsClarifying] = useState(false);
+  const [clarification, setClarification] = useState<ClarifyResult | null>(null);
+  const clarifyRequestIdRef = useRef(0);
   const shareStateTimeoutRef = useRef<number | null>(null);
   const saveTimeoutRef = useRef<number | null>(null);
   const saveStateTimeoutRef = useRef<number | null>(null);
@@ -224,6 +230,7 @@ export default function Home() {
     query: string,
     seedOpenalexId?: string,
     searchSettings: TraversalSettings = settings,
+    requestQuery: string = query,
   ) => {
     if (isExpanding) return;
     if (saveTimeoutRef.current) {
@@ -238,7 +245,16 @@ export default function Home() {
     setSearchedQuery(query);
 
     try {
-      const response = await searchLineage(query, seedOpenalexId, searchSettings);
+      let response = await searchLineage(requestQuery, seedOpenalexId, searchSettings);
+      const normalizedDisplayQuery = query.trim().toLowerCase();
+      const normalizedRequestQuery = requestQuery.trim().toLowerCase();
+      if (
+        response.papers.length === 0 &&
+        normalizedRequestQuery &&
+        normalizedRequestQuery !== normalizedDisplayQuery
+      ) {
+        response = await searchLineage(query, seedOpenalexId, searchSettings);
+      }
       if (response.meta.mode === "needs_disambiguation") {
         setTimelineData(null);
         setGraphId(null);
@@ -286,9 +302,36 @@ export default function Home() {
     }
   }, [buildMetadata, isExpanding, persistLastGraphId, refreshCredits, settings, userId]);
 
-  const handleSearch = useCallback((query: string) => {
-    void runSearch(query);
-  }, [runSearch]);
+  const handleSearch = useCallback(async (query: string) => {
+    const requestId = ++clarifyRequestIdRef.current;
+    setClarification(null);
+    setSearchError("");
+    setIsClarifying(true);
+    try {
+      const result = await clarifyQuery(query);
+      if (clarifyRequestIdRef.current !== requestId) {
+        return;
+      }
+      if (result.needsClarification) {
+        setClarification(result);
+      } else {
+        void runSearch(query, undefined, settings, result.refinedQuery ?? query);
+      }
+    } catch (error) {
+      if (clarifyRequestIdRef.current !== requestId) {
+        return;
+      }
+      if (error instanceof APIError && error.status === 429) {
+        setSearchError(error.message);
+        return;
+      }
+      void runSearch(query);
+    } finally {
+      if (clarifyRequestIdRef.current === requestId) {
+        setIsClarifying(false);
+      }
+    }
+  }, [runSearch, settings]);
 
   const handleSeedChoice = useCallback((openalexId: string) => {
     if (!searchedQuery) return;
@@ -297,6 +340,7 @@ export default function Home() {
   }, [runSearch, searchedQuery]);
 
   const handleReset = useCallback(() => {
+    clarifyRequestIdRef.current += 1;
     if (saveTimeoutRef.current) {
       window.clearTimeout(saveTimeoutRef.current);
     }
@@ -310,6 +354,7 @@ export default function Home() {
     setSearchedQuery("");
     setSearchError("");
     setDisambiguation([]);
+    setClarification(null);
     setDraftSettings(settings);
     persistLastGraphId(null);
   }, [persistLastGraphId, settings]);
@@ -996,6 +1041,22 @@ export default function Home() {
         </AnimatePresence>
       </motion.header>
 
+      {/* Clarification modal */}
+      <AnimatePresence>
+        {clarification?.needsClarification && (
+          <ClarificationModal
+            key="clarification-modal"
+            question={clarification.question ?? "What research area are you interested in?"}
+            options={clarification.options ?? []}
+            onSelect={(query) => {
+              setClarification(null);
+              void runSearch(query);
+            }}
+            onDismiss={() => setClarification(null)}
+          />
+        )}
+      </AnimatePresence>
+
       {/* Main content */}
       <div style={{ flex: 1, position: "relative", overflow: "hidden" }}>
         <AnimatePresence>
@@ -1296,7 +1357,7 @@ export default function Home() {
                 </p>
               </motion.div>
 
-              <SearchInput onSearch={handleSearch} isSearching={isSearching || isExpanding} />
+              <SearchInput onSearch={handleSearch} isSearching={isSearching || isExpanding || isClarifying} />
 
               {!!searchError && (
                 <motion.div
@@ -1427,7 +1488,7 @@ export default function Home() {
                 </a>
               </motion.div>
             </motion.div>
-          ) : isSearching || isRestoring ? (
+          ) : isSearching || isRestoring || isClarifying ? (
             /* Loading state */
             <motion.div
               key="loading"
@@ -1487,6 +1548,8 @@ export default function Home() {
               >
                 {isRestoring
                   ? "restoring your last graph"
+                  : isClarifying
+                    ? "checking your query..."
                   : `tracing lineage for "${searchedQuery}"`}
               </motion.p>
             </motion.div>
