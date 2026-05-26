@@ -66,6 +66,10 @@ export async function clarifyQuery(query: string): Promise<ClarifyResult> {
   });
 
   if (!response.ok) {
+    if (response.status === 429) {
+      const detail = await readErrorDetail(response);
+      throw new APIError(detail || "Clarification rate limited", response.status);
+    }
     return { needsClarification: false, refinedQuery: query };
   }
 

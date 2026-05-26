@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 
 interface Props {
   question: string;
@@ -13,6 +13,10 @@ interface Props {
 export function ClarificationModal({ question, options, onSelect, onDismiss }: Props) {
   const [customValue, setCustomValue] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -34,47 +38,45 @@ export function ClarificationModal({ question, options, onSelect, onDismiss }: P
   }
 
   return (
-    <AnimatePresence>
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      onClick={onDismiss}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(10, 8, 5, 0.55)",
+        backdropFilter: "blur(0.25rem)",
+        zIndex: 200,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "1.5rem",
+      }}
+    >
       <motion.div
-        key="clarify-backdrop"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        onClick={onDismiss}
+        initial={{ opacity: 0, y: 16, scale: 0.97 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, y: 16, scale: 0.97 }}
+        transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="clarify-question"
+        onClick={(e) => e.stopPropagation()}
         style={{
-          position: "fixed",
-          inset: 0,
-          background: "rgba(10, 8, 5, 0.55)",
-          backdropFilter: "blur(0.25rem)",
-          zIndex: 200,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
+          width: "100%",
+          maxWidth: "30rem",
+          background: "var(--bg-secondary)",
+          border: "0.0625rem solid var(--border-hover)",
+          borderRadius: "1.25rem",
+          boxShadow: "0 1.5rem 4rem rgba(0,0,0,0.28), 0 0.5rem 1rem rgba(0,0,0,0.12)",
           padding: "1.5rem",
+          display: "flex",
+          flexDirection: "column",
+          gap: "1rem",
         }}
       >
-        <motion.div
-          key="clarify-panel"
-          initial={{ opacity: 0, y: 16, scale: 0.97 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: 16, scale: 0.97 }}
-          transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-          role="dialog"
-          aria-modal="true"
-          onClick={(e) => e.stopPropagation()}
-          style={{
-            width: "100%",
-            maxWidth: "30rem",
-            background: "var(--bg-secondary)",
-            border: "0.0625rem solid var(--border-hover)",
-            borderRadius: "1.25rem",
-            boxShadow: "0 1.5rem 4rem rgba(0,0,0,0.28), 0 0.5rem 1rem rgba(0,0,0,0.12)",
-            padding: "1.5rem",
-            display: "flex",
-            flexDirection: "column",
-            gap: "1rem",
-          }}
-        >
           {/* Header */}
           <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "0.75rem" }}>
             <div>
@@ -91,6 +93,7 @@ export function ClarificationModal({ question, options, onSelect, onDismiss }: P
                 help me find the right trace
               </p>
               <p
+                id="clarify-question"
                 style={{
                   fontSize: "1rem",
                   color: "var(--text-primary)",
@@ -222,8 +225,7 @@ export function ClarificationModal({ question, options, onSelect, onDismiss }: P
               Trace
             </button>
           </form>
-        </motion.div>
       </motion.div>
-    </AnimatePresence>
+    </motion.div>
   );
 }

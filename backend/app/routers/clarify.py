@@ -22,9 +22,10 @@ def _get_ip(request: Request) -> str:
 
 @router.post("/clarify", response_model=ClarifyResponse)
 async def clarify(req: ClarifyRequest, request: Request):
-    await limiter.claim_request(_get_ip(request), "clarify")
+    ip = _get_ip(request)
+    await limiter.claim_request(ip, "clarify")
     try:
-        result = await _llm.clarify_query(req.query.strip(), ip=_get_ip(request))
+        result = await _llm.clarify_query(req.query.strip(), ip=ip)
     except LLMParseError:
         return ClarifyResponse(needs_clarification=False, refined_query=req.query.strip())
 

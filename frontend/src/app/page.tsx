@@ -317,8 +317,12 @@ export default function Home() {
       } else {
         void runSearch(query, undefined, settings, result.refinedQuery ?? query);
       }
-    } catch {
+    } catch (error) {
       if (clarifyRequestIdRef.current !== requestId) {
+        return;
+      }
+      if (error instanceof APIError && error.status === 429) {
+        setSearchError(error.message);
         return;
       }
       void runSearch(query);
@@ -1038,17 +1042,20 @@ export default function Home() {
       </motion.header>
 
       {/* Clarification modal */}
-      {clarification?.needsClarification && (
-        <ClarificationModal
-          question={clarification.question ?? "What research area are you interested in?"}
-          options={clarification.options ?? []}
-          onSelect={(query) => {
-            setClarification(null);
-            void runSearch(query);
-          }}
-          onDismiss={() => setClarification(null)}
-        />
-      )}
+      <AnimatePresence>
+        {clarification?.needsClarification && (
+          <ClarificationModal
+            key="clarification-modal"
+            question={clarification.question ?? "What research area are you interested in?"}
+            options={clarification.options ?? []}
+            onSelect={(query) => {
+              setClarification(null);
+              void runSearch(query);
+            }}
+            onDismiss={() => setClarification(null)}
+          />
+        )}
+      </AnimatePresence>
 
       {/* Main content */}
       <div style={{ flex: 1, position: "relative", overflow: "hidden" }}>
@@ -1481,7 +1488,7 @@ export default function Home() {
                 </a>
               </motion.div>
             </motion.div>
-          ) : isSearching || isRestoring ? (
+          ) : isSearching || isRestoring || isClarifying ? (
             /* Loading state */
             <motion.div
               key="loading"
@@ -1541,6 +1548,8 @@ export default function Home() {
               >
                 {isRestoring
                   ? "restoring your last graph"
+                  : isClarifying
+                    ? "checking your query..."
                   : `tracing lineage for "${searchedQuery}"`}
               </motion.p>
             </motion.div>
