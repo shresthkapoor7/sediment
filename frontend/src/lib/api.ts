@@ -70,11 +70,29 @@ export async function clarifyQuery(query: string): Promise<ClarifyResult> {
   }
 
   const data = await response.json();
+  const payload = data && typeof data === "object" && !Array.isArray(data)
+    ? data as Record<string, unknown>
+    : {};
+  const rawNeedsClarification = payload.needs_clarification;
+  const needsClarification = typeof rawNeedsClarification === "boolean"
+    ? rawNeedsClarification
+    : typeof rawNeedsClarification === "string"
+      ? ["true", "1", "yes"].includes(rawNeedsClarification.trim().toLowerCase())
+      : typeof rawNeedsClarification === "number"
+        ? rawNeedsClarification === 1
+        : false;
+  const refinedQuery = typeof payload.refined_query === "string" && payload.refined_query.trim()
+    ? payload.refined_query
+    : query;
+  const question = typeof payload.question === "string" ? payload.question : "";
+  const options = Array.isArray(payload.options)
+    ? payload.options.filter((option): option is string => typeof option === "string")
+    : [];
   return {
-    needsClarification: Boolean(data.needs_clarification),
-    refinedQuery: data.refined_query ?? query,
-    question: data.question,
-    options: data.options,
+    needsClarification,
+    refinedQuery,
+    question,
+    options,
   };
 }
 

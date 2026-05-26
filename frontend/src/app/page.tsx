@@ -326,6 +326,7 @@ export default function Home() {
   }, [runSearch, searchedQuery]);
 
   const handleReset = useCallback(() => {
+    clarifyRequestIdRef.current += 1;
     if (saveTimeoutRef.current) {
       window.clearTimeout(saveTimeoutRef.current);
     }

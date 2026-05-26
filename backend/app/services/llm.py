@@ -345,7 +345,15 @@ OR:
         if not isinstance(parsed, dict):
             raise LLMParseError("Clarify response was not an object")
 
-        needs_clarification = bool(parsed.get("needs_clarification", False))
+        raw = parsed.get("needs_clarification", False)
+        if isinstance(raw, bool):
+            needs_clarification = raw
+        elif isinstance(raw, str):
+            needs_clarification = raw.strip().lower() in {"true", "1", "yes"}
+        elif isinstance(raw, (int, float)):
+            needs_clarification = raw == 1
+        else:
+            needs_clarification = False
 
         if not needs_clarification:
             refined = parsed.get("refined_query")
