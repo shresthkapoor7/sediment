@@ -319,6 +319,53 @@ Rules:
             "suggestion": cleaned_suggestion,
         }
 
+    async def clarify_query(self, query: str, ip: str = "unknown") -> dict:
+        prompt = f"""You help users of a research paper lineage explorer find the right academic concept to trace.
+
+User entered: "{query}"
+
+Decide:
+1. If the query clearly refers to a specific academic/research topic, method, paper, technology, or concept (even if loosely phrased like "how does attention work"), respond with needs_clarification=false and a cleaned-up search-friendly version of their query.
+2. If the query is ambiguous and could mean different things in different research fields (e.g. "attention" = cognitive psychology OR transformer attention), respond with needs_clarification=true and 2-4 specific research interpretations as options.
+3. If the query is too vague or non-academic (e.g. "what is the meaning of life", "something cool"), respond with needs_clarification=true, a short clarifying question, and 2-4 research topic options that might be relevant.
+
+Respond with JSON only:
+{{
+  "needs_clarification": false,
+  "refined_query": "<concise search query>"
+}}
+OR:
+{{
+  "needs_clarification": true,
+  "question": "<one short question to ask the user>",
+  "options": ["<specific research topic 1>", "<specific research topic 2>", ...]
+}}"""
+
+        parsed = await self._prompt_json(prompt, ip=ip)
+        if not isinstance(parsed, dict):
+            raise LLMParseError("Clarify response was not an object")
+
+        needs_clarification = bool(parsed.get("needs_clarification", False))
+
+        if not needs_clarification:
+            refined = parsed.get("refined_query")
+            return {
+                "needs_clarification": False,
+                "refined_query": refined if isinstance(refined, str) and refined.strip() else query,
+            }
+
+        question = parsed.get("question")
+        options = parsed.get("options", [])
+        if not isinstance(options, list):
+            options = []
+        options = [o for o in options if isinstance(o, str) and o.strip()][:4]
+
+        return {
+            "needs_clarification": True,
+            "question": question if isinstance(question, str) else "What research area are you interested in?",
+            "options": options,
+        }
+
     async def _prompt_json(self, prompt: str, ip: str = "unknown"):
         resp = await self.client.messages.create(
             model=self.model,

@@ -51,6 +51,33 @@ export async function searchLineage(
   return response.json();
 }
 
+export interface ClarifyResult {
+  needsClarification: boolean;
+  refinedQuery?: string;
+  question?: string;
+  options?: string[];
+}
+
+export async function clarifyQuery(query: string): Promise<ClarifyResult> {
+  const response = await fetch(`${EXPENSIVE_API_BASE}/api/clarify`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ query }),
+  });
+
+  if (!response.ok) {
+    return { needsClarification: false, refinedQuery: query };
+  }
+
+  const data = await response.json();
+  return {
+    needsClarification: Boolean(data.needs_clarification),
+    refinedQuery: data.refined_query ?? query,
+    question: data.question,
+    options: data.options,
+  };
+}
+
 export async function expandLineage(
   paperId: string,
   conceptContext: string,
