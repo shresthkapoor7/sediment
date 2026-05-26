@@ -329,6 +329,11 @@ Decide:
 2. If the query is ambiguous and could mean different things in different research fields (e.g. "attention" = cognitive psychology OR transformer attention), respond with needs_clarification=true and 2-4 specific research interpretations as options.
 3. If the query is too vague or non-academic (e.g. "what is the meaning of life", "something cool"), respond with needs_clarification=true, a short clarifying question, and 2-4 research topic options that might be relevant.
 
+Important:
+- If the user appears to have entered a paper title, preserve the title wording closely.
+- Do not generalize a paper title into loose topic keywords.
+- Do not append adjacent concepts that were not in the original query.
+
 Respond with JSON only:
 {{
   "needs_clarification": false,

@@ -230,6 +230,7 @@ export default function Home() {
     query: string,
     seedOpenalexId?: string,
     searchSettings: TraversalSettings = settings,
+    requestQuery: string = query,
   ) => {
     if (isExpanding) return;
     if (saveTimeoutRef.current) {
@@ -244,7 +245,16 @@ export default function Home() {
     setSearchedQuery(query);
 
     try {
-      const response = await searchLineage(query, seedOpenalexId, searchSettings);
+      let response = await searchLineage(requestQuery, seedOpenalexId, searchSettings);
+      const normalizedDisplayQuery = query.trim().toLowerCase();
+      const normalizedRequestQuery = requestQuery.trim().toLowerCase();
+      if (
+        response.papers.length === 0 &&
+        normalizedRequestQuery &&
+        normalizedRequestQuery !== normalizedDisplayQuery
+      ) {
+        response = await searchLineage(query, seedOpenalexId, searchSettings);
+      }
       if (response.meta.mode === "needs_disambiguation") {
         setTimelineData(null);
         setGraphId(null);
@@ -305,7 +315,7 @@ export default function Home() {
       if (result.needsClarification) {
         setClarification(result);
       } else {
-        void runSearch(result.refinedQuery ?? query);
+        void runSearch(query, undefined, settings, result.refinedQuery ?? query);
       }
     } catch {
       if (clarifyRequestIdRef.current !== requestId) {
@@ -317,7 +327,7 @@ export default function Home() {
         setIsClarifying(false);
       }
     }
-  }, [runSearch]);
+  }, [runSearch, settings]);
 
   const handleSeedChoice = useCallback((openalexId: string) => {
     if (!searchedQuery) return;
