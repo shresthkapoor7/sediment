@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import ReactMarkdown from "react-markdown";
 
 type ChangelogEntry = {
   id: string;
@@ -35,6 +36,15 @@ function parseTitle(title: string): { prefix: string; rest: string } {
     return { prefix: "sediment", rest: match[1] };
   }
   return { prefix: "", rest: title };
+}
+
+function cleanSummary(summary: string): string {
+  return summary
+    .replace(/<!--[\s\S]*?-->/g, "")
+    .replace(/\[!\[.*?\]\(.*?\)\]\(.*?\)/g, "")
+    .replace(/!\[.*?\]\(.*?\)/g, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 function ChangelogCard({ entry }: { entry: ChangelogEntry }) {
@@ -124,24 +134,95 @@ function ChangelogCard({ entry }: { entry: ChangelogEntry }) {
             style={{
               fontSize: "1rem",
               fontWeight: 600,
-              color: "var(--text-primary)",
               lineHeight: 1.4,
               marginBottom: entry.summary ? "0.5rem" : 0,
             }}
           >
-            {displayTitle}
+            <a
+              href={entry.pr_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                color: "var(--text-primary)",
+                textDecoration: "none",
+              }}
+            >
+              {displayTitle}
+            </a>
           </h3>
           {entry.summary && (
-            <p
+            <div
+              className="changelog-summary"
               style={{
                 fontSize: "0.9375rem",
                 lineHeight: 1.6,
                 color: "var(--text-secondary)",
-                whiteSpace: "pre-wrap",
               }}
             >
-              {entry.summary}
-            </p>
+              <ReactMarkdown
+                components={{
+                  p: ({ children }) => (
+                    <p style={{ margin: "0 0 0.75rem 0" }}>{children}</p>
+                  ),
+                  ul: ({ children }) => (
+                    <ul
+                      style={{
+                        margin: "0.5rem 0",
+                        paddingLeft: "1.25rem",
+                        listStyleType: "disc",
+                      }}
+                    >
+                      {children}
+                    </ul>
+                  ),
+                  ol: ({ children }) => (
+                    <ol
+                      style={{
+                        margin: "0.5rem 0",
+                        paddingLeft: "1.25rem",
+                      }}
+                    >
+                      {children}
+                    </ol>
+                  ),
+                  li: ({ children }) => (
+                    <li style={{ margin: "0.25rem 0" }}>{children}</li>
+                  ),
+                  strong: ({ children }) => (
+                    <strong
+                      style={{ fontWeight: 600, color: "var(--text-primary)" }}
+                    >
+                      {children}
+                    </strong>
+                  ),
+                  a: ({ href, children }) => (
+                    <a
+                      href={href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ color: "var(--accent)" }}
+                    >
+                      {children}
+                    </a>
+                  ),
+                  code: ({ children }) => (
+                    <code
+                      style={{
+                        background: "var(--bg-tertiary)",
+                        padding: "0.125rem 0.375rem",
+                        borderRadius: "0.25rem",
+                        fontSize: "0.875em",
+                        fontFamily: "'JetBrains Mono', monospace",
+                      }}
+                    >
+                      {children}
+                    </code>
+                  ),
+                }}
+              >
+                {cleanSummary(entry.summary)}
+              </ReactMarkdown>
+            </div>
           )}
         </div>
       </div>
