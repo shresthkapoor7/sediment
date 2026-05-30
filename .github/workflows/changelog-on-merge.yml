@@ -23,11 +23,6 @@ jobs:
 
             if (summaryMatch) {
               summary = summaryMatch[1].trim();
-              // Clean up markdown formatting for display
-              summary = summary
-                .replace(/^\s*[-*]\s*/gm, '')
-                .replace(/\n{3,}/g, '\n\n')
-                .trim();
             }
 
             core.setOutput('summary', summary);

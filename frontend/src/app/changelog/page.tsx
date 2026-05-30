@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import ReactMarkdown from "react-markdown";
 
 type ChangelogEntry = {
   id: string;
@@ -18,7 +19,52 @@ const TAG_COLORS = {
     bg: "var(--accent-soft)",
     text: "var(--accent)",
   },
+  green: {
+    bg: "rgba(34, 197, 94, 0.12)",
+    text: "rgb(34, 197, 94)",
+  },
+  blue: {
+    bg: "rgba(59, 130, 246, 0.12)",
+    text: "rgb(59, 130, 246)",
+  },
+  purple: {
+    bg: "rgba(168, 85, 247, 0.12)",
+    text: "rgb(168, 85, 247)",
+  },
+  gray: {
+    bg: "rgba(156, 163, 175, 0.12)",
+    text: "rgb(156, 163, 175)",
+  },
 };
+
+type Category = {
+  label: string;
+  color: keyof typeof TAG_COLORS;
+};
+
+function detectCategories(summary: string | null): Category[] {
+  if (!summary) return [];
+
+  const categories: Category[] = [];
+
+  if (/\*\*new features?\*\*|\*\*features?\*\*/i.test(summary)) {
+    categories.push({ label: "New Feature", color: "accent" });
+  }
+  if (/\*\*bug fix(es)?\*\*/i.test(summary)) {
+    categories.push({ label: "Bug Fix", color: "green" });
+  }
+  if (/\*\*styl(e|ing)\*\*/i.test(summary)) {
+    categories.push({ label: "Style", color: "blue" });
+  }
+  if (/\*\*(chores?|refactor(ing)?|infrastructure)\*\*/i.test(summary)) {
+    categories.push({ label: "Chores", color: "purple" });
+  }
+  if (/\*\*(documentation|docs)\*\*/i.test(summary)) {
+    categories.push({ label: "Docs", color: "gray" });
+  }
+
+  return categories;
+}
 
 function formatDate(isoDate: string): string {
   const date = new Date(isoDate);
@@ -37,9 +83,19 @@ function parseTitle(title: string): { prefix: string; rest: string } {
   return { prefix: "", rest: title };
 }
 
+function cleanSummary(summary: string): string {
+  return summary
+    .replace(/<!--[\s\S]*?-->/g, "")
+    .replace(/\[!\[.*?\]\(.*?\)\]\(.*?\)/g, "")
+    .replace(/!\[.*?\]\(.*?\)/g, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 function ChangelogCard({ entry }: { entry: ChangelogEntry }) {
-  const colors = TAG_COLORS.accent;
   const { rest: displayTitle } = parseTitle(entry.title);
+  const categories = detectCategories(entry.summary);
+  const dotColor = categories.length > 0 ? TAG_COLORS[categories[0].color] : TAG_COLORS.accent;
 
   return (
     <div style={{ display: "flex", gap: "1.5rem" }}>
@@ -56,8 +112,8 @@ function ChangelogCard({ entry }: { entry: ChangelogEntry }) {
             width: "0.75rem",
             height: "0.75rem",
             borderRadius: "50%",
-            background: colors.text,
-            boxShadow: `0 0 0.5rem ${colors.text}40`,
+            background: dotColor.text,
+            boxShadow: `0 0 0.5rem ${dotColor.text}40`,
             flexShrink: 0,
           }}
         />
@@ -76,7 +132,7 @@ function ChangelogCard({ entry }: { entry: ChangelogEntry }) {
           style={{
             display: "flex",
             alignItems: "center",
-            gap: "0.75rem",
+            gap: "0.5rem",
             marginBottom: "0.75rem",
             flexWrap: "wrap",
           }}
@@ -98,8 +154,8 @@ function ChangelogCard({ entry }: { entry: ChangelogEntry }) {
             style={{
               padding: "0.25rem 0.5rem",
               borderRadius: "0.25rem",
-              background: colors.bg,
-              color: colors.text,
+              background: TAG_COLORS.accent.bg,
+              color: TAG_COLORS.accent.text,
               fontFamily: "'JetBrains Mono', monospace",
               fontSize: "0.6875rem",
               fontWeight: 500,
@@ -109,6 +165,26 @@ function ChangelogCard({ entry }: { entry: ChangelogEntry }) {
           >
             PR #{entry.pr_number}
           </a>
+          {categories.map((cat) => {
+            const catColors = TAG_COLORS[cat.color];
+            return (
+              <span
+                key={cat.label}
+                style={{
+                  padding: "0.25rem 0.5rem",
+                  borderRadius: "0.25rem",
+                  background: catColors.bg,
+                  color: catColors.text,
+                  fontFamily: "'JetBrains Mono', monospace",
+                  fontSize: "0.6875rem",
+                  fontWeight: 500,
+                  letterSpacing: "0.02em",
+                }}
+              >
+                {cat.label}
+              </span>
+            );
+          })}
         </div>
 
         <div
@@ -124,24 +200,95 @@ function ChangelogCard({ entry }: { entry: ChangelogEntry }) {
             style={{
               fontSize: "1rem",
               fontWeight: 600,
-              color: "var(--text-primary)",
               lineHeight: 1.4,
               marginBottom: entry.summary ? "0.5rem" : 0,
             }}
           >
-            {displayTitle}
+            <a
+              href={entry.pr_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                color: "var(--text-primary)",
+                textDecoration: "none",
+              }}
+            >
+              {displayTitle}
+            </a>
           </h3>
           {entry.summary && (
-            <p
+            <div
+              className="changelog-summary"
               style={{
                 fontSize: "0.9375rem",
                 lineHeight: 1.6,
                 color: "var(--text-secondary)",
-                whiteSpace: "pre-wrap",
               }}
             >
-              {entry.summary}
-            </p>
+              <ReactMarkdown
+                components={{
+                  p: ({ children }) => (
+                    <p style={{ margin: "0 0 0.75rem 0" }}>{children}</p>
+                  ),
+                  ul: ({ children }) => (
+                    <ul
+                      style={{
+                        margin: "0.5rem 0",
+                        paddingLeft: "1.25rem",
+                        listStyleType: "disc",
+                      }}
+                    >
+                      {children}
+                    </ul>
+                  ),
+                  ol: ({ children }) => (
+                    <ol
+                      style={{
+                        margin: "0.5rem 0",
+                        paddingLeft: "1.25rem",
+                      }}
+                    >
+                      {children}
+                    </ol>
+                  ),
+                  li: ({ children }) => (
+                    <li style={{ margin: "0.25rem 0" }}>{children}</li>
+                  ),
+                  strong: ({ children }) => (
+                    <strong
+                      style={{ fontWeight: 600, color: "var(--text-primary)" }}
+                    >
+                      {children}
+                    </strong>
+                  ),
+                  a: ({ href, children }) => (
+                    <a
+                      href={href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ color: "var(--accent)" }}
+                    >
+                      {children}
+                    </a>
+                  ),
+                  code: ({ children }) => (
+                    <code
+                      style={{
+                        background: "var(--bg-tertiary)",
+                        padding: "0.125rem 0.375rem",
+                        borderRadius: "0.25rem",
+                        fontSize: "0.875em",
+                        fontFamily: "'JetBrains Mono', monospace",
+                      }}
+                    >
+                      {children}
+                    </code>
+                  ),
+                }}
+              >
+                {cleanSummary(entry.summary)}
+              </ReactMarkdown>
+            </div>
           )}
         </div>
       </div>

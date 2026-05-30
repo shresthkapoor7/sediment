@@ -36,10 +36,7 @@ jobs:
               let summary = '';
 
               if (summaryMatch) {
-                summary = summaryMatch[1].trim()
-                  .replace(/^\s*[-*]\s*/gm, '')
-                  .replace(/\n{3,}/g, '\n\n')
-                  .trim();
+                summary = summaryMatch[1].trim();
               }
 
               const payload = {
