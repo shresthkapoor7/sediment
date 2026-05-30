@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Fetch and insert merged PRs
-        uses: actions/github-script@v7
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
@@ -32,7 +32,7 @@ jobs:
               const prBody = pr.body || '';
 
               // Extract CodeRabbit summary
-              const summaryMatch = prBody.match(/## Summary by CodeRabbit\s*([\s\S]*?)(?=\n##|\n---|\Z)/i);
+              const summaryMatch = prBody.match(/## Summary by CodeRabbit\s*([\s\S]*?)(?=\n##|\n---|$)/i);
               let summary = '';
 
               if (summaryMatch) {

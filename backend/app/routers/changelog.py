@@ -28,9 +28,10 @@ class ChangelogResponse(BaseModel):
 async def list_changelogs(limit: int = 50):
     try:
         client = SupabaseClient()
-        entries = await client.list_changelogs(limit=min(limit, 100))
+        clamped_limit = max(1, min(limit, 100))
+        entries = await client.list_changelogs(limit=clamped_limit)
         return ChangelogResponse(entries=entries)
     except SupabaseConfigError:
-        raise HTTPException(status_code=503, detail="Database not configured")
+        raise HTTPException(status_code=503, detail="Database not configured") from None
     except SupabaseAPIError as e:
-        raise HTTPException(status_code=502, detail=str(e))
+        raise HTTPException(status_code=502, detail=str(e)) from e

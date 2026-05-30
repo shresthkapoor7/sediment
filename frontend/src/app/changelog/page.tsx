@@ -160,7 +160,9 @@ export default function ChangelogPage() {
     document.title = "Changelog — Sediment";
     document.body.style.overflow = "auto";
 
-    fetch("/api/changelog")
+    const controller = new AbortController();
+
+    fetch("/api/changelog", { signal: controller.signal })
       .then((res) => {
         if (!res.ok) throw new Error("Failed to fetch changelog");
         return res.json();
@@ -170,11 +172,13 @@ export default function ChangelogPage() {
         setLoading(false);
       })
       .catch((err) => {
+        if (err.name === "AbortError") return;
         setError(err.message);
         setLoading(false);
       });
 
     return () => {
+      controller.abort();
       document.body.style.overflow = "";
     };
   }, []);
