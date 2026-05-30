@@ -19,7 +19,53 @@ const TAG_COLORS = {
     bg: "var(--accent-soft)",
     text: "var(--accent)",
   },
+  green: {
+    bg: "rgba(34, 197, 94, 0.12)",
+    text: "rgb(34, 197, 94)",
+  },
+  blue: {
+    bg: "rgba(59, 130, 246, 0.12)",
+    text: "rgb(59, 130, 246)",
+  },
+  purple: {
+    bg: "rgba(168, 85, 247, 0.12)",
+    text: "rgb(168, 85, 247)",
+  },
+  gray: {
+    bg: "rgba(156, 163, 175, 0.12)",
+    text: "rgb(156, 163, 175)",
+  },
 };
+
+type Category = {
+  label: string;
+  color: keyof typeof TAG_COLORS;
+};
+
+function detectCategories(summary: string | null): Category[] {
+  if (!summary) return [];
+
+  const categories: Category[] = [];
+  const text = summary.toLowerCase();
+
+  if (/\*\*new features?\*\*|\*\*features?\*\*/i.test(summary)) {
+    categories.push({ label: "New Feature", color: "accent" });
+  }
+  if (/\*\*bug fix(es)?\*\*/i.test(summary)) {
+    categories.push({ label: "Bug Fix", color: "green" });
+  }
+  if (/\*\*styl(e|ing)\*\*/i.test(summary)) {
+    categories.push({ label: "Style", color: "blue" });
+  }
+  if (/\*\*(chores?|refactor(ing)?|infrastructure)\*\*/i.test(summary)) {
+    categories.push({ label: "Chores", color: "purple" });
+  }
+  if (/\*\*(documentation|docs)\*\*/i.test(summary)) {
+    categories.push({ label: "Docs", color: "gray" });
+  }
+
+  return categories;
+}
 
 function formatDate(isoDate: string): string {
   const date = new Date(isoDate);
@@ -48,8 +94,9 @@ function cleanSummary(summary: string): string {
 }
 
 function ChangelogCard({ entry }: { entry: ChangelogEntry }) {
-  const colors = TAG_COLORS.accent;
   const { rest: displayTitle } = parseTitle(entry.title);
+  const categories = detectCategories(entry.summary);
+  const dotColor = categories.length > 0 ? TAG_COLORS[categories[0].color] : TAG_COLORS.accent;
 
   return (
     <div style={{ display: "flex", gap: "1.5rem" }}>
@@ -66,8 +113,8 @@ function ChangelogCard({ entry }: { entry: ChangelogEntry }) {
             width: "0.75rem",
             height: "0.75rem",
             borderRadius: "50%",
-            background: colors.text,
-            boxShadow: `0 0 0.5rem ${colors.text}40`,
+            background: dotColor.text,
+            boxShadow: `0 0 0.5rem ${dotColor.text}40`,
             flexShrink: 0,
           }}
         />
@@ -86,7 +133,7 @@ function ChangelogCard({ entry }: { entry: ChangelogEntry }) {
           style={{
             display: "flex",
             alignItems: "center",
-            gap: "0.75rem",
+            gap: "0.5rem",
             marginBottom: "0.75rem",
             flexWrap: "wrap",
           }}
@@ -108,8 +155,8 @@ function ChangelogCard({ entry }: { entry: ChangelogEntry }) {
             style={{
               padding: "0.25rem 0.5rem",
               borderRadius: "0.25rem",
-              background: colors.bg,
-              color: colors.text,
+              background: TAG_COLORS.accent.bg,
+              color: TAG_COLORS.accent.text,
               fontFamily: "'JetBrains Mono', monospace",
               fontSize: "0.6875rem",
               fontWeight: 500,
@@ -119,6 +166,26 @@ function ChangelogCard({ entry }: { entry: ChangelogEntry }) {
           >
             PR #{entry.pr_number}
           </a>
+          {categories.map((cat) => {
+            const catColors = TAG_COLORS[cat.color];
+            return (
+              <span
+                key={cat.label}
+                style={{
+                  padding: "0.25rem 0.5rem",
+                  borderRadius: "0.25rem",
+                  background: catColors.bg,
+                  color: catColors.text,
+                  fontFamily: "'JetBrains Mono', monospace",
+                  fontSize: "0.6875rem",
+                  fontWeight: 500,
+                  letterSpacing: "0.02em",
+                }}
+              >
+                {cat.label}
+              </span>
+            );
+          })}
         </div>
 
         <div
