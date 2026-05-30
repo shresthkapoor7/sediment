@@ -110,6 +110,15 @@ class SupabaseClient:
         )
         return await self._request("GET", query)
 
+    async def list_changelogs(self, limit: int = 50) -> list[dict[str, Any]]:
+        query = (
+            "/rest/v1/changelogs"
+            "?select=id,pr_number,title,summary,merged_at,author,pr_url"
+            "&order=merged_at.desc"
+            f"&limit={limit}"
+        )
+        return await self._request("GET", query)
+
     async def rpc(self, function_name: str, params: dict[str, Any], *, expect_single: bool = False) -> Any:
         return await self._request(
             "POST",

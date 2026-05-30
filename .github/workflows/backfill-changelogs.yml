@@ -1,0 +1,76 @@
+name: Backfill changelogs from merged PRs
+
+on:
+  workflow_dispatch:
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch and insert merged PRs
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        with:
+          script: |
+            const { SUPABASE_URL, SUPABASE_KEY } = process.env;
+
+            // Fetch all merged PRs
+            const prs = await github.paginate(github.rest.pulls.list, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'closed',
+              base: 'main',
+              per_page: 100
+            });
+
+            const mergedPRs = prs.filter(pr => pr.merged_at);
+            console.log(`Found ${mergedPRs.length} merged PRs`);
+
+            for (const pr of mergedPRs) {
+              const prBody = pr.body || '';
+
+              // Extract CodeRabbit summary
+              const summaryMatch = prBody.match(/## Summary by CodeRabbit\s*([\s\S]*?)(?=\n##|\n---|$)/i);
+              let summary = '';
+
+              if (summaryMatch) {
+                summary = summaryMatch[1].trim()
+                  .replace(/^\s*[-*]\s*/gm, '')
+                  .replace(/\n{3,}/g, '\n\n')
+                  .trim();
+              }
+
+              const payload = {
+                pr_number: pr.number,
+                title: pr.title,
+                summary: summary,
+                merged_at: pr.merged_at,
+                author: pr.user.login,
+                pr_url: pr.html_url
+              };
+
+              try {
+                const response = await fetch(`${SUPABASE_URL}/rest/v1/changelogs`, {
+                  method: 'POST',
+                  headers: {
+                    'apikey': SUPABASE_KEY,
+                    'Authorization': `Bearer ${SUPABASE_KEY}`,
+                    'Content-Type': 'application/json',
+                    'Prefer': 'return=minimal'
+                  },
+                  body: JSON.stringify(payload)
+                });
+
+                if (response.ok) {
+                  console.log(`✓ PR #${pr.number}: ${pr.title}`);
+                } else if (response.status === 409) {
+                  console.log(`⊘ PR #${pr.number}: already exists`);
+                } else {
+                  console.log(`✗ PR #${pr.number}: ${response.status} ${await response.text()}`);
+                }
+              } catch (err) {
+                console.log(`✗ PR #${pr.number}: ${err.message}`);
+              }
+            }
