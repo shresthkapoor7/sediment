@@ -786,7 +786,7 @@ function DemoTypeScene({
                 placeItems: "center",
                 color:
                   typeProgress > 0.95
-                    ? "var(--bg-primary)"
+                    ? "#fff"
                     : "var(--text-tertiary)",
                 background:
                   typeProgress > 0.95 ? "var(--accent)" : "var(--bg-secondary)",
@@ -1569,10 +1569,10 @@ function DemoChatScene({
 }
 
 function DemoFinalSection({
-  onSearch,
+  onScrollToSearch,
   compact,
 }: {
-  onSearch: (query: string) => void;
+  onScrollToSearch: () => void;
   compact: boolean;
 }) {
   const [hoverId, setHoverId] = useState<string | null>(null);
@@ -1672,7 +1672,7 @@ function DemoFinalSection({
         >
           <button
             type="button"
-            onClick={() => onSearch("Transformer")}
+            onClick={onScrollToSearch}
             style={{
               display: "inline-flex",
               alignItems: "center",
@@ -1830,7 +1830,7 @@ function DemoFooter({ compact }: { compact: boolean }) {
             >
               GitHub
             </a>
-            <a href="#" style={footerLinkStyle}>
+            <a href="/changelog" style={footerLinkStyle}>
               Changelog
             </a>
             <a href="mailto:shresthkapoor7@gmail.com" style={footerLinkStyle}>
@@ -1886,6 +1886,7 @@ export default function Home() {
   const saveTimeoutRef = useRef<number | null>(null);
   const saveStateTimeoutRef = useRef<number | null>(null);
   const landingScrollRef = useRef<HTMLDivElement | null>(null);
+  const landingSearchRef = useRef<HTMLDivElement | null>(null);
   const { compact, mobile } = useLandingViewport();
 
   useEffect(() => {
@@ -2159,6 +2160,21 @@ export default function Home() {
     },
     [runSearch, searchedQuery],
   );
+
+  const handleScrollToSearch = useCallback(() => {
+    const container = landingScrollRef.current;
+    if (!container) return;
+
+    container.scrollTo({
+      top: 0,
+      behavior: "instant",
+    });
+
+    const input = landingSearchRef.current?.querySelector("input");
+    if (input instanceof HTMLInputElement) {
+      input.focus();
+    }
+  }, []);
 
   const handleReset = useCallback(() => {
     clarifyRequestIdRef.current += 1;
@@ -3328,7 +3344,7 @@ export default function Home() {
                     <path d="M8 2v9M4 7l4 4 4-4" />
                     <path d="M2 13h12" />
                   </svg>
-                  Export to Obsidian
+                  Export Markdown
                 </button>
               )}
 
@@ -3774,10 +3790,19 @@ export default function Home() {
                     </p>
                   </motion.div>
 
-                  <SearchInput
-                    onSearch={handleSearch}
-                    isSearching={isSearching || isExpanding || isClarifying}
-                  />
+                  <div
+                    ref={landingSearchRef}
+                    style={{
+                      width: "100%",
+                      display: "flex",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <SearchInput
+                      onSearch={handleSearch}
+                      isSearching={isSearching || isExpanding || isClarifying}
+                    />
+                  </div>
 
                   {!!searchError && (
                     <motion.div
@@ -3945,7 +3970,10 @@ export default function Home() {
                   containerRef={landingScrollRef}
                   compact={compact}
                 />
-                <DemoFinalSection onSearch={handleSearch} compact={compact} />
+                <DemoFinalSection
+                  onScrollToSearch={handleScrollToSearch}
+                  compact={compact}
+                />
                 <DemoFooter compact={compact} />
               </div>
             </motion.div>

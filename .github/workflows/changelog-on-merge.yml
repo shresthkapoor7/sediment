@@ -1,0 +1,54 @@
+name: Add changelog entry on PR merge
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+jobs:
+  add-changelog:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Extract CodeRabbit summary
+        id: extract
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prBody = context.payload.pull_request.body || '';
+
+            // Extract CodeRabbit summary section
+            const summaryMatch = prBody.match(/## Summary by CodeRabbit\s*([\s\S]*?)(?=\n##|\n---|\Z)/i);
+            let summary = '';
+
+            if (summaryMatch) {
+              summary = summaryMatch[1].trim();
+              // Clean up markdown formatting for display
+              summary = summary
+                .replace(/^\s*[-*]\s*/gm, '')
+                .replace(/\n{3,}/g, '\n\n')
+                .trim();
+            }
+
+            core.setOutput('summary', summary);
+            core.setOutput('title', context.payload.pull_request.title);
+            core.setOutput('pr_number', context.payload.pull_request.number);
+            core.setOutput('author', context.payload.pull_request.user.login);
+            core.setOutput('pr_url', context.payload.pull_request.html_url);
+            core.setOutput('merged_at', context.payload.pull_request.merged_at);
+
+      - name: Insert into Supabase
+        run: |
+          curl -X POST "${{ secrets.SUPABASE_URL }}/rest/v1/changelogs" \
+            -H "apikey: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+            -H "Content-Type: application/json" \
+            -H "Prefer: return=minimal" \
+            -d '{
+              "pr_number": ${{ steps.extract.outputs.pr_number }},
+              "title": ${{ toJSON(steps.extract.outputs.title) }},
+              "summary": ${{ toJSON(steps.extract.outputs.summary) }},
+              "merged_at": "${{ steps.extract.outputs.merged_at }}",
+              "author": "${{ steps.extract.outputs.author }}",
+              "pr_url": "${{ steps.extract.outputs.pr_url }}"
+            }'
