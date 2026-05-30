@@ -46,7 +46,6 @@ function detectCategories(summary: string | null): Category[] {
   if (!summary) return [];
 
   const categories: Category[] = [];
-  const text = summary.toLowerCase();
 
   if (/\*\*new features?\*\*|\*\*features?\*\*/i.test(summary)) {
     categories.push({ label: "New Feature", color: "accent" });
