@@ -859,6 +859,7 @@ export function TimelineCanvas({
                 index={i}
                 isActive={isActive}
                 isCrossLane={isCrossLane}
+                isSupporting={edge.relation === "supporting"}
                 isInferred={edge.relation === "inferred"}
               />
             );

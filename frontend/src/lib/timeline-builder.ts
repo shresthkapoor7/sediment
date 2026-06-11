@@ -5,6 +5,7 @@ interface BuildContext {
   paperById: Map<string, GraphPaper>;
   parentsById: Map<string, string[]>;
   childrenById: Map<string, string[]>;
+  primaryParentById: Map<string, string>;
 }
 
 interface CanonicalGraph {
@@ -84,6 +85,7 @@ export function mergeTimelineWithGraph(
         id: newId,
         openalexId,
         title: paper.title,
+        lineageLabel: paper.lineageLabel ?? null,
         year: paper.year ?? 0,
         summary: paper.summary,
         detail: paper.detail,
@@ -159,7 +161,8 @@ function buildTimelineData(papers: GraphPaper[], edges: GraphEdge[]): TimelineDa
   const paperById = new Map(papers.map((paper) => [paper.openalexId, paper]));
   const parentsById = buildParentsMap(edges);
   const childrenById = buildChildrenMap(edges);
-  const context: BuildContext = { paperById, parentsById, childrenById };
+  const primaryParentById = buildPrimaryParentMap(edges);
+  const context: BuildContext = { paperById, parentsById, childrenById, primaryParentById };
 
   const orderedIds = [...paperById.keys()].sort((a, b) => comparePapers(paperById.get(a), paperById.get(b)));
   const numericIdByOpenalexId = new Map<string, number>();
@@ -182,7 +185,7 @@ function buildTimelineData(papers: GraphPaper[], edges: GraphEdge[]): TimelineDa
     if (!paper) return;
 
     const generation = getDepth(openalexId, context, memoDepth);
-    const preferredParentId = parentsById.get(openalexId)?.[0] ?? null;
+    const preferredParentId = primaryParentById.get(openalexId) ?? parentsById.get(openalexId)?.[0] ?? null;
     const preferredLane = preferredParentId
       ? nodes[numericIdByOpenalexId.get(preferredParentId) ?? -1]?.lane ?? nextRootLane.value
       : nextRootLane.value++;
@@ -195,6 +198,7 @@ function buildTimelineData(papers: GraphPaper[], edges: GraphEdge[]): TimelineDa
         id: numericId,
         openalexId,
         title: paper.title,
+        lineageLabel: paper.lineageLabel ?? null,
         year: paper.year ?? 0,
         summary: paper.summary,
         detail: paper.detail,
@@ -223,6 +227,8 @@ function buildTimelineData(papers: GraphPaper[], edges: GraphEdge[]): TimelineDa
     adjacency[fromId].push(toId);
     edgeRelations[edgeKey(fromId, toId)] = edge.relation;
   });
+
+  layoutPrimarySpine(nodes, adjacency, edgeRelations);
 
   Object.values(adjacency).forEach((children) => children.sort((a, b) => comparePapers(
     paperById.get(openalexIdByNumericId.get(a)!),
@@ -300,6 +306,7 @@ function existingGraphPapers(data: TimelineData): GraphPaper[] {
   return Object.values(data.nodes).map((node) => ({
     openalexId: node.paper.openalexId,
     title: node.paper.title,
+    lineageLabel: node.paper.lineageLabel ?? null,
     year: node.paper.year,
     summary: node.paper.summary,
     detail: node.paper.detail,
@@ -341,12 +348,12 @@ function topologicallyOrderedFragmentIds(
 ): string[] {
   const sourceCanonicalId = canonical.canonicalIdFor(sourceOpenalexId);
   const paperById = new Map(canonical.papers.map((paper) => [paper.openalexId, paper]));
-  const parentsById = buildParentsMap(canonical.edges);
+  const primaryParentById = buildPrimaryParentMap(canonical.edges);
   const relevantIds = [...fragmentIds].filter((id) => id !== sourceCanonicalId);
 
   return relevantIds.sort((a, b) => {
-    const depthA = ancestorDistance(a, sourceCanonicalId, parentsById);
-    const depthB = ancestorDistance(b, sourceCanonicalId, parentsById);
+    const depthA = ancestorDistance(a, sourceCanonicalId, primaryParentById);
+    const depthB = ancestorDistance(b, sourceCanonicalId, primaryParentById);
     if (depthA !== depthB) return depthA - depthB;
     return comparePapersDescending(paperById.get(a), paperById.get(b));
   });
@@ -355,24 +362,24 @@ function topologicallyOrderedFragmentIds(
 function ancestorDistance(
   startId: string,
   targetId: string,
-  parentsById: Map<string, string[]>,
+  primaryParentById: Map<string, string>,
 ): number {
   if (startId === targetId) return 0;
-  const queue: Array<{ id: string; dist: number }> = [{ id: startId, dist: 0 }];
-  const seen = new Set<string>([startId]);
+  let currentId = targetId;
+  let dist = 0;
+  const seen = new Set<string>();
 
-  while (queue.length > 0) {
-    const current = queue.shift()!;
-    const children = parentsById.get(current.id) ?? [];
-    for (const childId of children) {
-      if (childId === targetId) {
-        return current.dist + 1;
-      }
-      if (!seen.has(childId)) {
-        seen.add(childId);
-        queue.push({ id: childId, dist: current.dist + 1 });
-      }
+  while (!seen.has(currentId)) {
+    seen.add(currentId);
+    const parentId = primaryParentById.get(currentId);
+    if (!parentId) {
+      return 9999;
     }
+    dist += 1;
+    if (parentId === startId) {
+      return dist;
+    }
+    currentId = parentId;
   }
 
   return 9999;
@@ -382,6 +389,7 @@ function mergePaper(node: TimelineNode, paper: GraphPaper): TimelineNode["paper"
   return {
     ...node.paper,
     title: paper.title || node.paper.title,
+    lineageLabel: paper.lineageLabel ?? node.paper.lineageLabel,
     year: paper.year ?? node.paper.year,
     summary: paper.summary || node.paper.summary,
     detail: paper.detail || node.paper.detail,
@@ -470,10 +478,16 @@ function strongerRelation(
   current: GraphEdge["relation"] | undefined,
   incoming: GraphEdge["relation"],
 ): GraphEdge["relation"] {
-  if (current === "influenced" || incoming === "influenced") {
-    return "influenced";
+  const priority: Record<GraphEdge["relation"], number> = {
+    primary: 4,
+    influenced: 3,
+    supporting: 2,
+    inferred: 1,
+  };
+  if (!current) {
+    return incoming;
   }
-  return incoming;
+  return priority[incoming] >= priority[current] ? incoming : current;
 }
 
 function buildParentsMap(edges: GraphEdge[]): Map<string, string[]> {
@@ -494,6 +508,16 @@ function buildChildrenMap(edges: GraphEdge[]): Map<string, string[]> {
       map.set(parentOpenalexId, []);
     }
     map.get(parentOpenalexId)!.push(childOpenalexId);
+  });
+  return map;
+}
+
+function buildPrimaryParentMap(edges: GraphEdge[]): Map<string, string> {
+  const map = new Map<string, string>();
+  edges.forEach(({ parentOpenalexId, childOpenalexId, relation }) => {
+    if (relation === "primary" || relation === "influenced") {
+      map.set(childOpenalexId, parentOpenalexId);
+    }
   });
   return map;
 }
@@ -521,13 +545,13 @@ function getDepth(openalexId: string, context: BuildContext, memo: Map<string, n
     memo.set(openalexId, 0);
     return 0;
   }
-  const parents = context.parentsById.get(openalexId) ?? [];
-  if (parents.length === 0) {
+  const primaryParentId = context.primaryParentById.get(openalexId);
+  if (!primaryParentId) {
     memo.set(openalexId, 0);
     return 0;
   }
   visiting.add(openalexId);
-  const depth = Math.max(...parents.map((parentId) => getDepth(parentId, context, memo, visiting))) + 1;
+  const depth = getDepth(primaryParentId, context, memo, visiting) + 1;
   visiting.delete(openalexId);
   memo.set(openalexId, depth);
   return depth;
@@ -544,4 +568,159 @@ function assignLane(column: number, preferredLane: number, occupiedByColumn: Map
   }
   occupied.add(lane);
   return lane;
+}
+
+function layoutPrimarySpine(
+  nodes: Record<number, TimelineNode>,
+  adjacency: Record<number, number[]>,
+  edgeRelations: Record<string, GraphEdge["relation"]>,
+): void {
+  const seedNodeId = findSeedNodeId(nodes, adjacency);
+  if (seedNodeId === null) {
+    return;
+  }
+
+  const spineNodeIds = buildSpineNodeIds(nodes, seedNodeId);
+  const spineNodeIdSet = new Set(spineNodeIds);
+  if (spineNodeIds.length === 0) {
+    return;
+  }
+
+  const offSpineNodes = Object.values(nodes).filter((node) => !spineNodeIdSet.has(node.id));
+  const baseLane = Math.max(2, Math.ceil(offSpineNodes.length / 3));
+  const spineStageById = new Map<number, number>();
+
+  spineNodeIds.forEach((nodeId, stageIndex) => {
+    const node = nodes[nodeId];
+    spineStageById.set(nodeId, stageIndex);
+    nodes[nodeId] = {
+      ...node,
+      generation: stageIndex,
+      x: PADDING_X + stageIndex * (NODE_DIMENSIONS.width + GAP_X),
+      lane: baseLane,
+      y: PADDING_Y + baseLane * LANE_HEIGHT,
+    };
+  });
+
+  const occupiedByColumn = new Map<number, Set<number>>();
+  spineNodeIds.forEach((nodeId) => {
+    const node = nodes[nodeId];
+    if (!occupiedByColumn.has(node.generation)) {
+      occupiedByColumn.set(node.generation, new Set());
+    }
+    occupiedByColumn.get(node.generation)!.add(baseLane);
+  });
+
+  const supportCountByAnchor = new Map<number, number>();
+  offSpineNodes
+    .sort((a, b) => {
+      if (a.generation !== b.generation) return a.generation - b.generation;
+      return comparePapers(a.paper, b.paper);
+    })
+    .forEach((node) => {
+      const anchorNodeId = findAnchorSpineNodeId(
+        node.id,
+        spineNodeIdSet,
+        adjacency,
+        edgeRelations,
+      );
+      const anchorNode = anchorNodeId ? nodes[anchorNodeId] : null;
+      const anchorStage = anchorNodeId ? spineStageById.get(anchorNodeId) : undefined;
+      const column = anchorStage != null ? Math.max(0, anchorStage - 1) : node.generation;
+      const anchorKey = anchorNode?.id ?? -column - 1;
+      const supportIndex = supportCountByAnchor.get(anchorKey) ?? 0;
+      supportCountByAnchor.set(anchorKey, supportIndex + 1);
+
+      const preferredLane = Math.max(0, baseLane + alternatingOffset(supportIndex));
+      const lane = assignLane(column, preferredLane, occupiedByColumn);
+
+      nodes[node.id] = {
+        ...node,
+        generation: column,
+        x: PADDING_X + column * (NODE_DIMENSIONS.width + GAP_X),
+        lane,
+        y: PADDING_Y + lane * LANE_HEIGHT,
+      };
+    });
+}
+
+function findSeedNodeId(
+  nodes: Record<number, TimelineNode>,
+  adjacency: Record<number, number[]>,
+): number | null {
+  const terminalNodes = Object.values(nodes).filter((node) => (adjacency[node.id] ?? []).length === 0);
+  if (terminalNodes.length === 0) {
+    return null;
+  }
+
+  terminalNodes.sort((a, b) => {
+    if (a.generation !== b.generation) return b.generation - a.generation;
+    if ((a.paper.year ?? 0) !== (b.paper.year ?? 0)) return (b.paper.year ?? 0) - (a.paper.year ?? 0);
+    return a.paper.title.localeCompare(b.paper.title);
+  });
+
+  return terminalNodes[0]?.id ?? null;
+}
+
+function buildSpineNodeIds(
+  nodes: Record<number, TimelineNode>,
+  seedNodeId: number,
+): number[] {
+  const spine: number[] = [];
+  let currentId: number | null = seedNodeId;
+
+  while (currentId !== null && nodes[currentId]) {
+    spine.push(currentId);
+    currentId = nodes[currentId].parentId;
+  }
+
+  return spine.reverse();
+}
+
+function findAnchorSpineNodeId(
+  startNodeId: number,
+  spineNodeIdSet: Set<number>,
+  adjacency: Record<number, number[]>,
+  edgeRelations: Record<string, GraphEdge["relation"]>,
+): number | null {
+  const queue: number[] = [...(adjacency[startNodeId] ?? [])];
+  const seen = new Set<number>([startNodeId]);
+
+  while (queue.length > 0) {
+    const nodeId = queue.shift()!;
+    if (seen.has(nodeId)) {
+      continue;
+    }
+    seen.add(nodeId);
+    if (spineNodeIdSet.has(nodeId)) {
+      return nodeId;
+    }
+    const next = [...(adjacency[nodeId] ?? [])].sort((a, b) => {
+      const relationA = edgeRelations[edgeKey(nodeId, a)] ?? "influenced";
+      const relationB = edgeRelations[edgeKey(nodeId, b)] ?? "influenced";
+      return relationPriority(relationB) - relationPriority(relationA);
+    });
+    queue.push(...next);
+  }
+
+  return null;
+}
+
+function relationPriority(relation: GraphEdge["relation"]): number {
+  switch (relation) {
+    case "primary":
+      return 4;
+    case "influenced":
+      return 3;
+    case "supporting":
+      return 2;
+    case "inferred":
+    default:
+      return 1;
+  }
+}
+
+function alternatingOffset(index: number): number {
+  const magnitude = Math.floor(index / 2) + 1;
+  return index % 2 === 0 ? -magnitude : magnitude;
 }
