@@ -145,11 +145,37 @@ function SettingsSlider({
 }
 
 const DEFAULT_SETTINGS: TraversalSettings = {
+  depth: 6,
+  breadth: 1,
+  referenceLimit: 20,
+  topN: 4,
+};
+
+const LEGACY_DEFAULT_SETTINGS: TraversalSettings = {
   depth: 1,
   breadth: 2,
   referenceLimit: 20,
   topN: 5,
 };
+
+const TRANSITION_DEFAULT_SETTINGS: TraversalSettings = {
+  depth: 2,
+  breadth: 1,
+  referenceLimit: 20,
+  topN: 5,
+};
+
+function isMatchingSettings(
+  value: TraversalSettings,
+  target: TraversalSettings,
+): boolean {
+  return (
+    value.depth === target.depth &&
+    value.breadth === target.breadth &&
+    value.referenceLimit === target.referenceLimit &&
+    value.topN === target.topN
+  );
+}
 
 type DemoPaper = {
   id: string;
@@ -1895,6 +1921,21 @@ export default function Home() {
       : "Sediment — Knowledge, layered.";
   }, [searchedQuery]);
 
+  useEffect(() => {
+    if (
+      isMatchingSettings(settings, LEGACY_DEFAULT_SETTINGS) ||
+      isMatchingSettings(settings, TRANSITION_DEFAULT_SETTINGS)
+    ) {
+      setSettings(DEFAULT_SETTINGS);
+    }
+    if (
+      isMatchingSettings(draftSettings, LEGACY_DEFAULT_SETTINGS) ||
+      isMatchingSettings(draftSettings, TRANSITION_DEFAULT_SETTINGS)
+    ) {
+      setDraftSettings(DEFAULT_SETTINGS);
+    }
+  }, [draftSettings, settings]);
+
   const buildMetadata = useCallback(
     (query: string, data: TimelineData) => ({
       title: query,
@@ -2706,7 +2747,7 @@ export default function Home() {
                     </p>
                     {(
                       [
-                        { key: "depth", label: "Depth", min: 1, max: 2 },
+                        { key: "depth", label: "Depth", min: 1, max: 8 },
                         { key: "breadth", label: "Breadth", min: 1, max: 4 },
                         {
                           key: "referenceLimit",
@@ -2714,7 +2755,7 @@ export default function Home() {
                           min: 5,
                           max: 30,
                         },
-                        { key: "topN", label: "Top N", min: 1, max: 6 },
+                        { key: "topN", label: "Papers / step", min: 1, max: 6 },
                       ] as const
                     ).map((item) => (
                       <SettingsSlider
@@ -3200,7 +3241,7 @@ export default function Home() {
                 >
                   {(
                     [
-                      { key: "depth", label: "Depth", min: 1, max: 2 },
+                      { key: "depth", label: "Depth", min: 1, max: 8 },
                       { key: "breadth", label: "Breadth", min: 1, max: 4 },
                       {
                         key: "referenceLimit",
@@ -3208,7 +3249,7 @@ export default function Home() {
                         min: 5,
                         max: 30,
                       },
-                      { key: "topN", label: "Top N", min: 1, max: 6 },
+                      { key: "topN", label: "Papers / step", min: 1, max: 6 },
                     ] as const
                   ).map((item) => (
                     <SettingsSlider

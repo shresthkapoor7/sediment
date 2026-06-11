@@ -30,6 +30,9 @@ class LLMParseError(Exception):
     pass
 
 
+_JSON_FENCE_RE = re.compile(r"^```(?:json)?\s*|\s*```$", re.IGNORECASE)
+
+
 class LLMClient:
     def __init__(self, api_key: str, model: str):
         self.client = AsyncAnthropic(api_key=api_key)
@@ -86,9 +89,136 @@ Respond with JSON only:
             "reason": parsed.get("reason", ""),
         }
 
-    async def rank_references(self, concept: str, seed_paper: dict, papers: list[dict], top_n: int = 8, ip: str = "unknown") -> list[dict]:
+    async def plan_concept_lineage(
+        self,
+        query: str,
+        seed_paper: dict,
+        depth: int,
+        breadth: int,
+        top_n: int,
+        ip: str = "unknown",
+    ) -> dict:
+        backbone_steps = max(2, depth)
+        supporting_steps = max(0, min(top_n - 1, breadth * 2))
+
+        prompt = f"""You are designing a beginner-friendly conceptual lineage for understanding a research paper.
+
+User query:
+{query}
+
+Seed paper:
+{json.dumps({
+    "title": seed_paper.get("title"),
+    "year": seed_paper.get("year"),
+    "summary": seed_paper.get("summary"),
+    "primaryTopic": seed_paper.get("primaryTopic"),
+}, indent=2)}
+
+Return:
+1. an ordered BACKBONE of exactly {backbone_steps} prerequisite concepts, from oldest/foundational to newest/closest to the seed paper
+2. up to {supporting_steps} SUPPORTING concepts that help explain the backbone without being part of the main chain
+
+Rules:
+- Think like a teacher for someone who does not already know the field.
+- Prefer concepts and paradigm shifts over paper-specific trivia.
+- Build one clear teaching spine, not a bag of related references.
+- Favor canonical milestones that a newcomer should learn in sequence.
+- Avoid textbooks, broad surveys, and generic background unless there is no more canonical research paper.
+- Avoid concepts that happen after the seed paper or are just applications of it.
+- Each concept should be short, canonical, and distinct.
+- The final backbone step should be the concept immediately before the seed paper, not the seed paper itself.
+- Supporting concepts should attach to a specific backbone concept by name.
+- Avoid duplicates and near-duplicates.
+- Use 2-6 words for concept names.
+- For every concept, name a single representative paper that best stands for that concept in the lineage.
+- Keep every reason short: 8-16 words, one sentence fragment, no extra explanation.
+
+Respond with JSON only:
+{{
+  "backbone": [
+    {{
+      "concept": "<short concept label>",
+      "paper_hint": "<canonical representative paper title>",
+      "year_hint": <representative paper year>,
+      "query": "<search query for finding that representative paper>",
+      "reason": "<one sentence on why this concept belongs in the lineage>"
+    }}
+  ],
+  "supporting": [
+    {{
+      "concept": "<short supporting concept label>",
+      "paper_hint": "<canonical representative paper title>",
+      "year_hint": <representative paper year>,
+      "query": "<search query for finding that representative paper>",
+      "attach_to": "<one concept name from backbone>",
+      "reason": "<one sentence on why this supports that stage>"
+    }}
+  ]
+}}"""
+
+        parsed = await self._prompt_json(prompt, ip=ip, max_tokens=2048)
+        if not isinstance(parsed, dict):
+            raise LLMParseError("Concept lineage response was not an object")
+
+        backbone_items = parsed.get("backbone", [])
+        supporting_items = parsed.get("supporting", [])
+
+        backbone = []
+        if isinstance(backbone_items, list):
+            for item in backbone_items:
+                cleaned = self._clean_concept_item(item)
+                if cleaned:
+                    backbone.append(cleaned)
+
+        supporting = []
+        if isinstance(supporting_items, list):
+            for item in supporting_items:
+                cleaned = self._clean_supporting_concept_item(item)
+                if cleaned:
+                    supporting.append(cleaned)
+
+        return {
+            "backbone": backbone[:backbone_steps],
+            "supporting": supporting[:supporting_steps],
+        }
+
+    @staticmethod
+    def _clean_concept_item(item: object) -> Optional[dict]:
+        if not isinstance(item, dict):
+            return None
+        concept = item.get("concept")
+        paper_hint = item.get("paper_hint")
+        year_hint = item.get("year_hint")
+        query = item.get("query")
+        reason = item.get("reason")
+        if not isinstance(concept, str) or not concept.strip():
+            return None
+        cleaned_concept = _clean_suggestion_text(concept)
+        cleaned_query = _clean_suggestion_text(query) if isinstance(query, str) and query.strip() else cleaned_concept
+        return {
+            "concept": cleaned_concept,
+            "paper_hint": paper_hint.strip() if isinstance(paper_hint, str) and paper_hint.strip() else "",
+            "year_hint": year_hint if isinstance(year_hint, int) else None,
+            "query": cleaned_query,
+            "reason": reason.strip() if isinstance(reason, str) else "",
+        }
+
+    @classmethod
+    def _clean_supporting_concept_item(cls, item: object) -> Optional[dict]:
+        base = cls._clean_concept_item(item)
+        if not base or not isinstance(item, dict):
+            return None
+        attach_to = item.get("attach_to")
+        if not isinstance(attach_to, str) or not attach_to.strip():
+            return None
+        return {
+            **base,
+            "attach_to": _clean_suggestion_text(attach_to),
+        }
+
+    async def rank_references(self, concept: str, seed_paper: dict, papers: list[dict], top_n: int = 8, ip: str = "unknown") -> dict:
         if not papers:
-            return []
+            return {"primary": None, "supporting": []}
 
         candidates = [
             {
@@ -106,6 +236,8 @@ Respond with JSON only:
             for i, p in enumerate(papers)
         ]
 
+        supporting_count = max(0, top_n - 1)
+
         prompt = f"""You are tracing the intellectual lineage of: "{concept}"
 
 Seed paper:
@@ -115,45 +247,90 @@ Seed paper:
     "primaryTopic": seed_paper.get("primaryTopic"),
 }, indent=2)}
 
-Here are candidate ancestor papers. Pick the {top_n} most important ones for understanding how this seed paper came to exist.
-Prefer foundational papers over incremental papers. Prefer papers with direct conceptual influence.
+Here are candidate ancestor papers.
+
+Choose:
+1. exactly one PRIMARY ancestor that best continues the main intellectual lineage into this seed paper
+2. up to {supporting_count} SUPPORTING ancestors that are helpful side influences, prerequisites, or adjacent contributors
+
+Important:
+- The PRIMARY ancestor should be the single paper you would place on the main backbone if this lineage were drawn as one clear chain.
+- Prefer direct conceptual influence over broad background relevance.
+- SUPPORTING ancestors should not duplicate the PRIMARY choice.
+- Prefer foundational papers over incremental papers.
 
 Candidates:
 {json.dumps(candidates, indent=2)}
 
-Respond with a JSON array only, ordered oldest to newest:
-[
-  {{
+Respond with JSON only:
+{{
+  "primary": {{
     "index": <original index>,
-    "summary": "<one sentence on why this paper matters to the lineage>"
-  }}
-]"""
+    "summary": "<one sentence on why this paper is the main lineage step>"
+  }} | null,
+  "supporting": [
+    {{
+      "index": <original index>,
+      "summary": "<one sentence on why this paper matters as supporting context>"
+    }}
+  ]
+}}"""
 
         parsed = await self._prompt_json(prompt, ip=ip)
-        if not isinstance(parsed, list):
-            raise LLMParseError("Lineage ranking response was not a list")
+        if not isinstance(parsed, dict):
+            raise LLMParseError("Lineage ranking response was not an object")
 
-        results = []
-        for item in parsed:
-            if not isinstance(item, dict):
-                continue
-            idx = item.get("index")
-            if not isinstance(idx, int) or not (0 <= idx < len(papers)):
-                continue
-            original = papers[idx]
-            results.append({
-                "openalexId": original.get("openalexId"),
-                "title": original.get("title", ""),
-                "year": original.get("year"),
-                "summary": item.get("summary", ""),
-                "detail": original.get("detail", ""),
-                "authors": original.get("authors", []),
-                "doi": original.get("doi"),
-                "oaUrl": original.get("oaUrl"),
-                "concepts": original.get("concepts", []),
-                "type": original.get("type"),
-            })
-        return results
+        primary = self._reference_from_item(parsed.get("primary"), papers)
+        supporting_items = parsed.get("supporting", [])
+        supporting: list[dict] = []
+        seen_ids = {primary.get("openalexId")} if primary else set()
+        if isinstance(supporting_items, list):
+            for item in supporting_items:
+                paper = self._reference_from_item(item, papers)
+                paper_id = paper.get("openalexId") if paper else None
+                if not paper or not paper_id or paper_id in seen_ids:
+                    continue
+                supporting.append(paper)
+                seen_ids.add(paper_id)
+
+        if primary is None:
+            fallback = next(
+                (
+                    self._reference_from_item(item, papers)
+                    for item in supporting_items
+                    if self._reference_from_item(item, papers) is not None
+                ),
+                None,
+            )
+            if fallback is not None:
+                primary = fallback
+                supporting = [
+                    paper for paper in supporting
+                    if paper.get("openalexId") != fallback.get("openalexId")
+                ]
+
+        return {"primary": primary, "supporting": supporting}
+
+    @staticmethod
+    def _reference_from_item(item: object, papers: list[dict]) -> Optional[dict]:
+        if not isinstance(item, dict):
+            return None
+        idx = item.get("index")
+        if not isinstance(idx, int) or not (0 <= idx < len(papers)):
+            return None
+        original = papers[idx]
+        return {
+            "openalexId": original.get("openalexId"),
+            "title": original.get("title", ""),
+            "year": original.get("year"),
+            "summary": item.get("summary", ""),
+            "detail": original.get("detail", ""),
+            "authors": original.get("authors", []),
+            "doi": original.get("doi"),
+            "oaUrl": original.get("oaUrl"),
+            "concepts": original.get("concepts", []),
+            "type": original.get("type"),
+        }
 
     async def chat_about_paper(self, paper: dict, question: str, ip: str = "unknown") -> dict:
         explicit_topic = _extract_explicit_topic(question)
@@ -379,10 +556,10 @@ OR:
             "options": options,
         }
 
-    async def _prompt_json(self, prompt: str, ip: str = "unknown"):
+    async def _prompt_json(self, prompt: str, ip: str = "unknown", max_tokens: int = 1024):
         resp = await self.client.messages.create(
             model=self.model,
-            max_tokens=1024,
+            max_tokens=max_tokens,
             messages=[{"role": "user", "content": prompt}],
         )
         input_tokens = getattr(resp.usage, "input_tokens", 0)
@@ -403,18 +580,60 @@ OR:
                 output_tokens,
                 exc_info=e,
             )
-
-        raw = resp.content[0].text.strip()
-        if raw.startswith("```"):
-            raw = raw.split("```")[1]
-            if raw.startswith("json"):
-                raw = raw[4:]
+        raw = self._extract_json_text(resp.content[0].text)
 
         try:
             return json.loads(raw.strip())
         except (json.JSONDecodeError, ValueError) as e:
             logger.error("Failed to parse LLM response: %s\nRaw: %s", e, resp.content[0].text)
             raise LLMParseError(f"Invalid JSON from model: {e}") from e
+
+    @staticmethod
+    def _extract_json_text(raw: str) -> str:
+        text = raw.strip()
+        if text.startswith("```"):
+            text = _JSON_FENCE_RE.sub("", text).strip()
+
+        first_object = text.find("{")
+        first_array = text.find("[")
+        candidates = [idx for idx in (first_object, first_array) if idx != -1]
+        if candidates:
+            start = min(candidates)
+            text = text[start:]
+
+        # Trim trailing prose after a complete top-level JSON object/array.
+        stack: list[str] = []
+        in_string = False
+        escape = False
+        end_index: Optional[int] = None
+        for idx, ch in enumerate(text):
+            if in_string:
+                if escape:
+                    escape = False
+                elif ch == "\\":
+                    escape = True
+                elif ch == '"':
+                    in_string = False
+                continue
+
+            if ch == '"':
+                in_string = True
+            elif ch in "{[":
+                stack.append(ch)
+            elif ch in "}]":
+                if not stack:
+                    continue
+                opener = stack.pop()
+                if (opener, ch) not in {("{", "}"), ("[", "]")}:
+                    continue
+                if not stack:
+                    end_index = idx + 1
+                    break
+
+        if end_index is not None:
+            text = text[:end_index]
+
+        return text
 
 
 def _extract_explicit_topic(question: str) -> Optional[str]:

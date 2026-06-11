@@ -1,6 +1,7 @@
 export interface GraphPaper {
   openalexId: string;
   title: string;
+  lineageLabel?: string | null;
   year: number | null;
   summary: string;
   detail?: string;
@@ -16,7 +17,7 @@ export interface GraphPaper {
 export interface GraphEdge {
   parentOpenalexId: string;
   childOpenalexId: string;
-  relation: "influenced" | "inferred";
+  relation: "primary" | "supporting" | "influenced" | "inferred";
 }
 
 export interface SeedCandidate {
@@ -65,6 +66,7 @@ export interface Paper {
   id: number;
   openalexId: string;
   title: string;
+  lineageLabel?: string | null;
   year: number;
   summary: string;
   detail?: string;

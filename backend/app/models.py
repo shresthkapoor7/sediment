@@ -68,6 +68,7 @@ class ChatRequest(StrictRequestModel):
 class GraphPaper(BaseModel):
     openalexId: str
     title: str
+    lineageLabel: Optional[str] = None
     year: Optional[int] = None
     summary: str = ""
     detail: str = ""
@@ -83,7 +84,7 @@ class GraphPaper(BaseModel):
 class GraphEdge(BaseModel):
     parentOpenalexId: str
     childOpenalexId: str
-    relation: Literal["influenced", "inferred"] = "influenced"
+    relation: Literal["primary", "supporting", "influenced", "inferred"] = "primary"
 
 
 class SeedCandidate(BaseModel):

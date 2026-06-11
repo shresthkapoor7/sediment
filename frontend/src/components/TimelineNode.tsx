@@ -37,6 +37,8 @@ export function TimelineNodeCard({
   const getHoverBoxShadow = () => "var(--node-shadow-hover)";
   const borderColor = getBorderColor(isActive, isHighlighted);
   const boxShadow = getBoxShadow(isActive, isHighlighted);
+  const displayTitle = node.paper.lineageLabel || node.paper.title;
+  const secondaryLine = node.paper.lineageLabel ? node.paper.title : node.paper.summary;
 
   return (
     <motion.div
@@ -141,7 +143,7 @@ export function TimelineNodeCard({
             fontFamily: "'DM Sans', sans-serif",
           }}
         >
-          {node.paper.title}
+          {displayTitle}
         </p>
 
         {/* Summary */}
@@ -156,7 +158,7 @@ export function TimelineNodeCard({
             fontFamily: "'DM Sans', sans-serif",
           }}
         >
-          {node.paper.summary}
+          {secondaryLine}
         </p>
       </div>
     </motion.div>
