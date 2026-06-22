@@ -209,3 +209,18 @@ async def get_graph(graph_id: str, userId: str = Query(...)):
         raise HTTPException(status_code=404, detail="graph not found")
 
     return to_graph_record(row)
+
+
+@router.delete("/graphs/{graph_id}", status_code=204)
+async def delete_graph(graph_id: str, userId: str = Query(...)):
+    if not userId.strip():
+        raise HTTPException(status_code=400, detail="userId required")
+
+    try:
+        row = await get_db().soft_delete_graph(graph_id, userId.strip())
+    except SupabaseAPIError as e:
+        logger.warning("Graph deletion failed for graph_id=%r user_id=%r", graph_id, userId, exc_info=e)
+        raise HTTPException(status_code=502, detail="Failed to delete graph.") from e
+
+    if not row:
+        raise HTTPException(status_code=404, detail="graph not found")

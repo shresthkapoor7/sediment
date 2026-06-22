@@ -12,6 +12,7 @@ import {
   clarifyQuery,
   ClarifyResult,
   createSavedGraph,
+  deleteSavedGraph,
   expandLineage,
   fetchSavedGraph,
   fetchUsage,
@@ -150,6 +151,7 @@ const DEFAULT_SETTINGS: TraversalSettings = {
   referenceLimit: 20,
   topN: 5,
 };
+const DELETE_CONFIRMATION_DISABLED_KEY = "history_delete_confirmation_disabled";
 
 type DemoPaper = {
   id: string;
@@ -1868,6 +1870,10 @@ export default function Home() {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [savedGraphs, setSavedGraphs] = useState<SavedGraphListItem[]>([]);
   const [isHistoryLoading, setIsHistoryLoading] = useState(false);
+  const [deletingGraphId, setDeletingGraphId] = useState<string | null>(null);
+  const [pendingDeleteGraph, setPendingDeleteGraph] = useState<SavedGraphListItem | null>(null);
+  const [skipDeleteConfirmation, setSkipDeleteConfirmation] = useState(false);
+  const [neverShowDeleteConfirmationAgain, setNeverShowDeleteConfirmationAgain] = useState(false);
   const [saveState, setSaveState] = useState<
     "idle" | "saving" | "saved" | "error"
   >("idle");
@@ -1924,6 +1930,10 @@ export default function Home() {
   }, [refreshCredits]);
 
   useEffect(() => {
+    setSkipDeleteConfirmation(
+      window.localStorage.getItem(DELETE_CONFIRMATION_DISABLED_KEY) === "true",
+    );
+
     const nextUserId = getOrCreateAnonymousUserId();
     setUserId(nextUserId);
 
@@ -2316,6 +2326,61 @@ export default function Home() {
     [persistLastGraphId, userId],
   );
 
+  const handleDeleteSavedGraph = useCallback((savedGraphId: string) => {
+    if (!userId || deletingGraphId) return;
+
+    setDeletingGraphId(savedGraphId);
+    setSearchError("");
+
+    void deleteSavedGraph(savedGraphId, userId)
+      .then(() => {
+        setSavedGraphs((current) => current.filter((graph) => graph.id !== savedGraphId));
+        if (graphId === savedGraphId) {
+          setTimelineData(null);
+          setGraphId(null);
+          setSelectedSeedOpenalexId(null);
+          setSaveState("idle");
+          persistLastGraphId(null);
+        } else if (window.localStorage.getItem(LAST_GRAPH_ID_KEY) === savedGraphId) {
+          persistLastGraphId(null);
+        }
+      })
+      .catch((error) => {
+        setSearchError(error instanceof Error ? error.message : "Failed to delete saved graph");
+      })
+      .finally(() => {
+        setDeletingGraphId(null);
+      });
+  }, [deletingGraphId, graphId, persistLastGraphId, userId]);
+
+  const requestDeleteSavedGraph = useCallback((graph: SavedGraphListItem) => {
+    if (skipDeleteConfirmation) {
+      void handleDeleteSavedGraph(graph.id);
+      return;
+    }
+
+    setNeverShowDeleteConfirmationAgain(false);
+    setPendingDeleteGraph(graph);
+  }, [handleDeleteSavedGraph, skipDeleteConfirmation]);
+
+  const confirmDeleteSavedGraph = useCallback(() => {
+    if (!pendingDeleteGraph) return;
+
+    if (neverShowDeleteConfirmationAgain) {
+      window.localStorage.setItem(DELETE_CONFIRMATION_DISABLED_KEY, "true");
+      setSkipDeleteConfirmation(true);
+    }
+
+    const graphIdToDelete = pendingDeleteGraph.id;
+    setPendingDeleteGraph(null);
+    void handleDeleteSavedGraph(graphIdToDelete);
+  }, [handleDeleteSavedGraph, neverShowDeleteConfirmationAgain, pendingDeleteGraph]);
+
+  const cancelDeleteSavedGraph = useCallback(() => {
+    setPendingDeleteGraph(null);
+    setNeverShowDeleteConfirmationAgain(false);
+  }, []);
+
   return (
     <div
       className="grain"
@@ -2517,6 +2582,48 @@ export default function Home() {
                 </svg>
                 History
               </motion.button>
+            )}
+
+            {!timelineData && (
+              <motion.a
+                href="/changelog"
+                initial={{ opacity: 0, y: -4 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.25 }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.375rem",
+                  padding: "0 0.75rem",
+                  height: "2rem",
+                  boxSizing: "border-box",
+                  background: "none",
+                  border: "0.0625rem solid var(--border)",
+                  borderRadius: "0.4375rem",
+                  color: "var(--text-secondary)",
+                  fontSize: "0.75rem",
+                  fontFamily: "'DM Sans', sans-serif",
+                  fontWeight: 500,
+                  textDecoration: "none",
+                  transitionProperty: "border-color, color, background",
+                  transitionDuration: "0.15s",
+                }}
+              >
+                <svg
+                  width="13"
+                  height="13"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M3 2.5h7l3 3v8H3z" />
+                  <path d="M10 2.5v3h3M5.5 8h5M5.5 10.5h5" />
+                </svg>
+                Changelog
+              </motion.a>
             )}
 
             {/* Credits indicator */}
@@ -3177,6 +3284,41 @@ export default function Home() {
                 </button>
               )}
 
+              {!timelineData && (
+                <a
+                  href="/changelog"
+                  onClick={() => setMobileMenuOpen(false)}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.625rem",
+                    width: "100%",
+                    padding: "0.625rem 0.5rem",
+                    borderRadius: "0.5rem",
+                    color: "var(--text-primary)",
+                    fontSize: "0.875rem",
+                    fontFamily: "'DM Sans', sans-serif",
+                    fontWeight: 500,
+                    textDecoration: "none",
+                  }}
+                >
+                  <svg
+                    width="15"
+                    height="15"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="var(--text-tertiary)"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M3 2.5h7l3 3v8H3z" />
+                    <path d="M10 2.5v3h3M5.5 8h5M5.5 10.5h5" />
+                  </svg>
+                  Changelog
+                </a>
+              )}
+
               {/* Settings — inline sliders */}
               <div style={{ padding: "0.5rem 0.5rem 0.25rem" }}>
                 <p
@@ -3603,9 +3745,8 @@ export default function Home() {
                     </div>
                   ) : (
                     savedGraphs.map((graph) => (
-                      <button
+                      <div
                         key={graph.id}
-                        onClick={() => handleLoadSavedGraph(graph.id)}
                         style={{
                           textAlign: "left",
                           padding: "0.875rem 0.875rem 0.8125rem",
@@ -3613,7 +3754,6 @@ export default function Home() {
                           border: "0.0625rem solid var(--border)",
                           background: "var(--bg-secondary)",
                           color: "var(--text-primary)",
-                          cursor: "pointer",
                           transition: "border-color 0.15s, transform 0.15s",
                         }}
                         onMouseEnter={(e) => {
@@ -3634,46 +3774,281 @@ export default function Home() {
                             marginBottom: "0.5rem",
                           }}
                         >
+                          <button
+                            onClick={() => handleLoadSavedGraph(graph.id)}
+                            style={{
+                              flex: 1,
+                              textAlign: "left",
+                              background: "none",
+                              border: "none",
+                              padding: 0,
+                              color: "inherit",
+                              cursor: deletingGraphId ? "default" : "pointer",
+                            }}
+                            disabled={!!deletingGraphId}
+                          >
+                            <div
+                              style={{
+                                fontSize: 14,
+                                fontWeight: 600,
+                                lineHeight: 1.35,
+                              }}
+                            >
+                              {graph.metadata.title || graph.query}
+                            </div>
+                          </button>
                           <div
                             style={{
-                              fontSize: "0.875rem",
-                              fontWeight: 600,
-                              lineHeight: 1.35,
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "0.5rem",
                             }}
                           >
-                            {graph.metadata.title || graph.query}
+                            <div
+                              style={{
+                                flexShrink: 0,
+                                padding: "3px 7px",
+                                borderRadius: 999,
+                                background: "var(--accent-soft)",
+                                color: "var(--accent)",
+                                fontSize: 10,
+                                fontFamily: "'JetBrains Mono', monospace",
+                                letterSpacing: "0.04em",
+                              }}
+                            >
+                              {graph.metadata.nodeCount} nodes
+                            </div>
+                            <button
+                              onClick={() => requestDeleteSavedGraph(graph)}
+                              disabled={deletingGraphId !== null}
+                              aria-label={`Delete ${graph.metadata.title || graph.query}`}
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                height: 22,
+                                padding: "0 7px",
+                                borderRadius: 999,
+                                border: "none",
+                                background: deletingGraphId === graph.id ? "var(--bg-tertiary)" : "var(--accent-soft)",
+                                color: deletingGraphId === graph.id ? "var(--text-tertiary)" : "var(--accent)",
+                                cursor: deletingGraphId ? "default" : "pointer",
+                                flexShrink: 0,
+                                transition: "background 0.15s, color 0.15s, transform 0.15s",
+                              }}
+                              onMouseEnter={(e) => {
+                                if (deletingGraphId) return;
+                                e.currentTarget.style.background = "color-mix(in srgb, var(--accent-soft) 72%, var(--accent) 28%)";
+                                e.currentTarget.style.transform = "translateY(-1px)";
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.background = deletingGraphId === graph.id ? "var(--bg-tertiary)" : "var(--accent-soft)";
+                                e.currentTarget.style.transform = "translateY(0)";
+                              }}
+                            >
+                              {deletingGraphId === graph.id ? (
+                                <span
+                                  style={{
+                                    fontSize: 10,
+                                    fontFamily: "'JetBrains Mono', monospace",
+                                    letterSpacing: "0.04em",
+                                  }}
+                                >
+                                  ...
+                                </span>
+                              ) : (
+                                <svg
+                                  width="11"
+                                  height="11"
+                                  viewBox="0 0 16 16"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="1.5"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                >
+                                  <path d="M2.5 4h11" />
+                                  <path d="M6 1.75h4" />
+                                  <path d="M5 4v8.25c0 .55.45 1 1 1h4c.55 0 1-.45 1-1V4" />
+                                  <path d="M6.75 6.25v4.5M9.25 6.25v4.5" />
+                                </svg>
+                              )}
+                            </button>
                           </div>
+                        </div>
+                        <button
+                          onClick={() => handleLoadSavedGraph(graph.id)}
+                          style={{
+                            width: "100%",
+                            textAlign: "left",
+                            background: "none",
+                            border: "none",
+                            padding: 0,
+                            color: "inherit",
+                            cursor: deletingGraphId ? "default" : "pointer",
+                          }}
+                          disabled={!!deletingGraphId}
+                        >
                           <div
                             style={{
                               flexShrink: 0,
-                              padding: "0.1875rem 0.4375rem",
-                              borderRadius: 999,
-                              background: "var(--accent-soft)",
-                              color: "var(--accent)",
-                              fontSize: "0.625rem",
+                              fontSize: "0.6875rem",
+                              color: "var(--text-tertiary)",
                               fontFamily: "'JetBrains Mono', monospace",
-                              letterSpacing: "0.04em",
+                              letterSpacing: "0.02em",
                             }}
                           >
-                            {graph.metadata.nodeCount} nodes
+                            updated {new Date(graph.updatedAt).toLocaleDateString()}
                           </div>
-                        </div>
-                        <div
-                          style={{
-                            fontSize: "0.6875rem",
-                            color: "var(--text-tertiary)",
-                            fontFamily: "'JetBrains Mono', monospace",
-                            letterSpacing: "0.02em",
-                          }}
-                        >
-                          updated{" "}
-                          {new Date(graph.updatedAt).toLocaleDateString()}
-                        </div>
-                      </button>
+                        </button>
+                      </div>
                     ))
                   )}
                 </div>
               </motion.aside>
+            </>
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {pendingDeleteGraph && (
+            <>
+              <motion.button
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={cancelDeleteSavedGraph}
+                style={{
+                  position: "fixed",
+                  inset: 0,
+                  background: "rgba(16, 12, 8, 0.38)",
+                  border: "none",
+                  zIndex: 40,
+                  cursor: "pointer",
+                }}
+                aria-label="Close delete confirmation"
+              />
+
+              <motion.div
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="delete-graph-dialog-title"
+                initial={{ opacity: 0, y: 12, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 12, scale: 0.98 }}
+                transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+                style={{
+                  position: "fixed",
+                  inset: 0,
+                  width: "min(26.25rem, calc(100vw - 2rem))",
+                  height: "fit-content",
+                  maxHeight: "calc(100dvh - 2rem)",
+                  margin: "auto",
+                  padding: 20,
+                  borderRadius: 18,
+                  border: "1px solid var(--border-hover)",
+                  background: "color-mix(in srgb, var(--bg-primary) 92%, #1e1510 8%)",
+                  boxShadow: "0 22px 60px rgba(0,0,0,0.28)",
+                  zIndex: 50,
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 14,
+                  overflowY: "auto",
+                }}
+              >
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  <p
+                    style={{
+                      fontSize: 11,
+                      color: "#d16f5b",
+                      fontFamily: "'JetBrains Mono', monospace",
+                      letterSpacing: "0.08em",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    Confirm deletion
+                  </p>
+                  <h3
+                    id="delete-graph-dialog-title"
+                    style={{
+                      fontSize: 24,
+                      lineHeight: 1.1,
+                      color: "var(--text-primary)",
+                      fontFamily: "'Instrument Serif', Georgia, serif",
+                      fontWeight: 400,
+                    }}
+                  >
+                    Delete this saved graph?
+                  </h3>
+                  <p
+                    style={{
+                      fontSize: 14,
+                      lineHeight: 1.6,
+                      color: "var(--text-secondary)",
+                    }}
+                  >
+                    This hides <strong>{pendingDeleteGraph.metadata.title || pendingDeleteGraph.query}</strong> from history.
+                    The record is soft-deleted, so it is not removed permanently from the database.
+                  </p>
+                </div>
+
+                <label
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                    color: "var(--text-secondary)",
+                    fontSize: 13,
+                    cursor: "pointer",
+                    userSelect: "none",
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={neverShowDeleteConfirmationAgain}
+                    onChange={(e) => setNeverShowDeleteConfirmationAgain(e.currentTarget.checked)}
+                    style={{ accentColor: "var(--accent)" }}
+                  />
+                  Never show again
+                </label>
+
+                <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+                  <button
+                    onClick={cancelDeleteSavedGraph}
+                    style={{
+                      height: 34,
+                      padding: "0 12px",
+                      borderRadius: 8,
+                      border: "1px solid var(--border)",
+                      background: "none",
+                      color: "var(--text-secondary)",
+                      cursor: "pointer",
+                      fontSize: 12,
+                      fontFamily: "'DM Sans', sans-serif",
+                      fontWeight: 500,
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={confirmDeleteSavedGraph}
+                    style={{
+                      height: 34,
+                      padding: "0 12px",
+                      borderRadius: 8,
+                      border: "1px solid #d16f5b",
+                      background: "rgba(209, 111, 91, 0.12)",
+                      color: "#d16f5b",
+                      cursor: "pointer",
+                      fontSize: 12,
+                      fontFamily: "'DM Sans', sans-serif",
+                      fontWeight: 600,
+                    }}
+                  >
+                    Delete graph
+                  </button>
+                </div>
+              </motion.div>
             </>
           )}
         </AnimatePresence>

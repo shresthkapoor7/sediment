@@ -260,6 +260,18 @@ export async function listSavedGraphs(userId: string): Promise<SavedGraphListIte
   return response.json();
 }
 
+export async function deleteSavedGraph(graphId: string, userId: string): Promise<void> {
+  const response = await fetch(
+    `${API_BASE}/api/graphs/${encodeURIComponent(graphId)}?userId=${encodeURIComponent(userId)}`,
+    { method: "DELETE" },
+  );
+
+  if (!response.ok) {
+    const detail = await readErrorDetail(response);
+    throw new APIError(detail || `Delete failed with status ${response.status}`, response.status);
+  }
+}
+
 export async function shareGraph(graphId: string, userId: string): Promise<{ shareId: string; shareUrl: string }> {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || window.location.origin;
   const response = await fetch(

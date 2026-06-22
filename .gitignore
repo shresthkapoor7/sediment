@@ -3,6 +3,8 @@ node_modules/
 .pnp
 .pnp.js
 
+.mcp.json
+
 claude.md
 PLAN.md
 ROADMAP.md
