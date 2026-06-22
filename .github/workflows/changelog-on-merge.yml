@@ -1,0 +1,60 @@
+name: Add changelog entry on PR merge
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+jobs:
+  add-changelog:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Extract CodeRabbit summary
+        id: extract
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+        with:
+          script: |
+            const prBody = context.payload.pull_request.body || '';
+
+            // Extract CodeRabbit summary section
+            const summaryMatch = prBody.match(/## Summary by CodeRabbit\s*([\s\S]*?)(?=\n##|\n---|$)/i);
+            let summary = '';
+
+            if (summaryMatch) {
+              summary = summaryMatch[1].trim();
+            }
+
+            core.setOutput('summary', summary);
+            core.setOutput('title', context.payload.pull_request.title);
+            core.setOutput('pr_number', context.payload.pull_request.number);
+            core.setOutput('author', context.payload.pull_request.user.login);
+            core.setOutput('pr_url', context.payload.pull_request.html_url);
+            core.setOutput('merged_at', context.payload.pull_request.merged_at);
+
+      - name: Insert into Supabase
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          PR_NUMBER: ${{ steps.extract.outputs.pr_number }}
+          TITLE: ${{ steps.extract.outputs.title }}
+          SUMMARY: ${{ steps.extract.outputs.summary }}
+          MERGED_AT: ${{ steps.extract.outputs.merged_at }}
+          AUTHOR: ${{ steps.extract.outputs.author }}
+          PR_URL: ${{ steps.extract.outputs.pr_url }}
+        run: |
+          BODY=$(jq -n \
+            --argjson pr_number "$PR_NUMBER" \
+            --arg title "$TITLE" \
+            --arg summary "$SUMMARY" \
+            --arg merged_at "$MERGED_AT" \
+            --arg author "$AUTHOR" \
+            --arg pr_url "$PR_URL" \
+            '{pr_number: $pr_number, title: $title, summary: $summary, merged_at: $merged_at, author: $author, pr_url: $pr_url}')
+
+          curl -X POST "${SUPABASE_URL}/rest/v1/changelogs" \
+            -H "apikey: ${SUPABASE_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_KEY}" \
+            -H "Content-Type: application/json" \
+            -H "Prefer: return=minimal" \
+            -d "$BODY"

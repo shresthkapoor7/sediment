@@ -9,11 +9,13 @@ claude.md
 PLAN.md
 ROADMAP.md
 security-patch.md
+frontend/next-env.d.ts
 
 # Next.js
 frontend/.next/
 frontend/out/
 frontend/build/
+frontend/.next/dev/
 
 # Python
 __pycache__/
@@ -59,3 +61,4 @@ logs/
 # Misc
 .vercel
 *.pem
+.mcp.json

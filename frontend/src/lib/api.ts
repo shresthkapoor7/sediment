@@ -11,6 +11,9 @@ import {
 } from "./types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+const USE_API_PROXY = process.env.NEXT_PUBLIC_USE_API_PROXY === "true";
+const PROXY_API_BASE = "";
+const EXPENSIVE_API_BASE = USE_API_PROXY ? PROXY_API_BASE : API_BASE;
 export const SEDIMENT_USER_ID_KEY = "sediment_user_id";
 export const LAST_GRAPH_ID_KEY = "last_graph_id";
 export const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || "0.1.0";
@@ -30,7 +33,7 @@ export async function searchLineage(
   seedOpenalexId?: string,
   settings?: TraversalSettings,
 ): Promise<LineageGraphResponse> {
-  const response = await fetch(`${API_BASE}/api/search`, {
+  const response = await fetch(`${EXPENSIVE_API_BASE}/api/search`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -48,12 +51,61 @@ export async function searchLineage(
   return response.json();
 }
 
+export interface ClarifyResult {
+  needsClarification: boolean;
+  refinedQuery?: string;
+  question?: string;
+  options?: string[];
+}
+
+export async function clarifyQuery(query: string): Promise<ClarifyResult> {
+  const response = await fetch(`${EXPENSIVE_API_BASE}/api/clarify`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ query }),
+  });
+
+  if (!response.ok) {
+    if (response.status === 429) {
+      const detail = await readErrorDetail(response);
+      throw new APIError(detail || "Clarification rate limited", response.status);
+    }
+    return { needsClarification: false, refinedQuery: query };
+  }
+
+  const data = await response.json();
+  const payload = data && typeof data === "object" && !Array.isArray(data)
+    ? data as Record<string, unknown>
+    : {};
+  const rawNeedsClarification = payload.needs_clarification;
+  const needsClarification = typeof rawNeedsClarification === "boolean"
+    ? rawNeedsClarification
+    : typeof rawNeedsClarification === "string"
+      ? ["true", "1", "yes"].includes(rawNeedsClarification.trim().toLowerCase())
+      : typeof rawNeedsClarification === "number"
+        ? rawNeedsClarification === 1
+        : false;
+  const refinedQuery = typeof payload.refined_query === "string" && payload.refined_query.trim()
+    ? payload.refined_query
+    : query;
+  const question = typeof payload.question === "string" ? payload.question : "";
+  const options = Array.isArray(payload.options)
+    ? payload.options.filter((option): option is string => typeof option === "string")
+    : [];
+  return {
+    needsClarification,
+    refinedQuery,
+    question,
+    options,
+  };
+}
+
 export async function expandLineage(
   paperId: string,
   conceptContext: string,
   settings?: TraversalSettings,
 ): Promise<LineageGraphResponse> {
-  const response = await fetch(`${API_BASE}/api/expand`, {
+  const response = await fetch(`${EXPENSIVE_API_BASE}/api/expand`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ paperId, conceptContext, ...(settings ? { settings } : {}) }),
@@ -68,7 +120,7 @@ export async function expandLineage(
 }
 
 export async function chatAboutPaper(node: TimelineNode, question: string): Promise<{ text: string; suggestion?: ChatSuggestion | null }> {
-  const response = await fetch(`${API_BASE}/api/chat`, {
+  const response = await fetch(`${EXPENSIVE_API_BASE}/api/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -92,7 +144,7 @@ export async function chatAboutPaper(node: TimelineNode, question: string): Prom
 export async function suggestTimelineQuestions(
   papers: { openalexId: string; title: string; year?: number | null; summary?: string }[],
 ): Promise<string[]> {
-  const response = await fetch(`${API_BASE}/api/chat/global/suggestions`, {
+  const response = await fetch(`${EXPENSIVE_API_BASE}/api/chat/global/suggestions`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(papers),
@@ -105,7 +157,7 @@ export async function chatAboutTimeline(
   papers: { openalexId: string; title: string; year?: number | null; summary?: string }[],
   question: string,
 ): Promise<GlobalChatResponse> {
-  const response = await fetch(`${API_BASE}/api/chat/global`, {
+  const response = await fetch(`${EXPENSIVE_API_BASE}/api/chat/global`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ papers, question }),
@@ -218,6 +270,49 @@ export async function deleteSavedGraph(graphId: string, userId: string): Promise
     const detail = await readErrorDetail(response);
     throw new APIError(detail || `Delete failed with status ${response.status}`, response.status);
   }
+}
+
+export async function shareGraph(graphId: string, userId: string): Promise<{ shareId: string; shareUrl: string }> {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || window.location.origin;
+  const response = await fetch(
+    `${API_BASE}/api/graphs/${graphId}/share?userId=${encodeURIComponent(userId)}`,
+    { method: "POST" },
+  );
+
+  if (!response.ok) {
+    const detail = await readErrorDetail(response);
+    throw new APIError(detail || `Share failed with status ${response.status}`, response.status);
+  }
+
+  const data = await response.json();
+  const shareUrl = data.shareUrl?.startsWith("/")
+    ? `${appUrl}${data.shareUrl}`
+    : data.shareUrl || `${appUrl}/s/${data.shareId}`;
+  return { shareId: data.shareId, shareUrl };
+}
+
+export async function fetchSharedGraph(shareId: string): Promise<SavedGraph> {
+  const response = await fetch(`${API_BASE}/api/share/${shareId}`);
+
+  if (!response.ok) {
+    const detail = await readErrorDetail(response);
+    throw new APIError(detail || `Load failed with status ${response.status}`, response.status);
+  }
+
+  return response.json();
+}
+
+export async function fetchUsage(): Promise<{ used: number; remaining: number; segments: number; requestCount: number; dailyLimit: number }> {
+  const response = await fetch(`${EXPENSIVE_API_BASE}/api/usage`, {
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    const detail = await readErrorDetail(response);
+    throw new APIError(detail || `Usage failed with status ${response.status}`, response.status);
+  }
+
+  return response.json();
 }
 
 async function readErrorDetail(response: Response): Promise<string> {

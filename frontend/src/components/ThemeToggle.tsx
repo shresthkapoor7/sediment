@@ -12,10 +12,10 @@ export function ThemeToggle() {
       aria-label="Toggle theme"
       style={{
         background: "var(--bg-secondary)",
-        border: "1px solid var(--border)",
-        borderRadius: 10,
-        width: 32,
-        height: 32,
+        border: "0.0625rem solid var(--border)",
+        borderRadius: "0.625rem",
+        width: "2rem",
+        height: "2rem",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",

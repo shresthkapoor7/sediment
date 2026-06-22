@@ -5,9 +5,25 @@ from typing import Optional
 
 from anthropic import AsyncAnthropic
 
+from .text_utils import meaningful_tokens, normalize_text
+from .usage_limiter import limiter
+
 logger = logging.getLogger(__name__)
 MAX_TIMELINE_PAPERS = 25
 MAX_TIMELINE_SUMMARY_CHARS = 320
+MAX_SUGGESTION_WORDS = 6
+_GENERIC_SUGGESTIONS = {
+    "background",
+    "history",
+    "lineage",
+    "related work",
+    "more papers",
+    "paper",
+    "papers",
+    "research paper",
+    "this paper",
+    "the paper",
+}
 
 
 class LLMParseError(Exception):
@@ -19,7 +35,7 @@ class LLMClient:
         self.client = AsyncAnthropic(api_key=api_key)
         self.model = model
 
-    async def choose_seed(self, query: str, papers: list[dict]) -> dict:
+    async def choose_seed(self, query: str, papers: list[dict], ip: str = "unknown") -> dict:
         if not papers:
             return {"index": None, "confidence": "low", "reason": "No candidates"}
 
@@ -53,7 +69,7 @@ Respond with JSON only:
   "reason": "<short reason>"
 }}"""
 
-        parsed = await self._prompt_json(prompt)
+        parsed = await self._prompt_json(prompt, ip=ip)
         if not isinstance(parsed, dict):
             raise LLMParseError("Seed choice response was not an object")
 
@@ -70,7 +86,7 @@ Respond with JSON only:
             "reason": parsed.get("reason", ""),
         }
 
-    async def rank_references(self, concept: str, seed_paper: dict, papers: list[dict], top_n: int = 8) -> list[dict]:
+    async def rank_references(self, concept: str, seed_paper: dict, papers: list[dict], top_n: int = 8, ip: str = "unknown") -> list[dict]:
         if not papers:
             return []
 
@@ -113,7 +129,7 @@ Respond with a JSON array only, ordered oldest to newest:
   }}
 ]"""
 
-        parsed = await self._prompt_json(prompt)
+        parsed = await self._prompt_json(prompt, ip=ip)
         if not isinstance(parsed, list):
             raise LLMParseError("Lineage ranking response was not a list")
 
@@ -122,21 +138,24 @@ Respond with a JSON array only, ordered oldest to newest:
             if not isinstance(item, dict):
                 continue
             idx = item.get("index")
-            if not isinstance(idx, int) or not (0 <= idx < len(candidates)):
+            if not isinstance(idx, int) or not (0 <= idx < len(papers)):
                 continue
-            candidate = candidates[idx]
+            original = papers[idx]
             results.append({
-                "openalexId": candidate["openalexId"],
-                "title": candidate["title"],
-                "year": candidate["year"],
+                "openalexId": original.get("openalexId"),
+                "title": original.get("title", ""),
+                "year": original.get("year"),
                 "summary": item.get("summary", ""),
-                "detail": candidate.get("detail", ""),
-                "authors": candidate["authors"],
-                "doi": candidate["doi"],
+                "detail": original.get("detail", ""),
+                "authors": original.get("authors", []),
+                "doi": original.get("doi"),
+                "oaUrl": original.get("oaUrl"),
+                "concepts": original.get("concepts", []),
+                "type": original.get("type"),
             })
         return results
 
-    async def chat_about_paper(self, paper: dict, question: str) -> dict:
+    async def chat_about_paper(self, paper: dict, question: str, ip: str = "unknown") -> dict:
         explicit_topic = _extract_explicit_topic(question)
 
         prompt = f"""You are helping a user understand a research paper in a lineage explorer.
@@ -155,20 +174,22 @@ User question:
 Important:
 - If the user explicitly asks about a concept like "what is X" or "explain X", prefer that exact concept for any follow-up lineage suggestion.
 - Do not default the suggestion to the current paper family unless that is clearly what the user asked for.
+- Only suggest a short concept or method name, not a full sentence and not the current paper title.
+- Omit the suggestion if the best follow-up is already covered by the current paper.
 
 Respond with JSON only:
 {{
   "text": "<helpful short answer, 2-5 sentences>",
   "suggestion": {{
-    "topic": "<optional follow-up lineage topic>",
-    "query": "<optional search query for that topic>",
-    "nodeCount": <small integer>
+    "topic": "<optional follow-up lineage topic, usually 1-5 words>",
+    "query": "<optional search query for that topic, usually same as topic>",
+    "nodeCount": 4
   }} | null
 }}
 
 Only include a suggestion when there is a clear worthwhile follow-up lineage to trace."""
 
-        parsed = await self._prompt_json(prompt)
+        parsed = await self._prompt_json(prompt, ip=ip)
         if not isinstance(parsed, dict):
             raise LLMParseError("Chat response was not an object")
 
@@ -176,24 +197,11 @@ Only include a suggestion when there is a clear worthwhile follow-up lineage to 
         if suggestion is not None and not isinstance(suggestion, dict):
             suggestion = None
 
-        cleaned_suggestion = None
-        if isinstance(suggestion, dict):
-            topic = suggestion.get("topic")
-            query = suggestion.get("query")
-            node_count = suggestion.get("nodeCount", 4)
-            if isinstance(topic, str) and isinstance(query, str):
-                cleaned_suggestion = {
-                    "topic": topic,
-                    "query": query,
-                    "nodeCount": node_count if isinstance(node_count, int) else 4,
-                }
-
-        if explicit_topic:
-            cleaned_suggestion = {
-                "topic": explicit_topic,
-                "query": explicit_topic,
-                "nodeCount": 4,
-            }
+        cleaned_suggestion = _sanitize_suggestion(
+            suggestion if isinstance(suggestion, dict) else None,
+            context_texts=[paper.get("title", ""), paper.get("summary", "")],
+            explicit_topic=explicit_topic,
+        )
 
         text = parsed.get("text")
         return {
@@ -201,7 +209,7 @@ Only include a suggestion when there is a clear worthwhile follow-up lineage to 
             "suggestion": cleaned_suggestion,
         }
 
-    async def suggest_timeline_questions(self, papers: list[dict]) -> list[str]:
+    async def suggest_timeline_questions(self, papers: list[dict], ip: str = "unknown") -> list[str]:
         titles = [f"- {p['title']} ({p.get('year', '?')})" for p in papers[:20]]
         prompt = f"""A user is exploring this research timeline:
 {chr(10).join(titles)}
@@ -212,7 +220,7 @@ Questions should be natural, curious, and relevant to the specific papers shown.
 Respond with JSON only:
 {{"questions": ["<question 1>", "<question 2>", "<question 3>"]}}"""
 
-        parsed = await self._prompt_json(prompt)
+        parsed = await self._prompt_json(prompt, ip=ip)
         if not isinstance(parsed, dict):
             return []
         questions = parsed.get("questions", [])
@@ -220,7 +228,7 @@ Respond with JSON only:
             return []
         return [q for q in questions if isinstance(q, str)][:3]
 
-    async def chat_about_timeline(self, papers: list[dict], question: str) -> dict:
+    async def chat_about_timeline(self, papers: list[dict], question: str, ip: str = "unknown") -> dict:
         ranked_papers = sorted(
             papers,
             key=lambda paper: ((paper.get("year") is None), paper.get("year") or 0, paper.get("title", "")),
@@ -284,7 +292,7 @@ Rules:
 - Add a suggestion when the user references a concept not already in the timeline that would benefit from its own lineage branch (e.g. "how is this related to RNN" → suggest tracing RNN lineage).
 - Do not suggest lineage for concepts already well-covered by the existing papers."""
 
-        parsed = await self._prompt_json(prompt)
+        parsed = await self._prompt_json(prompt, ip=ip)
         if not isinstance(parsed, dict):
             raise LLMParseError("Global chat response was not an object")
 
@@ -295,17 +303,14 @@ Rules:
         highlighted = [h for h in highlighted if isinstance(h, str) and h in valid_ids]
 
         suggestion = parsed.get("suggestion")
-        cleaned_suggestion = None
-        if isinstance(suggestion, dict):
-            topic = suggestion.get("topic")
-            query = suggestion.get("query")
-            node_count = suggestion.get("nodeCount", 4)
-            if isinstance(topic, str) and isinstance(query, str):
-                cleaned_suggestion = {
-                    "topic": topic,
-                    "query": query,
-                    "nodeCount": node_count if isinstance(node_count, int) else 4,
-                }
+        cleaned_suggestion = _sanitize_suggestion(
+            suggestion if isinstance(suggestion, dict) else None,
+            context_texts=[
+                *[paper.get("title", "") for paper in selected_papers],
+                *[paper.get("summary", "") for paper in selected_papers],
+            ],
+            explicit_topic=_extract_explicit_topic(question),
+        )
 
         text = parsed.get("text")
         return {
@@ -314,12 +319,90 @@ Rules:
             "suggestion": cleaned_suggestion,
         }
 
-    async def _prompt_json(self, prompt: str):
+    async def clarify_query(self, query: str, ip: str = "unknown") -> dict:
+        prompt = f"""You help users of a research paper lineage explorer find the right academic concept to trace.
+
+User entered: "{query}"
+
+Decide:
+1. If the query clearly refers to a specific academic/research topic, method, paper, technology, or concept (even if loosely phrased like "how does attention work"), respond with needs_clarification=false and a cleaned-up search-friendly version of their query.
+2. If the query is ambiguous and could mean different things in different research fields (e.g. "attention" = cognitive psychology OR transformer attention), respond with needs_clarification=true and 2-4 specific research interpretations as options.
+3. If the query is too vague or non-academic (e.g. "what is the meaning of life", "something cool"), respond with needs_clarification=true, a short clarifying question, and 2-4 research topic options that might be relevant.
+
+Important:
+- If the user appears to have entered a paper title, preserve the title wording closely.
+- Do not generalize a paper title into loose topic keywords.
+- Do not append adjacent concepts that were not in the original query.
+
+Respond with JSON only:
+{{
+  "needs_clarification": false,
+  "refined_query": "<concise search query>"
+}}
+OR:
+{{
+  "needs_clarification": true,
+  "question": "<one short question to ask the user>",
+  "options": ["<specific research topic 1>", "<specific research topic 2>", ...]
+}}"""
+
+        parsed = await self._prompt_json(prompt, ip=ip)
+        if not isinstance(parsed, dict):
+            raise LLMParseError("Clarify response was not an object")
+
+        raw = parsed.get("needs_clarification", False)
+        if isinstance(raw, bool):
+            needs_clarification = raw
+        elif isinstance(raw, str):
+            needs_clarification = raw.strip().lower() in {"true", "1", "yes"}
+        elif isinstance(raw, (int, float)):
+            needs_clarification = raw == 1
+        else:
+            needs_clarification = False
+
+        if not needs_clarification:
+            refined = parsed.get("refined_query")
+            return {
+                "needs_clarification": False,
+                "refined_query": refined if isinstance(refined, str) and refined.strip() else query,
+            }
+
+        question = parsed.get("question")
+        options = parsed.get("options", [])
+        if not isinstance(options, list):
+            options = []
+        options = [o for o in options if isinstance(o, str) and o.strip()][:4]
+
+        return {
+            "needs_clarification": True,
+            "question": question if isinstance(question, str) else "What research area are you interested in?",
+            "options": options,
+        }
+
+    async def _prompt_json(self, prompt: str, ip: str = "unknown"):
         resp = await self.client.messages.create(
             model=self.model,
             max_tokens=1024,
             messages=[{"role": "user", "content": prompt}],
         )
+        input_tokens = getattr(resp.usage, "input_tokens", 0)
+        output_tokens = getattr(resp.usage, "output_tokens", 0)
+        try:
+            await limiter.record_usage(
+                ip,
+                input_tokens,
+                output_tokens,
+                self.model,
+            )
+        except Exception as e:
+            logger.warning(
+                "Usage recording failed for ip=%r model=%r input_tokens=%r output_tokens=%r",
+                ip,
+                self.model,
+                input_tokens,
+                output_tokens,
+                exc_info=e,
+            )
 
         raw = resp.content[0].text.strip()
         if raw.startswith("```"):
@@ -342,6 +425,10 @@ def _extract_explicit_topic(question: str) -> Optional[str]:
         r"^explain (?:a |an |the )?(?P<topic>.+)$",
         r"^tell me about (?:a |an |the )?(?P<topic>.+)$",
         r"^trace (?:the )?lineage of (?:a |an |the )?(?P<topic>.+)$",
+        r"^how is (?:this|it) related to (?:a |an |the )?(?P<topic>.+)$",
+        r"^how does (?:this|it) relate to (?:a |an |the )?(?P<topic>.+)$",
+        r"^compare (?:this|it) to (?:a |an |the )?(?P<topic>.+)$",
+        r"^what about (?:a |an |the )?(?P<topic>.+)$",
     ]
 
     for pattern in patterns:
@@ -349,5 +436,71 @@ def _extract_explicit_topic(question: str) -> Optional[str]:
         if match:
             topic = match.group("topic").strip()
             if topic:
-                return topic
+                return _clean_suggestion_text(topic)
     return None
+
+
+def _clean_suggestion_text(text: str) -> str:
+    cleaned = text.strip().strip("\"'`.,:;!?()[]{}")
+    cleaned = re.sub(r"\s+", " ", cleaned)
+    return cleaned
+
+
+def _is_already_covered(topic: str, context_texts: list[str]) -> bool:
+    topic_tokens = meaningful_tokens(topic)
+    if not topic_tokens:
+        return True
+
+    for text in context_texts:
+        context_tokens = meaningful_tokens(text)
+        if not context_tokens:
+            continue
+        overlap = len(topic_tokens & context_tokens)
+        if len(topic_tokens) >= 2 and overlap == len(topic_tokens):
+            return True
+        if overlap >= 2 and overlap / max(1, len(topic_tokens)) >= 0.75:
+            return True
+    return False
+
+
+def _sanitize_suggestion(
+    suggestion: Optional[dict],
+    context_texts: list[str],
+    explicit_topic: Optional[str] = None,
+) -> Optional[dict]:
+    raw_topic = explicit_topic
+    raw_query = explicit_topic
+
+    if raw_topic is None and suggestion:
+        topic = suggestion.get("topic")
+        query = suggestion.get("query")
+        if isinstance(topic, str):
+            raw_topic = topic
+        if isinstance(query, str):
+            raw_query = query
+
+    if not raw_topic and not raw_query:
+        return None
+
+    topic = _clean_suggestion_text(raw_topic or raw_query or "")
+    query = _clean_suggestion_text(raw_query or raw_topic or "")
+    if not topic:
+        return None
+
+    if len(topic.split()) > MAX_SUGGESTION_WORDS:
+        return None
+    if len(query.split()) > MAX_SUGGESTION_WORDS:
+        query = topic
+
+    normalized_topic = normalize_text(topic)
+    if not normalized_topic or normalized_topic in _GENERIC_SUGGESTIONS:
+        return None
+
+    if explicit_topic is None and _is_already_covered(topic, context_texts):
+        return None
+
+    return {
+        "topic": topic,
+        "query": query or topic,
+        "nodeCount": 4,
+    }
