@@ -56,6 +56,7 @@ class SupabaseClient:
             "/rest/v1/graphs"
             f"?id=eq.{quote(graph_id, safe='')}"
             f"&user_id=eq.{quote(user_id, safe='')}"
+            "&deleted_at=is.null"
         )
         return await self._request(
             "PATCH",
@@ -72,6 +73,7 @@ class SupabaseClient:
             "?select=id,user_id,query,data,metadata,seed_paper_id,is_public,share_id,created_at,updated_at"
             f"&id=eq.{quote(graph_id, safe='')}"
             f"&user_id=eq.{quote(user_id, safe='')}"
+            "&deleted_at=is.null"
             "&limit=1"
         )
         return await self._request("GET", query, expect_single=True, allow_empty=True)
@@ -81,9 +83,27 @@ class SupabaseClient:
             "/rest/v1/graphs"
             "?select=id,query,metadata,seed_paper_id,created_at,updated_at"
             f"&user_id=eq.{quote(user_id, safe='')}"
+            "&deleted_at=is.null"
             "&order=updated_at.desc"
         )
         return await self._request("GET", query)
+
+    async def soft_delete_graph(self, graph_id: str, user_id: str) -> dict[str, Any] | None:
+        query = (
+            "/rest/v1/graphs"
+            f"?id=eq.{quote(graph_id, safe='')}"
+            f"&user_id=eq.{quote(user_id, safe='')}"
+            "&deleted_at=is.null"
+        )
+        payload = {"deleted_at": datetime.now(timezone.utc).isoformat()}
+        return await self._request(
+            "PATCH",
+            query,
+            json=payload,
+            headers={"Prefer": "return=representation"},
+            expect_single=True,
+            allow_empty=True,
+        )
 
     async def _request(
         self,
