@@ -2584,6 +2584,48 @@ export default function Home() {
               </motion.button>
             )}
 
+            {!timelineData && (
+              <motion.a
+                href="/changelog"
+                initial={{ opacity: 0, y: -4 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.25 }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.375rem",
+                  padding: "0 0.75rem",
+                  height: "2rem",
+                  boxSizing: "border-box",
+                  background: "none",
+                  border: "0.0625rem solid var(--border)",
+                  borderRadius: "0.4375rem",
+                  color: "var(--text-secondary)",
+                  fontSize: "0.75rem",
+                  fontFamily: "'DM Sans', sans-serif",
+                  fontWeight: 500,
+                  textDecoration: "none",
+                  transitionProperty: "border-color, color, background",
+                  transitionDuration: "0.15s",
+                }}
+              >
+                <svg
+                  width="13"
+                  height="13"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M3 2.5h7l3 3v8H3z" />
+                  <path d="M10 2.5v3h3M5.5 8h5M5.5 10.5h5" />
+                </svg>
+                Changelog
+              </motion.a>
+            )}
+
             {/* Credits indicator */}
             <div
               style={{ position: "relative" }}
@@ -3242,6 +3284,41 @@ export default function Home() {
                 </button>
               )}
 
+              {!timelineData && (
+                <a
+                  href="/changelog"
+                  onClick={() => setMobileMenuOpen(false)}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.625rem",
+                    width: "100%",
+                    padding: "0.625rem 0.5rem",
+                    borderRadius: "0.5rem",
+                    color: "var(--text-primary)",
+                    fontSize: "0.875rem",
+                    fontFamily: "'DM Sans', sans-serif",
+                    fontWeight: 500,
+                    textDecoration: "none",
+                  }}
+                >
+                  <svg
+                    width="15"
+                    height="15"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="var(--text-tertiary)"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M3 2.5h7l3 3v8H3z" />
+                    <path d="M10 2.5v3h3M5.5 8h5M5.5 10.5h5" />
+                  </svg>
+                  Changelog
+                </a>
+              )}
+
               {/* Settings — inline sliders */}
               <div style={{ padding: "0.5rem 0.5rem 0.25rem" }}>
                 <p
@@ -3842,7 +3919,7 @@ export default function Home() {
                 exit={{ opacity: 0 }}
                 onClick={cancelDeleteSavedGraph}
                 style={{
-                  position: "absolute",
+                  position: "fixed",
                   inset: 0,
                   background: "rgba(16, 12, 8, 0.38)",
                   border: "none",
@@ -3853,17 +3930,20 @@ export default function Home() {
               />
 
               <motion.div
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="delete-graph-dialog-title"
                 initial={{ opacity: 0, y: 12, scale: 0.98 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 12, scale: 0.98 }}
                 transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
                 style={{
-                  position: "absolute",
-                  top: "50%",
-                  left: "50%",
-                  transform: "translate(-50%, -50%)",
-                  width: 420,
-                  maxWidth: "calc(100vw - 32px)",
+                  position: "fixed",
+                  inset: 0,
+                  width: "min(26.25rem, calc(100vw - 2rem))",
+                  height: "fit-content",
+                  maxHeight: "calc(100dvh - 2rem)",
+                  margin: "auto",
                   padding: 20,
                   borderRadius: 18,
                   border: "1px solid var(--border-hover)",
@@ -3873,6 +3953,7 @@ export default function Home() {
                   display: "flex",
                   flexDirection: "column",
                   gap: 14,
+                  overflowY: "auto",
                 }}
               >
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -3888,6 +3969,7 @@ export default function Home() {
                     Confirm deletion
                   </p>
                   <h3
+                    id="delete-graph-dialog-title"
                     style={{
                       fontSize: 24,
                       lineHeight: 1.1,

@@ -262,7 +262,7 @@ export async function listSavedGraphs(userId: string): Promise<SavedGraphListIte
 
 export async function deleteSavedGraph(graphId: string, userId: string): Promise<void> {
   const response = await fetch(
-    `${API_BASE}/api/graphs/${graphId}?userId=${encodeURIComponent(userId)}`,
+    `${API_BASE}/api/graphs/${encodeURIComponent(graphId)}?userId=${encodeURIComponent(userId)}`,
     { method: "DELETE" },
   );
 
