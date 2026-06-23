@@ -8,7 +8,7 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from .config import settings
-from .routers import changelog, chat, clarify, expand, persistence, search, usage
+from .routers import changelog, chat, clarify, expand, paper_access, persistence, search, usage
 
 logger = logging.getLogger(__name__)
 
@@ -118,6 +118,7 @@ app.include_router(search.router, prefix="/api")
 app.include_router(expand.router, prefix="/api")
 app.include_router(chat.router, prefix="/api")
 app.include_router(persistence.router, prefix="/api")
+app.include_router(paper_access.router, prefix="/api")
 app.include_router(usage.router, prefix="/api")
 
 

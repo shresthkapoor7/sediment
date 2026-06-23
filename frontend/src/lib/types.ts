@@ -7,6 +7,12 @@ export interface GraphPaper {
   authors?: string[];
   doi?: string | null;
   oaUrl?: string | null;
+  isOa?: boolean;
+  oaStatus?: string | null;
+  hasFulltext?: boolean;
+  hasContentPdf?: boolean;
+  hasContentTei?: boolean;
+  oaLicense?: string | null;
   concepts?: string[];
   type?: string | null;
   citedByCount?: number;
@@ -32,10 +38,47 @@ export interface ChatSuggestion {
   nodeCount: number;
 }
 
+export interface PaperChatResponse {
+  text: string;
+  suggestion?: ChatSuggestion | null;
+  sessionId?: string | null;
+  toolUses?: Record<string, unknown>[];
+  citations?: Record<string, unknown>[];
+}
+
+export type PaperChatStreamEvent =
+  | { type: "message_started"; paperId?: string }
+  | { type: "status"; message: string }
+  | { type: "tool_started"; name: string; input?: Record<string, unknown> }
+  | { type: "tool_completed"; name: string; status?: string; result?: Record<string, unknown> }
+  | { type: "text_delta"; text: string }
+  | { type: "citations"; citations: Record<string, unknown>[] }
+  | { type: "message_completed"; response: PaperChatResponse }
+  | { type: "error"; detail: string; statusCode?: number };
+
 export interface GlobalChatResponse {
   text: string;
   highlightedPaperIds: string[];
   suggestion: ChatSuggestion | null;
+  sessionId?: string | null;
+}
+
+export interface PersistentChatMessage {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  toolUses: Record<string, unknown>[];
+  citations: Record<string, unknown>[];
+  sequenceNumber: number;
+  createdAt: string;
+}
+
+export interface PersistentChatSession {
+  sessionId: string;
+  scope: "paper" | "graph";
+  paperOpenalexId?: string | null;
+  summary?: string | null;
+  messages: PersistentChatMessage[];
 }
 
 export interface TraversalSettings {
@@ -71,6 +114,12 @@ export interface Paper {
   authors?: string[];
   doi?: string | null;
   oaUrl?: string | null;
+  isOa?: boolean;
+  oaStatus?: string | null;
+  hasFulltext?: boolean;
+  hasContentPdf?: boolean;
+  hasContentTei?: boolean;
+  oaLicense?: string | null;
   concepts?: string[];
   type?: string | null;
   arxivId?: string;
@@ -96,6 +145,16 @@ export interface TimelineData {
   lanes: number;
   rootId: number;
   expansions: Expansion[];
+}
+
+export interface PaperAccessResponse {
+  openalexId: string;
+  accessStatus: "available" | "unavailable" | "failed";
+  ingestionStatus: "ready" | "not_cached" | "failed";
+  sourceType: "openalex_tei" | "openalex_pdf" | "unpaywall_pdf" | null;
+  license: string | null;
+  requiresConfirmation: boolean;
+  message: string;
 }
 
 export interface Expansion {

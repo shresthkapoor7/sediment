@@ -1,0 +1,23 @@
+[
+  {
+    "openalexId": "W2127662629",
+    "query": "What problem did LSTM solve with long-range dependencies?",
+    "expectedSections": ["Introduction", "Experimental Results"],
+    "expectedPhrases": ["vanishing error", "long time lags", "constant error carousel"],
+    "notes": "Long Short-Term Memory, Hochreiter and Schmidhuber."
+  },
+  {
+    "openalexId": "W2741809807",
+    "query": "What is the scaled dot-product attention formula and why is scaling used?",
+    "expectedSections": ["Model Architecture", "Attention"],
+    "expectedPhrases": ["scaled dot-product attention", "sqrt", "softmax"],
+    "notes": "Attention Is All You Need."
+  },
+  {
+    "openalexId": "W2133633826",
+    "query": "How does dropout prevent co-adaptation?",
+    "expectedSections": ["Introduction", "Motivation"],
+    "expectedPhrases": ["co-adaptation", "randomly omit", "hidden units"],
+    "notes": "Dropout paper; replace ID if OpenAlex resolves a different version in your graph."
+  }
+]

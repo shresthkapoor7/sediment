@@ -3,9 +3,9 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { MarkdownContent } from "./MarkdownContent";
-import { chatAboutPaper } from "@/lib/api";
+import { fetchPaperAccess, openChatSession, streamChatAboutPaper } from "@/lib/api";
 import { TIMELINE_MOBILE_BREAKPOINT_PX } from "@/lib/hover-preview";
-import { TimelineData, ChatSuggestion, TimelineNode } from "@/lib/types";
+import { TimelineData, ChatSuggestion, PaperAccessResponse, TimelineNode, PaperChatStreamEvent } from "@/lib/types";
 import { NODE_DIMENSIONS } from "@/lib/dummy-data";
 import { TimelineNodeCard } from "./TimelineNode";
 import { TimelineEdgeLine } from "./TimelineEdge";
@@ -17,10 +17,20 @@ const DETAIL_PANEL_MIN_WIDTH = 320;
 const DETAIL_PANEL_MAX_WIDTH = 640;
 
 interface ChatMessage {
-  id: number;
+  id: number | string;
   role: "user" | "assistant";
   content: string;
   suggestion?: ChatSuggestion | null;
+  statusEvents?: string[];
+  toolEvents?: ToolEvent[];
+  citations?: Record<string, unknown>[];
+  pending?: boolean;
+}
+
+interface ToolEvent {
+  name: string;
+  status: "started" | "completed" | "error" | "needs_confirmation" | string;
+  label: string;
 }
 
 interface TimelineCanvasProps {
@@ -31,12 +41,22 @@ interface TimelineCanvasProps {
   readOnly?: boolean;
   hoverPreviewEnabled?: boolean;
   onToggleHoverPreview?: () => void;
+  graphId?: string | null;
+  userId?: string | null;
 }
 
 interface HoverPreviewState {
   nodeId: number;
   rect: DOMRect;
 }
+
+type PaperAccessState = PaperAccessResponse | {
+  accessStatus: "checking";
+  message: string;
+} | {
+  accessStatus: "failed";
+  message: string;
+};
 
 export function TimelineCanvas({
   data,
@@ -46,6 +66,8 @@ export function TimelineCanvas({
   readOnly = false,
   hoverPreviewEnabled = true,
   onToggleHoverPreview,
+  graphId,
+  userId,
 }: TimelineCanvasProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -81,6 +103,10 @@ export function TimelineCanvas({
   const [hoveredNode, setHoveredNode] = useState<HoverPreviewState | null>(null);
   const hoverHideTimeoutRef = useRef<number | null>(null);
   const panelResizeStateRef = useRef<{ startX: number; startWidth: number } | null>(null);
+  const accessChecksInFlightRef = useRef<Set<string>>(new Set());
+  const chatHistoryLoadsRef = useRef<Set<string>>(new Set());
+  const activePaperStreamsRef = useRef<Record<number, string>>({});
+  const [paperAccessById, setPaperAccessById] = useState<Record<string, PaperAccessState>>({});
 
   // Track the latest generation so only new nodes animate
   const latestGenRef = useRef(0);
@@ -101,6 +127,79 @@ export function TimelineCanvas({
   useEffect(() => {
     setHighlightedPaperIds(new Set());
   }, [data]);
+
+  useEffect(() => {
+    setChatHistories({});
+    chatHistoryLoadsRef.current.clear();
+  }, [graphId, userId]);
+
+  useEffect(() => {
+    if (!graphId || !userId || !activeNodeId) return;
+    const paperId = data.nodes[activeNodeId]?.paper.openalexId;
+    if (!paperId) return;
+    const historyKey = `${graphId}:${paperId}`;
+    if (chatHistoryLoadsRef.current.has(historyKey)) return;
+    chatHistoryLoadsRef.current.add(historyKey);
+    const targetNodeId = activeNodeId;
+    let cancelled = false;
+    void openChatSession(graphId, userId, "paper", paperId)
+      .then((session) => {
+        if (
+          cancelled ||
+          activeNodeId !== targetNodeId ||
+          data.nodes[targetNodeId]?.paper.openalexId !== paperId
+        ) {
+          return;
+        }
+        const restored: ChatMessage[] = session.messages.map((message) => ({
+          id: message.id,
+          role: message.role,
+          content: message.content,
+          suggestion: message.role === "assistant"
+            ? restoredLineageSuggestion(message.toolUses)
+            : null,
+          citations: message.citations,
+        }));
+        setChatHistories((current) => (
+          current[targetNodeId]?.length
+            ? current
+            : { ...current, [targetNodeId]: restored }
+        ));
+      })
+      .catch(() => {
+        chatHistoryLoadsRef.current.delete(historyKey);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeNodeId, data.nodes, graphId, userId]);
+
+  useEffect(() => {
+    if (!activeNodeId) return;
+    const openalexId = data.nodes[activeNodeId]?.paper.openalexId;
+    if (!openalexId || paperAccessById[openalexId] || accessChecksInFlightRef.current.has(openalexId)) {
+      return;
+    }
+
+    accessChecksInFlightRef.current.add(openalexId);
+    setPaperAccessById((current) => ({
+      ...current,
+      [openalexId]: { accessStatus: "checking", message: "Checking whether complete paper text can be retrieved." },
+    }));
+    void fetchPaperAccess(openalexId)
+      .then((result) => {
+        setPaperAccessById((current) => ({ ...current, [openalexId]: result }));
+      })
+      .catch(() => {
+        setPaperAccessById((current) => ({
+          ...current,
+          [openalexId]: { accessStatus: "failed", message: "The access check failed. Try again later." },
+        }));
+      })
+      .finally(() => {
+        accessChecksInFlightRef.current.delete(openalexId);
+      });
+  }, [activeNodeId, data.nodes, paperAccessById]);
 
   useEffect(() => {
     return () => {
@@ -375,7 +474,7 @@ export function TimelineCanvas({
     setActiveNodeId((prev) => (prev === id ? null : id));
     setHoveredNode(null);
     setChatInput("");
-    setIsThinking(false);
+    setIsThinking(Object.keys(activePaperStreamsRef.current).length > 0);
   }, []);
 
   const clearHoverHideTimeout = useCallback(() => {
@@ -540,63 +639,154 @@ export function TimelineCanvas({
   }
 
   const activeNode = activeNodeId ? data.nodes[activeNodeId] : null;
+  const activePaperHref = activeNode ? getPaperHref(activeNode) : null;
+  const activePaperAccess = activeNode
+    ? paperAccessById[activeNode.paper.openalexId] ?? {
+        accessStatus: "checking" as const,
+        message: "Checking whether complete paper text can be retrieved.",
+      }
+    : null;
 
   // Auto-scroll chat to bottom when messages change
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatHistories, isThinking]);
 
-  const handleChatSubmit = useCallback(
-    (e: React.FormEvent) => {
-      e.preventDefault();
-      if (!activeNodeId || !activeNode || !chatInput.trim() || isThinking) return;
+  const sendPaperQuestion = useCallback(
+    (question: string) => {
+      if (!activeNodeId || !activeNode || !question.trim() || activePaperStreamsRef.current[activeNodeId]) return;
 
       const userMsg: ChatMessage = {
-        id: ++msgIdRef.current,
+        id: `local-${++msgIdRef.current}`,
         role: "user",
-        content: chatInput.trim(),
+        content: question.trim(),
       };
-      const query = chatInput.trim();
+      const query = question.trim();
       const currentNode = activeNode;
       const targetNodeId = activeNodeId;
+      const assistantId = `stream-${Date.now()}-${msgIdRef.current + 1}`;
+      activePaperStreamsRef.current[targetNodeId] = assistantId;
       setChatInput("");
       setIsThinking(true);
 
       setChatHistories((prev) => ({
         ...prev,
-        [targetNodeId]: [...(prev[targetNodeId] ?? []), userMsg],
+        [targetNodeId]: [
+          ...(prev[targetNodeId] ?? []),
+          userMsg,
+          { id: assistantId, role: "assistant", content: "", pending: true, statusEvents: ["Starting chat"] },
+        ],
       }));
 
-      void chatAboutPaper(currentNode, query)
-        .then((response) => {
-        const assistantMsg: ChatMessage = {
-          id: ++msgIdRef.current,
-          role: "assistant",
-          content: response.text,
-          suggestion: response.suggestion,
-        };
+      const updateAssistant = (patch: Partial<ChatMessage>) => {
         setChatHistories((prev) => ({
           ...prev,
-          [targetNodeId]: [...(prev[targetNodeId] ?? []), assistantMsg],
+          [targetNodeId]: (prev[targetNodeId] ?? []).map((message) => (
+            message.id === assistantId ? { ...message, ...patch } : message
+          )),
         }));
+      };
+
+      const appendStatus = (status: string) => {
+        setChatHistories((prev) => ({
+          ...prev,
+          [targetNodeId]: (prev[targetNodeId] ?? []).map((message) => (
+            message.id === assistantId
+              ? { ...message, statusEvents: [...(message.statusEvents ?? []), status].slice(-5) }
+              : message
+          )),
+        }));
+      };
+
+      const upsertTool = (tool: ToolEvent) => {
+        setChatHistories((prev) => ({
+          ...prev,
+          [targetNodeId]: (prev[targetNodeId] ?? []).map((message) => {
+            if (message.id !== assistantId) return message;
+            const existing = message.toolEvents ?? [];
+            const priorIndex = existing.findIndex((item) => item.name === tool.name);
+            const next = priorIndex >= 0
+              ? existing.map((item, index) => index === priorIndex ? tool : item)
+              : [...existing, tool];
+            return { ...message, toolEvents: next };
+          }),
+        }));
+      };
+
+      void streamChatAboutPaper(
+        currentNode,
+        query,
+        (event: PaperChatStreamEvent) => {
+          if (event.type === "status") appendStatus(event.message);
+          if (event.type === "tool_started") {
+            upsertTool({ name: event.name, status: "started", label: toolLabel(event.name) });
+          }
+          if (event.type === "tool_completed") {
+            upsertTool({
+              name: event.name,
+              status: event.status ?? "completed",
+              label: toolLabel(event.name, event.status, event.result),
+            });
+          }
+          if (event.type === "text_delta") {
+            setChatHistories((prev) => ({
+              ...prev,
+              [targetNodeId]: (prev[targetNodeId] ?? []).map((message) => (
+                message.id === assistantId
+                  ? { ...message, content: `${message.content}${event.text}` }
+                  : message
+              )),
+            }));
+          }
+          if (event.type === "citations") {
+            updateAssistant({ citations: event.citations });
+          }
+          if (event.type === "message_completed") {
+            updateAssistant({
+              content: event.response.text,
+              suggestion: event.response.suggestion,
+              citations: event.response.citations ?? [],
+              pending: false,
+            });
+          }
+          if (event.type === "error") {
+            updateAssistant({ content: event.detail || "Chat failed", pending: false });
+          }
+        },
+        graphId && userId ? { graphId, userId } : undefined,
+      )
+        .then((response) => {
+          if (!response) return;
+          updateAssistant({
+            content: response.text,
+            suggestion: response.suggestion,
+            citations: response.citations ?? [],
+            pending: false,
+          });
         })
         .catch((error) => {
-          const assistantMsg: ChatMessage = {
-            id: ++msgIdRef.current,
-            role: "assistant",
+          updateAssistant({
             content: error instanceof Error ? error.message : "Chat failed",
-          };
-          setChatHistories((prev) => ({
-            ...prev,
-            [targetNodeId]: [...(prev[targetNodeId] ?? []), assistantMsg],
-          }));
+            pending: false,
+          });
         })
         .finally(() => {
-        setIsThinking(false);
-        onUsageChanged?.();
+          if (activePaperStreamsRef.current[targetNodeId] === assistantId) {
+            delete activePaperStreamsRef.current[targetNodeId];
+            setIsThinking(Object.keys(activePaperStreamsRef.current).length > 0);
+          }
+          onUsageChanged?.();
         });
     },
-    [activeNode, activeNodeId, chatInput, isThinking, onUsageChanged]
+    [activeNode, activeNodeId, graphId, onUsageChanged, userId]
+  );
+
+  const handleChatSubmit = useCallback(
+    (e: React.FormEvent) => {
+      e.preventDefault();
+      sendPaperQuestion(chatInput);
+    },
+    [chatInput, sendPaperQuestion]
   );
 
   const handleAddLineage = useCallback(
@@ -1360,9 +1550,10 @@ export function TimelineCanvas({
               >
                 {activeNode.paper.title}
               </div>
-              {(activeNode.paper.oaUrl || activeNode.paper.doi || activeNode.paper.arxivId) && (
-                <a
-                  href={activeNode.paper.oaUrl || (activeNode.paper.arxivId ? `https://arxiv.org/abs/${activeNode.paper.arxivId}` : activeNode.paper.doi!) }
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "0.25rem", flexShrink: 0 }}>
+                {activePaperHref && (
+                  <a
+                  href={activePaperHref}
                   target="_blank"
                   rel="noopener noreferrer"
                   style={{
@@ -1372,10 +1563,27 @@ export function TimelineCanvas({
                   }}
                   onMouseEnter={(e) => { (e.currentTarget as HTMLAnchorElement).style.borderColor = "var(--accent)"; (e.currentTarget as HTMLAnchorElement).style.color = "var(--accent)"; }}
                   onMouseLeave={(e) => { (e.currentTarget as HTMLAnchorElement).style.borderColor = "var(--border)"; (e.currentTarget as HTMLAnchorElement).style.color = "var(--text-tertiary)"; }}
-                >
-                  Open ↗
-                </a>
-              )}
+                  >
+                    Open ↗
+                  </a>
+                )}
+                {activePaperAccess && (
+                  <span
+                    tabIndex={0}
+                    title={activePaperAccess.message}
+                    aria-label={`${paperAccessLabel(activePaperAccess)}. ${activePaperAccess.message}`}
+                    style={{
+                      fontSize: "0.5625rem",
+                      lineHeight: 1.2,
+                      fontFamily: "'JetBrains Mono', monospace",
+                      color: paperAccessColor(activePaperAccess),
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {paperAccessLabel(activePaperAccess)}
+                  </span>
+                )}
+              </div>
             </div>
 
             {/* Scrollable chat area */}
@@ -1496,9 +1704,93 @@ export function TimelineCanvas({
                     </div>
                   ) : (
                     <div>
-                      <MarkdownContent style={{ fontSize: "0.84375rem", color: "var(--text-primary)", lineHeight: 1.7, fontFamily: "'DM Sans', sans-serif", marginBottom: msg.suggestion ? "0.875rem" : 0 }}>
-                        {msg.content}
-                      </MarkdownContent>
+                      {msg.content ? (
+                        <MarkdownContent style={{ fontSize: "0.84375rem", color: "var(--text-primary)", lineHeight: 1.7, fontFamily: "'DM Sans', sans-serif", marginBottom: msg.suggestion ? "0.875rem" : 0 }}>
+                          {msg.content}
+                        </MarkdownContent>
+                      ) : (
+                        <p style={{ fontSize: "0.8125rem", color: "var(--text-tertiary)", fontFamily: "'DM Sans', sans-serif", marginBottom: "0.5rem" }}>
+                          Working…
+                        </p>
+                      )}
+
+                      {(msg.pending || (msg.toolEvents?.length ?? 0) > 0 || (msg.statusEvents?.length ?? 0) > 0) && (
+                        <div
+                          style={{
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: "0.375rem",
+                            margin: "0.625rem 0 0.75rem",
+                          }}
+                        >
+                          {(msg.statusEvents ?? []).slice(-2).map((status, index) => (
+                            <div key={`${msg.id}-status-${index}`} style={{ display: "flex", alignItems: "center", gap: "0.375rem", color: "var(--text-tertiary)", fontSize: "0.6875rem", fontFamily: "'JetBrains Mono', monospace" }}>
+                              <span style={{ width: "0.375rem", height: "0.375rem", borderRadius: "50%", background: msg.pending ? "var(--accent)" : "var(--text-tertiary)", display: "inline-block" }} />
+                              {status}
+                            </div>
+                          ))}
+                          {(msg.toolEvents ?? []).map((tool) => (
+                            <div key={`${msg.id}-${tool.name}`} style={{ display: "flex", alignItems: "center", gap: "0.375rem", color: "var(--text-secondary)", fontSize: "0.71875rem", fontFamily: "'DM Sans', sans-serif" }}>
+                              <span style={{ color: tool.status === "started" ? "var(--accent)" : tool.status === "error" ? "var(--danger, #b45309)" : "var(--text-tertiary)" }}>
+                                {tool.status === "started" ? "↻" : tool.status === "error" ? "!" : "✓"}
+                              </span>
+                              {tool.label}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {needsFullPaperConfirmation(msg) && !readOnly && (
+                        <button
+                          type="button"
+                          onClick={() => sendPaperQuestion("Yes, access and index the complete paper.")}
+                          disabled={isThinking}
+                          style={{
+                            background: "var(--accent)",
+                            color: "white",
+                            border: "none",
+                            borderRadius: "0.4375rem",
+                            padding: "0.4375rem 0.75rem",
+                            fontSize: "0.75rem",
+                            fontWeight: 500,
+                            fontFamily: "'DM Sans', sans-serif",
+                            cursor: isThinking ? "default" : "pointer",
+                            opacity: isThinking ? 0.6 : 1,
+                            margin: "0 0 0.875rem",
+                          }}
+                        >
+                          Access full paper
+                        </button>
+                      )}
+
+                      {msg.citations && msg.citations.length > 0 && (
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: "0.375rem", margin: "0.625rem 0 0.875rem" }}>
+                          {msg.citations.slice(0, 6).map((citation, index) => {
+                            const href = citationHref(citation);
+                            const Chip = href ? "a" : "span";
+                            return (
+                            <Chip
+                              key={`${msg.id}-citation-${citationLabel(citation)}-${index}`}
+                              href={href}
+                              target={href ? "_blank" : undefined}
+                              rel={href ? "noopener noreferrer" : undefined}
+                              title={citationTooltip(citation)}
+                              style={{
+                                fontSize: "0.625rem",
+                                fontFamily: "'JetBrains Mono', monospace",
+                                color: "var(--text-tertiary)",
+                                background: "var(--bg-secondary)",
+                                border: "0.0625rem solid var(--border)",
+                                borderRadius: "999px",
+                                padding: "0.1875rem 0.4375rem",
+                                textDecoration: "none",
+                              }}
+                            >
+                              {citationLabel(citation)}
+                            </Chip>
+                          );})}
+                        </div>
+                      )}
 
                       {/* Lineage suggestion card */}
                       {msg.suggestion && (
@@ -1671,10 +1963,109 @@ export function TimelineCanvas({
           onAddLineage={(query) => onExpandNode(data.rootId, query)}
           isExpanding={isExpanding}
           onUsageChanged={onUsageChanged}
+          graphId={graphId}
+          userId={userId}
         />
       )}
     </motion.div>
   );
+}
+
+function restoredLineageSuggestion(toolUses: Record<string, unknown>[]): ChatSuggestion | null {
+  const tool = toolUses.find((item) => item.name === "propose_lineage_expansion");
+  const input = tool?.input;
+  if (!input || typeof input !== "object" || Array.isArray(input)) return null;
+  const value = input as Record<string, unknown>;
+  if (typeof value.topic !== "string" || typeof value.query !== "string") return null;
+  return {
+    topic: value.topic,
+    query: value.query,
+    nodeCount: typeof value.nodeCount === "number" ? value.nodeCount : 4,
+  };
+}
+
+function needsFullPaperConfirmation(message: ChatMessage): boolean {
+  if ((message.toolEvents ?? []).some((tool) => (
+    tool.name === "retrieve_paper_content" && tool.status === "needs_confirmation"
+  ))) {
+    return true;
+  }
+  const text = message.content.toLowerCase();
+  return (
+    /\b(confirm|confirmation|go ahead)\b/.test(text)
+    && /\b(access|retrieve|cache|get)\b/.test(text)
+    && /\b(full text|complete paper|full paper|complete text)\b/.test(text)
+  );
+}
+
+function toolLabel(name: string, status?: string, result?: Record<string, unknown>): string {
+  const suffix = status === "needs_confirmation" ? " needs confirmation" : "";
+  if (name === "check_paper_access") return `Checked paper access${suffix}`;
+  if (name === "retrieve_paper_content") {
+    if (status === "started") return "Accessing complete paper";
+    if (status === "error" || status === "unavailable") {
+      const message = typeof result?.message === "string" ? result.message : "Complete paper access failed";
+      return message;
+    }
+    return `Complete paper access${suffix}`;
+  }
+  if (name === "search_paper_content") return status === "started" ? "Searching paper content" : "Searched paper content";
+  if (name === "web_search") return "Searched public sources";
+  return name.replace(/_/g, " ");
+}
+
+function citationLabel(citation: Record<string, unknown>): string {
+  const section = typeof citation.section === "string" && citation.section.trim()
+    ? citation.section.trim()
+    : null;
+  if (!section) {
+    const title = typeof citation.title === "string" && citation.title.trim()
+      ? citation.title.trim()
+      : null;
+    if (title) return truncateCitationLabel(title);
+    const href = citationHref(citation);
+    if (href) return hostnameLabel(href);
+    return "source";
+  }
+  const page = typeof citation.pageStart === "number" ? ` p.${citation.pageStart}` : "";
+  const chunk = typeof citation.chunkIndex === "number" ? ` #${citation.chunkIndex}` : "";
+  return `${section}${page}${chunk}`;
+}
+
+function citationTooltip(citation: Record<string, unknown>): string {
+  const title = typeof citation.title === "string" ? citation.title : "";
+  const source = citationHref(citation) ?? "";
+  return [title, citationLabel(citation), source].filter(Boolean).join(" · ");
+}
+
+function citationHref(citation: Record<string, unknown>): string | undefined {
+  const url = citation.url ?? citation.sourceUrl ?? citation.source_url;
+  return typeof url === "string" && /^https?:\/\//i.test(url) ? url : undefined;
+}
+
+function hostnameLabel(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return "source";
+  }
+}
+
+function truncateCitationLabel(label: string): string {
+  return label.length > 28 ? `${label.slice(0, 25)}…` : label;
+}
+
+function paperAccessLabel(access: PaperAccessState): string {
+  if (access.accessStatus === "checking") return "Checking access";
+  if (access.accessStatus === "failed") return "Access failed";
+  if (access.accessStatus === "unavailable") return "Abstract only";
+  return access.ingestionStatus === "ready" ? "Full text cached" : "Full text available";
+}
+
+function paperAccessColor(access: PaperAccessState): string {
+  if (access.accessStatus === "available") return "var(--accent)";
+  if (access.accessStatus === "failed") return "var(--danger, #b45309)";
+  return "var(--text-tertiary)";
 }
 
 function getPaperHref(node: TimelineNode): string | null {

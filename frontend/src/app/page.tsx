@@ -4433,6 +4433,8 @@ export default function Home() {
                 onUsageChanged={refreshCredits}
                 hoverPreviewEnabled={hoverPreviewEnabled}
                 onToggleHoverPreview={onToggleHoverPreview}
+                graphId={graphId}
+                userId={userId}
               />
             </motion.div>
           )}
