@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import logging
 
 from ..db.supabase import SupabaseClient
 from .llm import LLMClient
+
+logger = logging.getLogger(__name__)
 
 RECENT_MESSAGE_LIMIT = 24
 SUMMARY_RETAIN_MESSAGES = 12
@@ -98,7 +101,13 @@ class ChatMemoryService:
         through_sequence = int(messages[-1]["sequence_number"])
         try:
             summary = await llm.summarize_conversation(context.summary, messages, ip=ip)
-        except Exception:
+        except Exception as exc:
+            logger.warning(
+                "Conversation summarization failed for session_id=%r user_id=%r",
+                context.session.get("id"),
+                user_id,
+                exc_info=exc,
+            )
             return
         await self.db.update_chat_session_summary(
             context.session["id"],

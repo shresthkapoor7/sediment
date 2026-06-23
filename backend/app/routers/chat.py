@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import logging
 import re
@@ -275,6 +276,9 @@ async def _run_paper_chat(req: ChatRequest, request_ip: str, event_emitter: Chat
     except LLMParseError as e:
         logger.warning("Paper chat failed for paper_id=%r", req.paperId, exc_info=e)
         raise HTTPException(status_code=502, detail="Chat service returned an invalid response.") from e
+    except Exception as e:
+        logger.warning("Paper chat upstream failed for paper_id=%r", req.paperId, exc_info=e)
+        raise HTTPException(status_code=502, detail="Chat service is currently unavailable.") from e
 
     if result.get("text") and not result.get("textStreamed"):
         await _emit(event_emitter, "text_delta", {"text": result["text"]})
@@ -334,7 +338,7 @@ def _sse(event_type: str, payload: dict[str, Any]) -> str:
 
 
 async def _paper_chat_event_stream(req: ChatRequest, request_ip: str) -> AsyncIterator[str]:
-    queue: asyncio.Queue[tuple[str, dict[str, Any]] | None] = asyncio.Queue()
+    queue: asyncio.Queue[tuple[str, dict[str, Any]] | None] = asyncio.Queue(maxsize=64)
 
     async def emit(event_type: str, payload: dict[str, Any]) -> None:
         await queue.put((event_type, payload))
@@ -360,6 +364,8 @@ async def _paper_chat_event_stream(req: ChatRequest, request_ip: str) -> AsyncIt
     finally:
         if not task.done():
             task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
 
 
 @router.post("/graphs/{graph_id}/chat/session", response_model=ChatSessionResponse)

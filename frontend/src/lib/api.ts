@@ -194,7 +194,7 @@ export async function streamChatAboutPaper(
   while (true) {
     const { value, done } = await reader.read();
     buffer += decoder.decode(value, { stream: !done });
-    const parts = buffer.split(/\n\n/);
+    const parts = buffer.split(/\r?\n\r?\n/);
     buffer = parts.pop() ?? "";
     for (const part of parts) {
       if (part.trim()) consume(part);

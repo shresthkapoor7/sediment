@@ -104,7 +104,7 @@ export function GlobalChatPanel({ data, onHighlight, onAddLineage, isExpanding, 
     if (!q || isThinking) return;
     setInput("");
 
-    const userMsg: Message = { id: ++msgIdRef.current, role: "user", text: q };
+    const userMsg: Message = { id: `local-${++msgIdRef.current}`, role: "user", text: q };
     setMessages((prev) => [...prev, userMsg]);
     setIsThinking(true);
     onHighlight([]);
@@ -116,7 +116,7 @@ export function GlobalChatPanel({ data, onHighlight, onAddLineage, isExpanding, 
         graphId && userId ? { graphId, userId } : undefined,
       );
       const assistantMsg: Message = {
-        id: ++msgIdRef.current,
+        id: `local-${++msgIdRef.current}`,
         role: "assistant",
         text: res.text,
         highlightedPaperIds: res.highlightedPaperIds,
@@ -129,7 +129,7 @@ export function GlobalChatPanel({ data, onHighlight, onAddLineage, isExpanding, 
     } catch {
       setMessages((prev) => [
         ...prev,
-        { id: ++msgIdRef.current, role: "assistant", text: "Something went wrong. Try again." },
+        { id: `local-${++msgIdRef.current}`, role: "assistant", text: "Something went wrong. Try again." },
       ]);
     } finally {
       setIsThinking(false);

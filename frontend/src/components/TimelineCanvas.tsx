@@ -105,6 +105,7 @@ export function TimelineCanvas({
   const panelResizeStateRef = useRef<{ startX: number; startWidth: number } | null>(null);
   const accessChecksInFlightRef = useRef<Set<string>>(new Set());
   const chatHistoryLoadsRef = useRef<Set<string>>(new Set());
+  const activePaperStreamsRef = useRef<Record<number, string>>({});
   const [paperAccessById, setPaperAccessById] = useState<Record<string, PaperAccessState>>({});
 
   // Track the latest generation so only new nodes animate
@@ -140,8 +141,16 @@ export function TimelineCanvas({
     if (chatHistoryLoadsRef.current.has(historyKey)) return;
     chatHistoryLoadsRef.current.add(historyKey);
     const targetNodeId = activeNodeId;
+    let cancelled = false;
     void openChatSession(graphId, userId, "paper", paperId)
       .then((session) => {
+        if (
+          cancelled ||
+          activeNodeId !== targetNodeId ||
+          data.nodes[targetNodeId]?.paper.openalexId !== paperId
+        ) {
+          return;
+        }
         const restored: ChatMessage[] = session.messages.map((message) => ({
           id: message.id,
           role: message.role,
@@ -160,6 +169,9 @@ export function TimelineCanvas({
       .catch(() => {
         chatHistoryLoadsRef.current.delete(historyKey);
       });
+    return () => {
+      cancelled = true;
+    };
   }, [activeNodeId, data.nodes, graphId, userId]);
 
   useEffect(() => {
@@ -462,7 +474,7 @@ export function TimelineCanvas({
     setActiveNodeId((prev) => (prev === id ? null : id));
     setHoveredNode(null);
     setChatInput("");
-    setIsThinking(false);
+    setIsThinking(Object.keys(activePaperStreamsRef.current).length > 0);
   }, []);
 
   const clearHoverHideTimeout = useCallback(() => {
@@ -627,6 +639,7 @@ export function TimelineCanvas({
   }
 
   const activeNode = activeNodeId ? data.nodes[activeNodeId] : null;
+  const activePaperHref = activeNode ? getPaperHref(activeNode) : null;
   const activePaperAccess = activeNode
     ? paperAccessById[activeNode.paper.openalexId] ?? {
         accessStatus: "checking" as const,
@@ -641,10 +654,10 @@ export function TimelineCanvas({
 
   const sendPaperQuestion = useCallback(
     (question: string) => {
-      if (!activeNodeId || !activeNode || !question.trim() || isThinking) return;
+      if (!activeNodeId || !activeNode || !question.trim() || activePaperStreamsRef.current[activeNodeId]) return;
 
       const userMsg: ChatMessage = {
-        id: ++msgIdRef.current,
+        id: `local-${++msgIdRef.current}`,
         role: "user",
         content: question.trim(),
       };
@@ -652,6 +665,7 @@ export function TimelineCanvas({
       const currentNode = activeNode;
       const targetNodeId = activeNodeId;
       const assistantId = `stream-${Date.now()}-${msgIdRef.current + 1}`;
+      activePaperStreamsRef.current[targetNodeId] = assistantId;
       setChatInput("");
       setIsThinking(true);
 
@@ -757,11 +771,14 @@ export function TimelineCanvas({
           });
         })
         .finally(() => {
-          setIsThinking(false);
+          if (activePaperStreamsRef.current[targetNodeId] === assistantId) {
+            delete activePaperStreamsRef.current[targetNodeId];
+            setIsThinking(Object.keys(activePaperStreamsRef.current).length > 0);
+          }
           onUsageChanged?.();
         });
     },
-    [activeNode, activeNodeId, graphId, isThinking, onUsageChanged, userId]
+    [activeNode, activeNodeId, graphId, onUsageChanged, userId]
   );
 
   const handleChatSubmit = useCallback(
@@ -1534,9 +1551,9 @@ export function TimelineCanvas({
                 {activeNode.paper.title}
               </div>
               <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "0.25rem", flexShrink: 0 }}>
-                {(activeNode.paper.oaUrl || activeNode.paper.doi || activeNode.paper.arxivId) && (
+                {activePaperHref && (
                   <a
-                  href={activeNode.paper.oaUrl || (activeNode.paper.arxivId ? `https://arxiv.org/abs/${activeNode.paper.arxivId}` : activeNode.paper.doi!) }
+                  href={activePaperHref}
                   target="_blank"
                   rel="noopener noreferrer"
                   style={{

@@ -243,7 +243,7 @@ def _page_number(raw: str | None, current: int | None) -> int | None:
 
 def parse_tei(content: bytes, fallback_title: str) -> ParsedPaper:
     xml = _bounded_gunzip(content)
-    if b"<!DOCTYPE" in xml[:4096].upper():
+    if b"<!DOCTYPE" in xml.upper():
         raise IngestionError("unsafe_xml", "XML document types are not accepted.")
     try:
         root = ET.fromstring(xml)

@@ -75,6 +75,15 @@ def rerank_cost_micro_usd(query: str, documents: list[str], model: str | None = 
     return limiter.provider_cost_micro_usd(tokens, price)
 
 
+def _usage_total_tokens(payload: dict, fallback_tokens: int) -> int:
+    usage = payload.get("usage")
+    if isinstance(usage, dict):
+        total = usage.get("total_tokens")
+        if isinstance(total, int) and total >= 0:
+            return total
+    return fallback_tokens
+
+
 async def embed_texts(texts: list[str], *, input_type: str, billing_ip: str | None = None) -> list[list[float]]:
     if not texts:
         return []
@@ -132,7 +141,15 @@ async def embed_texts(texts: list[str], *, input_type: str, billing_ip: str | No
         embeddings.append([float(value) for value in embedding])
     if billing_ip:
         try:
-            await limiter.record_fixed_cost(billing_ip, cost_micro_usd, reason=f"voyage_embedding:{settings.embedding_model}")
+            price = VOYAGE_EMBEDDING_PRICE_USD_PER_MILLION.get(
+                settings.embedding_model,
+                DEFAULT_EMBEDDING_PRICE_USD_PER_MILLION,
+            )
+            actual_cost_micro_usd = limiter.provider_cost_micro_usd(
+                _usage_total_tokens(payload, estimate_texts_tokens(texts)),
+                price,
+            )
+            await limiter.record_fixed_cost(billing_ip, actual_cost_micro_usd, reason=f"voyage_embedding:{settings.embedding_model}")
         except Exception:
             logger.warning("Voyage embedding cost recording failed", exc_info=True)
     return embeddings
@@ -192,7 +209,18 @@ async def rerank(query: str, documents: list[str], *, top_k: int, billing_ip: st
         results.append(RerankResult(index=index, relevance_score=float(score)))
     if billing_ip:
         try:
-            await limiter.record_fixed_cost(billing_ip, cost_micro_usd, reason=f"voyage_rerank:{settings.rerank_model}")
+            price = VOYAGE_RERANK_PRICE_USD_PER_MILLION.get(
+                settings.rerank_model,
+                DEFAULT_RERANK_PRICE_USD_PER_MILLION,
+            )
+            actual_cost_micro_usd = limiter.provider_cost_micro_usd(
+                _usage_total_tokens(
+                    payload,
+                    estimate_tokens(query) * len(documents) + estimate_texts_tokens(documents),
+                ),
+                price,
+            )
+            await limiter.record_fixed_cost(billing_ip, actual_cost_micro_usd, reason=f"voyage_rerank:{settings.rerank_model}")
         except Exception:
             logger.warning("Voyage rerank cost recording failed", exc_info=True)
     return results

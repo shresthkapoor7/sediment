@@ -487,9 +487,9 @@ Rules:
             tools=tools,
             tool_choice=tool_choice,
         ) as stream:
-            async for event in stream:
-                if event.type == "text" and event.text:
-                    await text_emitter(event.text)
+            async for text in stream.text_stream:
+                if text:
+                    await text_emitter(text)
             return await stream.get_final_message()
 
     async def _record_response_usage(self, response, ip: str) -> None:
@@ -662,7 +662,7 @@ Respond with JSON only:
         summary = parsed.get("summary") if isinstance(parsed, dict) else None
         if not isinstance(summary, str) or not summary.strip():
             raise LLMParseError("Conversation summary response was invalid")
-        return summary.strip()[:12000]
+        return _truncate_words(summary.strip(), 1200)
 
     async def clarify_query(self, query: str, ip: str = "unknown") -> dict:
         prompt = f"""You help users of a research paper lineage explorer find the right academic concept to trace.
@@ -986,3 +986,10 @@ def _sanitize_suggestion(
         "query": query or topic,
         "nodeCount": 4,
     }
+
+
+def _truncate_words(text: str, max_words: int) -> str:
+    words = text.split()
+    if len(words) <= max_words:
+        return text
+    return " ".join(words[:max_words])

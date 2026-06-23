@@ -37,6 +37,15 @@ class FakeStream:
         except StopIteration as exc:
             raise StopAsyncIteration from exc
 
+    @property
+    def text_stream(self):
+        async def stream_text():
+            for event in self._events:
+                if getattr(event, "type", None) == "text" and getattr(event, "text", ""):
+                    yield event.text
+
+        return stream_text()
+
     async def get_final_message(self):
         return self._final_message
 

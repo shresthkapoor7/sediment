@@ -73,7 +73,7 @@ class PaperRetrievalService:
         billing_ip: str | None = None,
         use_rerank: bool = True,
     ) -> dict:
-        final_limit = min(max(limit, 1), max(settings.retrieval_context_count, 10), 10)
+        final_limit = min(max(limit, 1), max(settings.retrieval_context_count, 1))
         try:
             embeddings = await embed_texts([query], input_type="query", billing_ip=billing_ip)
         except VoyageError as exc:
