@@ -24,9 +24,13 @@ SEARCH_SELECT = ",".join([
     "topics",
     "type",
     "best_oa_location",
+    "open_access",
+    "has_fulltext",
+    "has_content",
     "abstract_inverted_index",
     "referenced_works",
 ])
+ACCESS_SELECT = "id,doi,open_access,has_fulltext,has_content,content_urls,best_oa_location"
 
 
 class OpenAlexError(Exception):
@@ -153,6 +157,10 @@ class OpenAlexClient:
 
         oa_location = work.get("best_oa_location")
         oa_location = oa_location if isinstance(oa_location, dict) else {}
+        open_access = work.get("open_access")
+        open_access = open_access if isinstance(open_access, dict) else {}
+        has_content = work.get("has_content")
+        has_content = has_content if isinstance(has_content, dict) else {}
         _raw_oa_url = oa_location.get("pdf_url") or oa_location.get("landing_page_url") or None
         oa_url = _raw_oa_url if _raw_oa_url and _raw_oa_url.startswith(("http://", "https://")) else None
 
@@ -176,6 +184,12 @@ class OpenAlexClient:
             ],
             "doi": work.get("doi"),
             "oaUrl": oa_url,
+            "isOa": bool(open_access.get("is_oa")),
+            "oaStatus": open_access.get("oa_status"),
+            "hasFulltext": bool(work.get("has_fulltext")),
+            "hasContentPdf": bool(has_content.get("pdf")),
+            "hasContentTei": bool(has_content.get("grobid_xml")),
+            "oaLicense": oa_location.get("license"),
             "concepts": concepts,
             "type": work.get("type"),
             "citedByCount": work.get("cited_by_count", 0),
@@ -184,6 +198,37 @@ class OpenAlexClient:
                 ref_id for ref_id in (_extract_openalex_id(item) for item in work.get("referenced_works", [])) if ref_id
             ],
             "referencedWorksCount": len(work.get("referenced_works", [])),
+        }
+
+    async def fetch_access_metadata(self, openalex_id: str) -> Optional[dict]:
+        params = {**self._base_params(), "select": ACCESS_SELECT}
+        data = await _get(self._session_or_raise(), f"{BASE}/works/{openalex_id}", params)
+        resolved_id = _extract_openalex_id(data.get("id"))
+        if not resolved_id:
+            return None
+
+        open_access = data.get("open_access")
+        open_access = open_access if isinstance(open_access, dict) else {}
+        has_content = data.get("has_content")
+        has_content = has_content if isinstance(has_content, dict) else {}
+        content_urls = data.get("content_urls")
+        content_urls = content_urls if isinstance(content_urls, dict) else {}
+        location = data.get("best_oa_location")
+        location = location if isinstance(location, dict) else {}
+
+        return {
+            "openalexId": resolved_id,
+            "doi": data.get("doi"),
+            "isOa": bool(open_access.get("is_oa")),
+            "oaStatus": open_access.get("oa_status"),
+            "hasFulltext": bool(data.get("has_fulltext")),
+            "hasContentPdf": bool(has_content.get("pdf")),
+            "hasContentTei": bool(has_content.get("grobid_xml")),
+            "contentTeiUrl": content_urls.get("grobid_xml"),
+            "contentPdfUrl": content_urls.get("pdf"),
+            "oaPdfUrl": location.get("pdf_url") if location.get("is_oa") else None,
+            "oaLandingPageUrl": location.get("landing_page_url") if location.get("is_oa") else None,
+            "license": location.get("license"),
         }
 
     async def search_papers(self, query: str, limit: int = 8) -> list[dict]:

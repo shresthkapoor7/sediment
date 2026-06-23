@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 
 MICRO_USD_PER_USD = 1_000_000
 SEGMENTS = 10
+ANTHROPIC_WEB_SEARCH_MICRO_USD = 10_000
 _MODEL_PRICING_USD_PER_MILLION: dict[str, dict[str, float]] = {
     "claude-haiku-4-5-20251001": {"input": 1.00, "output": 5.00},
     "claude-3-5-haiku-20241022": {"input": 0.80, "output": 4.00},
@@ -89,20 +90,39 @@ class UsageLimiter:
 
     async def record_usage(self, ip: str, input_tokens: int, output_tokens: int, model: str) -> dict:
         cost_micro_usd = self.cost_micro_usd(input_tokens, output_tokens, model)
+        return await self.record_fixed_cost(ip, cost_micro_usd, reason=f"llm:{model}")
+
+    async def record_fixed_cost(self, ip: str, cost_micro_usd: int, *, reason: str = "provider") -> dict:
+        if cost_micro_usd <= 0:
+            return {}
         actor_key = _actor_key(ip)
         try:
             result = await self._db().rpc(
                 "record_api_usage",
                 {
                     "p_actor_key": actor_key,
-                    "p_cost_microusd": cost_micro_usd,
+                    "p_cost_microusd": max(cost_micro_usd, 0),
                 },
                 expect_single=True,
             )
         except SupabaseAPIError as e:
-            logger.warning("Usage recording failed for actor_key=%r", actor_key, exc_info=e)
+            logger.warning("Usage recording failed for actor_key=%r reason=%r", actor_key, reason, exc_info=e)
             raise HTTPException(status_code=503, detail="Usage recording failed.") from e
         return result if isinstance(result, dict) else {}
+
+    async def ensure_can_spend(self, ip: str, estimated_cost_micro_usd: int, *, operation: str) -> None:
+        if estimated_cost_micro_usd <= 0:
+            return
+        summary = await self.get_summary(ip)
+        remaining_micro_usd = _usd_to_micro_usd(float(summary["remaining"]))
+        if remaining_micro_usd < estimated_cost_micro_usd:
+            raise HTTPException(
+                status_code=429,
+                detail=(
+                    f"Daily budget is too low for {operation}. "
+                    f"Remaining ${summary['remaining']:.4f}; estimated cost ${_micro_usd_to_usd(estimated_cost_micro_usd):.4f}."
+                ),
+            )
 
     async def get_summary(self, ip: str) -> dict[str, float | int]:
         actor_key = _actor_key(ip)
@@ -136,6 +156,10 @@ class UsageLimiter:
         pricing = _MODEL_PRICING_USD_PER_MILLION.get(model, _DEFAULT_PRICING_USD_PER_MILLION)
         cost_usd = (input_tokens * pricing["input"] + output_tokens * pricing["output"]) / 1_000_000
         return _usd_to_micro_usd(cost_usd)
+
+    @staticmethod
+    def provider_cost_micro_usd(tokens: int, usd_per_million_tokens: float) -> int:
+        return _usd_to_micro_usd((max(tokens, 0) * usd_per_million_tokens) / 1_000_000)
 
 
 limiter = UsageLimiter()

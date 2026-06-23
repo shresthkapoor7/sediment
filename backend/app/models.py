@@ -10,8 +10,6 @@ MAX_OPENALEX_ID_LENGTH = 64
 MAX_TITLE_LENGTH = 500
 MAX_SUMMARY_LENGTH = 4_000
 MAX_DETAIL_LENGTH = 12_000
-MAX_AUTHOR_NAME_LENGTH = 120
-MAX_AUTHORS = 20
 MAX_CONCEPTS = 20
 MAX_CONCEPT_CONTEXT_LENGTH = 500
 MAX_CHAT_QUESTION_LENGTH = 1_000
@@ -48,21 +46,19 @@ class ExpandRequest(StrictRequestModel):
 
 
 class ChatRequest(StrictRequestModel):
+    graphId: Optional[str] = Field(default=None, max_length=MAX_GRAPH_ID_LENGTH)
+    userId: Optional[str] = Field(default=None, max_length=MAX_USER_ID_LENGTH)
     paperId: str = Field(min_length=1, max_length=MAX_OPENALEX_ID_LENGTH)
     title: str = Field(min_length=1, max_length=MAX_TITLE_LENGTH)
     year: Optional[int] = None
     summary: str = Field(default="", max_length=MAX_SUMMARY_LENGTH)
-    authors: list[str] = Field(default_factory=list, max_length=MAX_AUTHORS)
     question: str = Field(min_length=1, max_length=MAX_CHAT_QUESTION_LENGTH)
 
-    @field_validator("authors")
-    @classmethod
-    def validate_authors(cls, authors: list[str]) -> list[str]:
-        cleaned = [author.strip() for author in authors if author.strip()]
-        for author in cleaned:
-            if len(author) > MAX_AUTHOR_NAME_LENGTH:
-                raise ValueError(f"Author names must be at most {MAX_AUTHOR_NAME_LENGTH} characters.")
-        return cleaned
+    @model_validator(mode="after")
+    def validate_persistence_context(self):
+        if bool(self.graphId) != bool(self.userId):
+            raise ValueError("graphId and userId must be supplied together")
+        return self
 
 
 class GraphPaper(BaseModel):
@@ -74,6 +70,12 @@ class GraphPaper(BaseModel):
     authors: list[str] = Field(default_factory=list)
     doi: Optional[str] = None
     oaUrl: Optional[str] = None
+    isOa: bool = False
+    oaStatus: Optional[str] = None
+    hasFulltext: bool = False
+    hasContentPdf: bool = False
+    hasContentTei: bool = False
+    oaLicense: Optional[str] = None
     concepts: list[str] = Field(default_factory=list)
     type: Optional[str] = None
     citedByCount: int = 0
@@ -118,6 +120,63 @@ class ChatSuggestion(BaseModel):
 class ChatResponse(BaseModel):
     text: str
     suggestion: Optional[ChatSuggestion] = None
+    sessionId: Optional[str] = None
+    toolUses: list[dict[str, Any]] = Field(default_factory=list)
+    citations: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class PaperAccessResponse(BaseModel):
+    openalexId: str
+    accessStatus: Literal["available", "unavailable", "failed"]
+    ingestionStatus: Literal["ready", "not_cached", "failed"]
+    sourceType: Optional[Literal["openalex_tei", "openalex_pdf", "unpaywall_pdf"]] = None
+    license: Optional[str] = None
+    requiresConfirmation: bool = False
+    message: str
+
+
+class RetrievePaperRequest(StrictRequestModel):
+    userId: str = Field(min_length=1, max_length=MAX_USER_ID_LENGTH)
+    confirmed: bool
+
+
+class RetrievePaperResponse(BaseModel):
+    status: Literal["ready", "cached", "processing", "unavailable"]
+    documentId: Optional[str] = None
+    chunkCount: int = 0
+    sourceType: Optional[str] = None
+    message: str
+
+
+class SearchPaperContentRequest(StrictRequestModel):
+    userId: str = Field(min_length=1, max_length=MAX_USER_ID_LENGTH)
+    query: str = Field(min_length=1, max_length=MAX_CHAT_QUESTION_LENGTH)
+    limit: int = Field(default=6, ge=1, le=6)
+
+
+class PaperChunkCitation(BaseModel):
+    id: str
+    openalexId: str
+    title: str
+    section: str
+    pageStart: Optional[int] = None
+    pageEnd: Optional[int] = None
+    chunkIndex: int
+    sourceType: str
+    sourceUrl: Optional[str] = None
+
+
+class RetrievedPaperChunk(BaseModel):
+    content: str
+    citation: PaperChunkCitation
+    vectorScore: float
+    rerankScore: Optional[float] = None
+
+
+class SearchPaperContentResponse(BaseModel):
+    scope: Literal["paper", "graph"]
+    query: str
+    matches: list[RetrievedPaperChunk] = Field(default_factory=list)
 
 
 class PaperSummary(StrictRequestModel):
@@ -128,14 +187,55 @@ class PaperSummary(StrictRequestModel):
 
 
 class GlobalChatRequest(StrictRequestModel):
+    graphId: Optional[str] = Field(default=None, max_length=MAX_GRAPH_ID_LENGTH)
+    userId: Optional[str] = Field(default=None, max_length=MAX_USER_ID_LENGTH)
     papers: list[PaperSummary] = Field(min_length=1, max_length=MAX_TIMELINE_PAPERS)
     question: str = Field(min_length=1, max_length=MAX_CHAT_QUESTION_LENGTH)
+
+    @model_validator(mode="after")
+    def validate_persistence_context(self):
+        if bool(self.graphId) != bool(self.userId):
+            raise ValueError("graphId and userId must be supplied together")
+        return self
 
 
 class GlobalChatResponse(BaseModel):
     text: str
     highlightedPaperIds: list[str] = Field(default_factory=list)
     suggestion: Optional[ChatSuggestion] = None
+    sessionId: Optional[str] = None
+
+
+class ChatSessionRequest(StrictRequestModel):
+    userId: str = Field(min_length=1, max_length=MAX_USER_ID_LENGTH)
+    scope: Literal["paper", "graph"]
+    paperOpenalexId: Optional[str] = Field(default=None, max_length=MAX_OPENALEX_ID_LENGTH)
+
+    @model_validator(mode="after")
+    def validate_scope(self):
+        if self.scope == "paper" and not self.paperOpenalexId:
+            raise ValueError("paperOpenalexId is required for paper scope")
+        if self.scope == "graph" and self.paperOpenalexId is not None:
+            raise ValueError("paperOpenalexId is not allowed for graph scope")
+        return self
+
+
+class ChatMessageRecord(BaseModel):
+    id: str
+    role: Literal["user", "assistant"]
+    content: str
+    toolUses: list[dict[str, Any]] = Field(default_factory=list)
+    citations: list[dict[str, Any]] = Field(default_factory=list)
+    sequenceNumber: int
+    createdAt: str
+
+
+class ChatSessionResponse(BaseModel):
+    sessionId: str
+    scope: Literal["paper", "graph"]
+    paperOpenalexId: Optional[str] = None
+    summary: Optional[str] = None
+    messages: list[ChatMessageRecord] = Field(default_factory=list)
 
 
 class ClarifyRequest(StrictRequestModel):

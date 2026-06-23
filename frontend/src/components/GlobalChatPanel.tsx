@@ -3,11 +3,11 @@
 import { useState, useRef, useEffect, useId } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { MarkdownContent } from "./MarkdownContent";
-import { chatAboutTimeline, suggestTimelineQuestions } from "@/lib/api";
+import { chatAboutTimeline, openChatSession, suggestTimelineQuestions } from "@/lib/api";
 import { ChatSuggestion, TimelineData } from "@/lib/types";
 
 interface Message {
-  id: number;
+  id: number | string;
   role: "user" | "assistant";
   text: string;
   highlightedPaperIds?: string[];
@@ -20,9 +20,11 @@ interface GlobalChatPanelProps {
   onAddLineage: (query: string) => void;
   isExpanding: boolean;
   onUsageChanged?: () => void;
+  graphId?: string | null;
+  userId?: string | null;
 }
 
-export function GlobalChatPanel({ data, onHighlight, onAddLineage, isExpanding, onUsageChanged }: GlobalChatPanelProps) {
+export function GlobalChatPanel({ data, onHighlight, onAddLineage, isExpanding, onUsageChanged, graphId, userId }: GlobalChatPanelProps) {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -31,7 +33,30 @@ export function GlobalChatPanel({ data, onHighlight, onAddLineage, isExpanding, 
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
   const msgIdRef = useRef(0);
   const endRef = useRef<HTMLDivElement>(null);
-  const [expandingMsgId, setExpandingMsgId] = useState<number | null>(null);
+  const [expandingMsgId, setExpandingMsgId] = useState<number | string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setMessages([]);
+    if (!graphId || !userId) return () => { cancelled = true; };
+    void openChatSession(graphId, userId, "graph")
+      .then((session) => {
+        if (cancelled) return;
+        const restored: Message[] = session.messages.map((message) => {
+          const metadata = restoredGlobalMetadata(message.toolUses);
+          return {
+            id: message.id,
+            role: message.role,
+            text: message.content,
+            highlightedPaperIds: metadata.highlightedPaperIds,
+            suggestion: metadata.suggestion,
+          };
+        });
+        setMessages((current) => current.length ? current : restored);
+      })
+      .catch(() => undefined);
+    return () => { cancelled = true; };
+  }, [graphId, userId]);
 
   useEffect(() => {
     if (!isExpanding && expandingMsgId !== null) {
@@ -85,7 +110,11 @@ export function GlobalChatPanel({ data, onHighlight, onAddLineage, isExpanding, 
     onHighlight([]);
 
     try {
-      const res = await chatAboutTimeline(papers, q);
+      const res = await chatAboutTimeline(
+        papers,
+        q,
+        graphId && userId ? { graphId, userId } : undefined,
+      );
       const assistantMsg: Message = {
         id: ++msgIdRef.current,
         role: "assistant",
@@ -442,4 +471,27 @@ export function GlobalChatPanel({ data, onHighlight, onAddLineage, isExpanding, 
       </motion.button>
     </div>
   );
+}
+
+function restoredGlobalMetadata(toolUses: Record<string, unknown>[]): {
+  highlightedPaperIds: string[];
+  suggestion: ChatSuggestion | null;
+} {
+  const metadata = toolUses.find((item) => item.name === "global_response");
+  const highlighted = Array.isArray(metadata?.highlightedPaperIds)
+    ? metadata.highlightedPaperIds.filter((value): value is string => typeof value === "string")
+    : [];
+  const rawSuggestion = metadata?.suggestion;
+  let suggestion: ChatSuggestion | null = null;
+  if (rawSuggestion && typeof rawSuggestion === "object" && !Array.isArray(rawSuggestion)) {
+    const value = rawSuggestion as Record<string, unknown>;
+    if (typeof value.topic === "string" && typeof value.query === "string") {
+      suggestion = {
+        topic: value.topic,
+        query: value.query,
+        nodeCount: typeof value.nodeCount === "number" ? value.nodeCount : 4,
+      };
+    }
+  }
+  return { highlightedPaperIds: highlighted, suggestion };
 }
