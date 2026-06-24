@@ -1874,6 +1874,7 @@ export default function Home() {
   const [isHistoryLoadingMore, setIsHistoryLoadingMore] = useState(false);
   const [historyNextOffset, setHistoryNextOffset] = useState<number | null>(0);
   const [historyHasMore, setHistoryHasMore] = useState(false);
+  const [historyDeletedCount, setHistoryDeletedCount] = useState(0);
   const [deletingGraphId, setDeletingGraphId] = useState<string | null>(null);
   const [pendingDeleteGraph, setPendingDeleteGraph] = useState<SavedGraphListItem | null>(null);
   const [skipDeleteConfirmation, setSkipDeleteConfirmation] = useState(false);
@@ -1897,6 +1898,7 @@ export default function Home() {
   const saveStateTimeoutRef = useRef<number | null>(null);
   const landingScrollRef = useRef<HTMLDivElement | null>(null);
   const landingSearchRef = useRef<HTMLDivElement | null>(null);
+  const savedGraphIdsRef = useRef<Set<string>>(new Set());
   const { compact, mobile } = useLandingViewport();
 
   useEffect(() => {
@@ -1985,6 +1987,7 @@ export default function Home() {
     if (!historyOpen || !userId || timelineData) return;
 
     setIsHistoryLoading(true);
+    setHistoryDeletedCount(0);
     void listSavedGraphs(userId, { limit: HISTORY_PAGE_SIZE, offset: 0 })
       .then((page) => {
         setSavedGraphs(page.items);
@@ -2001,10 +2004,15 @@ export default function Home() {
       });
   }, [historyOpen, timelineData, userId]);
 
+  useEffect(() => {
+    savedGraphIdsRef.current = new Set(savedGraphs.map((graph) => graph.id));
+  }, [savedGraphs]);
+
   const loadMoreHistory = useCallback(() => {
     if (!userId || isHistoryLoading || isHistoryLoadingMore || historyNextOffset === null) return;
     setIsHistoryLoadingMore(true);
-    void listSavedGraphs(userId, { limit: HISTORY_PAGE_SIZE, offset: historyNextOffset })
+    const adjustedOffset = Math.max(0, historyNextOffset - historyDeletedCount);
+    void listSavedGraphs(userId, { limit: HISTORY_PAGE_SIZE, offset: adjustedOffset })
       .then((page) => {
         setSavedGraphs((current) => {
           const existing = new Set(current.map((graph) => graph.id));
@@ -2015,12 +2023,13 @@ export default function Home() {
         });
         setHistoryHasMore(page.hasMore);
         setHistoryNextOffset(page.nextOffset ?? null);
+        setHistoryDeletedCount(0);
       })
       .catch(() => undefined)
       .finally(() => {
         setIsHistoryLoadingMore(false);
       });
-  }, [historyNextOffset, isHistoryLoading, isHistoryLoadingMore, userId]);
+  }, [historyDeletedCount, historyNextOffset, isHistoryLoading, isHistoryLoadingMore, userId]);
 
   const scheduleGraphUpdate = useCallback(
     (nextData: TimelineData, nextQuery: string) => {
@@ -2363,6 +2372,9 @@ export default function Home() {
 
     void deleteSavedGraph(savedGraphId, userId)
       .then(() => {
+        if (savedGraphIdsRef.current.has(savedGraphId)) {
+          setHistoryDeletedCount((count) => count + 1);
+        }
         setSavedGraphs((current) => current.filter((graph) => graph.id !== savedGraphId));
         if (graphId === savedGraphId) {
           setTimelineData(null);
@@ -3757,7 +3769,7 @@ export default function Home() {
                     >
                       Loading saved graphs...
                     </div>
-                  ) : savedGraphs.length === 0 ? (
+                  ) : savedGraphs.length === 0 && !historyHasMore ? (
                     <div
                       style={{
                         padding: "1.125rem 1rem",
