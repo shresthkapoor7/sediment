@@ -360,6 +360,12 @@ class GraphListItem(BaseModel):
     updatedAt: str
 
 
+class GraphListResponse(BaseModel):
+    items: list[GraphListItem]
+    nextOffset: Optional[int] = None
+    hasMore: bool = False
+
+
 class ShareGraphResponse(BaseModel):
     shareId: str
     shareUrl: str

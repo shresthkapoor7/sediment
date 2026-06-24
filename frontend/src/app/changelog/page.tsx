@@ -14,6 +14,14 @@ type ChangelogEntry = {
   pr_url: string;
 };
 
+type ChangelogResponse = {
+  entries: ChangelogEntry[];
+  nextOffset?: number | null;
+  hasMore: boolean;
+};
+
+const CHANGELOG_PAGE_SIZE = 10;
+
 const TAG_COLORS = {
   accent: {
     bg: "var(--accent-soft)",
@@ -92,13 +100,22 @@ function cleanSummary(summary: string): string {
     .trim();
 }
 
-function ChangelogCard({ entry }: { entry: ChangelogEntry }) {
+function ChangelogCard({ entry, index }: { entry: ChangelogEntry; index: number }) {
   const { rest: displayTitle } = parseTitle(entry.title);
   const categories = detectCategories(entry.summary);
   const dotColor = categories.length > 0 ? TAG_COLORS[categories[0].color] : TAG_COLORS.accent;
 
   return (
-    <div style={{ display: "flex", gap: "1.5rem" }}>
+    <div
+      style={{
+        display: "flex",
+        gap: "1.5rem",
+        opacity: 0,
+        transform: "translateY(0.5rem)",
+        animation: "changelog-card-in 320ms ease-out forwards",
+        animationDelay: `${(index % CHANGELOG_PAGE_SIZE) * 75}ms`,
+      }}
+    >
       <div
         style={{
           display: "flex",
@@ -300,7 +317,11 @@ export default function ChangelogPage() {
   const [mounted, setMounted] = useState(false);
   const [entries, setEntries] = useState<ChangelogEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  const [nextOffset, setNextOffset] = useState<number | null>(0);
   const [error, setError] = useState<string | null>(null);
+  const [loadMoreError, setLoadMoreError] = useState<string | null>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -309,13 +330,15 @@ export default function ChangelogPage() {
 
     const controller = new AbortController();
 
-    fetch("/api/changelog", { signal: controller.signal })
+    fetch(`/api/changelog?limit=${CHANGELOG_PAGE_SIZE}&offset=0`, { signal: controller.signal })
       .then((res) => {
         if (!res.ok) throw new Error("Failed to fetch changelog");
         return res.json();
       })
-      .then((data) => {
+      .then((data: ChangelogResponse) => {
         setEntries(data.entries || []);
+        setHasMore(Boolean(data.hasMore));
+        setNextOffset(data.nextOffset ?? null);
         setLoading(false);
       })
       .catch((err) => {
@@ -329,6 +352,34 @@ export default function ChangelogPage() {
       document.body.style.overflow = "";
     };
   }, []);
+
+  function loadMore() {
+    if (loadingMore || nextOffset === null) return;
+    setLoadingMore(true);
+    setLoadMoreError(null);
+    fetch(`/api/changelog?limit=${CHANGELOG_PAGE_SIZE}&offset=${nextOffset}`)
+      .then((res) => {
+        if (!res.ok) throw new Error("Failed to fetch changelog");
+        return res.json();
+      })
+      .then((data: ChangelogResponse) => {
+        setEntries((current) => {
+          const existing = new Set(current.map((entry) => entry.id));
+          return [
+            ...current,
+            ...(data.entries || []).filter((entry) => !existing.has(entry.id)),
+          ];
+        });
+        setHasMore(Boolean(data.hasMore));
+        setNextOffset(data.nextOffset ?? null);
+      })
+      .catch((err) => {
+        setLoadMoreError(err.message);
+      })
+      .finally(() => {
+        setLoadingMore(false);
+      });
+  }
 
   if (!mounted) {
     return null;
@@ -520,9 +571,50 @@ export default function ChangelogPage() {
 
         {!loading && !error && entries.length > 0 && (
           <div>
-            {entries.map((entry) => (
-              <ChangelogCard key={entry.id} entry={entry} />
+            <style jsx>{`
+              @keyframes changelog-card-in {
+                to {
+                  opacity: 1;
+                  transform: translateY(0);
+                }
+              }
+            `}</style>
+            {entries.map((entry, index) => (
+              <ChangelogCard key={entry.id} entry={entry} index={index} />
             ))}
+            {hasMore && (
+              <div style={{ textAlign: "center", marginTop: "1rem" }}>
+                <button
+                  onClick={loadMore}
+                  disabled={loadingMore}
+                  style={{
+                    padding: "0.75rem 1.125rem",
+                    borderRadius: "0.625rem",
+                    border: "0.0625rem solid var(--border-hover)",
+                    background: "var(--bg-secondary)",
+                    color: loadingMore ? "var(--text-tertiary)" : "var(--accent)",
+                    cursor: loadingMore ? "default" : "pointer",
+                    fontFamily: "'JetBrains Mono', monospace",
+                    fontSize: "0.75rem",
+                    letterSpacing: "0.04em",
+                  }}
+                >
+                  {loadingMore ? "Loading..." : "Load more"}
+                </button>
+              </div>
+            )}
+            {loadMoreError && (
+              <p
+                style={{
+                  marginTop: "0.75rem",
+                  textAlign: "center",
+                  color: "var(--text-tertiary)",
+                  fontSize: "0.8125rem",
+                }}
+              >
+                {loadMoreError}
+              </p>
+            )}
           </div>
         )}
 

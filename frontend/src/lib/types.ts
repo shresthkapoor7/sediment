@@ -191,3 +191,9 @@ export interface SavedGraphListItem {
   createdAt: string;
   updatedAt: string;
 }
+
+export interface SavedGraphListResponse {
+  items: SavedGraphListItem[];
+  nextOffset?: number | null;
+  hasMore: boolean;
+}

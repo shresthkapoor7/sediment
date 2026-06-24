@@ -152,6 +152,7 @@ const DEFAULT_SETTINGS: TraversalSettings = {
   topN: 5,
 };
 const DELETE_CONFIRMATION_DISABLED_KEY = "history_delete_confirmation_disabled";
+const HISTORY_PAGE_SIZE = 10;
 
 type DemoPaper = {
   id: string;
@@ -1870,6 +1871,9 @@ export default function Home() {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [savedGraphs, setSavedGraphs] = useState<SavedGraphListItem[]>([]);
   const [isHistoryLoading, setIsHistoryLoading] = useState(false);
+  const [isHistoryLoadingMore, setIsHistoryLoadingMore] = useState(false);
+  const [historyNextOffset, setHistoryNextOffset] = useState<number | null>(0);
+  const [historyHasMore, setHistoryHasMore] = useState(false);
   const [deletingGraphId, setDeletingGraphId] = useState<string | null>(null);
   const [pendingDeleteGraph, setPendingDeleteGraph] = useState<SavedGraphListItem | null>(null);
   const [skipDeleteConfirmation, setSkipDeleteConfirmation] = useState(false);
@@ -1981,17 +1985,42 @@ export default function Home() {
     if (!historyOpen || !userId || timelineData) return;
 
     setIsHistoryLoading(true);
-    void listSavedGraphs(userId)
-      .then((graphs) => {
-        setSavedGraphs(graphs);
+    void listSavedGraphs(userId, { limit: HISTORY_PAGE_SIZE, offset: 0 })
+      .then((page) => {
+        setSavedGraphs(page.items);
+        setHistoryHasMore(page.hasMore);
+        setHistoryNextOffset(page.nextOffset ?? null);
       })
       .catch(() => {
         setSavedGraphs([]);
+        setHistoryHasMore(false);
+        setHistoryNextOffset(null);
       })
       .finally(() => {
         setIsHistoryLoading(false);
       });
   }, [historyOpen, timelineData, userId]);
+
+  const loadMoreHistory = useCallback(() => {
+    if (!userId || isHistoryLoading || isHistoryLoadingMore || historyNextOffset === null) return;
+    setIsHistoryLoadingMore(true);
+    void listSavedGraphs(userId, { limit: HISTORY_PAGE_SIZE, offset: historyNextOffset })
+      .then((page) => {
+        setSavedGraphs((current) => {
+          const existing = new Set(current.map((graph) => graph.id));
+          return [
+            ...current,
+            ...page.items.filter((graph) => !existing.has(graph.id)),
+          ];
+        });
+        setHistoryHasMore(page.hasMore);
+        setHistoryNextOffset(page.nextOffset ?? null);
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        setIsHistoryLoadingMore(false);
+      });
+  }, [historyNextOffset, isHistoryLoading, isHistoryLoadingMore, userId]);
 
   const scheduleGraphUpdate = useCallback(
     (nextData: TimelineData, nextQuery: string) => {
@@ -3744,7 +3773,8 @@ export default function Home() {
                       the trace here.
                     </div>
                   ) : (
-                    savedGraphs.map((graph) => (
+                    <>
+                    {savedGraphs.map((graph) => (
                       <div
                         key={graph.id}
                         style={{
@@ -3902,7 +3932,28 @@ export default function Home() {
                           </div>
                         </button>
                       </div>
-                    ))
+                    ))}
+                    {historyHasMore && (
+                      <button
+                        onClick={loadMoreHistory}
+                        disabled={isHistoryLoadingMore}
+                        style={{
+                          width: "100%",
+                          padding: "0.75rem 0.875rem",
+                          borderRadius: "0.875rem",
+                          border: "0.0625rem solid var(--border)",
+                          background: "var(--bg-secondary)",
+                          color: isHistoryLoadingMore ? "var(--text-tertiary)" : "var(--accent)",
+                          cursor: isHistoryLoadingMore ? "default" : "pointer",
+                          fontSize: "0.75rem",
+                          fontFamily: "'JetBrains Mono', monospace",
+                          letterSpacing: "0.04em",
+                        }}
+                      >
+                        {isHistoryLoadingMore ? "Loading..." : "Load more"}
+                      </button>
+                    )}
+                    </>
                   )}
                 </div>
               </motion.aside>
@@ -3960,7 +4011,7 @@ export default function Home() {
                   <p
                     style={{
                       fontSize: 11,
-                      color: "#d16f5b",
+                      color: "var(--accent)",
                       fontFamily: "'JetBrains Mono', monospace",
                       letterSpacing: "0.08em",
                       textTransform: "uppercase",
@@ -4036,9 +4087,9 @@ export default function Home() {
                       height: 34,
                       padding: "0 12px",
                       borderRadius: 8,
-                      border: "1px solid #d16f5b",
-                      background: "rgba(209, 111, 91, 0.12)",
-                      color: "#d16f5b",
+                      border: "1px solid var(--accent)",
+                      background: "var(--accent-soft)",
+                      color: "var(--accent)",
                       cursor: "pointer",
                       fontSize: 12,
                       fontFamily: "'DM Sans', sans-serif",

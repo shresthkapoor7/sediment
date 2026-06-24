@@ -103,13 +103,17 @@ class SupabaseClient:
         )
         return await self._request("GET", query, expect_single=True, allow_empty=True)
 
-    async def list_graphs(self, user_id: str) -> list[dict[str, Any]]:
+    async def list_graphs(self, user_id: str, *, limit: int = 10, offset: int = 0) -> list[dict[str, Any]]:
+        safe_limit = min(max(limit, 1), 101)
+        safe_offset = max(offset, 0)
         query = (
             "/rest/v1/graphs"
             "?select=id,query,metadata,seed_paper_id,created_at,updated_at"
             f"&user_id=eq.{quote(user_id, safe='')}"
             "&deleted_at=is.null"
             "&order=updated_at.desc"
+            f"&limit={safe_limit}"
+            f"&offset={safe_offset}"
         )
         return await self._request("GET", query)
 
@@ -130,12 +134,15 @@ class SupabaseClient:
             allow_empty=True,
         )
 
-    async def list_changelogs(self, limit: int = 50) -> list[dict[str, Any]]:
+    async def list_changelogs(self, limit: int = 10, offset: int = 0) -> list[dict[str, Any]]:
+        safe_limit = min(max(limit, 1), 101)
+        safe_offset = max(offset, 0)
         query = (
             "/rest/v1/changelogs"
             "?select=id,pr_number,title,summary,merged_at,author,pr_url"
             "&order=merged_at.desc"
-            f"&limit={limit}"
+            f"&limit={safe_limit}"
+            f"&offset={safe_offset}"
         )
         return await self._request("GET", query)
 

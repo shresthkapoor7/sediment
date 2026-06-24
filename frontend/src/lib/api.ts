@@ -7,6 +7,7 @@ import {
   PersistentChatSession,
   SavedGraph,
   SavedGraphListItem,
+  SavedGraphListResponse,
   SavedGraphMetadata,
   TimelineData,
   TimelineNode,
@@ -350,15 +351,27 @@ export async function fetchSavedGraph(graphId: string, userId: string): Promise<
   return response.json();
 }
 
-export async function listSavedGraphs(userId: string): Promise<SavedGraphListItem[]> {
-  const response = await fetch(`${API_BASE}/api/graphs?userId=${encodeURIComponent(userId)}`);
+export async function listSavedGraphs(
+  userId: string,
+  options: { limit?: number; offset?: number } = {},
+): Promise<SavedGraphListResponse> {
+  const params = new URLSearchParams({
+    userId,
+    limit: String(options.limit ?? 10),
+    offset: String(options.offset ?? 0),
+  });
+  const response = await fetch(`${API_BASE}/api/graphs?${params.toString()}`);
 
   if (!response.ok) {
     const detail = await readErrorDetail(response);
     throw new APIError(detail || `List failed with status ${response.status}`, response.status);
   }
 
-  return response.json();
+  const payload = await response.json();
+  if (Array.isArray(payload)) {
+    return { items: payload as SavedGraphListItem[], hasMore: false, nextOffset: null };
+  }
+  return payload;
 }
 
 export async function deleteSavedGraph(graphId: string, userId: string): Promise<void> {
