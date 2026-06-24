@@ -16,6 +16,21 @@ export function applyTimelineGraphAction(
   if (action.type === "delete_node") {
     return applyNodeDeletion(data, action.nodeId, options);
   }
+  if (action.type === "add_note") {
+    return applyNoteAddition(data, action);
+  }
+  if (action.type === "update_note") {
+    return applyNoteUpdate(data, action.noteId, action.patch);
+  }
+  if (action.type === "delete_note") {
+    return applyNoteDeletion(data, action.noteId);
+  }
+  if (action.type === "connect_note") {
+    return applyNoteConnection(data, action.noteId, action.nodeId, action.relation);
+  }
+  if (action.type === "disconnect_note") {
+    return applyNoteDisconnection(data, action.noteId, action.nodeId);
+  }
   return data;
 }
 
@@ -144,6 +159,7 @@ function applyNodeDeletion(
     nodes,
     adjacency,
     edgeRelations,
+    noteEdges: (data.noteEdges ?? []).filter((edge) => edge.nodeId !== nodeId),
     rootId,
     expansions: data.expansions.filter((expansion) => expansion.sourceNodeId !== nodeId),
   };
@@ -151,6 +167,112 @@ function applyNodeDeletion(
 
 function edgeKey(fromId: number, toId: number): string {
   return `${fromId}->${toId}`;
+}
+
+function applyNoteAddition(
+  data: TimelineData,
+  action: Extract<TimelineGraphAction, { type: "add_note" }>,
+): TimelineData {
+  if (!action.note.id) return data;
+
+  const notes = {
+    ...(data.notes ?? {}),
+    [action.note.id]: {
+      ...action.note,
+      text: action.note.text || "New research note",
+    },
+  };
+  const noteEdges = [...(data.noteEdges ?? [])];
+  if (
+    action.connectToNodeId !== null &&
+    action.connectToNodeId !== undefined &&
+    data.nodes[action.connectToNodeId]
+  ) {
+    noteEdges.push({
+      noteId: action.note.id,
+      nodeId: action.connectToNodeId,
+      relation: action.relation ?? "about",
+    });
+  }
+
+  return dedupeNoteEdges({
+    ...data,
+    notes,
+    noteEdges,
+  });
+}
+
+function applyNoteUpdate(
+  data: TimelineData,
+  noteId: string,
+  patch: Partial<NonNullable<TimelineData["notes"]>[string]>,
+): TimelineData {
+  const note = data.notes?.[noteId];
+  if (!note) return data;
+
+  return {
+    ...data,
+    notes: {
+      ...(data.notes ?? {}),
+      [noteId]: {
+        ...note,
+        ...patch,
+        id: noteId,
+      },
+    },
+  };
+}
+
+function applyNoteDeletion(data: TimelineData, noteId: string): TimelineData {
+  if (!data.notes?.[noteId]) return data;
+
+  const notes = { ...data.notes };
+  delete notes[noteId];
+
+  return {
+    ...data,
+    notes: Object.keys(notes).length ? notes : undefined,
+    noteEdges: (data.noteEdges ?? []).filter((edge) => edge.noteId !== noteId),
+  };
+}
+
+function applyNoteConnection(
+  data: TimelineData,
+  noteId: string,
+  nodeId: number,
+  relation: Extract<TimelineGraphAction, { type: "connect_note" }>["relation"],
+): TimelineData {
+  if (!data.notes?.[noteId] || !data.nodes[nodeId]) return data;
+
+  return dedupeNoteEdges({
+    ...data,
+    noteEdges: [
+      ...(data.noteEdges ?? []),
+      { noteId, nodeId, relation: relation ?? "about" },
+    ],
+  });
+}
+
+function applyNoteDisconnection(data: TimelineData, noteId: string, nodeId: number): TimelineData {
+  if (!data.notes?.[noteId]) return data;
+
+  return {
+    ...data,
+    noteEdges: (data.noteEdges ?? []).filter((edge) => edge.noteId !== noteId || edge.nodeId !== nodeId),
+  };
+}
+
+function dedupeNoteEdges(data: TimelineData): TimelineData {
+  const seen = new Set<string>();
+  return {
+    ...data,
+    noteEdges: (data.noteEdges ?? []).filter((edge) => {
+      const key = `${edge.noteId}->${edge.nodeId}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return Boolean(data.notes?.[edge.noteId] && data.nodes[edge.nodeId]);
+    }),
+  };
 }
 
 function collectDescendantIds(

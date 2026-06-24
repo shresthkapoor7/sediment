@@ -31,6 +31,28 @@ export interface TimelineNodeAnnotation {
   borderColor?: NodeBorderColor;
 }
 
+export type TimelineNoteRelation = "about" | "question" | "insight" | "todo" | "contradiction";
+export type TimelineNoteKind = "field_note" | "question" | "insight" | "todo" | "contradiction";
+
+export interface TimelineNote {
+  id: string;
+  kind?: TimelineNoteKind;
+  text: string;
+  x: number;
+  y: number;
+  width?: number;
+  height?: number;
+  color?: "paper" | "amber" | "blue" | "green" | "rose";
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface TimelineNoteEdge {
+  noteId: string;
+  nodeId: number;
+  relation?: TimelineNoteRelation;
+}
+
 export type TimelineGraphAction =
   | {
       type: "highlight_node";
@@ -39,6 +61,32 @@ export type TimelineGraphAction =
     }
   | {
       type: "delete_node";
+      nodeId: number;
+    }
+  | {
+      type: "add_note";
+      note: TimelineNote;
+      connectToNodeId?: number | null;
+      relation?: TimelineNoteRelation;
+    }
+  | {
+      type: "update_note";
+      noteId: string;
+      patch: Partial<Omit<TimelineNote, "id">>;
+    }
+  | {
+      type: "delete_note";
+      noteId: string;
+    }
+  | {
+      type: "connect_note";
+      noteId: string;
+      nodeId: number;
+      relation?: TimelineNoteRelation;
+    }
+  | {
+      type: "disconnect_note";
+      noteId: string;
       nodeId: number;
     };
 
@@ -160,6 +208,8 @@ export interface TimelineData {
   nodes: Record<number, TimelineNode>;
   adjacency: Record<number, number[]>;
   edgeRelations?: Record<string, GraphEdge["relation"]>;
+  notes?: Record<string, TimelineNote>;
+  noteEdges?: TimelineNoteEdge[];
   lanes: number;
   rootId: number;
   expansions: Expansion[];
