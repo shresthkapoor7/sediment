@@ -5,11 +5,14 @@ import { motion, AnimatePresence } from "framer-motion";
 import { MarkdownContent } from "./MarkdownContent";
 import { fetchPaperAccess, openChatSession, streamChatAboutPaper } from "@/lib/api";
 import { TIMELINE_MOBILE_BREAKPOINT_PX } from "@/lib/hover-preview";
-import { TimelineData, ChatSuggestion, PaperAccessResponse, TimelineNode, PaperChatStreamEvent, TimelineGraphAction, NodeBorderColor } from "@/lib/types";
+import { TimelineData, ChatSuggestion, PaperAccessResponse, TimelineNode, PaperChatStreamEvent, TimelineGraphAction, NodeBorderColor, TimelineNote } from "@/lib/types";
 import { NODE_BORDER_COLOR_OPTIONS, nodeBorderColorCss } from "@/lib/node-style";
+import { TIMELINE_NOTE_DEFAULT_WIDTH, TIMELINE_NOTE_MIN_HEIGHT } from "@/lib/note-style";
 import { NODE_DIMENSIONS } from "@/lib/dummy-data";
 import { TimelineNodeCard } from "./TimelineNode";
 import { TimelineEdgeLine } from "./TimelineEdge";
+import { TimelineNoteCard } from "./TimelineNote";
+import { TimelineNoteEdgeLine } from "./TimelineNoteEdge";
 import { GlobalChatPanel } from "./GlobalChatPanel";
 
 const DETAIL_PANEL_WIDTH_KEY = "sediment_detail_panel_width";
@@ -112,6 +115,7 @@ export function TimelineCanvas({
   const chatHistoryLoadsRef = useRef<Set<string>>(new Set());
   const activePaperStreamsRef = useRef<Record<number, string>>({});
   const [paperAccessById, setPaperAccessById] = useState<Record<string, PaperAccessState>>({});
+  const noteIdRef = useRef(0);
 
   // Track the latest generation so only new nodes animate
   const latestGenRef = useRef(0);
@@ -233,14 +237,21 @@ export function TimelineCanvas({
   }, [detailPanelWidth]);
 
   const allNodes = Object.values(data.nodes);
+  const allNotes = Object.values(data.notes ?? {});
   const maxX =
-    allNodes.length === 0
+    allNodes.length === 0 && allNotes.length === 0
       ? NODE_DIMENSIONS.width + 120
-      : Math.max(...allNodes.map((n) => n.x + NODE_DIMENSIONS.width)) + 120;
+      : Math.max(
+          ...allNodes.map((n) => n.x + NODE_DIMENSIONS.width),
+          ...allNotes.map((note) => note.x + (note.width ?? TIMELINE_NOTE_DEFAULT_WIDTH)),
+        ) + 120;
   const maxY =
-    allNodes.length === 0
+    allNodes.length === 0 && allNotes.length === 0
       ? NODE_DIMENSIONS.height + 120
-      : Math.max(...allNodes.map((n) => n.y + NODE_DIMENSIONS.height)) + 120;
+      : Math.max(
+          ...allNodes.map((n) => n.y + NODE_DIMENSIONS.height),
+          ...allNotes.map((note) => note.y + (note.height ?? TIMELINE_NOTE_MIN_HEIGHT)),
+        ) + 120;
 
   const applyTransform = useCallback(() => {
     if (gRef.current) {
@@ -621,6 +632,7 @@ export function TimelineCanvas({
   }, [applyTransform, maxX, maxY]);
 
   const nodeArray = Object.values(data.nodes);
+  const noteArray = Object.values(data.notes ?? {});
 
   // Derive edges from adjacency list (single source of truth)
   const edgesForRender = Object.entries(data.adjacency).flatMap(
@@ -633,6 +645,7 @@ export function TimelineCanvas({
       }));
     }
   );
+  const noteEdgesForRender = (data.noteEdges ?? []).filter((edge) => data.notes?.[edge.noteId] && data.nodes[edge.nodeId]);
 
   const activeRelated = new Set<number>();
   if (activeNodeId) {
@@ -828,6 +841,100 @@ export function TimelineCanvas({
     onGraphAction?.({ type: "delete_node", nodeId: activeNodeId });
     setActiveNodeId(null);
   }, [activeNodeId, data.nodes, data.rootId, lockedNodeOpenalexId, onGraphAction, readOnly]);
+
+  const handleAddNoteForActiveNode = useCallback(() => {
+    if (!activeNodeId || !activeNode || readOnly) return;
+    const noteId = `note-${Date.now()}-${++noteIdRef.current}`;
+    const note: TimelineNote = {
+      id: noteId,
+      text: "Add note (markdown supported)",
+      kind: "field_note",
+      x: activeNode.x + NODE_DIMENSIONS.width + 56,
+      y: activeNode.y,
+      width: TIMELINE_NOTE_DEFAULT_WIDTH,
+      color: "paper",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    onGraphAction?.({ type: "add_note", note, connectToNodeId: activeNodeId, relation: "about" });
+  }, [activeNode, activeNodeId, onGraphAction, readOnly]);
+
+  const handleMoveNote = useCallback(
+    (noteId: string, x: number, y: number) => {
+      if (readOnly) return;
+      onGraphAction?.({
+        type: "update_note",
+        noteId,
+        patch: {
+          x: Math.round(x),
+          y: Math.round(y),
+          updatedAt: new Date().toISOString(),
+        },
+      });
+    },
+    [onGraphAction, readOnly],
+  );
+
+  const handleResizeNote = useCallback(
+    (noteId: string, width: number, height: number) => {
+      if (readOnly) return;
+      onGraphAction?.({
+        type: "update_note",
+        noteId,
+        patch: {
+          width: Math.round(width),
+          height: Math.round(height),
+          updatedAt: new Date().toISOString(),
+        },
+      });
+    },
+    [onGraphAction, readOnly],
+  );
+
+  const handleNoteTextChange = useCallback(
+    (noteId: string, text: string) => {
+      if (readOnly) return;
+      onGraphAction?.({ type: "update_note", noteId, patch: { text, updatedAt: new Date().toISOString() } });
+    },
+    [onGraphAction, readOnly],
+  );
+
+  const handleNoteKindChange = useCallback(
+    (noteId: string, kind: TimelineNote["kind"]) => {
+      if (readOnly) return;
+      onGraphAction?.({ type: "update_note", noteId, patch: { kind, updatedAt: new Date().toISOString() } });
+    },
+    [onGraphAction, readOnly],
+  );
+
+  const handleNoteColorChange = useCallback(
+    (noteId: string, color: TimelineNote["color"]) => {
+      if (readOnly) return;
+      onGraphAction?.({ type: "update_note", noteId, patch: { color, updatedAt: new Date().toISOString() } });
+    },
+    [onGraphAction, readOnly],
+  );
+
+  const handleDeleteNote = useCallback(
+    (noteId: string) => {
+      if (readOnly) return;
+      onGraphAction?.({ type: "delete_note", noteId });
+    },
+    [onGraphAction, readOnly],
+  );
+
+  const handleToggleNoteConnection = useCallback(
+    (noteId: string) => {
+      if (!activeNodeId || readOnly) return;
+      const isConnected = (data.noteEdges ?? []).some((edge) => edge.noteId === noteId && edge.nodeId === activeNodeId);
+      onGraphAction?.(
+        isConnected
+          ? { type: "disconnect_note", noteId, nodeId: activeNodeId }
+          : { type: "connect_note", noteId, nodeId: activeNodeId, relation: "about" },
+      );
+    },
+    [activeNodeId, data.noteEdges, onGraphAction, readOnly],
+  );
 
   const hasExistingExpansion = useCallback(
     (sourceNodeId: number, query: string) =>
@@ -1092,6 +1199,21 @@ export function TimelineCanvas({
             );
           })}
 
+          {noteEdgesForRender.map((edge, i) => {
+            const note = data.notes?.[edge.noteId];
+            const node = data.nodes[edge.nodeId];
+            if (!note || !node) return null;
+            return (
+              <TimelineNoteEdgeLine
+                key={`${edge.noteId}-${edge.nodeId}-${i}`}
+                note={note}
+                node={node}
+                edge={edge}
+                index={i}
+              />
+            );
+          })}
+
         </g>
       </svg>
 
@@ -1128,6 +1250,31 @@ export function TimelineCanvas({
               shouldAnimate={node.generation === latestGeneration}
             />
           ))}
+          <AnimatePresence>
+            {noteArray.map((note) => {
+              const connectedNodeCount = (data.noteEdges ?? []).filter((edge) => edge.noteId === note.id).length;
+              const isConnectedToActiveNode = Boolean(
+                activeNodeId && (data.noteEdges ?? []).some((edge) => edge.noteId === note.id && edge.nodeId === activeNodeId),
+              );
+              return (
+                <TimelineNoteCard
+                  key={note.id}
+                  note={note}
+                  connectedNodeCount={connectedNodeCount}
+                  activeNodeId={activeNodeId}
+                  isConnectedToActiveNode={isConnectedToActiveNode}
+                  readOnly={readOnly}
+                  onMove={handleMoveNote}
+                  onResize={handleResizeNote}
+                  onTextChange={handleNoteTextChange}
+                  onKindChange={handleNoteKindChange}
+                  onColorChange={handleNoteColorChange}
+                  onToggleActiveConnection={handleToggleNoteConnection}
+                  onDelete={handleDeleteNote}
+                />
+              );
+            })}
+          </AnimatePresence>
         </div>
       </div>
 
@@ -1474,6 +1621,7 @@ export function TimelineCanvas({
               inset: 0,
               zIndex: 19,
               background: "transparent",
+              pointerEvents: "none",
             }}
           />
         )}
@@ -1811,6 +1959,26 @@ export function TimelineCanvas({
                       {isActiveNodeLocked ? "Seed locked" : "Remove node"}
                     </button>
                   </div>
+
+                  <button
+                    type="button"
+                    onClick={handleAddNoteForActiveNode}
+                    style={{
+                      width: "100%",
+                      background: "color-mix(in srgb, var(--accent-soft) 62%, transparent)",
+                      border: "0.0625rem solid color-mix(in srgb, var(--accent) 36%, var(--border) 64%)",
+                      borderRadius: "0.5rem",
+                      color: "var(--accent)",
+                      cursor: "pointer",
+                      fontSize: "0.6875rem",
+                      fontWeight: 600,
+                      fontFamily: "'DM Sans', sans-serif",
+                      padding: "0.5rem 0.625rem",
+                      textAlign: "left",
+                    }}
+                  >
+                    Add connected note
+                  </button>
                 </div>
               )}
 
