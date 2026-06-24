@@ -1,4 +1,5 @@
 import { NodeBorderColor, TimelineData, TimelineGraphAction, TimelineNode } from "./types";
+import { GAP_X, LANE_HEIGHT, NODE_DIMENSIONS, PADDING_X, PADDING_Y } from "./dummy-data";
 
 interface TimelineGraphActionOptions {
   lockedOpenalexIds?: string[];
@@ -117,6 +118,22 @@ function applyNodeDeletion(
     adjacency[parentId] = [...existingChildren];
   });
 
+  const affectedNodeIds = new Set<number>();
+  outgoingChildIds.forEach((childId) => {
+    collectDescendantIds(childId, adjacency, affectedNodeIds);
+  });
+  affectedNodeIds.forEach((affectedNodeId) => {
+    const current = nodes[affectedNodeId];
+    if (!current) return;
+    const generation = computeGenerationFromParents(affectedNodeId, nodes);
+    nodes[affectedNodeId] = {
+      ...current,
+      generation,
+      x: PADDING_X + generation * (NODE_DIMENSIONS.width + GAP_X),
+      y: PADDING_Y + current.lane * LANE_HEIGHT,
+    };
+  });
+
   const remainingIds = Object.keys(nodes).map(Number).sort((a, b) => a - b);
   const rootId = nodes[data.rootId]
     ? data.rootId
@@ -134,4 +151,24 @@ function applyNodeDeletion(
 
 function edgeKey(fromId: number, toId: number): string {
   return `${fromId}->${toId}`;
+}
+
+function collectDescendantIds(
+  nodeId: number,
+  adjacency: Record<number, number[]>,
+  result: Set<number>,
+): void {
+  if (result.has(nodeId)) return;
+  result.add(nodeId);
+  (adjacency[nodeId] ?? []).forEach((childId) => {
+    collectDescendantIds(childId, adjacency, result);
+  });
+}
+
+function computeGenerationFromParents(nodeId: number, nodes: Record<number, TimelineNode>): number {
+  const parentId = nodes[nodeId]?.parentId;
+  if (!parentId || !nodes[parentId]) {
+    return 0;
+  }
+  return nodes[parentId].generation + 1;
 }
