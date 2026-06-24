@@ -183,7 +183,11 @@ function applyNoteAddition(
     },
   };
   const noteEdges = [...(data.noteEdges ?? [])];
-  if (action.connectToNodeId && data.nodes[action.connectToNodeId]) {
+  if (
+    action.connectToNodeId !== null &&
+    action.connectToNodeId !== undefined &&
+    data.nodes[action.connectToNodeId]
+  ) {
     noteEdges.push({
       noteId: action.note.id,
       nodeId: action.connectToNodeId,

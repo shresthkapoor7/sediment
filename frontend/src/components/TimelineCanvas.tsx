@@ -646,6 +646,14 @@ export function TimelineCanvas({
     }
   );
   const noteEdgesForRender = (data.noteEdges ?? []).filter((edge) => data.notes?.[edge.noteId] && data.nodes[edge.nodeId]);
+  const noteConnectionCounts = new Map<string, number>();
+  const noteIdsConnectedToActiveNode = new Set<string>();
+  noteEdgesForRender.forEach((edge) => {
+    noteConnectionCounts.set(edge.noteId, (noteConnectionCounts.get(edge.noteId) ?? 0) + 1);
+    if (activeNodeId && edge.nodeId === activeNodeId) {
+      noteIdsConnectedToActiveNode.add(edge.noteId);
+    }
+  });
 
   const activeRelated = new Set<number>();
   if (activeNodeId) {
@@ -853,6 +861,7 @@ export function TimelineCanvas({
       x: activeNode.x + NODE_DIMENSIONS.width + 56,
       y: activeNode.y,
       width: TIMELINE_NOTE_DEFAULT_WIDTH,
+      height: TIMELINE_NOTE_MIN_HEIGHT,
       color: "paper",
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -1253,17 +1262,13 @@ export function TimelineCanvas({
           ))}
           <AnimatePresence>
             {noteArray.map((note) => {
-              const connectedNodeCount = (data.noteEdges ?? []).filter((edge) => edge.noteId === note.id).length;
-              const isConnectedToActiveNode = Boolean(
-                activeNodeId && (data.noteEdges ?? []).some((edge) => edge.noteId === note.id && edge.nodeId === activeNodeId),
-              );
               return (
                 <TimelineNoteCard
                   key={note.id}
                   note={note}
-                  connectedNodeCount={connectedNodeCount}
+                  connectedNodeCount={noteConnectionCounts.get(note.id) ?? 0}
                   activeNodeId={activeNodeId}
-                  isConnectedToActiveNode={isConnectedToActiveNode}
+                  isConnectedToActiveNode={noteIdsConnectedToActiveNode.has(note.id)}
                   readOnly={readOnly}
                   onMove={handleMoveNote}
                   onResize={handleResizeNote}
@@ -1616,7 +1621,6 @@ export function TimelineCanvas({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            onClick={() => setActiveNodeId(null)}
             style={{
               position: "absolute",
               inset: 0,
