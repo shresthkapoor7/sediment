@@ -6,7 +6,7 @@ import { MarkdownContent } from "./MarkdownContent";
 import { fetchPaperAccess, openChatSession, streamChatAboutPaper } from "@/lib/api";
 import { TIMELINE_MOBILE_BREAKPOINT_PX } from "@/lib/hover-preview";
 import { TimelineData, ChatSuggestion, PaperAccessResponse, TimelineNode, PaperChatStreamEvent, TimelineGraphAction, NodeBorderColor, TimelineNote } from "@/lib/types";
-import { NODE_BORDER_COLOR_OPTIONS, nodeBorderColorCss } from "@/lib/node-style";
+import { NODE_BORDER_COLOR_OPTIONS } from "@/lib/node-style";
 import { TIMELINE_NOTE_DEFAULT_WIDTH, TIMELINE_NOTE_MIN_HEIGHT } from "@/lib/note-style";
 import { NODE_DIMENSIONS } from "@/lib/dummy-data";
 import { TimelineNodeCard } from "./TimelineNode";
@@ -660,6 +660,7 @@ export function TimelineCanvas({
   const isActiveNodeLocked = Boolean(
     activeNode && (activeNode.id === data.rootId || activeNode.paper.openalexId === lockedNodeOpenalexId),
   );
+  const graphActionsDisabled = readOnly || isExpanding;
   const activePaperHref = activeNode ? getPaperHref(activeNode) : null;
   const activePaperAccess = activeNode
     ? paperAccessById[activeNode.paper.openalexId] ?? {
@@ -820,10 +821,10 @@ export function TimelineCanvas({
 
   const handleSetNodeBorderColor = useCallback(
     (borderColor: NodeBorderColor | null) => {
-      if (!activeNodeId || readOnly) return;
+      if (!activeNodeId || graphActionsDisabled) return;
       onGraphAction?.({ type: "highlight_node", nodeId: activeNodeId, borderColor });
     },
-    [activeNodeId, onGraphAction, readOnly],
+    [activeNodeId, graphActionsDisabled, onGraphAction],
   );
 
   const handleDeleteActiveNode = useCallback(() => {
@@ -831,7 +832,7 @@ export function TimelineCanvas({
     if (
       !activeNodeId ||
       !activeNode ||
-      readOnly ||
+      graphActionsDisabled ||
       activeNodeId === data.rootId ||
       activeNode.paper.openalexId === lockedNodeOpenalexId ||
       Object.keys(data.nodes).length <= 1
@@ -840,7 +841,7 @@ export function TimelineCanvas({
     }
     onGraphAction?.({ type: "delete_node", nodeId: activeNodeId });
     setActiveNodeId(null);
-  }, [activeNodeId, data.nodes, data.rootId, lockedNodeOpenalexId, onGraphAction, readOnly]);
+  }, [activeNodeId, data.nodes, data.rootId, graphActionsDisabled, lockedNodeOpenalexId, onGraphAction]);
 
   const handleAddNoteForActiveNode = useCallback(() => {
     if (!activeNodeId || !activeNode || readOnly) return;
@@ -1194,7 +1195,7 @@ export function TimelineCanvas({
                 isActive={isActive}
                 isCrossLane={isCrossLane}
                 isInferred={edge.relation === "inferred"}
-                strokeColor={from.annotation?.borderColor ? nodeBorderColorCss(from.annotation.borderColor) : null}
+                annotationColor={from.annotation?.borderColor ?? null}
               />
             );
           })}
@@ -1890,11 +1891,12 @@ export function TimelineCanvas({
                       <button
                         type="button"
                         onClick={() => handleSetNodeBorderColor(null)}
+                        disabled={graphActionsDisabled}
                         style={{
                           background: "none",
                           border: "none",
                           color: "var(--text-tertiary)",
-                          cursor: "pointer",
+                          cursor: graphActionsDisabled ? "default" : "pointer",
                           fontSize: "0.625rem",
                           fontFamily: "'JetBrains Mono', monospace",
                           padding: 0,
@@ -1916,13 +1918,15 @@ export function TimelineCanvas({
                             title={`Set ${color.label.toLowerCase()} border`}
                             aria-label={`Set ${color.label.toLowerCase()} border`}
                             onClick={() => handleSetNodeBorderColor(color.key)}
+                            disabled={graphActionsDisabled}
                             style={{
                               width: "1.375rem",
                               height: "1.375rem",
                               borderRadius: "999px",
                               border: `0.125rem solid ${selected ? "var(--text-primary)" : "var(--border)"}`,
                               background: color.css,
-                              cursor: "pointer",
+                              cursor: graphActionsDisabled ? "default" : "pointer",
+                              opacity: graphActionsDisabled ? 0.55 : 1,
                               boxShadow: selected ? `0 0 0 0.1875rem color-mix(in srgb, ${color.css} 28%, transparent)` : "none",
                             }}
                           />
@@ -1933,30 +1937,30 @@ export function TimelineCanvas({
                     <button
                       type="button"
                       onClick={handleDeleteActiveNode}
-                      disabled={isActiveNodeLocked || Object.keys(data.nodes).length <= 1}
+                      disabled={graphActionsDisabled || isActiveNodeLocked || Object.keys(data.nodes).length <= 1}
                       style={{
                         flexShrink: 0,
                         background: "var(--bg-primary)",
                         border: "0.0625rem solid var(--border)",
                         borderRadius: "0.4375rem",
-                        color: isActiveNodeLocked || Object.keys(data.nodes).length <= 1 ? "var(--text-tertiary)" : "var(--text-secondary)",
-                        cursor: isActiveNodeLocked || Object.keys(data.nodes).length <= 1 ? "default" : "pointer",
+                        color: graphActionsDisabled || isActiveNodeLocked || Object.keys(data.nodes).length <= 1 ? "var(--text-tertiary)" : "var(--text-secondary)",
+                        cursor: graphActionsDisabled || isActiveNodeLocked || Object.keys(data.nodes).length <= 1 ? "default" : "pointer",
                         fontSize: "0.6875rem",
                         fontWeight: 600,
                         fontFamily: "'DM Sans', sans-serif",
                         padding: "0.375rem 0.625rem",
                       }}
                       onMouseEnter={(e) => {
-                        if (isActiveNodeLocked || Object.keys(data.nodes).length <= 1) return;
+                        if (graphActionsDisabled || isActiveNodeLocked || Object.keys(data.nodes).length <= 1) return;
                         e.currentTarget.style.borderColor = "var(--accent)";
                         e.currentTarget.style.color = "var(--accent)";
                       }}
                       onMouseLeave={(e) => {
                         e.currentTarget.style.borderColor = "var(--border)";
-                        e.currentTarget.style.color = isActiveNodeLocked || Object.keys(data.nodes).length <= 1 ? "var(--text-tertiary)" : "var(--text-secondary)";
+                        e.currentTarget.style.color = graphActionsDisabled || isActiveNodeLocked || Object.keys(data.nodes).length <= 1 ? "var(--text-tertiary)" : "var(--text-secondary)";
                       }}
                     >
-                      {isActiveNodeLocked ? "Seed locked" : "Remove node"}
+                      {isExpanding ? "Expanding..." : isActiveNodeLocked ? "Seed locked" : "Remove node"}
                     </button>
                   </div>
 

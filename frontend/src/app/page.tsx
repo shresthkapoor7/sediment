@@ -2112,10 +2112,13 @@ export default function Home() {
           return;
         }
         const nextTimelineData = buildTimelineFromGraph(response);
+        const nextSeedPaperId =
+          response.seedPaperId ??
+          seedOpenalexId ??
+          nextTimelineData.nodes[nextTimelineData.rootId]?.paper.openalexId ??
+          null;
         setTimelineData(nextTimelineData);
-        setSelectedSeedOpenalexId(
-          response.seedPaperId ?? seedOpenalexId ?? null,
-        );
+        setSelectedSeedOpenalexId(nextSeedPaperId);
 
         if (userId) {
           try {
@@ -2124,7 +2127,7 @@ export default function Home() {
               userId,
               query,
               data: nextTimelineData,
-              seedPaperId: response.seedPaperId,
+              seedPaperId: nextSeedPaperId,
               metadata: buildMetadata(query, nextTimelineData),
             });
             setGraphId(savedGraph.id);
@@ -2296,7 +2299,7 @@ export default function Home() {
 
   const handleTimelineGraphAction = useCallback(
     (action: TimelineGraphAction) => {
-      if (!timelineData) return;
+      if (!timelineData || isExpanding) return;
       const nextTimelineData = applyTimelineGraphAction(timelineData, action, {
         lockedOpenalexIds: selectedSeedOpenalexId ? [selectedSeedOpenalexId] : [],
       });
@@ -2304,7 +2307,7 @@ export default function Home() {
       setTimelineData(nextTimelineData);
       scheduleGraphUpdate(nextTimelineData, searchedQuery);
     },
-    [scheduleGraphUpdate, searchedQuery, selectedSeedOpenalexId, timelineData],
+    [isExpanding, scheduleGraphUpdate, searchedQuery, selectedSeedOpenalexId, timelineData],
   );
 
   const handleRefreshCurrent = useCallback(() => {
