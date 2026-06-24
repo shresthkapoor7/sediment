@@ -5,7 +5,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { MarkdownContent } from "./MarkdownContent";
 import { fetchPaperAccess, openChatSession, streamChatAboutPaper } from "@/lib/api";
 import { TIMELINE_MOBILE_BREAKPOINT_PX } from "@/lib/hover-preview";
-import { TimelineData, ChatSuggestion, PaperAccessResponse, TimelineNode, PaperChatStreamEvent } from "@/lib/types";
+import { TimelineData, ChatSuggestion, PaperAccessResponse, TimelineNode, PaperChatStreamEvent, TimelineGraphAction, NodeBorderColor } from "@/lib/types";
+import { NODE_BORDER_COLOR_OPTIONS, nodeBorderColorCss } from "@/lib/node-style";
 import { NODE_DIMENSIONS } from "@/lib/dummy-data";
 import { TimelineNodeCard } from "./TimelineNode";
 import { TimelineEdgeLine } from "./TimelineEdge";
@@ -36,6 +37,8 @@ interface ToolEvent {
 interface TimelineCanvasProps {
   data: TimelineData;
   onExpandNode: (nodeId: number, query: string) => void;
+  onGraphAction?: (action: TimelineGraphAction) => void;
+  lockedNodeOpenalexId?: string | null;
   isExpanding: boolean;
   onUsageChanged?: () => void;
   readOnly?: boolean;
@@ -61,6 +64,8 @@ type PaperAccessState = PaperAccessResponse | {
 export function TimelineCanvas({
   data,
   onExpandNode,
+  onGraphAction,
+  lockedNodeOpenalexId,
   isExpanding,
   onUsageChanged,
   readOnly = false,
@@ -639,6 +644,9 @@ export function TimelineCanvas({
   }
 
   const activeNode = activeNodeId ? data.nodes[activeNodeId] : null;
+  const isActiveNodeLocked = Boolean(
+    activeNode && (activeNode.id === data.rootId || activeNode.paper.openalexId === lockedNodeOpenalexId),
+  );
   const activePaperHref = activeNode ? getPaperHref(activeNode) : null;
   const activePaperAccess = activeNode
     ? paperAccessById[activeNode.paper.openalexId] ?? {
@@ -796,6 +804,30 @@ export function TimelineCanvas({
     },
     [activeNodeId, onExpandNode]
   );
+
+  const handleSetNodeBorderColor = useCallback(
+    (borderColor: NodeBorderColor | null) => {
+      if (!activeNodeId || readOnly) return;
+      onGraphAction?.({ type: "highlight_node", nodeId: activeNodeId, borderColor });
+    },
+    [activeNodeId, onGraphAction, readOnly],
+  );
+
+  const handleDeleteActiveNode = useCallback(() => {
+    const activeNode = activeNodeId ? data.nodes[activeNodeId] : null;
+    if (
+      !activeNodeId ||
+      !activeNode ||
+      readOnly ||
+      activeNodeId === data.rootId ||
+      activeNode.paper.openalexId === lockedNodeOpenalexId ||
+      Object.keys(data.nodes).length <= 1
+    ) {
+      return;
+    }
+    onGraphAction?.({ type: "delete_node", nodeId: activeNodeId });
+    setActiveNodeId(null);
+  }, [activeNodeId, data.nodes, data.rootId, lockedNodeOpenalexId, onGraphAction, readOnly]);
 
   const hasExistingExpansion = useCallback(
     (sourceNodeId: number, query: string) =>
@@ -1031,6 +1063,11 @@ export function TimelineCanvas({
           <marker id="arrow-cross" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto" markerUnits="strokeWidth">
             <path d="M0,0 L0,6 L8,3 z" fill="var(--edge-color)" opacity="0.5" />
           </marker>
+          {NODE_BORDER_COLOR_OPTIONS.map((color) => (
+            <marker key={color.key} id={`arrow-colored-${color.key}`} markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto" markerUnits="strokeWidth">
+              <path d="M0,0 L0,6 L8,3 z" fill={color.css} opacity="0.88" />
+            </marker>
+          ))}
         </defs>
         <g ref={gRef}>
           {/* Edges — derived from adjacency list */}
@@ -1050,6 +1087,7 @@ export function TimelineCanvas({
                 isActive={isActive}
                 isCrossLane={isCrossLane}
                 isInferred={edge.relation === "inferred"}
+                strokeColor={from.annotation?.borderColor ? nodeBorderColorCss(from.annotation.borderColor) : null}
               />
             );
           })}
@@ -1674,6 +1712,107 @@ export function TimelineCanvas({
                   </p>
                 )}
               </div>
+
+              {!readOnly && onGraphAction && (
+                <div
+                  style={{
+                    background: "var(--bg-secondary)",
+                    border: "0.0625rem solid var(--border)",
+                    borderRadius: "0.625rem",
+                    padding: "0.75rem 0.875rem",
+                    marginBottom: "1.25rem",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "0.625rem",
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.75rem" }}>
+                    <p
+                      style={{
+                        fontSize: "0.625rem",
+                        color: "var(--text-tertiary)",
+                        fontFamily: "'JetBrains Mono', monospace",
+                        letterSpacing: "0.06em",
+                        textTransform: "uppercase",
+                      }}
+                    >
+                      Graph controls
+                    </p>
+                    {activeNode.annotation?.borderColor && (
+                      <button
+                        type="button"
+                        onClick={() => handleSetNodeBorderColor(null)}
+                        style={{
+                          background: "none",
+                          border: "none",
+                          color: "var(--text-tertiary)",
+                          cursor: "pointer",
+                          fontSize: "0.625rem",
+                          fontFamily: "'JetBrains Mono', monospace",
+                          padding: 0,
+                        }}
+                      >
+                        Clear border
+                      </button>
+                    )}
+                  </div>
+
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.75rem" }}>
+                    <div style={{ display: "flex", gap: "0.375rem", flexWrap: "wrap" }}>
+                      {NODE_BORDER_COLOR_OPTIONS.map((color) => {
+                        const selected = activeNode.annotation?.borderColor === color.key;
+                        return (
+                          <button
+                            key={color.key}
+                            type="button"
+                            title={`Set ${color.label.toLowerCase()} border`}
+                            aria-label={`Set ${color.label.toLowerCase()} border`}
+                            onClick={() => handleSetNodeBorderColor(color.key)}
+                            style={{
+                              width: "1.375rem",
+                              height: "1.375rem",
+                              borderRadius: "999px",
+                              border: `0.125rem solid ${selected ? "var(--text-primary)" : "var(--border)"}`,
+                              background: color.css,
+                              cursor: "pointer",
+                              boxShadow: selected ? `0 0 0 0.1875rem color-mix(in srgb, ${color.css} 28%, transparent)` : "none",
+                            }}
+                          />
+                        );
+                      })}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleDeleteActiveNode}
+                      disabled={isActiveNodeLocked || Object.keys(data.nodes).length <= 1}
+                      style={{
+                        flexShrink: 0,
+                        background: "var(--bg-primary)",
+                        border: "0.0625rem solid var(--border)",
+                        borderRadius: "0.4375rem",
+                        color: isActiveNodeLocked || Object.keys(data.nodes).length <= 1 ? "var(--text-tertiary)" : "var(--text-secondary)",
+                        cursor: isActiveNodeLocked || Object.keys(data.nodes).length <= 1 ? "default" : "pointer",
+                        fontSize: "0.6875rem",
+                        fontWeight: 600,
+                        fontFamily: "'DM Sans', sans-serif",
+                        padding: "0.375rem 0.625rem",
+                      }}
+                      onMouseEnter={(e) => {
+                        if (isActiveNodeLocked || Object.keys(data.nodes).length <= 1) return;
+                        e.currentTarget.style.borderColor = "var(--accent)";
+                        e.currentTarget.style.color = "var(--accent)";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.borderColor = "var(--border)";
+                        e.currentTarget.style.color = isActiveNodeLocked || Object.keys(data.nodes).length <= 1 ? "var(--text-tertiary)" : "var(--text-secondary)";
+                      }}
+                    >
+                      {isActiveNodeLocked ? "Seed locked" : "Remove node"}
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* Chat messages */}
               {(chatHistories[activeNodeId] ?? []).map((msg) => (
