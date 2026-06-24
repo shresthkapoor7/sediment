@@ -167,7 +167,7 @@ function collectDescendantIds(
 
 function computeGenerationFromParents(nodeId: number, nodes: Record<number, TimelineNode>): number {
   const parentId = nodes[nodeId]?.parentId;
-  if (!parentId || !nodes[parentId]) {
+  if (parentId === null || parentId === undefined || !nodes[parentId]) {
     return 0;
   }
   return nodes[parentId].generation + 1;
