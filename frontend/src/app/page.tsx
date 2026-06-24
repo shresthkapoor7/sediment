@@ -25,6 +25,7 @@ import {
   updateSavedGraph,
 } from "@/lib/api";
 import { useHoverPreviewToggle } from "@/lib/hover-preview";
+import { applyTimelineGraphAction } from "@/lib/timeline-actions";
 import {
   buildTimelineFromGraph,
   mergeTimelineWithGraph,
@@ -33,6 +34,7 @@ import {
   SavedGraphListItem,
   SeedCandidate,
   TimelineData,
+  TimelineGraphAction,
   TraversalSettings,
 } from "@/lib/types";
 import { exportObsidianZip } from "@/lib/export";
@@ -2049,8 +2051,7 @@ export default function Home() {
           userId,
           query: nextQuery,
           data: nextData,
-          seedPaperId:
-            nextData.nodes[nextData.rootId]?.paper.openalexId ?? null,
+          seedPaperId: selectedSeedOpenalexId ?? nextData.nodes[nextData.rootId]?.paper.openalexId ?? null,
           metadata: buildMetadata(nextQuery, nextData),
         })
           .then(() => {
@@ -2064,7 +2065,7 @@ export default function Home() {
           });
       }, 700);
     },
-    [buildMetadata, graphId, userId],
+    [buildMetadata, graphId, selectedSeedOpenalexId, userId],
   );
 
   const runSearch = useCallback(
@@ -2111,10 +2112,13 @@ export default function Home() {
           return;
         }
         const nextTimelineData = buildTimelineFromGraph(response);
+        const nextSeedPaperId =
+          response.seedPaperId ??
+          seedOpenalexId ??
+          nextTimelineData.nodes[nextTimelineData.rootId]?.paper.openalexId ??
+          null;
         setTimelineData(nextTimelineData);
-        setSelectedSeedOpenalexId(
-          response.seedPaperId ?? seedOpenalexId ?? null,
-        );
+        setSelectedSeedOpenalexId(nextSeedPaperId);
 
         if (userId) {
           try {
@@ -2123,7 +2127,7 @@ export default function Home() {
               userId,
               query,
               data: nextTimelineData,
-              seedPaperId: response.seedPaperId,
+              seedPaperId: nextSeedPaperId,
               metadata: buildMetadata(query, nextTimelineData),
             });
             setGraphId(savedGraph.id);
@@ -2291,6 +2295,19 @@ export default function Home() {
       settings,
       timelineData,
     ],
+  );
+
+  const handleTimelineGraphAction = useCallback(
+    (action: TimelineGraphAction) => {
+      if (!timelineData || isExpanding) return;
+      const nextTimelineData = applyTimelineGraphAction(timelineData, action, {
+        lockedOpenalexIds: selectedSeedOpenalexId ? [selectedSeedOpenalexId] : [],
+      });
+      if (nextTimelineData === timelineData) return;
+      setTimelineData(nextTimelineData);
+      scheduleGraphUpdate(nextTimelineData, searchedQuery);
+    },
+    [isExpanding, scheduleGraphUpdate, searchedQuery, selectedSeedOpenalexId, timelineData],
   );
 
   const handleRefreshCurrent = useCallback(() => {
@@ -4492,6 +4509,8 @@ export default function Home() {
               <TimelineCanvas
                 data={timelineData!}
                 onExpandNode={handleExpandNode}
+                onGraphAction={handleTimelineGraphAction}
+                lockedNodeOpenalexId={selectedSeedOpenalexId}
                 isExpanding={isExpanding}
                 onUsageChanged={refreshCredits}
                 hoverPreviewEnabled={hoverPreviewEnabled}

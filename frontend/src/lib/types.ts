@@ -25,6 +25,23 @@ export interface GraphEdge {
   relation: "influenced" | "inferred";
 }
 
+export type NodeBorderColor = "accent" | "blue" | "green" | "purple" | "amber" | "rose";
+
+export interface TimelineNodeAnnotation {
+  borderColor?: NodeBorderColor;
+}
+
+export type TimelineGraphAction =
+  | {
+      type: "highlight_node";
+      nodeId: number;
+      borderColor: NodeBorderColor | null;
+    }
+  | {
+      type: "delete_node";
+      nodeId: number;
+    };
+
 export interface SeedCandidate {
   openalexId: string;
   title: string;
@@ -136,6 +153,7 @@ export interface TimelineNode {
   parentId: number | null;
   expanded: boolean;
   generation: number;
+  annotation?: TimelineNodeAnnotation;
 }
 
 export interface TimelineData {

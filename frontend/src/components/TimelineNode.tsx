@@ -2,6 +2,7 @@
 
 import { motion } from "framer-motion";
 import { TimelineNode as TNode } from "@/lib/types";
+import { nodeBorderColorCss } from "@/lib/node-style";
 import { NODE_DIMENSIONS } from "@/lib/dummy-data";
 
 interface TimelineNodeProps {
@@ -26,13 +27,16 @@ export function TimelineNodeCard({
   shouldAnimate,
 }: TimelineNodeProps) {
   const { width, height } = NODE_DIMENSIONS;
+  const annotationColor = node.annotation?.borderColor ? nodeBorderColorCss(node.annotation.borderColor) : null;
   const getBorderColor = (active: boolean, highlighted: boolean) =>
-    active || highlighted ? "var(--accent)" : "var(--node-border)";
+    active || highlighted ? "var(--accent)" : annotationColor ?? "var(--node-border)";
   const getBoxShadow = (active: boolean, highlighted: boolean) =>
     active
       ? "0 0 0 0.1875rem var(--accent-soft), var(--node-shadow)"
       : highlighted
         ? "0 0 0 0.1875rem var(--accent-soft), 0 0 1rem var(--accent-glow), var(--node-shadow)"
+        : annotationColor
+          ? `0 0 0 0.15625rem color-mix(in srgb, ${annotationColor} 28%, transparent), var(--node-shadow)`
         : "var(--node-shadow)";
   const getHoverBoxShadow = () => "var(--node-shadow-hover)";
   const borderColor = getBorderColor(isActive, isHighlighted);

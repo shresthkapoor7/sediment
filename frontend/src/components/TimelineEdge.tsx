@@ -1,8 +1,9 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { TimelineNode } from "@/lib/types";
+import { NodeBorderColor, TimelineNode } from "@/lib/types";
 import { NODE_DIMENSIONS } from "@/lib/dummy-data";
+import { nodeBorderColorCss } from "@/lib/node-style";
 
 interface TimelineEdgeProps {
   from: TimelineNode;
@@ -11,6 +12,7 @@ interface TimelineEdgeProps {
   isActive: boolean;
   isCrossLane?: boolean;
   isInferred?: boolean;
+  annotationColor?: NodeBorderColor | null;
 }
 
 export function TimelineEdgeLine({
@@ -20,6 +22,7 @@ export function TimelineEdgeLine({
   isActive,
   isCrossLane = false,
   isInferred = false,
+  annotationColor = null,
 }: TimelineEdgeProps) {
   const { width, height } = NODE_DIMENSIONS;
 
@@ -34,9 +37,21 @@ export function TimelineEdgeLine({
   const midX = (x1 + x2) / 2;
   const path = `M ${x1} ${y1} C ${midX} ${y1}, ${midX} ${y2}, ${x2} ${y2}`;
 
-  const markerId = isActive ? "arrow-active" : isInferred || isCrossLane ? "arrow-cross" : "arrow-default";
+  const colored = Boolean(annotationColor && !isActive);
+  const markerId = isActive
+    ? "arrow-active"
+    : colored
+      ? `arrow-colored-${annotationColor}`
+      : isInferred || isCrossLane
+        ? "arrow-cross"
+        : "arrow-default";
   const strokeDasharray = isInferred ? "6 4" : isCrossLane ? "4 3" : undefined;
-  const baseOpacity = isActive ? 1 : isInferred ? 0.42 : isCrossLane ? 0.5 : 0.7;
+  const baseOpacity = isActive ? 1 : colored ? 0.88 : isInferred ? 0.42 : isCrossLane ? 0.5 : 0.7;
+  const stroke = isActive
+    ? "var(--edge-color-active)"
+    : annotationColor
+      ? nodeBorderColorCss(annotationColor)
+      : "var(--edge-color)";
 
   return (
     <g>
@@ -63,8 +78,8 @@ export function TimelineEdgeLine({
       <motion.path
         d={path}
         fill="none"
-        stroke={isActive ? "var(--edge-color-active)" : "var(--edge-color)"}
-        strokeWidth={isActive ? 2 : 1.5}
+        stroke={stroke}
+        strokeWidth={isActive || colored ? 2 : 1.5}
         strokeLinecap="round"
         strokeDasharray={strokeDasharray}
         markerEnd={`url(#${markerId})`}
