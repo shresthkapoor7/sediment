@@ -7,6 +7,7 @@ from ..config import settings as app_settings
 from ..db.supabase import SupabaseAPIError, SupabaseClient, SupabaseConfigError
 from ..models import (
     GraphListItem,
+    GraphListResponse,
     GraphRecord,
     SaveGraphRequest,
     SharedGraphRecord,
@@ -170,28 +171,38 @@ async def get_shared_graph(share_id: str):
     )
 
 
-@router.get("/graphs", response_model=list[GraphListItem])
-async def list_graphs(userId: str = Query(...)):
+@router.get("/graphs", response_model=GraphListResponse)
+async def list_graphs(
+    userId: str = Query(...),
+    limit: int = Query(10, ge=1, le=50),
+    offset: int = Query(0, ge=0),
+):
     if not userId.strip():
         raise HTTPException(status_code=400, detail="userId required")
 
+    fetch_limit = limit + 1
     try:
-        rows = await get_db().list_graphs(userId.strip())
+        rows = await get_db().list_graphs(userId.strip(), limit=fetch_limit, offset=offset)
     except SupabaseAPIError as e:
         logger.warning("Graph list failed for user_id=%r", userId, exc_info=e)
         raise HTTPException(status_code=502, detail="Failed to list graphs.") from e
 
-    return [
-        GraphListItem(
-            id=row["id"],
-            query=row["query"],
-            seedPaperId=row.get("seed_paper_id"),
-            metadata=row.get("metadata") or {},
-            createdAt=row["created_at"],
-            updatedAt=row["updated_at"],
-        )
-        for row in rows
-    ]
+    page_rows = rows[:limit]
+    return GraphListResponse(
+        items=[
+            GraphListItem(
+                id=row["id"],
+                query=row["query"],
+                seedPaperId=row.get("seed_paper_id"),
+                metadata=row.get("metadata") or {},
+                createdAt=row["created_at"],
+                updatedAt=row["updated_at"],
+            )
+            for row in page_rows
+        ],
+        hasMore=len(rows) > limit,
+        nextOffset=offset + len(page_rows) if len(rows) > limit else None,
+    )
 
 
 @router.get("/graphs/{graph_id}", response_model=GraphRecord)
