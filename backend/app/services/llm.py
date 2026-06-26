@@ -604,11 +604,22 @@ Rules:
 
         text = _message_text(response)
         valid_ids = {paper.get("openalexId") for paper in papers}
-        highlighted = [
+        highlight_candidates: list[str] = [
             paper_id
             for paper_id in (mentioned_paper_ids or [])
             if paper_id in valid_ids
-        ][:5]
+        ]
+        for record in tool_records:
+            if record.get("name") not in {"search_paper_content", "check_paper_access", "retrieve_paper_content"}:
+                continue
+            tool_input = record.get("input")
+            if isinstance(tool_input, dict) and tool_input.get("paperId") in valid_ids:
+                highlight_candidates.append(tool_input["paperId"])
+                continue
+            result = record.get("result")
+            if isinstance(result, dict) and result.get("paperId") in valid_ids:
+                highlight_candidates.append(result["paperId"])
+        highlighted = list(dict.fromkeys(highlight_candidates))[:5]
         return {
             "text": text or "I could not produce a useful answer for that question.",
             "highlightedPaperIds": highlighted,

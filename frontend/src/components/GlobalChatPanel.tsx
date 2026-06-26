@@ -18,6 +18,7 @@ interface Message {
   role: "user" | "assistant";
   text: string;
   highlightedPaperIds?: string[];
+  mentionedPaperIds?: string[];
   toolEvents?: ToolEvent[];
   statusEvents?: string[];
   citations?: Record<string, unknown>[];
@@ -41,6 +42,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
   const [mentionedPaperIds, setMentionedPaperIds] = useState<string[]>([]);
   const [mentionQuery, setMentionQuery] = useState("");
   const [mentionOpen, setMentionOpen] = useState(false);
+  const [inputFocused, setInputFocused] = useState(false);
   const [isThinking, setIsThinking] = useState(false);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
@@ -74,8 +76,8 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
   }, [graphId, userId]);
 
   useEffect(() => {
-    onMentionedPaperIdsChange?.(mentionedPaperIds);
-  }, [mentionedPaperIds, onMentionedPaperIdsChange]);
+    onMentionedPaperIdsChange?.(inputFocused ? mentionedPaperIds : []);
+  }, [inputFocused, mentionedPaperIds, onMentionedPaperIdsChange]);
 
   const inputRef = useRef<HTMLInputElement>(null);
   const panelId = useId();
@@ -169,7 +171,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
     year: n.paper.year,
     summary: n.paper.summary,
   }));
-  const selectedMentionPapers = mentionedPaperIds
+  const selectedMentionPapers = mentionedPaperIds.slice(0, 1)
     .map((id) => papers.find((paper) => paper.openalexId === id))
     .filter((paper): paper is (typeof papers)[number] => Boolean(paper));
   const mentionOptions = papers
@@ -203,7 +205,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
       : input;
 
     setInput(nextInput);
-    setMentionedPaperIds((current) => current.includes(paper.openalexId) ? current : [...current, paper.openalexId]);
+    setMentionedPaperIds([paper.openalexId]);
     setMentionOpen(false);
     setMentionQuery("");
     window.setTimeout(() => inputRef.current?.focus({ preventScroll: true }), 0);
@@ -216,18 +218,18 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
   async function send() {
     const q = input.trim() || (mentionedPaperIds.length > 0 ? "Tell me about the mentioned paper(s)." : "");
     if (!q || isThinking) return;
-    const focusedPaperIds = mentionedPaperIds;
+    const focusedPaperIds = mentionedPaperIds.slice(0, 1);
     setInput("");
     setMentionedPaperIds([]);
     setMentionOpen(false);
     setMentionQuery("");
 
-    const mentionedTitles = focusedPaperIds
-      .map((id) => papers.find((paper) => paper.openalexId === id))
-      .filter((paper): paper is (typeof papers)[number] => Boolean(paper))
-      .map((paper) => `@${paper.title}`);
-    const displayText = [mentionedTitles.join(" "), q].filter(Boolean).join(" ");
-    const userMsg: Message = { id: `local-${++msgIdRef.current}`, role: "user", text: displayText };
+    const userMsg: Message = {
+      id: `local-${++msgIdRef.current}`,
+      role: "user",
+      text: q,
+      mentionedPaperIds: focusedPaperIds,
+    };
     const assistantId = `local-${++msgIdRef.current}`;
     const assistantMsg: Message = { id: assistantId, role: "assistant", text: "", pending: true };
     setMessages((prev) => [...prev, userMsg, assistantMsg]);
@@ -285,13 +287,9 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
           if (event.type === "message_completed") {
             updateAssistant({
               text: event.response.text,
-              highlightedPaperIds: event.response.highlightedPaperIds,
               citations: event.response.citations ?? [],
               pending: false,
             });
-            if (event.response.highlightedPaperIds.length > 0) {
-              onHighlight(event.response.highlightedPaperIds);
-            }
           }
           if (event.type === "error") {
             updateAssistant({ text: event.detail || "Chat failed", pending: false });
@@ -303,13 +301,9 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
       if (res) {
         updateAssistant({
           text: res.text,
-          highlightedPaperIds: res.highlightedPaperIds,
           citations: res.citations ?? [],
           pending: false,
         });
-      }
-      if (res?.highlightedPaperIds && res.highlightedPaperIds.length > 0) {
-        onHighlight(res.highlightedPaperIds);
       }
     } catch (error) {
       updateAssistant({
@@ -591,28 +585,41 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
                   }}>
                     {msg.role === "assistant" ? (
                       <MarkdownContent>{msg.text}</MarkdownContent>
-                    ) : msg.text}
+                    ) : (
+                      <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
+                        {(msg.mentionedPaperIds ?? []).length > 0 && (
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.25rem" }}>
+                            {(msg.mentionedPaperIds ?? []).map((paperId) => {
+                              const paper = papers.find((item) => item.openalexId === paperId);
+                              if (!paper) return null;
+                              return (
+                                <span
+                                  key={paper.openalexId}
+                                  title={paper.title}
+                                  style={{
+                                    maxWidth: "16rem",
+                                    overflow: "hidden",
+                                    textOverflow: "ellipsis",
+                                    whiteSpace: "nowrap",
+                                    borderRadius: "999px",
+                                    border: "0.0625rem solid color-mix(in srgb, white 46%, transparent)",
+                                    background: "color-mix(in srgb, white 16%, transparent)",
+                                    padding: "0.0625rem 0.4375rem",
+                                    fontSize: "0.65625rem",
+                                    lineHeight: 1.6,
+                                    fontWeight: 600,
+                                  }}
+                                >
+                                  @{paper.title}
+                                </span>
+                              );
+                            })}
+                          </div>
+                        )}
+                        <span>{msg.text}</span>
+                      </div>
+                    )}
                   </div>
-
-                  {msg.highlightedPaperIds && msg.highlightedPaperIds.length > 0 && (
-                    <button
-                      onClick={() => onHighlight(msg.highlightedPaperIds!)}
-                      style={{
-                        background: "none",
-                        border: "none",
-                        padding: "0.125rem 0.25rem",
-                        fontSize: "0.65625rem",
-                        color: "var(--accent)",
-                        fontFamily: "'JetBrains Mono', monospace",
-                        cursor: "pointer",
-                        textDecoration: "underline",
-                        textDecorationStyle: "dotted",
-                        textUnderlineOffset: "0.1875rem",
-                      }}
-                    >
-                      ↑ {msg.highlightedPaperIds.length} paper{msg.highlightedPaperIds.length !== 1 ? "s" : ""} highlighted
-                    </button>
-                  )}
 
                   {(msg.pending || (msg.toolEvents?.length ?? 0) > 0 || (msg.statusEvents?.length ?? 0) > 0) && (
                     <div
@@ -806,6 +813,12 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
                     onChange={(e) => {
                       setInput(e.target.value);
                       updateMentionSearch(e.target.value, e.target.selectionStart);
+                    }}
+                    onFocus={() => setInputFocused(true)}
+                    onBlur={() => {
+                      setInputFocused(false);
+                      setMentionOpen(false);
+                      setMentionQuery("");
                     }}
                     onClick={(e) => updateMentionSearch(input, e.currentTarget.selectionStart)}
                     onKeyUp={(e) => updateMentionSearch(input, e.currentTarget.selectionStart)}

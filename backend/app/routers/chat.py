@@ -59,6 +59,15 @@ def _graph_papers(graph_data: object) -> list[dict]:
     return papers
 
 
+def _normalize_openalex_id(paper_id: object) -> str:
+    if not isinstance(paper_id, str):
+        return ""
+    value = paper_id.strip()
+    if "/" in value:
+        value = value.rstrip("/").rsplit("/", 1)[-1]
+    return value.upper()
+
+
 def _latest_pending_action(context: ChatContext | None) -> dict[str, Any] | None:
     if not context:
         return None
@@ -80,13 +89,19 @@ def _latest_pending_action(context: ChatContext | None) -> dict[str, Any] | None
                 return {
                     "name": "retrieve_paper_content",
                     "message": result.get("message") or "Confirm to access the complete paper.",
+                    "paperId": result.get("paperId"),
                 }
     return None
 
 
-def _allows_paper_retrieval(question: str, tool_input: dict[str, Any], pending_action: dict[str, Any] | None) -> bool:
+def _allows_paper_retrieval(
+    question: str,
+    tool_input: dict[str, Any],
+    pending_action: dict[str, Any] | None,
+    requested_paper_id: str,
+) -> bool:
     if pending_action and CONFIRMATION_RE.search(question):
-        return True
+        return _normalize_openalex_id(pending_action.get("paperId")) == _normalize_openalex_id(requested_paper_id)
     if bool(tool_input.get("confirmed")) and FULL_PAPER_RE.search(question):
         return True
     return False
@@ -198,11 +213,12 @@ async def _run_paper_chat(req: ChatRequest, request_ip: str, event_emitter: Chat
                     return result
 
                 if name == "retrieve_paper_content":
-                    if not _allows_paper_retrieval(req.question, tool_input, pending_action):
+                    if not _allows_paper_retrieval(req.question, tool_input, pending_action, req.paperId):
                         result = {
                             "status": "needs_confirmation",
                             "requiresConfirmation": True,
                             "message": "Please confirm that you want me to access and index the complete paper.",
+                            "paperId": req.paperId.upper(),
                         }
                         await _emit(event_emitter, "tool_completed", {
                             "name": name,
@@ -363,10 +379,10 @@ async def _paper_chat_event_stream(req: ChatRequest, request_ip: str) -> AsyncIt
 
 
 def _paper_by_id(papers: list[dict], paper_id: str | None) -> dict | None:
-    normalized = paper_id.upper() if isinstance(paper_id, str) else ""
+    normalized = _normalize_openalex_id(paper_id)
     if not normalized:
         return None
-    return next((paper for paper in papers if paper.get("openalexId") == normalized), None)
+    return next((paper for paper in papers if _normalize_openalex_id(paper.get("openalexId")) == normalized), None)
 
 
 async def _run_global_chat(req: GlobalChatRequest, request_ip: str, event_emitter: ChatEventEmitter | None = None) -> dict[str, Any]:
@@ -376,7 +392,16 @@ async def _run_global_chat(req: GlobalChatRequest, request_ip: str, event_emitte
     context = None
     memory = None
     papers = [p.model_dump() for p in req.papers]
-    mentioned_paper_ids = [paper_id.upper() for paper_id in req.mentionedPaperIds if isinstance(paper_id, str)]
+    paper_by_normalized_id = {
+        _normalize_openalex_id(paper.get("openalexId")): paper
+        for paper in papers
+        if _normalize_openalex_id(paper.get("openalexId"))
+    }
+    mentioned_paper_ids = [
+        paper_by_normalized_id[normalized]["openalexId"]
+        for paper_id in req.mentionedPaperIds
+        if (normalized := _normalize_openalex_id(paper_id)) in paper_by_normalized_id
+    ]
     if req.graphId and req.userId:
         await _emit(event_emitter, "status", {"message": "Restoring timeline chat context"})
         try:
@@ -388,8 +413,16 @@ async def _run_global_chat(req: GlobalChatRequest, request_ip: str, event_emitte
             papers = _graph_papers(graph.get("data"))
             if not papers:
                 raise HTTPException(status_code=400, detail="Graph contains no papers.")
-            valid_ids = {paper.get("openalexId") for paper in papers}
-            mentioned_paper_ids = [paper_id for paper_id in mentioned_paper_ids if paper_id in valid_ids]
+            paper_by_normalized_id = {
+                _normalize_openalex_id(paper.get("openalexId")): paper
+                for paper in papers
+                if _normalize_openalex_id(paper.get("openalexId"))
+            }
+            mentioned_paper_ids = [
+                paper_by_normalized_id[normalized]["openalexId"]
+                for paper_id in req.mentionedPaperIds
+                if (normalized := _normalize_openalex_id(paper_id)) in paper_by_normalized_id
+            ]
             await memory.append(context, req.userId, "user", req.question.strip())
         except SupabaseAPIError as exc:
             logger.warning("Global chat persistence failed for graph_id=%r", req.graphId, exc_info=exc)
@@ -403,8 +436,9 @@ async def _run_global_chat(req: GlobalChatRequest, request_ip: str, event_emitte
     async def run_global_tool(name: str, tool_input: dict[str, Any]) -> dict[str, Any]:
         await _emit(event_emitter, "tool_started", {"name": name, "input": tool_input})
         await _emit(event_emitter, "status", {"message": _tool_status_message(name, "started")})
-        requested_paper_id = str(tool_input.get("paperId") or primary_paper_id or "").upper()
+        requested_paper_id = str(tool_input.get("paperId") or primary_paper_id or "")
         paper = _paper_by_id(papers, requested_paper_id)
+        canonical_paper_id = paper.get("openalexId") if paper else requested_paper_id
 
         if name in {"check_paper_access", "retrieve_paper_content", "search_paper_content"} and not paper:
             result = {"status": "error", "message": "Tool requested a paper that is not present in this graph."}
@@ -412,7 +446,7 @@ async def _run_global_chat(req: GlobalChatRequest, request_ip: str, event_emitte
             return result
 
         if name == "check_paper_access":
-            result = await PaperAccessChecker().check(requested_paper_id)
+            result = await PaperAccessChecker().check(canonical_paper_id)
             await _emit(event_emitter, "tool_completed", {
                 "name": name,
                 "status": result.get("accessStatus") or result.get("status") or "completed",
@@ -421,23 +455,23 @@ async def _run_global_chat(req: GlobalChatRequest, request_ip: str, event_emitte
             return result
 
         if name == "retrieve_paper_content":
-            if not _allows_paper_retrieval(req.question, tool_input, pending_action):
+            if not _allows_paper_retrieval(req.question, tool_input, pending_action, canonical_paper_id):
                 result = {
                     "status": "needs_confirmation",
                     "requiresConfirmation": True,
                     "message": "Please confirm that you want me to access and index the complete paper.",
-                    "paperId": requested_paper_id,
+                    "paperId": canonical_paper_id,
                 }
                 await _emit(event_emitter, "tool_completed", {"name": name, "status": result["status"], "result": result})
                 return result
             try:
-                result = await PaperIngestionService().ingest(requested_paper_id, paper, billing_ip=request_ip)
+                result = await PaperIngestionService().ingest(canonical_paper_id, paper, billing_ip=request_ip)
             except IngestionError as exc:
                 result = {
                     "status": "unavailable" if exc.code in {"access_provider_failed", "no_extractable_text"} else "error",
                     "message": str(exc),
                     "errorCode": exc.code,
-                    "paperId": requested_paper_id,
+                    "paperId": canonical_paper_id,
                 }
             await _emit(event_emitter, "tool_completed", {
                 "name": name,
@@ -452,7 +486,7 @@ async def _run_global_chat(req: GlobalChatRequest, request_ip: str, event_emitte
             else:
                 query = str(tool_input.get("query") or req.question).strip()[:1000]
                 try:
-                    search_result = await retrieval.search_paper(requested_paper_id, query, limit=6, billing_ip=request_ip)
+                    search_result = await retrieval.search_paper(canonical_paper_id, query, limit=6, billing_ip=request_ip)
                     result = {
                         "status": "completed",
                         **search_result,

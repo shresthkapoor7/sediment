@@ -836,14 +836,6 @@ export function TimelineCanvas({
     [chatInput, sendPaperQuestion]
   );
 
-  const handleAddLineage = useCallback(
-    (query: string) => {
-      if (activeNodeId === null) return;
-      onExpandNode(activeNodeId, query);
-    },
-    [activeNodeId, onExpandNode]
-  );
-
   const handleSetNodeBorderColorForNode = useCallback(
     (nodeId: number, borderColor: NodeBorderColor | null) => {
       if (graphActionsDisabled || !data.nodes[nodeId]) return;
