@@ -126,7 +126,19 @@ export interface GlobalChatResponse {
   highlightedPaperIds: string[];
   suggestion: ChatSuggestion | null;
   sessionId?: string | null;
+  toolUses?: Record<string, unknown>[];
+  citations?: Record<string, unknown>[];
 }
+
+export type GlobalChatStreamEvent =
+  | { type: "message_started" }
+  | { type: "status"; message: string }
+  | { type: "tool_started"; name: string; input?: Record<string, unknown> }
+  | { type: "tool_completed"; name: string; status?: string; result?: Record<string, unknown> }
+  | { type: "text_delta"; text: string }
+  | { type: "citations"; citations: Record<string, unknown>[] }
+  | { type: "message_completed"; response: GlobalChatResponse }
+  | { type: "error"; detail: string; statusCode?: number };
 
 export interface PersistentChatMessage {
   id: string;
