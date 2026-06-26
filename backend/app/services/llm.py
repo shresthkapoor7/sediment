@@ -2,54 +2,15 @@ from __future__ import annotations
 
 import json
 import logging
-import re
 from typing import Any, Awaitable, Callable, Optional
 
 from anthropic import AsyncAnthropic
 
-from .text_utils import meaningful_tokens, normalize_text
 from .usage_limiter import ANTHROPIC_WEB_SEARCH_MICRO_USD, limiter
 
 logger = logging.getLogger(__name__)
 MAX_TIMELINE_PAPERS = 25
 MAX_TIMELINE_SUMMARY_CHARS = 320
-MAX_SUGGESTION_WORDS = 6
-_GENERIC_SUGGESTIONS = {
-    "background",
-    "history",
-    "lineage",
-    "related work",
-    "more papers",
-    "paper",
-    "papers",
-    "research paper",
-    "this paper",
-    "the paper",
-}
-LINEAGE_EXPANSION_TOOL = {
-    "name": "propose_lineage_expansion",
-    "description": (
-        "Offer a user-visible action to trace a separate research concept on the timeline. "
-        "Use only when the user explicitly asks to trace a lineage/history/origin, add a topic "
-        "to the timeline, or compare/relate this paper to a distinct concept. Never use this "
-        "for a general paper explanation, summary, or routine follow-up suggestion."
-    ),
-    "input_schema": {
-        "type": "object",
-        "properties": {
-            "topic": {
-                "type": "string",
-                "description": "Short concept or method name, usually 1-5 words.",
-            },
-            "query": {
-                "type": "string",
-                "description": "Concise scholarly search query for the lineage.",
-            },
-        },
-        "required": ["topic", "query"],
-        "additionalProperties": False,
-    },
-}
 PAPER_AGENT_MAX_ITERATIONS = 4
 PAPER_AGENT_TOOLS = [
     {
@@ -100,6 +61,75 @@ PAPER_AGENT_TOOLS = [
                 }
             },
             "required": ["query"],
+            "additionalProperties": False,
+        },
+    },
+    {
+        "type": "web_search_20250305",
+        "name": "web_search",
+        "max_uses": 2,
+    },
+]
+GLOBAL_AGENT_TOOLS = [
+    {
+        "name": "check_paper_access",
+        "description": (
+            "Check whether a paper in the current timeline has complete text cached or legally retrievable. "
+            "Use the exact OpenAlex ID from the provided timeline context."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "paperId": {
+                    "type": "string",
+                    "description": "OpenAlex ID of the timeline paper to check.",
+                },
+            },
+            "required": ["paperId"],
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "retrieve_paper_content",
+        "description": (
+            "Retrieve, parse, chunk, embed, and cache complete text for a timeline paper. "
+            "Use only after the user explicitly confirms they want full-paper access."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "paperId": {
+                    "type": "string",
+                    "description": "OpenAlex ID of the timeline paper to retrieve.",
+                },
+                "confirmed": {
+                    "type": "boolean",
+                    "description": "Whether the current user message explicitly confirms full-paper access.",
+                },
+            },
+            "required": ["paperId", "confirmed"],
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "search_paper_content",
+        "description": (
+            "Search already-cached complete text chunks for a timeline paper and return the "
+            "most relevant quoted chunks with citations."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "paperId": {
+                    "type": "string",
+                    "description": "OpenAlex ID of the timeline paper to search.",
+                },
+                "query": {
+                    "type": "string",
+                    "description": "The focused retrieval query to search within the paper.",
+                },
+            },
+            "required": ["paperId", "query"],
             "additionalProperties": False,
         },
     },
@@ -272,55 +302,15 @@ Prior conversation summary:
 User question:
 {question}
 
-Answer the question directly in 2-5 sentences. Do not routinely recommend other topics.
-The lineage tool is optional and should be called only when the user's request explicitly matches its description."""
+Answer the question directly in 2-5 sentences. Do not propose timeline expansions."""
 
         messages = _conversation_messages(history or [], prompt)
         response = await self.client.messages.create(
             model=self.model,
             max_tokens=1024,
             messages=messages,
-            tools=[LINEAGE_EXPANSION_TOOL],
-            tool_choice={"type": "auto", "disable_parallel_tool_use": True},
         )
         await self._record_response_usage(response, ip)
-
-        tool_uses = [block for block in response.content if block.type == "tool_use"]
-        cleaned_suggestion = None
-        if tool_uses:
-            tool_results = []
-            for tool_use in tool_uses:
-                accepted = tool_use.name == "propose_lineage_expansion" and _lineage_tool_allowed(question)
-                if accepted:
-                    cleaned_suggestion = _sanitize_suggestion(
-                        tool_use.input if isinstance(tool_use.input, dict) else None,
-                        context_texts=[paper.get("title", ""), paper.get("summary", "")],
-                    )
-                    accepted = cleaned_suggestion is not None
-                tool_results.append({
-                    "type": "tool_result",
-                    "tool_use_id": tool_use.id,
-                    "content": json.dumps({
-                        "status": "displayed" if accepted else "not_displayed",
-                    }),
-                })
-
-            follow_up = await self.client.messages.create(
-                model=self.model,
-                max_tokens=1024,
-                messages=[
-                    *messages,
-                    {
-                        "role": "assistant",
-                        "content": [block.model_dump(exclude_none=True) for block in response.content],
-                    },
-                    {"role": "user", "content": tool_results},
-                ],
-                tools=[LINEAGE_EXPANSION_TOOL],
-                tool_choice={"type": "none"},
-            )
-            await self._record_response_usage(follow_up, ip)
-            response = follow_up
 
         text = "\n".join(
             block.text.strip()
@@ -329,7 +319,7 @@ The lineage tool is optional and should be called only when the user's request e
         )
         return {
             "text": text or "I could not produce a useful answer for that question.",
-            "suggestion": cleaned_suggestion,
+            "suggestion": None,
         }
 
     async def chat_about_paper_agentic(
@@ -462,6 +452,183 @@ Rules:
             "textStreamed": text_emitter is not None,
         }
 
+    async def chat_about_timeline_agentic(
+        self,
+        papers: list[dict],
+        question: str,
+        *,
+        tool_runner: PaperToolRunner,
+        text_emitter: TextDeltaEmitter | None = None,
+        ip: str = "unknown",
+        history: list[dict] | None = None,
+        summary: str | None = None,
+        mentioned_paper_ids: list[str] | None = None,
+        pending_action: dict[str, Any] | None = None,
+    ) -> dict:
+        mentioned_ids = {
+            paper_id
+            for paper_id in (mentioned_paper_ids or [])
+            if isinstance(paper_id, str)
+        }
+        ranked_papers = sorted(
+            papers,
+            key=lambda paper: (
+                paper.get("openalexId") not in mentioned_ids,
+                (paper.get("year") is None),
+                paper.get("year") or 0,
+                paper.get("title", ""),
+            ),
+        )
+        selected_papers = ranked_papers[:MAX_TIMELINE_PAPERS]
+        bounded_papers = [
+            {
+                "openalexId": paper.get("openalexId"),
+                "title": paper.get("title"),
+                "year": paper.get("year"),
+                "summary": (paper.get("summary", "") or "")[:220],
+            }
+            for paper in selected_papers
+        ]
+        mentioned_papers = [
+            paper for paper in bounded_papers
+            if paper.get("openalexId") in mentioned_ids
+        ]
+
+        prompt = f"""You are helping a user reason across a research lineage timeline.
+
+Timeline papers:
+{json.dumps(bounded_papers, indent=2)}
+
+Papers explicitly mentioned by the user with @:
+{json.dumps(mentioned_papers, indent=2) if mentioned_papers else "None"}
+
+Prior conversation summary:
+{summary or "None"}
+
+Pending user-visible action:
+{json.dumps(pending_action, indent=2) if pending_action else "None"}
+
+User question:
+{question}
+
+Use the tools when they would materially improve factual grounding:
+- Search cached paper content when complete text is available or likely needed.
+- Check paper access before offering to retrieve complete text.
+- Retrieve complete text only if the current user message explicitly confirms access, or if it confirms a pending full-paper access action.
+- Use web_search for reliable public sources when timeline metadata or cached paper text is insufficient.
+
+Rules:
+- If the user mentioned papers with @, treat those papers as the primary focus.
+- Do not claim you read full paper text unless search_paper_content returned matching chunks.
+- Use exact OpenAlex IDs from the timeline when calling paper tools.
+- Cite retrieved paper chunks inline using bracketed citation IDs like [paper:...:chunk:3] when relying on them.
+- Answer directly and keep the final answer concise."""
+
+        messages = _conversation_messages(history or [], prompt)
+        tool_records: list[dict[str, Any]] = []
+        citations: list[dict[str, Any]] = []
+        response = None
+        needs_final_answer = False
+
+        for _ in range(PAPER_AGENT_MAX_ITERATIONS):
+            needs_final_answer = False
+            response = await self._message(
+                max_tokens=1600,
+                messages=messages,
+                tools=GLOBAL_AGENT_TOOLS,
+                tool_choice={"type": "auto", "disable_parallel_tool_use": True},
+                text_emitter=text_emitter,
+            )
+            await self._record_response_usage(response, ip)
+            tool_records.extend(_server_tool_records(response))
+
+            client_tool_uses = [
+                block for block in response.content
+                if block.type == "tool_use" and getattr(block, "name", None) != "web_search"
+            ]
+            if not client_tool_uses:
+                break
+
+            needs_final_answer = True
+            messages.append({
+                "role": "assistant",
+                "content": [block.model_dump(exclude_none=True) for block in response.content],
+            })
+            tool_results = []
+            for tool_use in client_tool_uses:
+                tool_input = tool_use.input if isinstance(tool_use.input, dict) else {}
+                record = {
+                    "name": tool_use.name,
+                    "input": tool_input,
+                    "status": "started",
+                }
+                tool_records.append(record)
+                try:
+                    result = await tool_runner(tool_use.name, tool_input)
+                    record["status"] = str(result.get("status") or "completed")
+                    record["result"] = _compact_tool_result(result)
+                    if isinstance(result.get("citations"), list):
+                        citations.extend(result["citations"])
+                except Exception as exc:
+                    logger.warning("Timeline chat tool failed: %s", tool_use.name, exc_info=exc)
+                    result = {
+                        "status": "error",
+                        "message": "The tool failed. Explain the limitation and continue without exposing internals.",
+                    }
+                    record["status"] = "error"
+                    record["error"] = "tool_failed"
+
+                tool_results.append({
+                    "type": "tool_result",
+                    "tool_use_id": tool_use.id,
+                    "content": json.dumps(result, ensure_ascii=False),
+                    "is_error": result.get("status") == "error",
+                })
+
+            messages.append({"role": "user", "content": tool_results})
+
+        if needs_final_answer:
+            messages.append({
+                "role": "user",
+                "content": "Tool iteration limit reached. Provide the best concise answer using the available tool results. If information is missing, state what is missing.",
+            })
+            response = await self._message(
+                max_tokens=1600,
+                messages=messages,
+                tools=GLOBAL_AGENT_TOOLS,
+                tool_choice={"type": "none"},
+                text_emitter=text_emitter,
+            )
+            await self._record_response_usage(response, ip)
+            tool_records.extend(_server_tool_records(response))
+
+        text = _message_text(response)
+        valid_ids = {paper.get("openalexId") for paper in papers}
+        highlight_candidates: list[str] = [
+            paper_id
+            for paper_id in (mentioned_paper_ids or [])
+            if paper_id in valid_ids
+        ]
+        for record in tool_records:
+            if record.get("name") not in {"search_paper_content", "check_paper_access", "retrieve_paper_content"}:
+                continue
+            tool_input = record.get("input")
+            if isinstance(tool_input, dict) and tool_input.get("paperId") in valid_ids:
+                highlight_candidates.append(tool_input["paperId"])
+                continue
+            result = record.get("result")
+            if isinstance(result, dict) and result.get("paperId") in valid_ids:
+                highlight_candidates.append(result["paperId"])
+        highlighted = list(dict.fromkeys(highlight_candidates))[:5]
+        return {
+            "text": text or "I could not produce a useful answer for that question.",
+            "highlightedPaperIds": highlighted,
+            "suggestion": None,
+            "toolUses": tool_records,
+            "citations": _dedupe_citations([*citations, *_message_citations(response)]),
+            "textStreamed": text_emitter is not None,
+        }
+
     async def _message(
         self,
         *,
@@ -540,10 +707,21 @@ Respond with JSON only:
         ip: str = "unknown",
         history: list[dict] | None = None,
         summary: str | None = None,
+        mentioned_paper_ids: list[str] | None = None,
     ) -> dict:
+        mentioned_ids = {
+            paper_id
+            for paper_id in (mentioned_paper_ids or [])
+            if isinstance(paper_id, str)
+        }
         ranked_papers = sorted(
             papers,
-            key=lambda paper: ((paper.get("year") is None), paper.get("year") or 0, paper.get("title", "")),
+            key=lambda paper: (
+                paper.get("openalexId") not in mentioned_ids,
+                (paper.get("year") is None),
+                paper.get("year") or 0,
+                paper.get("title", ""),
+            ),
         )
         selected_papers = ranked_papers[:MAX_TIMELINE_PAPERS]
         overflow = ranked_papers[MAX_TIMELINE_PAPERS:]
@@ -580,11 +758,24 @@ Respond with JSON only:
             bounded_papers,
             indent=2,
         )
+        mentioned_papers = [
+            {
+                "openalexId": paper["openalexId"],
+                "title": paper["title"],
+                "year": paper.get("year"),
+            }
+            for paper in selected_papers
+            if paper.get("openalexId") in mentioned_ids
+        ]
+        mentioned_json = json.dumps(mentioned_papers, indent=2)
 
         prompt = f"""You are an assistant embedded in a research lineage explorer. The user is viewing a timeline of interconnected research papers.
 
 Papers currently in the timeline:
 {papers_json}
+
+Papers explicitly mentioned by the user with @:
+{mentioned_json if mentioned_papers else "None"}
 
 Prior conversation summary:
 {summary or "None"}
@@ -594,18 +785,13 @@ User question: {question}
 Respond with JSON only:
 {{
   "text": "<helpful answer, 2–4 sentences. Reference specific paper titles where relevant.>",
-  "highlightedPaperIds": ["<openalexId of directly relevant papers — max 5>"],
-  "suggestion": {{
-    "topic": "<concept to trace lineage for>",
-    "query": "<search query for that concept>",
-    "nodeCount": 4
-  }} | null
+  "highlightedPaperIds": ["<openalexId of directly relevant papers — max 5>"]
 }}
 
 Rules:
 - highlightedPaperIds must only contain openalexIds from the provided list above, or an empty array.
-- Add a suggestion when the user references a concept not already in the timeline that would benefit from its own lineage branch (e.g. "how is this related to RNN" → suggest tracing RNN lineage).
-- Do not suggest lineage for concepts already well-covered by the existing papers."""
+- If the user explicitly mentioned papers with @, treat those papers as the primary focus and compare or explain other timeline papers relative to them.
+- Do not suggest adding, tracing, or expanding timeline lineage."""
 
         parsed = await self._prompt_json(prompt, ip=ip, history=history)
         if not isinstance(parsed, dict):
@@ -616,22 +802,16 @@ Rules:
             highlighted = []
         valid_ids = {p["openalexId"] for p in papers}
         highlighted = [h for h in highlighted if isinstance(h, str) and h in valid_ids]
-
-        suggestion = parsed.get("suggestion")
-        cleaned_suggestion = _sanitize_suggestion(
-            suggestion if isinstance(suggestion, dict) else None,
-            context_texts=[
-                *[paper.get("title", "") for paper in selected_papers],
-                *[paper.get("summary", "") for paper in selected_papers],
-            ],
-            explicit_topic=_extract_explicit_topic(question),
-        )
+        for paper_id in mentioned_paper_ids or []:
+            if paper_id in valid_ids and paper_id not in highlighted:
+                highlighted.insert(0, paper_id)
+        highlighted = highlighted[:5]
 
         text = parsed.get("text")
         return {
             "text": text if isinstance(text, str) else "I couldn't produce a useful answer.",
             "highlightedPaperIds": highlighted,
-            "suggestion": cleaned_suggestion,
+            "suggestion": None,
         }
 
     async def summarize_conversation(
@@ -865,127 +1045,6 @@ def _dedupe_citations(citations: list[dict[str, Any]]) -> list[dict[str, Any]]:
         seen.add(citation_id)
         deduped.append(citation)
     return deduped[:12]
-
-
-def _extract_explicit_topic(question: str) -> Optional[str]:
-    q = question.strip().rstrip("?").strip()
-    patterns = [
-        r"^what is (?:a |an |the )?(?P<topic>.+)$",
-        r"^what are (?P<topic>.+)$",
-        r"^explain (?:a |an |the )?(?P<topic>.+)$",
-        r"^tell me about (?:a |an |the )?(?P<topic>.+)$",
-        r"^trace (?:the )?lineage of (?:a |an |the )?(?P<topic>.+)$",
-        r"^how is (?:this|it) related to (?:a |an |the )?(?P<topic>.+)$",
-        r"^how does (?:this|it) relate to (?:a |an |the )?(?P<topic>.+)$",
-        r"^compare (?:this|it) to (?:a |an |the )?(?P<topic>.+)$",
-        r"^what about (?:a |an |the )?(?P<topic>.+)$",
-    ]
-
-    for pattern in patterns:
-        match = re.match(pattern, q, flags=re.IGNORECASE)
-        if match:
-            topic = match.group("topic").strip()
-            if topic:
-                return _clean_suggestion_text(topic)
-    return None
-
-
-def _lineage_tool_allowed(question: str) -> bool:
-    normalized = normalize_text(question)
-    explicit_lineage_phrases = (
-        "trace lineage",
-        "trace the lineage",
-        "research lineage",
-        "history of",
-        "origins of",
-        "origin of",
-        "evolution of",
-        "add to timeline",
-        "add this to timeline",
-        "add it to timeline",
-    )
-    if any(phrase in normalized for phrase in explicit_lineage_phrases):
-        return True
-
-    explicit_action_patterns = (
-        r"\badd .+ to (?:the )?timeline\b",
-        r"\btrace .+ (?:lineage|history|origins?|evolution)\b",
-    )
-    if any(re.search(pattern, normalized) for pattern in explicit_action_patterns):
-        return True
-
-    relation_patterns = (
-        r"\bhow (?:is|does) (?:this|it|the paper) (?:related?|relate|compare) to\b",
-        r"\bcompare (?:this|it|the paper) (?:to|with)\b",
-        r"\bconnection between (?:this|the paper) and\b",
-    )
-    return any(re.search(pattern, normalized) for pattern in relation_patterns)
-
-
-def _clean_suggestion_text(text: str) -> str:
-    cleaned = text.strip().strip("\"'`.,:;!?()[]{}")
-    cleaned = re.sub(r"\s+", " ", cleaned)
-    return cleaned
-
-
-def _is_already_covered(topic: str, context_texts: list[str]) -> bool:
-    topic_tokens = meaningful_tokens(topic)
-    if not topic_tokens:
-        return True
-
-    for text in context_texts:
-        context_tokens = meaningful_tokens(text)
-        if not context_tokens:
-            continue
-        overlap = len(topic_tokens & context_tokens)
-        if len(topic_tokens) >= 2 and overlap == len(topic_tokens):
-            return True
-        if overlap >= 2 and overlap / max(1, len(topic_tokens)) >= 0.75:
-            return True
-    return False
-
-
-def _sanitize_suggestion(
-    suggestion: Optional[dict],
-    context_texts: list[str],
-    explicit_topic: Optional[str] = None,
-) -> Optional[dict]:
-    raw_topic = explicit_topic
-    raw_query = explicit_topic
-
-    if raw_topic is None and suggestion:
-        topic = suggestion.get("topic")
-        query = suggestion.get("query")
-        if isinstance(topic, str):
-            raw_topic = topic
-        if isinstance(query, str):
-            raw_query = query
-
-    if not raw_topic and not raw_query:
-        return None
-
-    topic = _clean_suggestion_text(raw_topic or raw_query or "")
-    query = _clean_suggestion_text(raw_query or raw_topic or "")
-    if not topic:
-        return None
-
-    if len(topic.split()) > MAX_SUGGESTION_WORDS:
-        return None
-    if len(query.split()) > MAX_SUGGESTION_WORDS:
-        query = topic
-
-    normalized_topic = normalize_text(topic)
-    if not normalized_topic or normalized_topic in _GENERIC_SUGGESTIONS:
-        return None
-
-    if explicit_topic is None and _is_already_covered(topic, context_texts):
-        return None
-
-    return {
-        "topic": topic,
-        "query": query or topic,
-        "nodeCount": 4,
-    }
 
 
 def _truncate_words(text: str, max_words: int) -> str:

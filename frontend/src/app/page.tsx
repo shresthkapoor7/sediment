@@ -1888,6 +1888,8 @@ export default function Home() {
     "idle" | "sharing" | "copied" | "error"
   >("idle");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [globalChatOpen, setGlobalChatOpen] = useState(false);
+  const [closePaperPanelSignal, setClosePaperPanelSignal] = useState(0);
   const [credits, setCredits] = useState<number>(10);
   const [showCreditsHint, setShowCreditsHint] = useState(false);
   const [isClarifying, setIsClarifying] = useState(false);
@@ -2244,9 +2246,16 @@ export default function Home() {
     setSearchError("");
     setDisambiguation([]);
     setClarification(null);
+    setGlobalChatOpen(false);
+    setClosePaperPanelSignal((value) => value + 1);
     setDraftSettings(settings);
     persistLastGraphId(null);
   }, [persistLastGraphId, settings]);
+
+  const handleToggleGlobalChat = useCallback(() => {
+    setClosePaperPanelSignal((value) => value + 1);
+    setGlobalChatOpen((open) => !open);
+  }, []);
 
   const handleExpandNode = useCallback(
     (nodeId: number, query: string) => {
@@ -3135,6 +3144,41 @@ export default function Home() {
             style={{ display: "flex", alignItems: "center", gap: "0.375rem" }}
           >
             <ThemeToggle />
+
+            {timelineData && (
+              <button
+                onClick={handleToggleGlobalChat}
+                aria-label={globalChatOpen ? "Close timeline sidebar" : "Open timeline sidebar"}
+                aria-pressed={globalChatOpen}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  width: "2rem",
+                  height: "2rem",
+                  background: globalChatOpen ? "var(--accent-soft)" : "none",
+                  border: `0.0625rem solid ${globalChatOpen ? "var(--accent)" : "var(--border)"}`,
+                  borderRadius: "0.4375rem",
+                  color: globalChatOpen ? "var(--accent)" : "var(--text-secondary)",
+                  cursor: "pointer",
+                  padding: 0,
+                  transition: "border-color 0.15s, color 0.15s, background 0.15s",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.borderColor = "var(--accent)";
+                  e.currentTarget.style.color = "var(--accent)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = globalChatOpen ? "var(--accent)" : "var(--border)";
+                  e.currentTarget.style.color = globalChatOpen ? "var(--accent)" : "var(--text-secondary)";
+                }}
+              >
+                <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <rect x="2.75" y="3.25" width="14.5" height="13.5" rx="3" />
+                  <path d="M8.25 3.5v13" />
+                </svg>
+              </button>
+            )}
 
             {/* Hamburger — mobile only */}
             <button
@@ -4515,6 +4559,9 @@ export default function Home() {
                 onUsageChanged={refreshCredits}
                 hoverPreviewEnabled={hoverPreviewEnabled}
                 onToggleHoverPreview={onToggleHoverPreview}
+                globalChatOpen={globalChatOpen}
+                onGlobalChatOpenChange={setGlobalChatOpen}
+                closePaperPanelSignal={closePaperPanelSignal}
                 graphId={graphId}
                 userId={userId}
               />

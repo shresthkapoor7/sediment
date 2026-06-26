@@ -59,6 +59,15 @@ def _graph_papers(graph_data: object) -> list[dict]:
     return papers
 
 
+def _normalize_openalex_id(paper_id: object) -> str:
+    if not isinstance(paper_id, str):
+        return ""
+    value = paper_id.strip()
+    if "/" in value:
+        value = value.rstrip("/").rsplit("/", 1)[-1]
+    return value.upper()
+
+
 def _latest_pending_action(context: ChatContext | None) -> dict[str, Any] | None:
     if not context:
         return None
@@ -80,13 +89,19 @@ def _latest_pending_action(context: ChatContext | None) -> dict[str, Any] | None
                 return {
                     "name": "retrieve_paper_content",
                     "message": result.get("message") or "Confirm to access the complete paper.",
+                    "paperId": result.get("paperId"),
                 }
     return None
 
 
-def _allows_paper_retrieval(question: str, tool_input: dict[str, Any], pending_action: dict[str, Any] | None) -> bool:
+def _allows_paper_retrieval(
+    question: str,
+    tool_input: dict[str, Any],
+    pending_action: dict[str, Any] | None,
+    requested_paper_id: str,
+) -> bool:
     if pending_action and CONFIRMATION_RE.search(question):
-        return True
+        return _normalize_openalex_id(pending_action.get("paperId")) == _normalize_openalex_id(requested_paper_id)
     if bool(tool_input.get("confirmed")) and FULL_PAPER_RE.search(question):
         return True
     return False
@@ -198,11 +213,12 @@ async def _run_paper_chat(req: ChatRequest, request_ip: str, event_emitter: Chat
                     return result
 
                 if name == "retrieve_paper_content":
-                    if not _allows_paper_retrieval(req.question, tool_input, pending_action):
+                    if not _allows_paper_retrieval(req.question, tool_input, pending_action, req.paperId):
                         result = {
                             "status": "needs_confirmation",
                             "requiresConfirmation": True,
                             "message": "Please confirm that you want me to access and index the complete paper.",
+                            "paperId": req.paperId.upper(),
                         }
                         await _emit(event_emitter, "tool_completed", {
                             "name": name,
@@ -287,12 +303,6 @@ async def _run_paper_chat(req: ChatRequest, request_ip: str, event_emitter: Chat
 
     if context and memory and req.userId:
         tool_uses = result.get("toolUses") or []
-        if result.get("suggestion"):
-            tool_uses.append({
-                "name": "propose_lineage_expansion",
-                "input": result["suggestion"],
-                "status": "displayed",
-            })
         try:
             assistant = await memory.append(
                 context,
@@ -350,6 +360,234 @@ async def _paper_chat_event_stream(req: ChatRequest, request_ip: str) -> AsyncIt
             await emit("error", {"detail": exc.detail, "statusCode": exc.status_code})
         except Exception:
             logger.exception("Streaming paper chat failed")
+            await emit("error", {"detail": "Chat failed.", "statusCode": 500})
+        finally:
+            await queue.put(None)
+
+    task = asyncio.create_task(run())
+    try:
+        while True:
+            item = await queue.get()
+            if item is None:
+                break
+            yield _sse(item[0], item[1])
+    finally:
+        if not task.done():
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
+
+
+def _paper_by_id(papers: list[dict], paper_id: str | None) -> dict | None:
+    normalized = _normalize_openalex_id(paper_id)
+    if not normalized:
+        return None
+    return next((paper for paper in papers if _normalize_openalex_id(paper.get("openalexId")) == normalized), None)
+
+
+async def _run_global_chat(req: GlobalChatRequest, request_ip: str, event_emitter: ChatEventEmitter | None = None) -> dict[str, Any]:
+    await _emit(event_emitter, "message_started", {})
+    await limiter.claim_request(request_ip, "chat_global")
+
+    context = None
+    memory = None
+    papers = [p.model_dump() for p in req.papers]
+    paper_by_normalized_id = {
+        _normalize_openalex_id(paper.get("openalexId")): paper
+        for paper in papers
+        if _normalize_openalex_id(paper.get("openalexId"))
+    }
+    mentioned_paper_ids = [
+        paper_by_normalized_id[normalized]["openalexId"]
+        for paper_id in req.mentionedPaperIds
+        if (normalized := _normalize_openalex_id(paper_id)) in paper_by_normalized_id
+    ]
+    if req.graphId and req.userId:
+        await _emit(event_emitter, "status", {"message": "Restoring timeline chat context"})
+        try:
+            _, graph, memory, context = await _load_persistent_context(
+                req.graphId,
+                req.userId,
+                "graph",
+            )
+            papers = _graph_papers(graph.get("data"))
+            if not papers:
+                raise HTTPException(status_code=400, detail="Graph contains no papers.")
+            paper_by_normalized_id = {
+                _normalize_openalex_id(paper.get("openalexId")): paper
+                for paper in papers
+                if _normalize_openalex_id(paper.get("openalexId"))
+            }
+            mentioned_paper_ids = [
+                paper_by_normalized_id[normalized]["openalexId"]
+                for paper_id in req.mentionedPaperIds
+                if (normalized := _normalize_openalex_id(paper_id)) in paper_by_normalized_id
+            ]
+            await memory.append(context, req.userId, "user", req.question.strip())
+        except SupabaseAPIError as exc:
+            logger.warning("Global chat persistence failed for graph_id=%r", req.graphId, exc_info=exc)
+            raise HTTPException(status_code=502, detail="Chat history could not be saved.") from exc
+
+    valid_ids = {paper.get("openalexId") for paper in papers}
+    primary_paper_id = mentioned_paper_ids[0] if mentioned_paper_ids else None
+    pending_action = _latest_pending_action(context)
+    retrieval = PaperRetrievalService(memory.db) if memory else None
+
+    async def run_global_tool(name: str, tool_input: dict[str, Any]) -> dict[str, Any]:
+        await _emit(event_emitter, "tool_started", {"name": name, "input": tool_input})
+        await _emit(event_emitter, "status", {"message": _tool_status_message(name, "started")})
+        requested_paper_id = str(tool_input.get("paperId") or primary_paper_id or "")
+        paper = _paper_by_id(papers, requested_paper_id)
+        canonical_paper_id = paper.get("openalexId") if paper else requested_paper_id
+
+        if name in {"check_paper_access", "retrieve_paper_content", "search_paper_content"} and not paper:
+            result = {"status": "error", "message": "Tool requested a paper that is not present in this graph."}
+            await _emit(event_emitter, "tool_completed", {"name": name, "status": "error", "result": result})
+            return result
+
+        if name == "check_paper_access":
+            result = await PaperAccessChecker().check(canonical_paper_id)
+            await _emit(event_emitter, "tool_completed", {
+                "name": name,
+                "status": result.get("accessStatus") or result.get("status") or "completed",
+                "result": _compact_tool_result_for_event(result),
+            })
+            return result
+
+        if name == "retrieve_paper_content":
+            if not _allows_paper_retrieval(req.question, tool_input, pending_action, canonical_paper_id):
+                result = {
+                    "status": "needs_confirmation",
+                    "requiresConfirmation": True,
+                    "message": "Please confirm that you want me to access and index the complete paper.",
+                    "paperId": canonical_paper_id,
+                }
+                await _emit(event_emitter, "tool_completed", {"name": name, "status": result["status"], "result": result})
+                return result
+            try:
+                result = await PaperIngestionService().ingest(canonical_paper_id, paper, billing_ip=request_ip)
+            except IngestionError as exc:
+                result = {
+                    "status": "unavailable" if exc.code in {"access_provider_failed", "no_extractable_text"} else "error",
+                    "message": str(exc),
+                    "errorCode": exc.code,
+                    "paperId": canonical_paper_id,
+                }
+            await _emit(event_emitter, "tool_completed", {
+                "name": name,
+                "status": result.get("status") or "completed",
+                "result": _compact_tool_result_for_event(result),
+            })
+            return result
+
+        if name == "search_paper_content":
+            if retrieval is None:
+                result = {"status": "error", "message": "Paper retrieval requires a saved graph context."}
+            else:
+                query = str(tool_input.get("query") or req.question).strip()[:1000]
+                try:
+                    search_result = await retrieval.search_paper(canonical_paper_id, query, limit=6, billing_ip=request_ip)
+                    result = {
+                        "status": "completed",
+                        **search_result,
+                        "citations": _tool_citations(search_result),
+                    }
+                except RetrievalError as exc:
+                    result = {"status": "error", "message": str(exc)}
+            await _emit(event_emitter, "tool_completed", {
+                "name": name,
+                "status": result.get("status") or "completed",
+                "result": _compact_tool_result_for_event(result),
+            })
+            if result.get("citations"):
+                await _emit(event_emitter, "citations", {"citations": result["citations"]})
+            return result
+
+        result = {"status": "error", "message": "Unknown tool requested."}
+        await _emit(event_emitter, "tool_completed", {"name": name, "status": "error", "result": result})
+        return result
+
+    try:
+        await _emit(event_emitter, "status", {"message": "Thinking with timeline tools"})
+        result = await _llm.chat_about_timeline_agentic(
+            papers,
+            req.question.strip(),
+            tool_runner=run_global_tool,
+            text_emitter=(
+                (lambda text: _emit(event_emitter, "text_delta", {"text": text}))
+                if event_emitter
+                else None
+            ),
+            ip=request_ip,
+            history=context.history if context else None,
+            summary=context.summary if context else None,
+            mentioned_paper_ids=mentioned_paper_ids,
+            pending_action=pending_action,
+        )
+    except LLMParseError as e:
+        logger.warning("Timeline chat failed for %s papers", len(req.papers), exc_info=e)
+        raise HTTPException(status_code=502, detail="Timeline chat service returned an invalid response.") from e
+    except Exception as e:
+        logger.warning("Timeline chat upstream failed for %s papers", len(req.papers), exc_info=e)
+        raise HTTPException(status_code=502, detail="Timeline chat service is currently unavailable.") from e
+
+    result["highlightedPaperIds"] = [
+        paper_id for paper_id in (result.get("highlightedPaperIds") or [])
+        if paper_id in valid_ids
+    ][:5]
+    if result.get("text") and not result.get("textStreamed"):
+        await _emit(event_emitter, "text_delta", {"text": result["text"]})
+    if result.get("citations"):
+        await _emit(event_emitter, "citations", {"citations": result["citations"]})
+
+    if context and memory and req.userId:
+        tool_uses = result.get("toolUses") or []
+        if result.get("highlightedPaperIds"):
+            tool_uses.append({
+                "name": "global_response",
+                "highlightedPaperIds": result.get("highlightedPaperIds") or [],
+            })
+        try:
+            assistant = await memory.append(
+                context,
+                req.userId,
+                "assistant",
+                result.get("text") or "",
+                tool_uses=tool_uses,
+                citations=result.get("citations") or [],
+            )
+            result["sessionId"] = context.session["id"]
+            try:
+                await memory.maybe_summarize(
+                    context,
+                    req.userId,
+                    int(assistant["sequence_number"]),
+                    _llm,
+                    request_ip,
+                )
+            except SupabaseAPIError as exc:
+                logger.warning("Global chat summary update failed", exc_info=exc)
+        except SupabaseAPIError as exc:
+            logger.warning("Global assistant message persistence failed", exc_info=exc)
+            raise HTTPException(status_code=502, detail="Chat response could not be saved.") from exc
+
+    await _emit(event_emitter, "message_completed", {"response": result})
+    return result
+
+
+async def _global_chat_event_stream(req: GlobalChatRequest, request_ip: str) -> AsyncIterator[str]:
+    queue: asyncio.Queue[tuple[str, dict[str, Any]] | None] = asyncio.Queue(maxsize=64)
+
+    async def emit(event_type: str, payload: dict[str, Any]) -> None:
+        await queue.put((event_type, payload))
+
+    async def run() -> None:
+        try:
+            await _run_global_chat(req, request_ip, emit)
+        except HTTPException as exc:
+            await emit("error", {"detail": exc.detail, "statusCode": exc.status_code})
+        except Exception:
+            logger.exception("Streaming global chat failed")
             await emit("error", {"detail": "Chat failed.", "statusCode": 500})
         finally:
             await queue.put(None)
@@ -437,69 +675,27 @@ async def chat_global(req: GlobalChatRequest, request: Request):
         raise HTTPException(status_code=400, detail="papers required")
 
     request_ip = get_request_ip(request)
-    await limiter.claim_request(request_ip, "chat_global")
-
-    context = None
-    memory = None
-    papers = [p.model_dump() for p in req.papers]
-    if req.graphId and req.userId:
-        try:
-            _, graph, memory, context = await _load_persistent_context(
-                req.graphId,
-                req.userId,
-                "graph",
-            )
-            papers = _graph_papers(graph.get("data"))
-            if not papers:
-                raise HTTPException(status_code=400, detail="Graph contains no papers.")
-            await memory.append(context, req.userId, "user", req.question.strip())
-        except SupabaseAPIError as exc:
-            logger.warning("Global chat persistence failed for graph_id=%r", req.graphId, exc_info=exc)
-            raise HTTPException(status_code=502, detail="Chat history could not be saved.") from exc
-
-    try:
-        result = await _llm.chat_about_timeline(
-            papers,
-            req.question.strip(),
-            ip=request_ip,
-            history=context.history if context else None,
-            summary=context.summary if context else None,
-        )
-    except LLMParseError as e:
-        logger.warning("Timeline chat failed for %s papers", len(req.papers), exc_info=e)
-        raise HTTPException(status_code=502, detail="Timeline chat service returned an invalid response.") from e
-
-    if context and memory and req.userId:
-        tool_uses = [{
-            "name": "global_response",
-            "highlightedPaperIds": result.get("highlightedPaperIds") or [],
-            "suggestion": result.get("suggestion"),
-        }]
-        try:
-            assistant = await memory.append(
-                context,
-                req.userId,
-                "assistant",
-                result.get("text") or "",
-                tool_uses=tool_uses,
-            )
-            result["sessionId"] = context.session["id"]
-            try:
-                await memory.maybe_summarize(
-                    context,
-                    req.userId,
-                    int(assistant["sequence_number"]),
-                    _llm,
-                    request_ip,
-                )
-            except SupabaseAPIError as exc:
-                logger.warning("Global chat summary update failed", exc_info=exc)
-        except SupabaseAPIError as exc:
-            logger.warning("Global assistant message persistence failed", exc_info=exc)
-            raise HTTPException(status_code=502, detail="Chat response could not be saved.") from exc
+    result = await _run_global_chat(req, request_ip)
 
     try:
         return GlobalChatResponse(**result)
     except ValidationError as e:
         logger.warning("Timeline chat produced invalid payload for %s papers", len(req.papers), exc_info=e)
         raise HTTPException(status_code=502, detail="Timeline chat service returned an invalid payload.") from e
+
+
+@router.post("/chat/global/stream")
+async def chat_global_stream(req: GlobalChatRequest, request: Request):
+    if not req.question.strip():
+        raise HTTPException(status_code=400, detail="question required")
+    if not req.papers:
+        raise HTTPException(status_code=400, detail="papers required")
+    request_ip = get_request_ip(request)
+    return StreamingResponse(
+        _global_chat_event_stream(req, request_ip),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-store",
+            "X-Accel-Buffering": "no",
+        },
+    )

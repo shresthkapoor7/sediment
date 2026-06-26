@@ -191,6 +191,7 @@ class GlobalChatRequest(StrictRequestModel):
     userId: Optional[str] = Field(default=None, max_length=MAX_USER_ID_LENGTH)
     papers: list[PaperSummary] = Field(min_length=1, max_length=MAX_TIMELINE_PAPERS)
     question: str = Field(min_length=1, max_length=MAX_CHAT_QUESTION_LENGTH)
+    mentionedPaperIds: list[str] = Field(default_factory=list, max_length=MAX_TIMELINE_PAPERS)
 
     @model_validator(mode="after")
     def validate_persistence_context(self):
@@ -204,6 +205,8 @@ class GlobalChatResponse(BaseModel):
     highlightedPaperIds: list[str] = Field(default_factory=list)
     suggestion: Optional[ChatSuggestion] = None
     sessionId: Optional[str] = None
+    toolUses: list[dict[str, Any]] = Field(default_factory=list)
+    citations: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class ChatSessionRequest(StrictRequestModel):

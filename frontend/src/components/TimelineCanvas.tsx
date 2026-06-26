@@ -4,6 +4,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { MarkdownContent } from "./MarkdownContent";
 import { fetchPaperAccess, openChatSession, streamChatAboutPaper } from "@/lib/api";
+import { DETAIL_PANEL_DEFAULT_WIDTH, DETAIL_PANEL_MAX_WIDTH, DETAIL_PANEL_MIN_WIDTH, DETAIL_PANEL_WIDTH_KEY } from "@/lib/detail-panel";
 import { TIMELINE_MOBILE_BREAKPOINT_PX } from "@/lib/hover-preview";
 import { TimelineData, ChatSuggestion, PaperAccessResponse, TimelineNode, PaperChatStreamEvent, TimelineGraphAction, NodeBorderColor, TimelineNote } from "@/lib/types";
 import { NODE_BORDER_COLOR_OPTIONS } from "@/lib/node-style";
@@ -14,11 +15,6 @@ import { TimelineEdgeLine } from "./TimelineEdge";
 import { TimelineNoteCard } from "./TimelineNote";
 import { TimelineNoteEdgeLine } from "./TimelineNoteEdge";
 import { GlobalChatPanel } from "./GlobalChatPanel";
-
-const DETAIL_PANEL_WIDTH_KEY = "sediment_detail_panel_width";
-const DETAIL_PANEL_DEFAULT_WIDTH = 380;
-const DETAIL_PANEL_MIN_WIDTH = 320;
-const DETAIL_PANEL_MAX_WIDTH = 640;
 
 interface ChatMessage {
   id: number | string;
@@ -47,6 +43,9 @@ interface TimelineCanvasProps {
   readOnly?: boolean;
   hoverPreviewEnabled?: boolean;
   onToggleHoverPreview?: () => void;
+  globalChatOpen?: boolean;
+  onGlobalChatOpenChange?: (open: boolean) => void;
+  closePaperPanelSignal?: number;
   graphId?: string | null;
   userId?: string | null;
 }
@@ -74,6 +73,9 @@ export function TimelineCanvas({
   readOnly = false,
   hoverPreviewEnabled = true,
   onToggleHoverPreview,
+  globalChatOpen = false,
+  onGlobalChatOpenChange,
+  closePaperPanelSignal = 0,
   graphId,
   userId,
 }: TimelineCanvasProps) {
@@ -102,17 +104,20 @@ export function TimelineCanvas({
   const [chatHistories, setChatHistories] = useState<Record<number, ChatMessage[]>>({});
   const [chatInput, setChatInput] = useState("");
   const [isThinking, setIsThinking] = useState(false);
+  const [editingNodeId, setEditingNodeId] = useState<number | null>(null);
   const [isMobileViewport, setIsMobileViewport] = useState(false);
   const [detailPanelWidth, setDetailPanelWidth] = useState(DETAIL_PANEL_DEFAULT_WIDTH);
   const detailPanelWidthRef = useRef(DETAIL_PANEL_DEFAULT_WIDTH);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const msgIdRef = useRef(0);
   const [highlightedPaperIds, setHighlightedPaperIds] = useState<Set<string>>(new Set());
+  const [mentionedPaperIds, setMentionedPaperIds] = useState<Set<string>>(new Set());
   const [hoveredNode, setHoveredNode] = useState<HoverPreviewState | null>(null);
   const hoverHideTimeoutRef = useRef<number | null>(null);
   const panelResizeStateRef = useRef<{ startX: number; startWidth: number } | null>(null);
   const accessChecksInFlightRef = useRef<Set<string>>(new Set());
   const chatHistoryLoadsRef = useRef<Set<string>>(new Set());
+  const previousClosePaperPanelSignalRef = useRef(closePaperPanelSignal);
   const activePaperStreamsRef = useRef<Record<number, string>>({});
   const [paperAccessById, setPaperAccessById] = useState<Record<string, PaperAccessState>>({});
   const noteIdRef = useRef(0);
@@ -135,7 +140,17 @@ export function TimelineCanvas({
 
   useEffect(() => {
     setHighlightedPaperIds(new Set());
+    setMentionedPaperIds(new Set());
+    setEditingNodeId(null);
   }, [data]);
+
+  const handleGlobalHighlight = useCallback((ids: string[]) => {
+    setHighlightedPaperIds(new Set(ids));
+  }, []);
+
+  const handleGlobalMentionedPaperIdsChange = useCallback((ids: string[]) => {
+    setMentionedPaperIds(new Set(ids));
+  }, []);
 
   useEffect(() => {
     setChatHistories({});
@@ -143,7 +158,13 @@ export function TimelineCanvas({
   }, [graphId, userId]);
 
   useEffect(() => {
-    if (!graphId || !userId || !activeNodeId) return;
+    if (previousClosePaperPanelSignalRef.current === closePaperPanelSignal) return;
+    previousClosePaperPanelSignalRef.current = closePaperPanelSignal;
+    setActiveNodeId(null);
+  }, [closePaperPanelSignal]);
+
+  useEffect(() => {
+    if (!graphId || !userId || activeNodeId === null) return;
     const paperId = data.nodes[activeNodeId]?.paper.openalexId;
     if (!paperId) return;
     const historyKey = `${graphId}:${paperId}`;
@@ -164,9 +185,7 @@ export function TimelineCanvas({
           id: message.id,
           role: message.role,
           content: message.content,
-          suggestion: message.role === "assistant"
-            ? restoredLineageSuggestion(message.toolUses)
-            : null,
+          suggestion: null,
           citations: message.citations,
         }));
         setChatHistories((current) => (
@@ -184,7 +203,7 @@ export function TimelineCanvas({
   }, [activeNodeId, data.nodes, graphId, userId]);
 
   useEffect(() => {
-    if (!activeNodeId) return;
+    if (activeNodeId === null) return;
     const openalexId = data.nodes[activeNodeId]?.paper.openalexId;
     if (!openalexId || paperAccessById[openalexId] || accessChecksInFlightRef.current.has(openalexId)) {
       return;
@@ -488,10 +507,11 @@ export function TimelineCanvas({
   const handleNodeClick = useCallback((id: number) => {
     if (suppressNodeClickRef.current) return;
     setActiveNodeId((prev) => (prev === id ? null : id));
+    onGlobalChatOpenChange?.(false);
     setHoveredNode(null);
     setChatInput("");
     setIsThinking(Object.keys(activePaperStreamsRef.current).length > 0);
-  }, []);
+  }, [onGlobalChatOpenChange]);
 
   const clearHoverHideTimeout = useCallback(() => {
     if (hoverHideTimeoutRef.current) {
@@ -650,13 +670,13 @@ export function TimelineCanvas({
   const noteIdsConnectedToActiveNode = new Set<string>();
   noteEdgesForRender.forEach((edge) => {
     noteConnectionCounts.set(edge.noteId, (noteConnectionCounts.get(edge.noteId) ?? 0) + 1);
-    if (activeNodeId && edge.nodeId === activeNodeId) {
+    if (activeNodeId !== null && edge.nodeId === activeNodeId) {
       noteIdsConnectedToActiveNode.add(edge.noteId);
     }
   });
 
   const activeRelated = new Set<number>();
-  if (activeNodeId) {
+  if (activeNodeId !== null) {
     activeRelated.add(activeNodeId);
     const node = data.nodes[activeNodeId];
     if (node?.parentId !== null && node?.parentId !== undefined) activeRelated.add(node.parentId);
@@ -664,10 +684,7 @@ export function TimelineCanvas({
     (data.adjacency[activeNodeId] ?? []).forEach((c) => activeRelated.add(c));
   }
 
-  const activeNode = activeNodeId ? data.nodes[activeNodeId] : null;
-  const isActiveNodeLocked = Boolean(
-    activeNode && (activeNode.id === data.rootId || activeNode.paper.openalexId === lockedNodeOpenalexId),
-  );
+  const activeNode = activeNodeId !== null ? data.nodes[activeNodeId] : null;
   const graphActionsDisabled = readOnly || isExpanding;
   const activePaperHref = activeNode ? getPaperHref(activeNode) : null;
   const activePaperAccess = activeNode
@@ -684,7 +701,7 @@ export function TimelineCanvas({
 
   const sendPaperQuestion = useCallback(
     (question: string) => {
-      if (!activeNodeId || !activeNode || !question.trim() || activePaperStreamsRef.current[activeNodeId]) return;
+      if (activeNodeId === null || !activeNode || !question.trim() || activePaperStreamsRef.current[activeNodeId]) return;
 
       const userMsg: ChatMessage = {
         id: `local-${++msgIdRef.current}`,
@@ -819,55 +836,50 @@ export function TimelineCanvas({
     [chatInput, sendPaperQuestion]
   );
 
-  const handleAddLineage = useCallback(
-    (query: string) => {
-      if (!activeNodeId) return;
-      onExpandNode(activeNodeId, query);
+  const handleSetNodeBorderColorForNode = useCallback(
+    (nodeId: number, borderColor: NodeBorderColor | null) => {
+      if (graphActionsDisabled || !data.nodes[nodeId]) return;
+      onGraphAction?.({ type: "highlight_node", nodeId, borderColor });
+      setEditingNodeId(null);
     },
-    [activeNodeId, onExpandNode]
+    [data.nodes, graphActionsDisabled, onGraphAction],
   );
 
-  const handleSetNodeBorderColor = useCallback(
-    (borderColor: NodeBorderColor | null) => {
-      if (!activeNodeId || graphActionsDisabled) return;
-      onGraphAction?.({ type: "highlight_node", nodeId: activeNodeId, borderColor });
-    },
-    [activeNodeId, graphActionsDisabled, onGraphAction],
-  );
-
-  const handleDeleteActiveNode = useCallback(() => {
-    const activeNode = activeNodeId ? data.nodes[activeNodeId] : null;
+  const handleDeleteNode = useCallback((nodeId: number) => {
+    const targetNode = data.nodes[nodeId];
     if (
-      !activeNodeId ||
-      !activeNode ||
+      !targetNode ||
       graphActionsDisabled ||
-      activeNodeId === data.rootId ||
-      activeNode.paper.openalexId === lockedNodeOpenalexId ||
+      nodeId === data.rootId ||
+      targetNode.paper.openalexId === lockedNodeOpenalexId ||
       Object.keys(data.nodes).length <= 1
     ) {
       return;
     }
-    onGraphAction?.({ type: "delete_node", nodeId: activeNodeId });
-    setActiveNodeId(null);
-  }, [activeNodeId, data.nodes, data.rootId, graphActionsDisabled, lockedNodeOpenalexId, onGraphAction]);
+    onGraphAction?.({ type: "delete_node", nodeId });
+    setEditingNodeId(null);
+    setActiveNodeId((current) => (current === nodeId ? null : current));
+  }, [data.nodes, data.rootId, graphActionsDisabled, lockedNodeOpenalexId, onGraphAction]);
 
-  const handleAddNoteForActiveNode = useCallback(() => {
-    if (!activeNodeId || !activeNode || readOnly) return;
+  const handleAddNoteForNode = useCallback((nodeId: number) => {
+    const targetNode = data.nodes[nodeId];
+    if (!targetNode || graphActionsDisabled) return;
     const noteId = `note-${Date.now()}-${++noteIdRef.current}`;
     const note: TimelineNote = {
       id: noteId,
       text: "Add note (markdown supported)",
       kind: "field_note",
-      x: activeNode.x + NODE_DIMENSIONS.width + 56,
-      y: activeNode.y,
+      x: targetNode.x + NODE_DIMENSIONS.width + 56,
+      y: targetNode.y,
       width: TIMELINE_NOTE_DEFAULT_WIDTH,
       height: TIMELINE_NOTE_MIN_HEIGHT,
       color: "paper",
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
-    onGraphAction?.({ type: "add_note", note, connectToNodeId: activeNodeId, relation: "about" });
-  }, [activeNode, activeNodeId, onGraphAction, readOnly]);
+    onGraphAction?.({ type: "add_note", note, connectToNodeId: nodeId, relation: "about" });
+    setEditingNodeId(null);
+  }, [data.nodes, graphActionsDisabled, onGraphAction]);
 
   const handleMoveNote = useCallback(
     (noteId: string, x: number, y: number) => {
@@ -935,7 +947,7 @@ export function TimelineCanvas({
 
   const handleToggleNoteConnection = useCallback(
     (noteId: string) => {
-      if (!activeNodeId || readOnly) return;
+      if (activeNodeId === null || readOnly) return;
       const isConnected = (data.noteEdges ?? []).some((edge) => edge.noteId === noteId && edge.nodeId === activeNodeId);
       onGraphAction?.(
         isConnected
@@ -1257,7 +1269,18 @@ export function TimelineCanvas({
               onHoverEnd={handleNodeHoverEnd}
               isActive={activeRelated.has(node.id)}
               isHighlighted={highlightedPaperIds.has(node.paper.openalexId)}
+              isMentioned={mentionedPaperIds.has(node.paper.openalexId)}
+              isSelected={activeNodeId === node.id}
               shouldAnimate={node.generation === latestGeneration}
+              canEdit={!readOnly && Boolean(onGraphAction)}
+              isEditMenuOpen={editingNodeId === node.id}
+              isGraphActionDisabled={graphActionsDisabled}
+              isLocked={node.id === data.rootId || node.paper.openalexId === lockedNodeOpenalexId}
+              isOnlyNode={Object.keys(data.nodes).length <= 1}
+              onEditMenuToggle={(nodeId) => setEditingNodeId((current) => (current === nodeId ? null : nodeId))}
+              onSetBorderColor={handleSetNodeBorderColorForNode}
+              onAddNote={handleAddNoteForNode}
+              onDeleteNode={handleDeleteNode}
             />
           ))}
           <AnimatePresence>
@@ -1285,7 +1308,7 @@ export function TimelineCanvas({
       </div>
 
       <AnimatePresence>
-        {hoverPreviewEnabled && !activeNodeId && hoveredNode && hoveredTimelineNode && hoverPreviewLayout && (
+        {hoverPreviewEnabled && activeNodeId === null && hoveredNode && hoveredTimelineNode && hoverPreviewLayout && (
           <motion.div
             data-canvas-ui="true"
             key={`hover-${hoveredNode.nodeId}`}
@@ -1613,7 +1636,7 @@ export function TimelineCanvas({
 
       {/* Side panel backdrop */}
       <AnimatePresence>
-        {activeNodeId && activeNode && (
+        {activeNodeId !== null && activeNode && (
           <motion.div
             data-canvas-ui="true"
             key="backdrop"
@@ -1634,7 +1657,7 @@ export function TimelineCanvas({
 
       {/* Conversational side panel */}
       <AnimatePresence>
-        {activeNodeId && activeNode && (
+        {activeNodeId !== null && activeNode && (
           <motion.div
             data-canvas-ui="true"
             key={activeNodeId}
@@ -1742,22 +1765,151 @@ export function TimelineCanvas({
                 {activeNode.paper.title}
               </div>
               <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "0.25rem", flexShrink: 0 }}>
-                {activePaperHref && (
-                  <a
-                  href={activePaperHref}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{
-                    flexShrink: 0, fontSize: "0.6875rem", color: "var(--text-tertiary)", textDecoration: "none",
-                    fontFamily: "'JetBrains Mono', monospace", background: "var(--bg-secondary)",
-                    border: "0.0625rem solid var(--border)", borderRadius: "0.3125rem", padding: "0.1875rem 0.4375rem", transition: "all 0.15s",
-                  }}
-                  onMouseEnter={(e) => { (e.currentTarget as HTMLAnchorElement).style.borderColor = "var(--accent)"; (e.currentTarget as HTMLAnchorElement).style.color = "var(--accent)"; }}
-                  onMouseLeave={(e) => { (e.currentTarget as HTMLAnchorElement).style.borderColor = "var(--border)"; (e.currentTarget as HTMLAnchorElement).style.color = "var(--text-tertiary)"; }}
-                  >
-                    Open ↗
-                  </a>
-                )}
+                <div style={{ display: "flex", alignItems: "center", gap: "0.375rem" }}>
+                  {activePaperHref && (
+                    <a
+                      href={activePaperHref}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        flexShrink: 0,
+                        fontSize: "0.6875rem",
+                        color: "var(--text-tertiary)",
+                        textDecoration: "none",
+                        fontFamily: "'JetBrains Mono', monospace",
+                        background: "var(--bg-secondary)",
+                        border: "0.0625rem solid var(--border)",
+                        borderRadius: "0.3125rem",
+                        padding: "0.1875rem 0.4375rem",
+                        minHeight: "1.875rem",
+                        boxSizing: "border-box",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        transition: "all 0.15s",
+                      }}
+                      onMouseEnter={(e) => { (e.currentTarget as HTMLAnchorElement).style.borderColor = "var(--accent)"; (e.currentTarget as HTMLAnchorElement).style.color = "var(--accent)"; }}
+                      onMouseLeave={(e) => { (e.currentTarget as HTMLAnchorElement).style.borderColor = "var(--border)"; (e.currentTarget as HTMLAnchorElement).style.color = "var(--text-tertiary)"; }}
+                    >
+                      Open ↗
+                    </a>
+                  )}
+                  {isMobileViewport && !readOnly && onGraphAction && (
+                    <div style={{ position: "relative", flexShrink: 0 }}>
+                      <button
+                        type="button"
+                        onClick={() => setEditingNodeId((current) => (current === activeNodeId ? null : activeNodeId))}
+                        aria-label="Edit selected node"
+                        aria-pressed={editingNodeId === activeNodeId}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          width: "1.875rem",
+                          height: "1.875rem",
+                          borderRadius: "0.3125rem",
+                          border: `0.0625rem solid ${editingNodeId === activeNodeId ? "var(--accent)" : "var(--border)"}`,
+                          background: editingNodeId === activeNodeId ? "var(--accent-soft)" : "var(--bg-secondary)",
+                          color: editingNodeId === activeNodeId ? "var(--accent)" : "var(--text-tertiary)",
+                          cursor: "pointer",
+                          padding: 0,
+                          transition: "all 0.15s",
+                        }}
+                      >
+                        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.55" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                          <path d="M10.8 2.2 13.8 5.2 6.1 12.9l-3.4.7.7-3.4 7.4-8Z" />
+                          <path d="M9.8 3.2l3 3" />
+                        </svg>
+                      </button>
+                  <AnimatePresence>
+                    {editingNodeId === activeNodeId && (
+                      <motion.div
+                        data-canvas-ui="true"
+                        initial={{ opacity: 0, scale: 0.96, y: -4 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.96, y: -4 }}
+                        transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
+                        style={{
+                          position: "absolute",
+                          top: "calc(100% + 0.5rem)",
+                          right: 0,
+                          zIndex: 35,
+                          width: "10.75rem",
+                          padding: "0.625rem",
+                          borderRadius: "1rem",
+                          border: "0.0625rem solid var(--border)",
+                          background: "color-mix(in srgb, var(--bg-primary) 94%, transparent)",
+                          boxShadow: "0 1rem 2.5rem rgba(0,0,0,0.28)",
+                          backdropFilter: "blur(18px)",
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: "grid",
+                            gridTemplateColumns: "repeat(6, 1.25rem)",
+                            gap: "0.35rem",
+                            marginBottom: "0.625rem",
+                          }}
+                        >
+                          {NODE_BORDER_COLOR_OPTIONS.map((color) => {
+                            const selected = activeNode.annotation?.borderColor === color.key;
+                            return (
+                              <button
+                                key={color.key}
+                                type="button"
+                                title={`Set ${color.label.toLowerCase()} border`}
+                                aria-label={`Set ${color.label.toLowerCase()} border`}
+                                disabled={graphActionsDisabled}
+                                onClick={() => handleSetNodeBorderColorForNode(activeNodeId, color.key)}
+                                style={{
+                                  width: "1.25rem",
+                                  height: "1.25rem",
+                                  borderRadius: "999px",
+                                  border: `0.125rem solid ${selected ? "var(--text-primary)" : "var(--border)"}`,
+                                  background: color.css,
+                                  cursor: graphActionsDisabled ? "default" : "pointer",
+                                  opacity: graphActionsDisabled ? 0.5 : 1,
+                                  boxShadow: selected ? `0 0 0 0.1875rem color-mix(in srgb, ${color.css} 28%, transparent)` : "none",
+                                }}
+                              />
+                            );
+                          })}
+                        </div>
+                        <div style={{ display: "grid", gap: "0.375rem" }}>
+                          <button
+                            type="button"
+                            disabled={graphActionsDisabled || !activeNode.annotation?.borderColor}
+                            onClick={() => handleSetNodeBorderColorForNode(activeNodeId, null)}
+                            style={mobilePanelEditButtonStyle(graphActionsDisabled || !activeNode.annotation?.borderColor)}
+                          >
+                            Clear border
+                          </button>
+                          <button
+                            type="button"
+                            disabled={graphActionsDisabled}
+                            onClick={() => handleAddNoteForNode(activeNodeId)}
+                            style={mobilePanelEditButtonStyle(graphActionsDisabled)}
+                          >
+                            Add note
+                          </button>
+                          <button
+                            type="button"
+                            disabled={graphActionsDisabled || activeNode.id === data.rootId || activeNode.paper.openalexId === lockedNodeOpenalexId || Object.keys(data.nodes).length <= 1}
+                            onClick={() => handleDeleteNode(activeNodeId)}
+                            style={{
+                              ...mobilePanelEditButtonStyle(graphActionsDisabled || activeNode.id === data.rootId || activeNode.paper.openalexId === lockedNodeOpenalexId || Object.keys(data.nodes).length <= 1),
+                              color: graphActionsDisabled || activeNode.id === data.rootId || activeNode.paper.openalexId === lockedNodeOpenalexId || Object.keys(data.nodes).length <= 1 ? "var(--text-tertiary)" : "#f28b7c",
+                            }}
+                          >
+                            Delete node
+                          </button>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                    </div>
+                  )}
+                </div>
                 {activePaperAccess && (
                   <span
                     tabIndex={0}
@@ -1774,8 +1926,8 @@ export function TimelineCanvas({
                     {paperAccessLabel(activePaperAccess)}
                   </span>
                 )}
+                </div>
               </div>
-            </div>
 
             {/* Scrollable chat area */}
             <div
@@ -1865,130 +2017,6 @@ export function TimelineCanvas({
                   </p>
                 )}
               </div>
-
-              {!readOnly && onGraphAction && (
-                <div
-                  style={{
-                    background: "var(--bg-secondary)",
-                    border: "0.0625rem solid var(--border)",
-                    borderRadius: "0.625rem",
-                    padding: "0.75rem 0.875rem",
-                    marginBottom: "1.25rem",
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "0.625rem",
-                  }}
-                >
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.75rem" }}>
-                    <p
-                      style={{
-                        fontSize: "0.625rem",
-                        color: "var(--text-tertiary)",
-                        fontFamily: "'JetBrains Mono', monospace",
-                        letterSpacing: "0.06em",
-                        textTransform: "uppercase",
-                      }}
-                    >
-                      Graph controls
-                    </p>
-                    {activeNode.annotation?.borderColor && (
-                      <button
-                        type="button"
-                        onClick={() => handleSetNodeBorderColor(null)}
-                        disabled={graphActionsDisabled}
-                        style={{
-                          background: "none",
-                          border: "none",
-                          color: "var(--text-tertiary)",
-                          cursor: graphActionsDisabled ? "default" : "pointer",
-                          fontSize: "0.625rem",
-                          fontFamily: "'JetBrains Mono', monospace",
-                          padding: 0,
-                        }}
-                      >
-                        Clear border
-                      </button>
-                    )}
-                  </div>
-
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.75rem" }}>
-                    <div style={{ display: "flex", gap: "0.375rem", flexWrap: "wrap" }}>
-                      {NODE_BORDER_COLOR_OPTIONS.map((color) => {
-                        const selected = activeNode.annotation?.borderColor === color.key;
-                        return (
-                          <button
-                            key={color.key}
-                            type="button"
-                            title={`Set ${color.label.toLowerCase()} border`}
-                            aria-label={`Set ${color.label.toLowerCase()} border`}
-                            onClick={() => handleSetNodeBorderColor(color.key)}
-                            disabled={graphActionsDisabled}
-                            style={{
-                              width: "1.375rem",
-                              height: "1.375rem",
-                              borderRadius: "999px",
-                              border: `0.125rem solid ${selected ? "var(--text-primary)" : "var(--border)"}`,
-                              background: color.css,
-                              cursor: graphActionsDisabled ? "default" : "pointer",
-                              opacity: graphActionsDisabled ? 0.55 : 1,
-                              boxShadow: selected ? `0 0 0 0.1875rem color-mix(in srgb, ${color.css} 28%, transparent)` : "none",
-                            }}
-                          />
-                        );
-                      })}
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={handleDeleteActiveNode}
-                      disabled={graphActionsDisabled || isActiveNodeLocked || Object.keys(data.nodes).length <= 1}
-                      style={{
-                        flexShrink: 0,
-                        background: "var(--bg-primary)",
-                        border: "0.0625rem solid var(--border)",
-                        borderRadius: "0.4375rem",
-                        color: graphActionsDisabled || isActiveNodeLocked || Object.keys(data.nodes).length <= 1 ? "var(--text-tertiary)" : "var(--text-secondary)",
-                        cursor: graphActionsDisabled || isActiveNodeLocked || Object.keys(data.nodes).length <= 1 ? "default" : "pointer",
-                        fontSize: "0.6875rem",
-                        fontWeight: 600,
-                        fontFamily: "'DM Sans', sans-serif",
-                        padding: "0.375rem 0.625rem",
-                      }}
-                      onMouseEnter={(e) => {
-                        if (graphActionsDisabled || isActiveNodeLocked || Object.keys(data.nodes).length <= 1) return;
-                        e.currentTarget.style.borderColor = "var(--accent)";
-                        e.currentTarget.style.color = "var(--accent)";
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.borderColor = "var(--border)";
-                        e.currentTarget.style.color = graphActionsDisabled || isActiveNodeLocked || Object.keys(data.nodes).length <= 1 ? "var(--text-tertiary)" : "var(--text-secondary)";
-                      }}
-                    >
-                      {isExpanding ? "Expanding..." : isActiveNodeLocked ? "Seed locked" : "Remove node"}
-                    </button>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={handleAddNoteForActiveNode}
-                    style={{
-                      width: "100%",
-                      background: "color-mix(in srgb, var(--accent-soft) 62%, transparent)",
-                      border: "0.0625rem solid color-mix(in srgb, var(--accent) 36%, var(--border) 64%)",
-                      borderRadius: "0.5rem",
-                      color: "var(--accent)",
-                      cursor: "pointer",
-                      fontSize: "0.6875rem",
-                      fontWeight: 600,
-                      fontFamily: "'DM Sans', sans-serif",
-                      padding: "0.5rem 0.625rem",
-                      textAlign: "left",
-                    }}
-                  >
-                    Add connected note
-                  </button>
-                </div>
-              )}
 
               {/* Chat messages */}
               {(chatHistories[activeNodeId] ?? []).map((msg) => (
@@ -2106,81 +2134,6 @@ export function TimelineCanvas({
                           );})}
                         </div>
                       )}
-
-                      {/* Lineage suggestion card */}
-                      {msg.suggestion && (
-                        <motion.div
-                          initial={{ opacity: 0, y: 6 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ delay: 0.15, duration: 0.3 }}
-                          style={{
-                            background: "var(--bg-secondary)",
-                            border: "0.0625rem solid var(--border)",
-                            borderRadius: "0.625rem",
-                            padding: "0.75rem 0.875rem",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "space-between",
-                            gap: "0.625rem",
-                          }}
-                        >
-                          {(() => {
-                            const suggestionAlreadyAdded = hasExistingExpansion(
-                              activeNode.id,
-                              msg.suggestion.query,
-                            );
-
-                            return (
-                              <>
-                          <div>
-                            <p style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--text-primary)", fontFamily: "'DM Sans', sans-serif", marginBottom: "0.125rem" }}>
-                              {msg.suggestion.topic}
-                            </p>
-                            <p style={{ fontSize: "0.6875rem", color: "var(--text-tertiary)", fontFamily: "'JetBrains Mono', monospace" }}>
-                              {msg.suggestion.nodeCount} papers · trace lineage?
-                            </p>
-                          </div>
-                          <motion.button
-                            onClick={() => !readOnly && !suggestionAlreadyAdded && !isExpanding && handleAddLineage(msg.suggestion!.query)}
-                            disabled={readOnly || suggestionAlreadyAdded || isExpanding}
-                            whileHover={!readOnly && !suggestionAlreadyAdded && !isExpanding ? { scale: 1.03 } : {}}
-                            whileTap={!readOnly && !suggestionAlreadyAdded && !isExpanding ? { scale: 0.97 } : {}}
-                            style={{
-                              flexShrink: 0,
-                              background: suggestionAlreadyAdded ? "var(--bg-tertiary)" : "var(--accent)",
-                              color: suggestionAlreadyAdded ? "var(--text-tertiary)" : "white",
-                              border: "none",
-                              borderRadius: "0.4375rem",
-                              padding: "0.4375rem 0.8125rem",
-                              fontSize: "0.75rem",
-                              fontWeight: 500,
-                              cursor: readOnly || suggestionAlreadyAdded ? "default" : "pointer",
-                              pointerEvents: readOnly ? "none" : "auto",
-                              fontFamily: "'DM Sans', sans-serif",
-                              display: "flex",
-                              alignItems: "center",
-                              gap: "0.3125rem",
-                              opacity: suggestionAlreadyAdded ? 0.5 : 1,
-                              transition: "background 0.15s, opacity 0.15s",
-                            }}
-                          >
-                            {isExpanding ? (
-                              <motion.div
-                                animate={{ rotate: 360 }}
-                                transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                                style={{ width: "0.75rem", height: "0.75rem", border: "0.09375rem solid rgba(255,255,255,0.3)", borderTopColor: "white", borderRadius: "50%" }}
-                              />
-                            ) : suggestionAlreadyAdded ? (
-                              "Added ✓"
-                            ) : (
-                              <>Add to timeline →</>
-                            )}
-                          </motion.button>
-                              </>
-                            );
-                          })()}
-                        </motion.div>
-                      )}
                     </div>
                   )}
                 </motion.div>
@@ -2271,12 +2224,13 @@ export function TimelineCanvas({
         )}
       </AnimatePresence>
 
-      {!activeNodeId && !readOnly && (
+      {!readOnly && (
         <GlobalChatPanel
           data={data}
-          onHighlight={(ids) => setHighlightedPaperIds(new Set(ids))}
-          onAddLineage={(query) => onExpandNode(data.rootId, query)}
-          isExpanding={isExpanding}
+          open={globalChatOpen && activeNodeId === null}
+          onOpenChange={onGlobalChatOpenChange ?? (() => undefined)}
+          onHighlight={handleGlobalHighlight}
+          onMentionedPaperIdsChange={handleGlobalMentionedPaperIdsChange}
           onUsageChanged={onUsageChanged}
           graphId={graphId}
           userId={userId}
@@ -2284,19 +2238,6 @@ export function TimelineCanvas({
       )}
     </motion.div>
   );
-}
-
-function restoredLineageSuggestion(toolUses: Record<string, unknown>[]): ChatSuggestion | null {
-  const tool = toolUses.find((item) => item.name === "propose_lineage_expansion");
-  const input = tool?.input;
-  if (!input || typeof input !== "object" || Array.isArray(input)) return null;
-  const value = input as Record<string, unknown>;
-  if (typeof value.topic !== "string" || typeof value.query !== "string") return null;
-  return {
-    topic: value.topic,
-    query: value.query,
-    nodeCount: typeof value.nodeCount === "number" ? value.nodeCount : 4,
-  };
 }
 
 function needsFullPaperConfirmation(message: ChatMessage): boolean {
@@ -2311,6 +2252,22 @@ function needsFullPaperConfirmation(message: ChatMessage): boolean {
     && /\b(access|retrieve|cache|get)\b/.test(text)
     && /\b(full text|complete paper|full paper|complete text)\b/.test(text)
   );
+}
+
+function mobilePanelEditButtonStyle(disabled: boolean): React.CSSProperties {
+  return {
+    height: "1.9rem",
+    borderRadius: "0.625rem",
+    border: "0.0625rem solid var(--border)",
+    background: "var(--bg-secondary)",
+    color: disabled ? "var(--text-tertiary)" : "var(--text-secondary)",
+    cursor: disabled ? "default" : "pointer",
+    fontSize: "0.625rem",
+    fontWeight: 600,
+    letterSpacing: "0.08em",
+    textTransform: "uppercase",
+    fontFamily: "'JetBrains Mono', monospace",
+  };
 }
 
 function toolLabel(name: string, status?: string, result?: Record<string, unknown>): string {

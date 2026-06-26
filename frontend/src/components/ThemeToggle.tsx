@@ -11,9 +11,9 @@ export function ThemeToggle() {
       onClick={toggle}
       aria-label="Toggle theme"
       style={{
-        background: "var(--bg-secondary)",
+        background: "none",
         border: "0.0625rem solid var(--border)",
-        borderRadius: "0.625rem",
+        borderRadius: "0.4375rem",
         width: "2rem",
         height: "2rem",
         display: "flex",

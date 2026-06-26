@@ -1,5 +1,6 @@
 import {
   GlobalChatResponse,
+  GlobalChatStreamEvent,
   LineageGraphResponse,
   PaperChatResponse,
   PaperChatStreamEvent,
@@ -235,11 +236,12 @@ export async function chatAboutTimeline(
   papers: { openalexId: string; title: string; year?: number | null; summary?: string }[],
   question: string,
   persistence?: { graphId: string; userId: string },
+  mentionedPaperIds: string[] = [],
 ): Promise<GlobalChatResponse> {
   const response = await fetch(`${EXPENSIVE_API_BASE}/api/chat/global`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ ...(persistence ?? {}), papers, question }),
+    body: JSON.stringify({ ...(persistence ?? {}), papers, question, mentionedPaperIds }),
   });
 
   if (!response.ok) {
@@ -248,6 +250,58 @@ export async function chatAboutTimeline(
   }
 
   return response.json();
+}
+
+export async function streamChatAboutTimeline(
+  papers: { openalexId: string; title: string; year?: number | null; summary?: string }[],
+  question: string,
+  onEvent: (event: GlobalChatStreamEvent) => void,
+  persistence?: { graphId: string; userId: string },
+  mentionedPaperIds: string[] = [],
+): Promise<GlobalChatResponse | null> {
+  const response = await fetch(`${EXPENSIVE_API_BASE}/api/chat/global/stream`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
+    body: JSON.stringify({ ...(persistence ?? {}), papers, question, mentionedPaperIds }),
+  });
+
+  if (!response.ok || !response.body) {
+    const detail = await readErrorDetail(response);
+    throw new APIError(detail || `Chat stream failed with status ${response.status}`, response.status);
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let finalResponse: GlobalChatResponse | null = null;
+
+  function consume(rawEvent: string) {
+    const lines = rawEvent.split(/\r?\n/);
+    const eventType = lines.find((line) => line.startsWith("event: "))?.slice(7).trim();
+    const dataLines = lines
+      .filter((line) => line.startsWith("data: "))
+      .map((line) => line.slice(6));
+    if (!eventType || dataLines.length === 0) return;
+    const payload = JSON.parse(dataLines.join("\n")) as Record<string, unknown>;
+    const event = { type: eventType, ...payload } as GlobalChatStreamEvent;
+    onEvent(event);
+    if (event.type === "message_completed") finalResponse = event.response;
+    if (event.type === "error") throw new APIError(event.detail, event.statusCode ?? 500);
+  }
+
+  while (true) {
+    const { value, done } = await reader.read();
+    buffer += decoder.decode(value, { stream: !done });
+    const parts = buffer.split(/\r?\n\r?\n/);
+    buffer = parts.pop() ?? "";
+    for (const part of parts) {
+      if (part.trim()) consume(part);
+    }
+    if (done) break;
+  }
+  if (buffer.trim()) consume(buffer);
+
+  return finalResponse;
 }
 
 export async function openChatSession(
