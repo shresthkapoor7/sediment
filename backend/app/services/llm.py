@@ -349,9 +349,6 @@ Prior conversation summary:
 Pending user-visible action:
 {json.dumps(pending_action, indent=2) if pending_action else "None"}
 
-Interpretation instruction:
-If the current message has mentioned papers above, use them as the active selected context for the current question, even if the raw question text is short or omits paper titles.
-
 User question:
 {question}
 

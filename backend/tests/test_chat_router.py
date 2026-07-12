@@ -10,6 +10,70 @@ from app.services.chat_memory import ChatContext
 
 
 class PersistentChatRouterTests(unittest.IsolatedAsyncioTestCase):
+    async def test_global_pending_confirmation_without_paper_id_uses_mentioned_paper(self) -> None:
+        memory = AsyncMock()
+        memory.append.side_effect = [
+            {"sequence_number": 3},
+            {"sequence_number": 4},
+        ]
+        context = ChatContext(
+            session={"id": "session-1", "summary": None, "summary_through_sequence": 0},
+            messages=[{
+                "role": "assistant",
+                "content": "Please confirm.",
+                "sequence_number": 2,
+                "tool_uses": [{
+                    "name": "retrieve_paper_content",
+                    "status": "needs_confirmation",
+                    "result": {"message": "Please confirm."},
+                }],
+            }],
+        )
+        graph = {
+            "data": {
+                "nodes": {
+                    "1": {"paper": {"openalexId": "W1", "title": "First Paper", "year": 1993, "summary": "First"}},
+                },
+            },
+        }
+        ingestion = AsyncMock()
+        ingestion.ingest.return_value = {"status": "ready", "paperId": "W1"}
+
+        async def answer(_papers, _question, **kwargs):
+            result = await kwargs["tool_runner"](
+                "retrieve_paper_content",
+                {"paperId": "W1", "confirmed": False},
+            )
+            self.assertEqual(result["status"], "ready")
+            return {
+                "text": "Indexed.",
+                "highlightedPaperIds": ["W1"],
+                "suggestion": None,
+                "toolUses": [],
+                "citations": [],
+            }
+
+        request = SimpleNamespace(state=SimpleNamespace(verified_client_ip="127.0.0.1"), client=None)
+        req = GlobalChatRequest(
+            graphId="00000000-0000-0000-0000-000000000001",
+            userId="00000000-0000-0000-0000-000000000002",
+            papers=[{"openalexId": "W1", "title": "First Paper", "year": 1993, "summary": "First"}],
+            question="yes, go ahead",
+            mentionedPaperIds=["W1"],
+        )
+
+        with patch("app.routers.chat.limiter.claim_request", AsyncMock()):
+            with patch(
+                "app.routers.chat._load_persistent_context",
+                AsyncMock(return_value=(AsyncMock(), graph, memory, context)),
+            ):
+                with patch("app.routers.chat.PaperIngestionService", return_value=ingestion):
+                    with patch("app.routers.chat._llm.chat_about_timeline_agentic", AsyncMock(side_effect=answer)):
+                        response = await chat_global(req, request)
+
+        self.assertEqual(response.text, "Indexed.")
+        ingestion.ingest.assert_awaited_once()
+
     async def test_global_chat_persists_mentioned_papers_with_the_user_message(self) -> None:
         memory = AsyncMock()
         memory.append.side_effect = [
