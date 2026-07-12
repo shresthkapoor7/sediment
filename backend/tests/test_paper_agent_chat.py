@@ -51,6 +51,32 @@ class FakeStream:
 
 
 class PaperAgentChatTests(unittest.IsolatedAsyncioTestCase):
+    async def test_global_agent_receives_the_mentioned_papers_as_current_context(self) -> None:
+        client = LLMClient(api_key="test-key", model="claude-test")
+        final = SimpleNamespace(
+            content=[FakeBlock(type="text", text="They are related through attention.")],
+            usage=SimpleNamespace(input_tokens=10, output_tokens=5),
+        )
+        client.client.messages.create = AsyncMock(return_value=final)
+
+        with patch("app.services.llm.limiter.record_usage", AsyncMock()):
+            result = await client.chat_about_timeline_agentic(
+                [
+                    {"openalexId": "W1", "title": "First Paper", "year": 1993, "summary": "First"},
+                    {"openalexId": "W2", "title": "Second Paper", "year": 2017, "summary": "Second"},
+                ],
+                "@First Paper and @Second Paper: how are they related?",
+                mentioned_paper_ids=["W1", "W2"],
+                tool_runner=AsyncMock(),
+                ip="127.0.0.1",
+            )
+
+        prompt = client.client.messages.create.await_args.kwargs["messages"][-1]["content"]
+        self.assertIn('"openalexId": "W1"', prompt)
+        self.assertIn('"openalexId": "W2"', prompt)
+        self.assertIn("do not ask the user to name the papers again", prompt)
+        self.assertEqual(result["highlightedPaperIds"], ["W1", "W2"])
+
     async def test_tool_result_is_returned_and_citations_are_collected(self) -> None:
         client = LLMClient(api_key="test-key", model="claude-test")
         first = SimpleNamespace(

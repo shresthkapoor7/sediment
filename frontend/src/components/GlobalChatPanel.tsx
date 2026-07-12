@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useId, useCallback } from "react";
+import { useState, useRef, useEffect, useId, useCallback, type ReactNode } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { MarkdownContent } from "./MarkdownContent";
 import { openChatSession, streamChatAboutTimeline, suggestTimelineQuestions } from "@/lib/api";
@@ -66,6 +66,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
             role: message.role,
             text: message.content,
             highlightedPaperIds: metadata.highlightedPaperIds,
+            mentionedPaperIds: metadata.mentionedPaperIds,
             citations: message.citations,
           };
         });
@@ -171,9 +172,6 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
     year: n.paper.year,
     summary: n.paper.summary,
   }));
-  const selectedMentionPapers = mentionedPaperIds.slice(0, 1)
-    .map((id) => papers.find((paper) => paper.openalexId === id))
-    .filter((paper): paper is (typeof papers)[number] => Boolean(paper));
   const mentionOptions = papers
     .filter((paper) => !mentionedPaperIds.includes(paper.openalexId))
     .filter((paper) => {
@@ -200,25 +198,28 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
   const selectMention = useCallback((paper: (typeof papers)[number]) => {
     const cursor = inputRef.current?.selectionStart ?? input.length;
     const activeMention = getActiveMention(input, cursor);
-    const nextInput = activeMention
-      ? `${input.slice(0, activeMention.start)}${input.slice(cursor)}`.replace(/\s{2,}/g, " ").trimStart()
-      : input;
+    const start = activeMention?.start ?? cursor;
+    const before = input.slice(0, start);
+    const after = input.slice(cursor);
+    const mentionText = `@${paper.title}`;
+    const separator = after && /^\s/.test(after) ? "" : " ";
+    const nextInput = `${before}${mentionText}${separator}${after}`;
+    const nextCursor = before.length + mentionText.length + separator.length;
 
     setInput(nextInput);
-    setMentionedPaperIds([paper.openalexId]);
+    setMentionedPaperIds((current) => current.includes(paper.openalexId) ? current : [...current, paper.openalexId]);
     setMentionOpen(false);
     setMentionQuery("");
-    window.setTimeout(() => inputRef.current?.focus({ preventScroll: true }), 0);
+    window.setTimeout(() => {
+      inputRef.current?.focus({ preventScroll: true });
+      inputRef.current?.setSelectionRange(nextCursor, nextCursor);
+    }, 0);
   }, [input, papers]);
 
-  const removeMention = useCallback((paperId: string) => {
-    setMentionedPaperIds((current) => current.filter((id) => id !== paperId));
-  }, []);
-
   async function send() {
-    const q = input.trim() || (mentionedPaperIds.length > 0 ? "Tell me about the mentioned paper(s)." : "");
+    const focusedPaperIds = mentionedPaperIds;
+    const q = input.trim() || (focusedPaperIds.length > 0 ? "Tell me about the mentioned paper(s)." : "");
     if (!q || isThinking) return;
-    const focusedPaperIds = mentionedPaperIds.slice(0, 1);
     setInput("");
     setMentionedPaperIds([]);
     setMentionOpen(false);
@@ -326,11 +327,6 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
     if (mentionOpen && e.key === "Enter" && mentionOptions[0]) {
       e.preventDefault();
       selectMention(mentionOptions[0]);
-      return;
-    }
-    if (e.key === "Backspace" && !input && mentionedPaperIds.length > 0) {
-      e.preventDefault();
-      setMentionedPaperIds((current) => current.slice(0, -1));
       return;
     }
     if (e.key === "Enter" && !e.shiftKey) {
@@ -586,38 +582,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
                     {msg.role === "assistant" ? (
                       <MarkdownContent>{msg.text}</MarkdownContent>
                     ) : (
-                      <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
-                        {(msg.mentionedPaperIds ?? []).length > 0 && (
-                          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.25rem" }}>
-                            {(msg.mentionedPaperIds ?? []).map((paperId) => {
-                              const paper = papers.find((item) => item.openalexId === paperId);
-                              if (!paper) return null;
-                              return (
-                                <span
-                                  key={paper.openalexId}
-                                  title={paper.title}
-                                  style={{
-                                    maxWidth: "16rem",
-                                    overflow: "hidden",
-                                    textOverflow: "ellipsis",
-                                    whiteSpace: "nowrap",
-                                    borderRadius: "999px",
-                                    border: "0.0625rem solid color-mix(in srgb, white 46%, transparent)",
-                                    background: "color-mix(in srgb, white 16%, transparent)",
-                                    padding: "0.0625rem 0.4375rem",
-                                    fontSize: "0.65625rem",
-                                    lineHeight: 1.6,
-                                    fontWeight: 600,
-                                  }}
-                                >
-                                  @{paper.title}
-                                </span>
-                              );
-                            })}
-                          </div>
-                        )}
-                        <span>{msg.text}</span>
-                      </div>
+                      <span>{renderUserMessage(msg.text, msg.mentionedPaperIds, papers)}</span>
                     )}
                   </div>
 
@@ -767,7 +732,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
                     display: "flex",
                     alignItems: "center",
                     gap: "0.5rem",
-                    flexWrap: "wrap",
+                    flexWrap: "nowrap",
                     background: "var(--bg-secondary)",
                     border: "0.0625rem solid var(--border)",
                     borderRadius: "0.625rem",
@@ -775,44 +740,18 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
                     transition: "border-color 0.15s",
                   }}
                 >
-                  {selectedMentionPapers.map((paper) => (
-                    <button
-                      key={paper.openalexId}
-                      type="button"
-                      onClick={() => removeMention(paper.openalexId)}
-                      title={`Remove ${paper.title}`}
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: "0.375rem",
-                        maxWidth: "100%",
-                        padding: "0.25rem 0.5rem",
-                        borderRadius: "999px",
-                        border: "0.0625rem solid var(--accent)",
-                        background: "var(--accent-soft)",
-                        color: "var(--accent)",
-                        cursor: "pointer",
-                        fontFamily: "'DM Sans', sans-serif",
-                        fontSize: "0.6875rem",
-                        fontWeight: 600,
-                      }}
-                    >
-                      <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: "0.625rem" }}>
-                        @{paper.year ?? "paper"}
-                      </span>
-                      <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "10rem" }}>
-                        {paper.title}
-                      </span>
-                      <span aria-hidden="true" style={{ color: "var(--text-tertiary)" }}>×</span>
-                    </button>
-                  ))}
                   <input
                     ref={inputRef}
                     type="text"
                     value={input}
                     onChange={(e) => {
-                      setInput(e.target.value);
-                      updateMentionSearch(e.target.value, e.target.selectionStart);
+                      const nextInput = e.target.value;
+                      setInput(nextInput);
+                      setMentionedPaperIds((current) => current.filter((id) => {
+                        const paper = papers.find((item) => item.openalexId === id);
+                        return paper ? nextInput.includes(`@${paper.title}`) : false;
+                      }));
+                      updateMentionSearch(nextInput, e.target.selectionStart);
                     }}
                     onFocus={() => setInputFocused(true)}
                     onBlur={() => {
@@ -883,12 +822,69 @@ function getActiveMention(value: string, cursor: number): { start: number; query
 
 function restoredGlobalMetadata(toolUses: Record<string, unknown>[]): {
   highlightedPaperIds: string[];
+  mentionedPaperIds: string[];
 } {
-  const metadata = toolUses.find((item) => item.name === "global_response");
-  const highlighted = Array.isArray(metadata?.highlightedPaperIds)
-    ? metadata.highlightedPaperIds.filter((value): value is string => typeof value === "string")
+  const responseMetadata = toolUses.find((item) => item.name === "global_response");
+  const userMetadata = toolUses.find((item) => item.name === "global_user_message");
+  const highlighted = Array.isArray(responseMetadata?.highlightedPaperIds)
+    ? responseMetadata.highlightedPaperIds.filter((value): value is string => typeof value === "string")
     : [];
-  return { highlightedPaperIds: highlighted };
+  const mentioned = Array.isArray(userMetadata?.mentionedPaperIds)
+    ? userMetadata.mentionedPaperIds.filter((value): value is string => typeof value === "string")
+    : [];
+  return { highlightedPaperIds: highlighted, mentionedPaperIds: mentioned };
+}
+
+function renderUserMessage(
+  text: string,
+  mentionedPaperIds: string[] | undefined,
+  papers: { openalexId: string; title: string }[],
+): ReactNode {
+  const paperByMention = new Map(
+    (mentionedPaperIds ?? [])
+      .map((id) => papers.find((paper) => paper.openalexId === id))
+      .filter((paper): paper is { openalexId: string; title: string } => Boolean(paper))
+      .map((paper) => [`@${paper.title}`, paper]),
+  );
+  if (paperByMention.size === 0) return text;
+
+  const labels = [...paperByMention.keys()]
+    .sort((a, b) => b.length - a.length)
+    .map(escapeRegExp);
+  const parts = text.split(new RegExp(`(${labels.join("|")})`, "g"));
+  return parts.map((part, index) => {
+    const paper = paperByMention.get(part);
+    if (!paper) return part;
+    return (
+      <span
+        key={`${paper.openalexId}-${index}`}
+        title={paper.title}
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          maxWidth: "16rem",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
+          verticalAlign: "baseline",
+          borderRadius: "999px",
+          border: "0.0625rem solid color-mix(in srgb, white 46%, transparent)",
+          background: "color-mix(in srgb, white 16%, transparent)",
+          margin: "0 0.125rem",
+          padding: "0.0625rem 0.4375rem",
+          fontSize: "0.65625rem",
+          lineHeight: 1.6,
+          fontWeight: 600,
+        }}
+      >
+        {part}
+      </span>
+    );
+  });
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function globalToolLabel(name: string, status?: string, result?: Record<string, unknown>): string {
