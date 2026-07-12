@@ -7,6 +7,7 @@ from fastapi import APIRouter, HTTPException, Query, Request
 
 from ..db.supabase import SupabaseAPIError, SupabaseClient, SupabaseConfigError
 from ..models import (
+    MAX_PAPER_CONTENT_CHUNKS,
     PaperAccessResponse,
     PaperContentResponse,
     RetrievePaperRequest,
@@ -149,7 +150,10 @@ async def get_cached_paper_content(
         document = await db.get_ready_paper_document(normalized_id)
         if not document:
             raise HTTPException(status_code=404, detail="Complete paper text is not cached.")
-        chunks = await db.list_paper_document_chunks(document["id"])
+        chunks = await db.list_paper_document_chunks(
+            document["id"],
+            limit=MAX_PAPER_CONTENT_CHUNKS + 1,
+        )
     except SupabaseAPIError as exc:
         logger.warning("Cached paper content lookup failed for openalex_id=%r", normalized_id, exc_info=exc)
         raise HTTPException(status_code=502, detail="Paper content is currently unavailable.") from exc
@@ -169,8 +173,9 @@ async def get_cached_paper_content(
                 "pageStart": chunk.get("page_start"),
                 "pageEnd": chunk.get("page_end"),
             }
-            for chunk in chunks
+            for chunk in chunks[:MAX_PAPER_CONTENT_CHUNKS]
         ],
+        truncated=len(chunks) > MAX_PAPER_CONTENT_CHUNKS,
     )
 
 

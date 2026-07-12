@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 from dataclasses import dataclass
 from hashlib import sha256
 from io import BytesIO
@@ -93,6 +94,65 @@ class TokenCodec:
         return text[-size * 4:]
 
 
+class PaperIngestionLease:
+    def __init__(self, db: SupabaseClient, document_id: str, lease_id: str) -> None:
+        self.db = db
+        self.document_id = document_id
+        self.lease_id = lease_id
+        self.status = "fetching"
+        self._lost = False
+        self._renew_lock = asyncio.Lock()
+        self._heartbeat_task: asyncio.Task[None] | None = None
+
+    async def transition(self, status: str) -> None:
+        async with self._renew_lock:
+            if self._lost or not await self.db.renew_paper_ingestion_lease(
+                self.document_id,
+                self.lease_id,
+                status,
+            ):
+                self._lost = True
+                raise IngestionError("ingestion_lease_lost", "Paper ingestion ownership was lost. Please retry.")
+            self.status = status
+
+    async def start_heartbeat(self) -> None:
+        if self._heartbeat_task is None:
+            self._heartbeat_task = asyncio.create_task(self._heartbeat())
+
+    def ensure_active(self) -> None:
+        if self._lost:
+            raise IngestionError("ingestion_lease_lost", "Paper ingestion ownership was lost. Please retry.")
+
+    async def close(self) -> None:
+        if self._heartbeat_task is None:
+            return
+        self._heartbeat_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await self._heartbeat_task
+        self._heartbeat_task = None
+
+    async def _heartbeat(self) -> None:
+        interval = max(1, settings.paper_ingestion_lease_heartbeat_seconds)
+        while True:
+            await asyncio.sleep(interval)
+            try:
+                async with self._renew_lock:
+                    renewed = await self.db.renew_paper_ingestion_lease(
+                        self.document_id,
+                        self.lease_id,
+                        self.status,
+                    )
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                logger.warning("Paper ingestion lease heartbeat failed for document_id=%r", self.document_id, exc_info=True)
+                continue
+            if not renewed:
+                self._lost = True
+                logger.warning("Paper ingestion lease was lost for document_id=%r", self.document_id)
+                return
+
+
 class PaperIngestionService:
     def __init__(self) -> None:
         self.db = SupabaseClient()
@@ -145,7 +205,15 @@ class PaperIngestionService:
                 "message": "Paper is already cached." if status == "cached" else "Paper ingestion is already in progress.",
             }
 
+        lease_id = prepared.get("lease_id")
+        if not isinstance(lease_id, str) or not lease_id:
+            raise IngestionError("ingestion_lease_missing", "Paper ingestion could not establish ownership. Please retry.")
+        lease = PaperIngestionLease(self.db, document_id, lease_id)
+
         try:
+            await lease.transition("fetching")
+            await lease.transition("parsing")
+            await lease.start_heartbeat()
             try:
                 parsed = await asyncio.wait_for(
                     asyncio.to_thread(
@@ -160,12 +228,14 @@ class PaperIngestionService:
                     "pdf_parse_timed_out",
                     "Paper parsing timed out. You can retry the indexing request.",
                 ) from exc
+            lease.ensure_active()
             chunks = chunk_paper(parsed, self.codec)
             if not chunks:
                 raise IngestionError("no_extractable_text", "No extractable paper text was found.")
 
-            await self.db.set_paper_ingestion_status(document_id, "embedding")
+            await lease.transition("embedding")
             embeddings = await embed_chunks(chunks, billing_ip=billing_ip)
+            lease.ensure_active()
             rows = [
                 {
                     "document_id": document_id,
@@ -183,7 +253,8 @@ class PaperIngestionService:
                 for index, (chunk, embedding) in enumerate(zip(chunks, embeddings))
             ]
             await self.db.replace_paper_chunks(document_id, rows)
-            completed = await self.db.complete_paper_ingestion(document_id)
+            lease.ensure_active()
+            completed = await self.db.complete_paper_ingestion(document_id, lease_id)
             return {
                 "status": "ready",
                 "documentId": document_id,
@@ -192,16 +263,21 @@ class PaperIngestionService:
                 "message": "Complete paper text is indexed and ready to search.",
             }
         except IngestionError as exc:
-            await self.db.set_paper_ingestion_status(document_id, "failed", exc.code)
+            with contextlib.suppress(Exception):
+                await self.db.fail_paper_ingestion(document_id, lease_id, exc.code)
             raise
         except asyncio.CancelledError:
-            await asyncio.shield(
-                self.db.set_paper_ingestion_status(document_id, "failed", "ingestion_cancelled"),
-            )
+            with contextlib.suppress(Exception):
+                await asyncio.shield(
+                    self.db.fail_paper_ingestion(document_id, lease_id, "ingestion_cancelled"),
+                )
             raise
         except Exception as exc:
-            await self.db.set_paper_ingestion_status(document_id, "failed", "ingestion_failed")
+            with contextlib.suppress(Exception):
+                await self.db.fail_paper_ingestion(document_id, lease_id, "ingestion_failed")
             raise IngestionError("ingestion_failed", "Paper ingestion failed.") from exc
+        finally:
+            await lease.close()
 
     def _result(self, status: str, document: dict, chunk_count: int) -> dict:
         return {

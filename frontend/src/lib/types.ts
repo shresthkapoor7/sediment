@@ -253,6 +253,7 @@ export interface PaperContentResponse {
   sourceType: string;
   sourceUrl: string | null;
   chunks: PaperContentChunk[];
+  truncated: boolean;
 }
 
 export interface Expansion {

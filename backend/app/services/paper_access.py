@@ -119,7 +119,9 @@ class PaperAccessChecker:
 
     async def _get_document(self, openalex_id: str) -> dict | None:
         try:
-            return await SupabaseClient().get_latest_paper_document(openalex_id)
+            db = SupabaseClient()
+            ready_document = await db.get_ready_paper_document(openalex_id)
+            return ready_document or await db.get_latest_paper_document(openalex_id)
         except (SupabaseConfigError, SupabaseAPIError):
             return None
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { MarkdownContent } from "./MarkdownContent";
 import { PaperContentResponse } from "@/lib/types";
@@ -23,7 +24,13 @@ interface SelectedQuote {
 export function PaperReaderModal({ open, content, loading, error, onClose, onAskClaude }: PaperReaderModalProps) {
   const readerRef = useRef<HTMLElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
+  const overlayRef = useRef<HTMLDivElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const previouslyFocusedRef = useRef<HTMLElement | null>(null);
+  const [mounted, setMounted] = useState(false);
   const [selectedQuote, setSelectedQuote] = useState<SelectedQuote | null>(null);
+  useEffect(() => setMounted(true), []);
+
   useEffect(() => {
     if (!open) return;
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -32,6 +39,35 @@ export function PaperReaderModal({ open, content, loading, error, onClose, onAsk
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [onClose, open]);
+
+  useEffect(() => {
+    if (!open || !mounted) return;
+    previouslyFocusedRef.current = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+    const focusTimer = window.setTimeout(() => closeButtonRef.current?.focus(), 0);
+    const backgroundElements = (Array.from(document.body.children) as HTMLElement[])
+      .filter((element) => element !== overlayRef.current)
+      .map((element) => ({
+        element,
+        inert: element.inert,
+        ariaHidden: element.getAttribute("aria-hidden"),
+      }));
+    for (const { element } of backgroundElements) {
+      element.inert = true;
+      element.setAttribute("aria-hidden", "true");
+    }
+
+    return () => {
+      window.clearTimeout(focusTimer);
+      for (const { element, inert, ariaHidden } of backgroundElements) {
+        element.inert = inert;
+        if (ariaHidden === null) element.removeAttribute("aria-hidden");
+        else element.setAttribute("aria-hidden", ariaHidden);
+      }
+      previouslyFocusedRef.current?.focus();
+    };
+  }, [mounted, open]);
 
   const markdown = content ? chunksToMarkdown(content) : "";
   const updateSelectedQuote = useCallback(() => {
@@ -66,10 +102,36 @@ export function PaperReaderModal({ open, content, loading, error, onClose, onAsk
     });
   }, []);
 
-  return (
+  const trapFocus = useCallback((event: React.KeyboardEvent<HTMLElement>) => {
+    if (event.key !== "Tab") return;
+    const reader = readerRef.current;
+    if (!reader) return;
+    const focusable = Array.from(reader.querySelectorAll<HTMLElement>(
+      'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    )).filter((element) => !element.hasAttribute("hidden") && element.getClientRects().length > 0);
+    if (!focusable.length) {
+      event.preventDefault();
+      return;
+    }
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    const active = document.activeElement;
+    if (event.shiftKey && (active === first || !reader.contains(active))) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && (active === last || !reader.contains(active))) {
+      event.preventDefault();
+      first.focus();
+    }
+  }, []);
+
+  if (!mounted) return null;
+
+  return createPortal(
     <AnimatePresence>
       {open && (
         <motion.div
+          ref={overlayRef}
           data-canvas-ui="true"
           role="presentation"
           initial={{ opacity: 0 }}
@@ -79,9 +141,9 @@ export function PaperReaderModal({ open, content, loading, error, onClose, onAsk
           onMouseDown={onClose}
           onWheelCapture={(event) => event.stopPropagation()}
           style={{
-            position: "absolute",
+            position: "fixed",
             inset: 0,
-            zIndex: 60,
+            zIndex: 1000,
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -102,6 +164,7 @@ export function PaperReaderModal({ open, content, loading, error, onClose, onAsk
             transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
             onMouseDown={(event) => event.stopPropagation()}
             onWheelCapture={(event) => event.stopPropagation()}
+            onKeyDown={trapFocus}
             style={{
               position: "relative",
               width: "min(54rem, 100%)",
@@ -156,7 +219,7 @@ export function PaperReaderModal({ open, content, loading, error, onClose, onAsk
                 type="button"
                 onClick={onClose}
                 aria-label="Close paper reader"
-                autoFocus
+                ref={closeButtonRef}
                 style={{
                   display: "flex",
                   alignItems: "center",
@@ -232,6 +295,18 @@ export function PaperReaderModal({ open, content, loading, error, onClose, onAsk
                     </a>
                   )}
                   <MarkdownContent>{markdown}</MarkdownContent>
+                  {content.truncated && (
+                    <p
+                      style={{
+                        margin: "2rem 0 0",
+                        color: "var(--text-tertiary)",
+                        fontSize: "0.8125rem",
+                        fontStyle: "italic",
+                      }}
+                    >
+                      This preview contains the first 100 cached chunks of the paper.
+                    </p>
+                  )}
                 </article>
               )}
             </div>
@@ -272,7 +347,8 @@ export function PaperReaderModal({ open, content, loading, error, onClose, onAsk
           </motion.section>
         </motion.div>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body,
   );
 }
 

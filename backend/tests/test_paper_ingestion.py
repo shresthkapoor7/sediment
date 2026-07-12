@@ -10,6 +10,7 @@ from app.services.paper_ingestion import (
     IngestionError,
     MAX_TOKENS,
     PaperIngestionService,
+    PaperIngestionLease,
     ParsedBlock,
     ParsedPaper,
     TokenCodec,
@@ -80,7 +81,9 @@ class EmbeddingErrorTests(unittest.IsolatedAsyncioTestCase):
         service.db.prepare_paper_ingestion.return_value = {
             "document_id": "document-1",
             "is_claimed": True,
+            "lease_id": "lease-1",
         }
+        service.db.renew_paper_ingestion_lease.return_value = True
         service.codec = TokenCodec()
 
         downloaded = DownloadedContent(
@@ -115,9 +118,45 @@ class EmbeddingErrorTests(unittest.IsolatedAsyncioTestCase):
                             await service.ingest("W1", {"title": "Test"})
 
         self.assertEqual(raised.exception.code, "pdf_parse_timed_out")
-        service.db.set_paper_ingestion_status.assert_awaited_with(
-            "document-1", "failed", "pdf_parse_timed_out",
+        service.db.fail_paper_ingestion.assert_awaited_with(
+            "document-1", "lease-1", "pdf_parse_timed_out",
         )
+
+    async def test_lease_transitions_and_heartbeats_verify_ownership(self) -> None:
+        db = AsyncMock()
+        db.renew_paper_ingestion_lease.return_value = True
+        lease = PaperIngestionLease(db, "document-1", "lease-1")
+
+        await lease.transition("fetching")
+        await lease.transition("parsing")
+        await lease.transition("embedding")
+
+        self.assertEqual(lease.status, "embedding")
+        self.assertEqual(
+            db.renew_paper_ingestion_lease.await_args_list[0].args,
+            ("document-1", "lease-1", "fetching"),
+        )
+        self.assertEqual(
+            db.renew_paper_ingestion_lease.await_args_list[1].args,
+            ("document-1", "lease-1", "parsing"),
+        )
+        self.assertEqual(
+            db.renew_paper_ingestion_lease.await_args_list[2].args,
+            ("document-1", "lease-1", "embedding"),
+        )
+
+    async def test_heartbeat_marks_a_lost_lease_before_later_writes(self) -> None:
+        db = AsyncMock()
+        db.renew_paper_ingestion_lease.return_value = False
+        lease = PaperIngestionLease(db, "document-1", "lease-1")
+        lease.status = "parsing"
+
+        with patch("app.services.paper_ingestion.asyncio.sleep", AsyncMock()):
+            await lease._heartbeat()
+
+        db.renew_paper_ingestion_lease.assert_awaited_once_with("document-1", "lease-1", "parsing")
+        with self.assertRaisesRegex(IngestionError, "ownership was lost"):
+            lease.ensure_active()
 
     async def test_embedding_error_preserves_safe_provider_code(self) -> None:
         chunk = chunk_paper(

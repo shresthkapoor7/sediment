@@ -14,6 +14,7 @@ MAX_CONCEPTS = 20
 MAX_CONCEPT_CONTEXT_LENGTH = 500
 MAX_CHAT_QUESTION_LENGTH = 1_000
 MAX_SELECTED_EXCERPT_LENGTH = 6_000
+MAX_PAPER_CONTENT_CHUNKS = 100
 MAX_TIMELINE_PAPERS = 25
 MAX_USER_ID_LENGTH = 128
 MAX_GRAPH_ID_LENGTH = 128
@@ -196,7 +197,8 @@ class PaperContentResponse(BaseModel):
     title: str
     sourceType: str
     sourceUrl: Optional[str] = None
-    chunks: list[PaperContentChunk] = Field(default_factory=list)
+    chunks: list[PaperContentChunk] = Field(default_factory=list, max_length=MAX_PAPER_CONTENT_CHUNKS)
+    truncated: bool = False
 
 
 class PaperSummary(StrictRequestModel):

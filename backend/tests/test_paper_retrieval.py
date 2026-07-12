@@ -32,6 +32,7 @@ def candidate(index: int, *, paper_id: str = "W1", similarity: float = 0.7) -> d
 class PaperRetrievalTests(unittest.IsolatedAsyncioTestCase):
     async def test_access_check_reports_incomplete_ingestion_without_claiming_cached_text(self) -> None:
         db = AsyncMock()
+        db.get_ready_paper_document.return_value = None
         db.get_latest_paper_document.return_value = {
             "source_type": "openalex_pdf",
             "license": "cc-by",
@@ -45,6 +46,28 @@ class PaperRetrievalTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["ingestionStatus"], "processing")
         self.assertFalse(result["requiresConfirmation"])
         self.assertIn("not available to search", result["message"])
+
+    async def test_access_check_prefers_an_older_ready_document_over_a_newer_failed_one(self) -> None:
+        db = AsyncMock()
+        db.get_ready_paper_document.return_value = {
+            "source_type": "openalex_tei",
+            "license": "cc-by",
+            "ingestion_status": "ready",
+            "chunk_count": 4,
+        }
+        db.get_latest_paper_document.return_value = {
+            "source_type": "openalex_pdf",
+            "license": "cc-by",
+            "ingestion_status": "failed",
+            "chunk_count": 0,
+        }
+
+        with patch("app.services.paper_access.SupabaseClient", return_value=db):
+            result = await PaperAccessChecker().check("W1")
+
+        self.assertEqual(result["ingestionStatus"], "ready")
+        self.assertEqual(result["sourceType"], "openalex_tei")
+        db.get_latest_paper_document.assert_not_awaited()
 
     async def test_cached_content_returns_ordered_text_chunks_for_a_graph_paper(self) -> None:
         db = AsyncMock()
@@ -76,7 +99,28 @@ class PaperRetrievalTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(response.title, "Test Paper")
         self.assertEqual(response.chunks[0].content, "First section text.")
-        db.list_paper_document_chunks.assert_awaited_once_with("document-1")
+        db.list_paper_document_chunks.assert_awaited_once_with("document-1", limit=101)
+
+    async def test_cached_content_is_bounded_for_large_papers(self) -> None:
+        db = AsyncMock()
+        db.get_graph.return_value = {
+            "data": {"nodes": {"1": {"paper": {"openalexId": "W1", "title": "Test Paper"}}}},
+        }
+        db.get_ready_paper_document.return_value = {
+            "id": "document-1",
+            "source_type": "openalex_tei",
+            "source_url": "https://example.test/paper.xml",
+        }
+        db.list_paper_document_chunks.return_value = [
+            {"chunk_index": index, "content": f"content {index}"}
+            for index in range(101)
+        ]
+
+        with patch("app.routers.paper_access._db", return_value=db):
+            response = await get_cached_paper_content("graph-1", "W1", user_id="user-1")
+
+        self.assertEqual(len(response.chunks), 100)
+        self.assertTrue(response.truncated)
 
     async def test_query_embedding_rerank_and_citation_format(self) -> None:
         db = AsyncMock()
