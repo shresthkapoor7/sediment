@@ -508,6 +508,9 @@ Prior conversation summary:
 Pending user-visible action:
 {json.dumps(pending_action, indent=2) if pending_action else "None"}
 
+Interpretation instruction:
+The papers listed under "Papers explicitly mentioned" are part of this exact user message. Resolve pronouns and short questions against them; do not ask the user to name the papers again.
+
 User question:
 {question}
 
@@ -519,6 +522,8 @@ Use the tools when they would materially improve factual grounding:
 
 Rules:
 - If the user mentioned papers with @, treat those papers as the primary focus.
+- Resolve incomplete or shorthand phrasing against mentioned papers. If two papers are mentioned and the user asks something like "how are they related" or "how is related to", answer the relationship between those mentioned papers instead of asking which papers they meant.
+- If one paper is mentioned, interpret "this paper", "it", or similarly vague references as that mentioned paper.
 - Do not claim you read full paper text unless search_paper_content returned matching chunks.
 - Use exact OpenAlex IDs from the timeline when calling paper tools.
 - Cite retrieved paper chunks inline using bracketed citation IDs like [paper:...:chunk:3] when relying on them.

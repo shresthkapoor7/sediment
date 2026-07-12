@@ -198,6 +198,8 @@ async def _run_paper_chat(req: ChatRequest, request_ip: str, event_emitter: Chat
     try:
         if context and memory and req.graphId and req.userId:
             pending_action = _latest_pending_action(context)
+            if pending_action and not pending_action.get("paperId"):
+                pending_action = {**pending_action, "paperId": req.paperId.upper()}
             retrieval = PaperRetrievalService(memory.db)
 
             async def run_paper_tool(name: str, tool_input: dict[str, Any]) -> dict[str, Any]:
@@ -385,6 +387,17 @@ def _paper_by_id(papers: list[dict], paper_id: str | None) -> dict | None:
     return next((paper for paper in papers if _normalize_openalex_id(paper.get("openalexId")) == normalized), None)
 
 
+def _resolve_mentioned_paper_ids(
+    paper_by_normalized_id: dict[str, dict],
+    requested_paper_ids: list[str],
+) -> list[str]:
+    return list(dict.fromkeys(
+        paper_by_normalized_id[normalized]["openalexId"]
+        for paper_id in requested_paper_ids
+        if (normalized := _normalize_openalex_id(paper_id)) in paper_by_normalized_id
+    ))
+
+
 async def _run_global_chat(req: GlobalChatRequest, request_ip: str, event_emitter: ChatEventEmitter | None = None) -> dict[str, Any]:
     await _emit(event_emitter, "message_started", {})
     await limiter.claim_request(request_ip, "chat_global")
@@ -397,11 +410,7 @@ async def _run_global_chat(req: GlobalChatRequest, request_ip: str, event_emitte
         for paper in papers
         if _normalize_openalex_id(paper.get("openalexId"))
     }
-    mentioned_paper_ids = [
-        paper_by_normalized_id[normalized]["openalexId"]
-        for paper_id in req.mentionedPaperIds
-        if (normalized := _normalize_openalex_id(paper_id)) in paper_by_normalized_id
-    ]
+    mentioned_paper_ids = _resolve_mentioned_paper_ids(paper_by_normalized_id, req.mentionedPaperIds)
     if req.graphId and req.userId:
         await _emit(event_emitter, "status", {"message": "Restoring timeline chat context"})
         try:
@@ -418,12 +427,18 @@ async def _run_global_chat(req: GlobalChatRequest, request_ip: str, event_emitte
                 for paper in papers
                 if _normalize_openalex_id(paper.get("openalexId"))
             }
-            mentioned_paper_ids = [
-                paper_by_normalized_id[normalized]["openalexId"]
-                for paper_id in req.mentionedPaperIds
-                if (normalized := _normalize_openalex_id(paper_id)) in paper_by_normalized_id
-            ]
-            await memory.append(context, req.userId, "user", req.question.strip())
+            mentioned_paper_ids = _resolve_mentioned_paper_ids(paper_by_normalized_id, req.mentionedPaperIds)
+            await memory.append(
+                context,
+                req.userId,
+                "user",
+                req.question.strip(),
+                tool_uses=(
+                    [{"name": "global_user_message", "mentionedPaperIds": mentioned_paper_ids}]
+                    if mentioned_paper_ids
+                    else None
+                ),
+            )
         except SupabaseAPIError as exc:
             logger.warning("Global chat persistence failed for graph_id=%r", req.graphId, exc_info=exc)
             raise HTTPException(status_code=502, detail="Chat history could not be saved.") from exc
@@ -431,6 +446,8 @@ async def _run_global_chat(req: GlobalChatRequest, request_ip: str, event_emitte
     valid_ids = {paper.get("openalexId") for paper in papers}
     primary_paper_id = mentioned_paper_ids[0] if mentioned_paper_ids else None
     pending_action = _latest_pending_action(context)
+    if pending_action and not pending_action.get("paperId") and primary_paper_id:
+        pending_action = {**pending_action, "paperId": primary_paper_id}
     retrieval = PaperRetrievalService(memory.db) if memory else None
 
     async def run_global_tool(name: str, tool_input: dict[str, Any]) -> dict[str, Any]:
