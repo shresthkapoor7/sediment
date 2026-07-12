@@ -26,7 +26,7 @@ MIN_TOKENS = 150
 MAX_TOKENS = 800
 OVERLAP_TOKENS = 80
 MAX_XML_DECOMPRESSED_BYTES = 100 * 1024 * 1024
-PARSER_VERSION = "1"
+PARSER_VERSION = "2"
 
 
 class IngestionError(RuntimeError):
@@ -146,11 +146,20 @@ class PaperIngestionService:
             }
 
         try:
-            parsed = await asyncio.to_thread(
-                parse_downloaded_paper,
-                downloaded,
-                graph_paper.get("title") or "Untitled paper",
-            )
+            try:
+                parsed = await asyncio.wait_for(
+                    asyncio.to_thread(
+                        parse_downloaded_paper,
+                        downloaded,
+                        graph_paper.get("title") or "Untitled paper",
+                    ),
+                    timeout=settings.paper_parse_timeout_seconds,
+                )
+            except asyncio.TimeoutError as exc:
+                raise IngestionError(
+                    "pdf_parse_timed_out",
+                    "Paper parsing timed out. You can retry the indexing request.",
+                ) from exc
             chunks = chunk_paper(parsed, self.codec)
             if not chunks:
                 raise IngestionError("no_extractable_text", "No extractable paper text was found.")
@@ -184,6 +193,11 @@ class PaperIngestionService:
             }
         except IngestionError as exc:
             await self.db.set_paper_ingestion_status(document_id, "failed", exc.code)
+            raise
+        except asyncio.CancelledError:
+            await asyncio.shield(
+                self.db.set_paper_ingestion_status(document_id, "failed", "ingestion_cancelled"),
+            )
             raise
         except Exception as exc:
             await self.db.set_paper_ingestion_status(document_id, "failed", "ingestion_failed")
@@ -331,8 +345,10 @@ def parse_pdf(content: bytes, fallback_title: str) -> ParsedPaper:
             if label == "title":
                 title = text
             continue
-        if not text and label == "table" and hasattr(item, "export_to_markdown"):
-            text = item.export_to_markdown(document)
+        if label == "table" and hasattr(item, "export_to_markdown"):
+            table_markdown = item.export_to_markdown(document)
+            if isinstance(table_markdown, str) and table_markdown.strip():
+                text = table_markdown
         if not text:
             continue
         provenance = getattr(item, "prov", None) or []
@@ -340,7 +356,7 @@ def parse_pdf(content: bytes, fallback_title: str) -> ParsedPaper:
         pages = [page for page in pages if isinstance(page, int)]
         section_type = "references" if "reference" in section.lower() else label or "body"
         blocks.append(ParsedBlock(
-            text=re.sub(r"\s+", " ", text),
+            text=_normalize_pdf_text(text, preserve_lines=label == "table"),
             section=section,
             section_type=section_type,
             page_start=min(pages) if pages else None,
@@ -349,6 +365,16 @@ def parse_pdf(content: bytes, fallback_title: str) -> ParsedPaper:
     if not blocks:
         raise IngestionError("no_extractable_text", "PDF contained no extractable text.")
     return ParsedPaper(title=title, blocks=blocks)
+
+
+def _normalize_pdf_text(text: str, *, preserve_lines: bool) -> str:
+    if not preserve_lines:
+        return re.sub(r"\s+", " ", text).strip()
+    return "\n".join(
+        re.sub(r"[^\S\r\n]+", " ", line).strip()
+        for line in text.splitlines()
+        if line.strip()
+    )
 
 
 def _split_blocks(blocks: Iterable[ParsedBlock], codec: TokenCodec) -> list[ParsedBlock]:

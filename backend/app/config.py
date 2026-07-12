@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     retrieval_candidate_count: int = 20
     retrieval_context_count: int = 6
     max_paper_pdf_pages: int = 200
+    paper_parse_timeout_seconds: int = 120
     llm_model: str = "claude-haiku-4-5-20251001"
     app_version: str = "0.1.0"
     supabase_url: str = ""

@@ -72,7 +72,11 @@ class PersistentChatRouterTests(unittest.IsolatedAsyncioTestCase):
                         response = await chat_global(req, request)
 
         self.assertEqual(response.text, "Indexed.")
-        ingestion.ingest.assert_awaited_once()
+        ingestion.ingest.assert_awaited_once_with(
+            "W1",
+            graph["data"]["nodes"]["1"]["paper"],
+            billing_ip="127.0.0.1",
+        )
 
     async def test_global_chat_persists_mentioned_papers_with_the_user_message(self) -> None:
         memory = AsyncMock()
@@ -156,6 +160,7 @@ class PersistentChatRouterTests(unittest.IsolatedAsyncioTestCase):
             events.append("model")
             self.assertEqual(kwargs["history"], [{"role": "user", "content": "Earlier question"}])
             self.assertEqual(kwargs["summary"], "Earlier")
+            self.assertEqual(kwargs["selected_excerpt"], "Selected paper text")
             self.assertIn("tool_runner", kwargs)
             return {"text": "Answer", "suggestion": None, "toolUses": [], "citations": []}
 
@@ -167,6 +172,7 @@ class PersistentChatRouterTests(unittest.IsolatedAsyncioTestCase):
             title="Client Paper",
             summary="Client summary",
             question="New question",
+            selectedExcerpt="Selected paper text",
         )
 
         with patch("app.routers.chat.limiter.claim_request", AsyncMock()):
@@ -178,6 +184,10 @@ class PersistentChatRouterTests(unittest.IsolatedAsyncioTestCase):
                     response = await chat(req, request)
 
         self.assertEqual(events, ["persist:user", "model", "persist:assistant"])
+        self.assertEqual(
+            memory.append.await_args_list[0].kwargs["tool_uses"],
+            [{"name": "paper_selected_excerpt", "excerpt": "Selected paper text"}],
+        )
         self.assertEqual(response.sessionId, "session-1")
         memory.maybe_summarize.assert_awaited_once()
 

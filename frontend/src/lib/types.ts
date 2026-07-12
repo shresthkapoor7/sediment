@@ -230,11 +230,29 @@ export interface TimelineData {
 export interface PaperAccessResponse {
   openalexId: string;
   accessStatus: "available" | "unavailable" | "failed";
-  ingestionStatus: "ready" | "not_cached" | "failed";
+  ingestionStatus: "ready" | "not_cached" | "processing" | "failed";
   sourceType: "openalex_tei" | "openalex_pdf" | "unpaywall_pdf" | null;
   license: string | null;
   requiresConfirmation: boolean;
   message: string;
+}
+
+export interface PaperContentChunk {
+  chunkIndex: number;
+  content: string;
+  section: string | null;
+  sectionType: string | null;
+  pageStart: number | null;
+  pageEnd: number | null;
+}
+
+export interface PaperContentResponse {
+  openalexId: string;
+  documentId: string;
+  title: string;
+  sourceType: string;
+  sourceUrl: string | null;
+  chunks: PaperContentChunk[];
 }
 
 export interface Expansion {

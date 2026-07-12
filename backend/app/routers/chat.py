@@ -184,7 +184,17 @@ async def _run_paper_chat(req: ChatRequest, request_ip: str, event_emitter: Chat
                 paper for paper in _graph_papers(graph.get("data"))
                 if paper.get("openalexId") == req.paperId.upper()
             )
-            await memory.append(context, req.userId, "user", req.question.strip())
+            await memory.append(
+                context,
+                req.userId,
+                "user",
+                req.question.strip(),
+                tool_uses=(
+                    [{"name": "paper_selected_excerpt", "excerpt": req.selectedExcerpt.strip()}]
+                    if req.selectedExcerpt and req.selectedExcerpt.strip()
+                    else None
+                ),
+            )
         except SupabaseAPIError as exc:
             logger.warning("Paper chat persistence failed for graph_id=%r", req.graphId, exc_info=exc)
             raise HTTPException(status_code=502, detail="Chat history could not be saved.") from exc
@@ -280,6 +290,7 @@ async def _run_paper_chat(req: ChatRequest, request_ip: str, event_emitter: Chat
                 ip=request_ip,
                 history=context.history,
                 summary=context.summary,
+                selected_excerpt=req.selectedExcerpt.strip() if req.selectedExcerpt else None,
                 pending_action=pending_action,
             )
         else:

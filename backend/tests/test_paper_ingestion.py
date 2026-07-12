@@ -4,14 +4,18 @@ import gzip
 import unittest
 from unittest.mock import AsyncMock, patch
 
+from app.config import settings
+from app.services.paper_access import ContentCandidate, DownloadedContent
 from app.services.paper_ingestion import (
     IngestionError,
     MAX_TOKENS,
+    PaperIngestionService,
     ParsedBlock,
     ParsedPaper,
     TokenCodec,
     chunk_paper,
     embed_chunks,
+    _normalize_pdf_text,
     parse_tei,
 )
 from app.services.voyage import VoyageError
@@ -50,6 +54,10 @@ class TeiParserTests(unittest.TestCase):
 
 
 class ChunkingTests(unittest.TestCase):
+    def test_table_text_preserves_markdown_rows(self) -> None:
+        table = "| Metric | Score |\n| --- | --- |\n| BLEU | 31.4 |"
+        self.assertEqual(_normalize_pdf_text(table, preserve_lines=True), table)
+
     def test_chunks_are_bounded_and_include_embedding_context(self) -> None:
         codec = TokenCodec()
         paragraphs = [
@@ -65,6 +73,52 @@ class ChunkingTests(unittest.TestCase):
 
 
 class EmbeddingErrorTests(unittest.IsolatedAsyncioTestCase):
+    async def test_parse_timeout_marks_the_document_failed(self) -> None:
+        service = object.__new__(PaperIngestionService)
+        service.db = AsyncMock()
+        service.db.get_ready_paper_document.return_value = None
+        service.db.prepare_paper_ingestion.return_value = {
+            "document_id": "document-1",
+            "is_claimed": True,
+        }
+        service.codec = TokenCodec()
+
+        downloaded = DownloadedContent(
+            candidate=ContentCandidate("openalex_pdf", "https://example.test/paper.pdf", "pdf", None),
+            content=b"%PDF-1.7",
+            source_url="https://example.test/paper.pdf",
+        )
+        access = AsyncMock()
+        access.download_first_available.return_value = downloaded
+
+        class OpenAlexContext:
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *_args):
+                return False
+
+            async def fetch_access_metadata(self, _openalex_id):
+                return {"doi": None}
+
+        async def never_returns():
+            await __import__("asyncio").Event().wait()
+
+        with patch("app.services.paper_ingestion.OpenAlexClient", return_value=OpenAlexContext()):
+            with patch("app.services.paper_ingestion.PaperAccessChecker", return_value=access):
+                with patch(
+                    "app.services.paper_ingestion.asyncio.to_thread",
+                    new=lambda *_args, **_kwargs: never_returns(),
+                ):
+                    with patch.object(settings, "paper_parse_timeout_seconds", 0.001):
+                        with self.assertRaisesRegex(IngestionError, "timed out") as raised:
+                            await service.ingest("W1", {"title": "Test"})
+
+        self.assertEqual(raised.exception.code, "pdf_parse_timed_out")
+        service.db.set_paper_ingestion_status.assert_awaited_with(
+            "document-1", "failed", "pdf_parse_timed_out",
+        )
+
     async def test_embedding_error_preserves_safe_provider_code(self) -> None:
         chunk = chunk_paper(
             ParsedPaper("Test", [ParsedBlock("method text " * 40, "Methods", "body")]),

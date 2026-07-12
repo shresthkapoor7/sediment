@@ -3,11 +3,12 @@ from __future__ import annotations
 import logging
 import re
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 
 from ..db.supabase import SupabaseAPIError, SupabaseClient, SupabaseConfigError
 from ..models import (
     PaperAccessResponse,
+    PaperContentResponse,
     RetrievePaperRequest,
     RetrievePaperResponse,
     SearchPaperContentRequest,
@@ -121,6 +122,56 @@ async def retrieve_paper_content(
     except SupabaseAPIError as exc:
         logger.warning("Paper ingestion storage failed for openalex_id=%r", normalized_id, exc_info=exc)
         raise HTTPException(status_code=502, detail="Paper ingestion storage failed.") from exc
+
+
+@router.get(
+    "/graphs/{graph_id}/papers/{openalex_id}/content",
+    response_model=PaperContentResponse,
+)
+async def get_cached_paper_content(
+    graph_id: str,
+    openalex_id: str,
+    user_id: str = Query(alias="userId", min_length=1),
+):
+    normalized_id = openalex_id.strip().upper()
+    if not OPENALEX_ID.fullmatch(normalized_id):
+        raise HTTPException(status_code=400, detail="Invalid OpenAlex work ID.")
+
+    db = _db()
+    try:
+        graph = await db.get_graph(graph_id, user_id)
+        if not graph:
+            raise HTTPException(status_code=404, detail="Graph not found.")
+        graph_paper = _paper_from_graph(graph.get("data"), normalized_id)
+        if not graph_paper:
+            raise HTTPException(status_code=404, detail="Paper is not present in this graph.")
+
+        document = await db.get_ready_paper_document(normalized_id)
+        if not document:
+            raise HTTPException(status_code=404, detail="Complete paper text is not cached.")
+        chunks = await db.list_paper_document_chunks(document["id"])
+    except SupabaseAPIError as exc:
+        logger.warning("Cached paper content lookup failed for openalex_id=%r", normalized_id, exc_info=exc)
+        raise HTTPException(status_code=502, detail="Paper content is currently unavailable.") from exc
+
+    return PaperContentResponse(
+        openalexId=normalized_id,
+        documentId=document["id"],
+        title=str(graph_paper.get("title") or normalized_id),
+        sourceType=str(document.get("source_type") or "cached_text"),
+        sourceUrl=document.get("source_url"),
+        chunks=[
+            {
+                "chunkIndex": chunk["chunk_index"],
+                "content": chunk["content"],
+                "section": chunk.get("section"),
+                "sectionType": chunk.get("section_type"),
+                "pageStart": chunk.get("page_start"),
+                "pageEnd": chunk.get("page_end"),
+            }
+            for chunk in chunks
+        ],
+    )
 
 
 @router.post(

@@ -1,0 +1,335 @@
+"use client";
+
+import { useCallback, useEffect, useRef, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
+import { MarkdownContent } from "./MarkdownContent";
+import { PaperContentResponse } from "@/lib/types";
+
+interface PaperReaderModalProps {
+  open: boolean;
+  content: PaperContentResponse | null;
+  loading: boolean;
+  error: string | null;
+  onClose: () => void;
+  onAskClaude: (excerpt: string) => void;
+}
+
+interface SelectedQuote {
+  text: string;
+  top: number;
+  left: number;
+}
+
+export function PaperReaderModal({ open, content, loading, error, onClose, onAskClaude }: PaperReaderModalProps) {
+  const readerRef = useRef<HTMLElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [selectedQuote, setSelectedQuote] = useState<SelectedQuote | null>(null);
+  useEffect(() => {
+    if (!open) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose, open]);
+
+  const markdown = content ? chunksToMarkdown(content) : "";
+  const updateSelectedQuote = useCallback(() => {
+    const selection = window.getSelection();
+    const range = selection?.rangeCount ? selection.getRangeAt(0) : null;
+    const reader = readerRef.current;
+    const readerContent = contentRef.current;
+    if (!selection || !range || selection.isCollapsed || !reader || !readerContent) {
+      setSelectedQuote(null);
+      return;
+    }
+
+    const commonAncestor = range.commonAncestorContainer.nodeType === Node.TEXT_NODE
+      ? range.commonAncestorContainer.parentElement
+      : range.commonAncestorContainer;
+    if (!(commonAncestor instanceof Node) || !readerContent.contains(commonAncestor)) {
+      setSelectedQuote(null);
+      return;
+    }
+
+    const text = selection.toString().trim();
+    const rect = range.getBoundingClientRect();
+    if (!text || (!rect.width && !rect.height)) {
+      setSelectedQuote(null);
+      return;
+    }
+    const readerRect = reader.getBoundingClientRect();
+    setSelectedQuote({
+      text: text.slice(0, 6_000),
+      top: Math.max(0.75 * 16, rect.top - readerRect.top - 0.5 * 16),
+      left: Math.min(Math.max(0.75 * 16, rect.left - readerRect.left), readerRect.width - 8.5 * 16),
+    });
+  }, []);
+
+  return (
+    <AnimatePresence>
+      {open && (
+        <motion.div
+          data-canvas-ui="true"
+          role="presentation"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.18 }}
+          onMouseDown={onClose}
+          onWheelCapture={(event) => event.stopPropagation()}
+          style={{
+            position: "absolute",
+            inset: 0,
+            zIndex: 60,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "1.5rem",
+            background: "rgba(8, 7, 5, 0.62)",
+            backdropFilter: "blur(0.75rem)",
+            WebkitBackdropFilter: "blur(0.75rem)",
+          }}
+        >
+          <motion.section
+            ref={readerRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label={content ? `Read ${content.title}` : "Paper reader"}
+            initial={{ opacity: 0, y: 20, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 12, scale: 0.985 }}
+            transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+            onMouseDown={(event) => event.stopPropagation()}
+            onWheelCapture={(event) => event.stopPropagation()}
+            style={{
+              position: "relative",
+              width: "min(54rem, 100%)",
+              height: "min(48rem, 100%)",
+              display: "flex",
+              flexDirection: "column",
+              overflow: "hidden",
+              borderRadius: "1rem",
+              border: "0.0625rem solid var(--border-hover)",
+              background: "var(--bg-primary)",
+              boxShadow: "0 1.5rem 5rem rgba(0,0,0,0.48)",
+            }}
+          >
+            <header
+              style={{
+                display: "flex",
+                alignItems: "flex-start",
+                gap: "0.875rem",
+                padding: "1rem 1.125rem",
+                borderBottom: "0.0625rem solid var(--border)",
+                background: "color-mix(in srgb, var(--bg-secondary) 80%, transparent)",
+                flexShrink: 0,
+              }}
+            >
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div
+                  style={{
+                    color: "var(--accent)",
+                    fontSize: "0.625rem",
+                    fontFamily: "'JetBrains Mono', monospace",
+                    letterSpacing: "0.07em",
+                    textTransform: "uppercase",
+                    marginBottom: "0.375rem",
+                  }}
+                >
+                  {content ? `${sourceLabel(content.sourceType)} · cached full text` : "Cached full text"}
+                </div>
+                <h1
+                  style={{
+                    margin: 0,
+                    color: "var(--text-primary)",
+                    fontFamily: "'DM Sans', sans-serif",
+                    fontSize: "1rem",
+                    lineHeight: 1.35,
+                    fontWeight: 650,
+                  }}
+                >
+                  {content?.title ?? "Opening paper"}
+                </h1>
+              </div>
+              <button
+                type="button"
+                onClick={onClose}
+                aria-label="Close paper reader"
+                autoFocus
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  width: "2rem",
+                  height: "2rem",
+                  padding: 0,
+                  flexShrink: 0,
+                  border: "0.0625rem solid var(--border)",
+                  borderRadius: "0.5rem",
+                  background: "var(--bg-primary)",
+                  color: "var(--text-secondary)",
+                  cursor: "pointer",
+                }}
+              >
+                <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round">
+                  <path d="m3 3 10 10M13 3 3 13" />
+                </svg>
+              </button>
+            </header>
+
+            <div
+              ref={contentRef}
+              onPointerUp={() => window.requestAnimationFrame(updateSelectedQuote)}
+              onKeyUp={() => window.requestAnimationFrame(updateSelectedQuote)}
+              onScroll={() => setSelectedQuote(null)}
+              style={{
+                flex: 1,
+                overflowY: "auto",
+                padding: "1.5rem clamp(1.25rem, 5vw, 3.5rem) 3rem",
+                color: "var(--text-secondary)",
+                fontFamily: "'DM Sans', sans-serif",
+                fontSize: "0.9375rem",
+                lineHeight: 1.78,
+              }}
+            >
+              {loading && <PaperReaderLoading />}
+              {error && (
+                <div
+                  role="alert"
+                  style={{
+                    maxWidth: "35rem",
+                    margin: "3rem auto",
+                    padding: "1rem 1.125rem",
+                    borderRadius: "0.75rem",
+                    border: "0.0625rem solid var(--border)",
+                    background: "var(--bg-secondary)",
+                    color: "var(--text-secondary)",
+                  }}
+                >
+                  {error}
+                </div>
+              )}
+              {!loading && !error && content && (
+                <article style={{ maxWidth: "43rem", margin: "0 auto" }}>
+                  {content.sourceUrl && (
+                    <a
+                      href={content.sourceUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "0.375rem",
+                        marginBottom: "1.5rem",
+                        color: "var(--accent)",
+                        fontFamily: "'JetBrains Mono', monospace",
+                        fontSize: "0.6875rem",
+                        textDecoration: "none",
+                      }}
+                    >
+                      Source ↗
+                    </a>
+                  )}
+                  <MarkdownContent>{markdown}</MarkdownContent>
+                </article>
+              )}
+            </div>
+            {selectedQuote && (
+              <button
+                type="button"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => {
+                  onAskClaude(selectedQuote.text);
+                  setSelectedQuote(null);
+                }}
+                style={{
+                  position: "absolute",
+                  top: `${selectedQuote.top}px`,
+                  left: `${selectedQuote.left}px`,
+                  zIndex: 2,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "0.375rem",
+                  padding: "0.4rem 0.625rem",
+                  border: "0.0625rem solid var(--border-hover)",
+                  borderRadius: "0.5rem",
+                  background: "var(--bg-primary)",
+                  color: "var(--text-primary)",
+                  boxShadow: "0 0.5rem 1.5rem rgba(0,0,0,0.32)",
+                  fontFamily: "'DM Sans', sans-serif",
+                  fontSize: "0.75rem",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="var(--accent)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M2 5.5h8.5M7 2l3.5 3.5L7 9" />
+                </svg>
+                Ask Claude
+              </button>
+            )}
+          </motion.section>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
+
+function chunksToMarkdown(content: PaperContentResponse): string {
+  let previousSection = "";
+  const blocks: string[] = [];
+  for (const chunk of content.chunks) {
+    const section = chunk.section?.trim() || "";
+    if (section && section !== previousSection) {
+      blocks.push(`## ${section}`);
+      previousSection = section;
+    }
+    if (chunk.content.trim()) blocks.push(recoverFlattenedTable(chunk.content.trim()));
+  }
+  return blocks.join("\n\n");
+}
+
+function recoverFlattenedTable(text: string): string {
+  const dividerIndex = text.search(/\|(?:\s*:?-{3,}:?\s*\|){2,}/);
+  if (dividerIndex < 0) return text;
+
+  const beforeDivider = text.slice(0, dividerIndex);
+  const lastSentenceEnd = Math.max(
+    beforeDivider.lastIndexOf(". "),
+    beforeDivider.lastIndexOf(": "),
+    beforeDivider.lastIndexOf("\n"),
+  );
+  const tableStart = text.indexOf("|||", lastSentenceEnd + 1);
+  if (tableStart < 0) return text;
+
+  const beforeTable = text.slice(0, tableStart).trimEnd();
+  const table = `|${text.slice(tableStart + 3)}`
+    .replace(/\|{2,}(?=\s*:?-{3,}:?)/g, "|\n|")
+    .replace(/\|{3,}/g, "|\n|")
+    .replace(/\|\s*(Table\s+\d+\s*:)/gi, "|\n\n$1");
+  return `${beforeTable}\n\n${table}`;
+}
+
+function sourceLabel(sourceType: string): string {
+  return sourceType.replace(/_/g, " ");
+}
+
+function PaperReaderLoading() {
+  return (
+    <div style={{ maxWidth: "43rem", margin: "0 auto", display: "grid", gap: "0.875rem" }}>
+      {["72%", "100%", "93%", "97%", "64%", "100%", "86%"].map((width, index) => (
+        <div
+          key={`${width}-${index}`}
+          style={{
+            width,
+            height: "0.875rem",
+            borderRadius: "999px",
+            background: "var(--bg-secondary)",
+            opacity: 0.9 - index * 0.06,
+          }}
+        />
+      ))}
+    </div>
+  );
+}

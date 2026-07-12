@@ -3,7 +3,8 @@ from __future__ import annotations
 import unittest
 from unittest.mock import AsyncMock, patch
 
-from app.routers.paper_access import _paper_ids_from_graph
+from app.routers.paper_access import _paper_ids_from_graph, get_cached_paper_content
+from app.services.paper_access import PaperAccessChecker
 from app.services.paper_retrieval import PaperRetrievalService
 from app.services.voyage import RerankResult, VoyageError
 
@@ -29,6 +30,54 @@ def candidate(index: int, *, paper_id: str = "W1", similarity: float = 0.7) -> d
 
 
 class PaperRetrievalTests(unittest.IsolatedAsyncioTestCase):
+    async def test_access_check_reports_incomplete_ingestion_without_claiming_cached_text(self) -> None:
+        db = AsyncMock()
+        db.get_latest_paper_document.return_value = {
+            "source_type": "openalex_pdf",
+            "license": "cc-by",
+            "ingestion_status": "parsing",
+            "chunk_count": 0,
+        }
+
+        with patch("app.services.paper_access.SupabaseClient", return_value=db):
+            result = await PaperAccessChecker().check("W1")
+
+        self.assertEqual(result["ingestionStatus"], "processing")
+        self.assertFalse(result["requiresConfirmation"])
+        self.assertIn("not available to search", result["message"])
+
+    async def test_cached_content_returns_ordered_text_chunks_for_a_graph_paper(self) -> None:
+        db = AsyncMock()
+        db.get_graph.return_value = {
+            "data": {
+                "nodes": {
+                    "1": {"paper": {"openalexId": "W1", "title": "Test Paper"}},
+                },
+            },
+        }
+        db.get_ready_paper_document.return_value = {
+            "id": "document-1",
+            "source_type": "openalex_tei",
+            "source_url": "https://example.test/paper.xml",
+        }
+        db.list_paper_document_chunks.return_value = [
+            {
+                "chunk_index": 0,
+                "content": "First section text.",
+                "section": "Introduction",
+                "section_type": "body",
+                "page_start": 1,
+                "page_end": 1,
+            },
+        ]
+
+        with patch("app.routers.paper_access._db", return_value=db):
+            response = await get_cached_paper_content("graph-1", "w1", user_id="user-1")
+
+        self.assertEqual(response.title, "Test Paper")
+        self.assertEqual(response.chunks[0].content, "First section text.")
+        db.list_paper_document_chunks.assert_awaited_once_with("document-1")
+
     async def test_query_embedding_rerank_and_citation_format(self) -> None:
         db = AsyncMock()
         db.search_paper_chunks.return_value = [candidate(0, similarity=0.9), candidate(1, similarity=0.8)]
