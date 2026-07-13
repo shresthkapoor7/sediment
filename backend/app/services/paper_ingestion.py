@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from hashlib import sha256
 from io import BytesIO
@@ -28,12 +29,34 @@ MAX_TOKENS = 800
 OVERLAP_TOKENS = 80
 MAX_XML_DECOMPRESSED_BYTES = 100 * 1024 * 1024
 PARSER_VERSION = "2"
+PAPER_PARSE_MAX_WORKERS = 2
+PAPER_PARSE_EXECUTOR = ThreadPoolExecutor(
+    max_workers=PAPER_PARSE_MAX_WORKERS,
+    thread_name_prefix="paper-parser",
+)
 
 
 class IngestionError(RuntimeError):
     def __init__(self, code: str, message: str):
         super().__init__(message)
         self.code = code
+
+
+async def parse_downloaded_paper_in_executor(
+    downloaded: DownloadedContent,
+    fallback_title: str,
+) -> ParsedPaper:
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(
+        PAPER_PARSE_EXECUTOR,
+        parse_downloaded_paper,
+        downloaded,
+        fallback_title,
+    )
+
+
+def shutdown_paper_parse_executor() -> None:
+    PAPER_PARSE_EXECUTOR.shutdown(wait=False, cancel_futures=True)
 
 
 @dataclass(frozen=True)
@@ -216,8 +239,7 @@ class PaperIngestionService:
             await lease.start_heartbeat()
             try:
                 parsed = await asyncio.wait_for(
-                    asyncio.to_thread(
-                        parse_downloaded_paper,
+                    parse_downloaded_paper_in_executor(
                         downloaded,
                         graph_paper.get("title") or "Untitled paper",
                     ),
@@ -273,6 +295,7 @@ class PaperIngestionService:
                 )
             raise
         except Exception as exc:
+            logger.exception("Paper ingestion failed for document_id=%r", document_id)
             with contextlib.suppress(Exception):
                 await self.db.fail_paper_ingestion(document_id, lease_id, "ingestion_failed")
             raise IngestionError("ingestion_failed", "Paper ingestion failed.") from exc

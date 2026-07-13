@@ -5,10 +5,6 @@ alter table public.paper_documents
   add column if not exists ingestion_lease_id uuid,
   add column if not exists ingestion_lease_expires_at timestamptz;
 
-create index if not exists paper_documents_active_lease_idx
-  on public.paper_documents (ingestion_lease_expires_at)
-  where ingestion_status in ('fetching', 'parsing', 'embedding');
-
 drop function if exists public.prepare_paper_ingestion(text, text, text, text, text, text, text, text, text, integer);
 
 create function public.prepare_paper_ingestion(
