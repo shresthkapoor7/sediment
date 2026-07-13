@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from hashlib import sha256
 from io import BytesIO
@@ -26,13 +28,35 @@ MIN_TOKENS = 150
 MAX_TOKENS = 800
 OVERLAP_TOKENS = 80
 MAX_XML_DECOMPRESSED_BYTES = 100 * 1024 * 1024
-PARSER_VERSION = "1"
+PARSER_VERSION = "2"
+PAPER_PARSE_MAX_WORKERS = 2
+PAPER_PARSE_EXECUTOR = ThreadPoolExecutor(
+    max_workers=PAPER_PARSE_MAX_WORKERS,
+    thread_name_prefix="paper-parser",
+)
 
 
 class IngestionError(RuntimeError):
     def __init__(self, code: str, message: str):
         super().__init__(message)
         self.code = code
+
+
+async def parse_downloaded_paper_in_executor(
+    downloaded: DownloadedContent,
+    fallback_title: str,
+) -> ParsedPaper:
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(
+        PAPER_PARSE_EXECUTOR,
+        parse_downloaded_paper,
+        downloaded,
+        fallback_title,
+    )
+
+
+def shutdown_paper_parse_executor() -> None:
+    PAPER_PARSE_EXECUTOR.shutdown(wait=False, cancel_futures=True)
 
 
 @dataclass(frozen=True)
@@ -93,6 +117,65 @@ class TokenCodec:
         return text[-size * 4:]
 
 
+class PaperIngestionLease:
+    def __init__(self, db: SupabaseClient, document_id: str, lease_id: str) -> None:
+        self.db = db
+        self.document_id = document_id
+        self.lease_id = lease_id
+        self.status = "fetching"
+        self._lost = False
+        self._renew_lock = asyncio.Lock()
+        self._heartbeat_task: asyncio.Task[None] | None = None
+
+    async def transition(self, status: str) -> None:
+        async with self._renew_lock:
+            if self._lost or not await self.db.renew_paper_ingestion_lease(
+                self.document_id,
+                self.lease_id,
+                status,
+            ):
+                self._lost = True
+                raise IngestionError("ingestion_lease_lost", "Paper ingestion ownership was lost. Please retry.")
+            self.status = status
+
+    async def start_heartbeat(self) -> None:
+        if self._heartbeat_task is None:
+            self._heartbeat_task = asyncio.create_task(self._heartbeat())
+
+    def ensure_active(self) -> None:
+        if self._lost:
+            raise IngestionError("ingestion_lease_lost", "Paper ingestion ownership was lost. Please retry.")
+
+    async def close(self) -> None:
+        if self._heartbeat_task is None:
+            return
+        self._heartbeat_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await self._heartbeat_task
+        self._heartbeat_task = None
+
+    async def _heartbeat(self) -> None:
+        interval = max(1, settings.paper_ingestion_lease_heartbeat_seconds)
+        while True:
+            await asyncio.sleep(interval)
+            try:
+                async with self._renew_lock:
+                    renewed = await self.db.renew_paper_ingestion_lease(
+                        self.document_id,
+                        self.lease_id,
+                        self.status,
+                    )
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                logger.warning("Paper ingestion lease heartbeat failed for document_id=%r", self.document_id, exc_info=True)
+                continue
+            if not renewed:
+                self._lost = True
+                logger.warning("Paper ingestion lease was lost for document_id=%r", self.document_id)
+                return
+
+
 class PaperIngestionService:
     def __init__(self) -> None:
         self.db = SupabaseClient()
@@ -145,18 +228,36 @@ class PaperIngestionService:
                 "message": "Paper is already cached." if status == "cached" else "Paper ingestion is already in progress.",
             }
 
+        lease_id = prepared.get("lease_id")
+        if not isinstance(lease_id, str) or not lease_id:
+            raise IngestionError("ingestion_lease_missing", "Paper ingestion could not establish ownership. Please retry.")
+        lease = PaperIngestionLease(self.db, document_id, lease_id)
+
         try:
-            parsed = await asyncio.to_thread(
-                parse_downloaded_paper,
-                downloaded,
-                graph_paper.get("title") or "Untitled paper",
-            )
+            await lease.transition("fetching")
+            await lease.transition("parsing")
+            await lease.start_heartbeat()
+            try:
+                parsed = await asyncio.wait_for(
+                    parse_downloaded_paper_in_executor(
+                        downloaded,
+                        graph_paper.get("title") or "Untitled paper",
+                    ),
+                    timeout=settings.paper_parse_timeout_seconds,
+                )
+            except asyncio.TimeoutError as exc:
+                raise IngestionError(
+                    "pdf_parse_timed_out",
+                    "Paper parsing timed out. You can retry the indexing request.",
+                ) from exc
+            lease.ensure_active()
             chunks = chunk_paper(parsed, self.codec)
             if not chunks:
                 raise IngestionError("no_extractable_text", "No extractable paper text was found.")
 
-            await self.db.set_paper_ingestion_status(document_id, "embedding")
+            await lease.transition("embedding")
             embeddings = await embed_chunks(chunks, billing_ip=billing_ip)
+            lease.ensure_active()
             rows = [
                 {
                     "document_id": document_id,
@@ -174,7 +275,8 @@ class PaperIngestionService:
                 for index, (chunk, embedding) in enumerate(zip(chunks, embeddings))
             ]
             await self.db.replace_paper_chunks(document_id, rows)
-            completed = await self.db.complete_paper_ingestion(document_id)
+            lease.ensure_active()
+            completed = await self.db.complete_paper_ingestion(document_id, lease_id)
             return {
                 "status": "ready",
                 "documentId": document_id,
@@ -183,11 +285,22 @@ class PaperIngestionService:
                 "message": "Complete paper text is indexed and ready to search.",
             }
         except IngestionError as exc:
-            await self.db.set_paper_ingestion_status(document_id, "failed", exc.code)
+            with contextlib.suppress(Exception):
+                await self.db.fail_paper_ingestion(document_id, lease_id, exc.code)
+            raise
+        except asyncio.CancelledError:
+            with contextlib.suppress(Exception):
+                await asyncio.shield(
+                    self.db.fail_paper_ingestion(document_id, lease_id, "ingestion_cancelled"),
+                )
             raise
         except Exception as exc:
-            await self.db.set_paper_ingestion_status(document_id, "failed", "ingestion_failed")
+            logger.exception("Paper ingestion failed for document_id=%r", document_id)
+            with contextlib.suppress(Exception):
+                await self.db.fail_paper_ingestion(document_id, lease_id, "ingestion_failed")
             raise IngestionError("ingestion_failed", "Paper ingestion failed.") from exc
+        finally:
+            await lease.close()
 
     def _result(self, status: str, document: dict, chunk_count: int) -> dict:
         return {
@@ -331,8 +444,10 @@ def parse_pdf(content: bytes, fallback_title: str) -> ParsedPaper:
             if label == "title":
                 title = text
             continue
-        if not text and label == "table" and hasattr(item, "export_to_markdown"):
-            text = item.export_to_markdown(document)
+        if label == "table" and hasattr(item, "export_to_markdown"):
+            table_markdown = item.export_to_markdown(document)
+            if isinstance(table_markdown, str) and table_markdown.strip():
+                text = table_markdown
         if not text:
             continue
         provenance = getattr(item, "prov", None) or []
@@ -340,7 +455,7 @@ def parse_pdf(content: bytes, fallback_title: str) -> ParsedPaper:
         pages = [page for page in pages if isinstance(page, int)]
         section_type = "references" if "reference" in section.lower() else label or "body"
         blocks.append(ParsedBlock(
-            text=re.sub(r"\s+", " ", text),
+            text=_normalize_pdf_text(text, preserve_lines=label == "table"),
             section=section,
             section_type=section_type,
             page_start=min(pages) if pages else None,
@@ -349,6 +464,16 @@ def parse_pdf(content: bytes, fallback_title: str) -> ParsedPaper:
     if not blocks:
         raise IngestionError("no_extractable_text", "PDF contained no extractable text.")
     return ParsedPaper(title=title, blocks=blocks)
+
+
+def _normalize_pdf_text(text: str, *, preserve_lines: bool) -> str:
+    if not preserve_lines:
+        return re.sub(r"\s+", " ", text).strip()
+    return "\n".join(
+        re.sub(r"[^\S\r\n]+", " ", line).strip()
+        for line in text.splitlines()
+        if line.strip()
+    )
 
 
 def _split_blocks(blocks: Iterable[ParsedBlock], codec: TokenCodec) -> list[ParsedBlock]:

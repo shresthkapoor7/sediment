@@ -13,6 +13,8 @@ MAX_DETAIL_LENGTH = 12_000
 MAX_CONCEPTS = 20
 MAX_CONCEPT_CONTEXT_LENGTH = 500
 MAX_CHAT_QUESTION_LENGTH = 1_000
+MAX_SELECTED_EXCERPT_LENGTH = 6_000
+MAX_PAPER_CONTENT_CHUNKS = 100
 MAX_TIMELINE_PAPERS = 25
 MAX_USER_ID_LENGTH = 128
 MAX_GRAPH_ID_LENGTH = 128
@@ -53,6 +55,7 @@ class ChatRequest(StrictRequestModel):
     year: Optional[int] = None
     summary: str = Field(default="", max_length=MAX_SUMMARY_LENGTH)
     question: str = Field(min_length=1, max_length=MAX_CHAT_QUESTION_LENGTH)
+    selectedExcerpt: Optional[str] = Field(default=None, max_length=MAX_SELECTED_EXCERPT_LENGTH)
 
     @model_validator(mode="after")
     def validate_persistence_context(self):
@@ -128,7 +131,7 @@ class ChatResponse(BaseModel):
 class PaperAccessResponse(BaseModel):
     openalexId: str
     accessStatus: Literal["available", "unavailable", "failed"]
-    ingestionStatus: Literal["ready", "not_cached", "failed"]
+    ingestionStatus: Literal["ready", "not_cached", "processing", "failed"]
     sourceType: Optional[Literal["openalex_tei", "openalex_pdf", "unpaywall_pdf"]] = None
     license: Optional[str] = None
     requiresConfirmation: bool = False
@@ -177,6 +180,25 @@ class SearchPaperContentResponse(BaseModel):
     scope: Literal["paper", "graph"]
     query: str
     matches: list[RetrievedPaperChunk] = Field(default_factory=list)
+
+
+class PaperContentChunk(BaseModel):
+    chunkIndex: int
+    content: str
+    section: Optional[str] = None
+    sectionType: Optional[str] = None
+    pageStart: Optional[int] = None
+    pageEnd: Optional[int] = None
+
+
+class PaperContentResponse(BaseModel):
+    openalexId: str
+    documentId: str
+    title: str
+    sourceType: str
+    sourceUrl: Optional[str] = None
+    chunks: list[PaperContentChunk] = Field(default_factory=list, max_length=MAX_PAPER_CONTENT_CHUNKS)
+    truncated: bool = False
 
 
 class PaperSummary(StrictRequestModel):

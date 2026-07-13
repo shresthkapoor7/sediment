@@ -3,10 +3,10 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { MarkdownContent } from "./MarkdownContent";
-import { fetchPaperAccess, openChatSession, streamChatAboutPaper } from "@/lib/api";
+import { fetchCachedPaperContent, fetchPaperAccess, openChatSession, streamChatAboutPaper } from "@/lib/api";
 import { DETAIL_PANEL_DEFAULT_WIDTH, DETAIL_PANEL_MAX_WIDTH, DETAIL_PANEL_MIN_WIDTH, DETAIL_PANEL_WIDTH_KEY } from "@/lib/detail-panel";
 import { TIMELINE_MOBILE_BREAKPOINT_PX } from "@/lib/hover-preview";
-import { TimelineData, ChatSuggestion, PaperAccessResponse, TimelineNode, PaperChatStreamEvent, TimelineGraphAction, NodeBorderColor, TimelineNote } from "@/lib/types";
+import { TimelineData, ChatSuggestion, PaperAccessResponse, PaperContentResponse, TimelineNode, PaperChatStreamEvent, TimelineGraphAction, NodeBorderColor, TimelineNote } from "@/lib/types";
 import { NODE_BORDER_COLOR_OPTIONS } from "@/lib/node-style";
 import { TIMELINE_NOTE_DEFAULT_WIDTH, TIMELINE_NOTE_MIN_HEIGHT } from "@/lib/note-style";
 import { NODE_DIMENSIONS } from "@/lib/dummy-data";
@@ -15,11 +15,13 @@ import { TimelineEdgeLine } from "./TimelineEdge";
 import { TimelineNoteCard } from "./TimelineNote";
 import { TimelineNoteEdgeLine } from "./TimelineNoteEdge";
 import { GlobalChatPanel } from "./GlobalChatPanel";
+import { PaperReaderModal } from "./PaperReaderModal";
 
 interface ChatMessage {
   id: number | string;
   role: "user" | "assistant";
   content: string;
+  selectedExcerpt?: string;
   suggestion?: ChatSuggestion | null;
   statusEvents?: string[];
   toolEvents?: ToolEvent[];
@@ -103,12 +105,14 @@ export function TimelineCanvas({
   const [activeNodeId, setActiveNodeId] = useState<number | null>(null);
   const [chatHistories, setChatHistories] = useState<Record<number, ChatMessage[]>>({});
   const [chatInput, setChatInput] = useState("");
+  const [selectedExcerptByNode, setSelectedExcerptByNode] = useState<Record<number, string>>({});
   const [isThinking, setIsThinking] = useState(false);
   const [editingNodeId, setEditingNodeId] = useState<number | null>(null);
   const [isMobileViewport, setIsMobileViewport] = useState(false);
   const [detailPanelWidth, setDetailPanelWidth] = useState(DETAIL_PANEL_DEFAULT_WIDTH);
   const detailPanelWidthRef = useRef(DETAIL_PANEL_DEFAULT_WIDTH);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const chatInputRef = useRef<HTMLInputElement>(null);
   const msgIdRef = useRef(0);
   const [highlightedPaperIds, setHighlightedPaperIds] = useState<Set<string>>(new Set());
   const [mentionedPaperIds, setMentionedPaperIds] = useState<Set<string>>(new Set());
@@ -120,6 +124,11 @@ export function TimelineCanvas({
   const previousClosePaperPanelSignalRef = useRef(closePaperPanelSignal);
   const activePaperStreamsRef = useRef<Record<number, string>>({});
   const [paperAccessById, setPaperAccessById] = useState<Record<string, PaperAccessState>>({});
+  const paperReaderRequestRef = useRef(0);
+  const [paperReaderOpen, setPaperReaderOpen] = useState(false);
+  const [paperReaderContent, setPaperReaderContent] = useState<PaperContentResponse | null>(null);
+  const [paperReaderLoading, setPaperReaderLoading] = useState(false);
+  const [paperReaderError, setPaperReaderError] = useState<string | null>(null);
   const noteIdRef = useRef(0);
 
   // Track the latest generation so only new nodes animate
@@ -155,12 +164,17 @@ export function TimelineCanvas({
   useEffect(() => {
     setChatHistories({});
     chatHistoryLoadsRef.current.clear();
+    setSelectedExcerptByNode({});
+    setPaperReaderOpen(false);
+    setPaperReaderContent(null);
+    setPaperReaderError(null);
   }, [graphId, userId]);
 
   useEffect(() => {
     if (previousClosePaperPanelSignalRef.current === closePaperPanelSignal) return;
     previousClosePaperPanelSignalRef.current = closePaperPanelSignal;
     setActiveNodeId(null);
+    setPaperReaderOpen(false);
   }, [closePaperPanelSignal]);
 
   useEffect(() => {
@@ -185,6 +199,7 @@ export function TimelineCanvas({
           id: message.id,
           role: message.role,
           content: message.content,
+          selectedExcerpt: selectedExcerptFromToolUses(message.toolUses),
           suggestion: null,
           citations: message.citations,
         }));
@@ -693,6 +708,51 @@ export function TimelineCanvas({
         message: "Checking whether complete paper text can be retrieved.",
       }
     : null;
+  const isActivePaperCached = Boolean(
+    activePaperAccess
+    && activePaperAccess.accessStatus === "available"
+    && "ingestionStatus" in activePaperAccess
+    && activePaperAccess.ingestionStatus === "ready",
+  );
+
+  const closePaperReader = useCallback(() => {
+    paperReaderRequestRef.current += 1;
+    setPaperReaderOpen(false);
+  }, []);
+
+  const askClaudeAboutSelectedExcerpt = useCallback((excerpt: string) => {
+    if (activeNodeId === null) return;
+    const selectedExcerpt = excerpt.trim().slice(0, 6_000);
+    if (!selectedExcerpt) return;
+    setSelectedExcerptByNode((current) => ({ ...current, [activeNodeId]: selectedExcerpt }));
+    closePaperReader();
+    window.setTimeout(() => chatInputRef.current?.focus({ preventScroll: true }), 0);
+  }, [activeNodeId, closePaperReader]);
+
+  const openPaperReader = useCallback(() => {
+    if (!activeNode || !graphId || !userId || !isActivePaperCached) return;
+    const requestId = ++paperReaderRequestRef.current;
+    setPaperReaderOpen(true);
+    setPaperReaderContent(null);
+    setPaperReaderError(null);
+    setPaperReaderLoading(true);
+    void fetchCachedPaperContent(graphId, userId, activeNode.paper.openalexId)
+      .then((content) => {
+        if (requestId === paperReaderRequestRef.current) setPaperReaderContent(content);
+      })
+      .catch((error) => {
+        if (requestId === paperReaderRequestRef.current) {
+          setPaperReaderError(error instanceof Error ? error.message : "Could not load the cached paper text.");
+        }
+      })
+      .finally(() => {
+        if (requestId === paperReaderRequestRef.current) setPaperReaderLoading(false);
+      });
+  }, [activeNode, graphId, isActivePaperCached, userId]);
+
+  const activeSelectedExcerpt = activeNodeId !== null
+    ? selectedExcerptByNode[activeNodeId] ?? null
+    : null;
 
   // Auto-scroll chat to bottom when messages change
   useEffect(() => {
@@ -702,11 +762,13 @@ export function TimelineCanvas({
   const sendPaperQuestion = useCallback(
     (question: string) => {
       if (activeNodeId === null || !activeNode || !question.trim() || activePaperStreamsRef.current[activeNodeId]) return;
+      const selectedExcerpt = selectedExcerptByNode[activeNodeId];
 
       const userMsg: ChatMessage = {
         id: `local-${++msgIdRef.current}`,
         role: "user",
         content: question.trim(),
+        selectedExcerpt,
       };
       const query = question.trim();
       const currentNode = activeNode;
@@ -714,6 +776,10 @@ export function TimelineCanvas({
       const assistantId = `stream-${Date.now()}-${msgIdRef.current + 1}`;
       activePaperStreamsRef.current[targetNodeId] = assistantId;
       setChatInput("");
+      setSelectedExcerptByNode((current) => {
+        const { [targetNodeId]: _selectedExcerpt, ...remaining } = current;
+        return remaining;
+      });
       setIsThinking(true);
 
       setChatHistories((prev) => ({
@@ -801,6 +867,7 @@ export function TimelineCanvas({
           }
         },
         graphId && userId ? { graphId, userId } : undefined,
+        selectedExcerpt,
       )
         .then((response) => {
           if (!response) return;
@@ -825,7 +892,7 @@ export function TimelineCanvas({
           onUsageChanged?.();
         });
     },
-    [activeNode, activeNodeId, graphId, onUsageChanged, userId]
+    [activeNode, activeNodeId, graphId, onUsageChanged, selectedExcerptByNode, userId]
   );
 
   const handleChatSubmit = useCallback(
@@ -1771,17 +1838,17 @@ export function TimelineCanvas({
                       href={activePaperHref}
                       target="_blank"
                       rel="noopener noreferrer"
+                      title="Open"
+                      aria-label="Open"
                       style={{
                         flexShrink: 0,
-                        fontSize: "0.6875rem",
                         color: "var(--text-tertiary)",
                         textDecoration: "none",
-                        fontFamily: "'JetBrains Mono', monospace",
                         background: "var(--bg-secondary)",
                         border: "0.0625rem solid var(--border)",
                         borderRadius: "0.3125rem",
-                        padding: "0.1875rem 0.4375rem",
-                        minHeight: "1.875rem",
+                        width: "1.875rem",
+                        height: "1.875rem",
                         boxSizing: "border-box",
                         display: "flex",
                         alignItems: "center",
@@ -1791,8 +1858,45 @@ export function TimelineCanvas({
                       onMouseEnter={(e) => { (e.currentTarget as HTMLAnchorElement).style.borderColor = "var(--accent)"; (e.currentTarget as HTMLAnchorElement).style.color = "var(--accent)"; }}
                       onMouseLeave={(e) => { (e.currentTarget as HTMLAnchorElement).style.borderColor = "var(--border)"; (e.currentTarget as HTMLAnchorElement).style.color = "var(--text-tertiary)"; }}
                     >
-                      Open ↗
+                      <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.55" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M3 13 13 3M13 3H6M13 3v7" />
+                      </svg>
                     </a>
+                  )}
+                  {isActivePaperCached && (
+                    <button
+                      type="button"
+                      onClick={openPaperReader}
+                      title="Paper"
+                      aria-label="Paper"
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        width: "1.875rem",
+                        height: "1.875rem",
+                        padding: 0,
+                        borderRadius: "0.3125rem",
+                        border: "0.0625rem solid var(--border)",
+                        background: "var(--bg-secondary)",
+                        color: "var(--text-tertiary)",
+                        cursor: "pointer",
+                        transition: "all 0.15s",
+                      }}
+                      onMouseEnter={(event) => {
+                        event.currentTarget.style.borderColor = "var(--accent)";
+                        event.currentTarget.style.color = "var(--accent)";
+                      }}
+                      onMouseLeave={(event) => {
+                        event.currentTarget.style.borderColor = "var(--border)";
+                        event.currentTarget.style.color = "var(--text-tertiary)";
+                      }}
+                    >
+                      <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M3 2.5h7.25A2.75 2.75 0 0 1 13 5.25v8.25H5.5A2.5 2.5 0 0 0 3 16V2.5Z" />
+                        <path d="M3 13.5h7.5A2.5 2.5 0 0 1 13 16M5.5 5.25H10M5.5 7.75H10" />
+                      </svg>
+                    </button>
                   )}
                   {isMobileViewport && !readOnly && onGraphAction && (
                     <div style={{ position: "relative", flexShrink: 0 }}>
@@ -2042,6 +2146,22 @@ export function TimelineCanvas({
                           lineHeight: 1.5,
                         }}
                       >
+                        {msg.selectedExcerpt && (
+                          <div
+                            style={{
+                              marginBottom: "0.5rem",
+                              padding: "0.375rem 0.5rem",
+                              borderLeft: "0.125rem solid var(--accent)",
+                              borderRadius: "0.25rem",
+                              background: "color-mix(in srgb, var(--bg-primary) 48%, transparent)",
+                              color: "var(--text-secondary)",
+                              fontSize: "0.71875rem",
+                              fontStyle: "italic",
+                            }}
+                          >
+                            {excerptPreview(msg.selectedExcerpt, 220)}
+                          </div>
+                        )}
                         {msg.content}
                       </div>
                     </div>
@@ -2074,8 +2194,8 @@ export function TimelineCanvas({
                           ))}
                           {(msg.toolEvents ?? []).map((tool) => (
                             <div key={`${msg.id}-${tool.name}`} style={{ display: "flex", alignItems: "center", gap: "0.375rem", color: "var(--text-secondary)", fontSize: "0.71875rem", fontFamily: "'DM Sans', sans-serif" }}>
-                              <span style={{ color: tool.status === "started" ? "var(--accent)" : tool.status === "error" ? "var(--danger, #b45309)" : "var(--text-tertiary)" }}>
-                                {tool.status === "started" ? "↻" : tool.status === "error" ? "!" : "✓"}
+                              <span style={{ color: tool.status === "started" || tool.status === "processing" ? "var(--accent)" : tool.status === "error" ? "var(--danger, #b45309)" : "var(--text-tertiary)" }}>
+                                {tool.status === "started" || tool.status === "processing" ? "↻" : tool.status === "error" ? "!" : "✓"}
                               </span>
                               {tool.label}
                             </div>
@@ -2165,6 +2285,55 @@ export function TimelineCanvas({
 
             {/* Input bar */}
             {!readOnly && <div style={{ padding: "0.75rem 1rem", borderTop: "0.0625rem solid var(--border)", flexShrink: 0 }}>
+              {activeSelectedExcerpt && (
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "flex-start",
+                    gap: "0.5rem",
+                    marginBottom: "0.5rem",
+                    padding: "0.5rem 0.625rem",
+                    borderRadius: "0.625rem",
+                    background: "var(--bg-secondary)",
+                    border: "0.0625rem solid var(--border)",
+                    color: "var(--text-secondary)",
+                  }}
+                >
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flexShrink: 0, marginTop: "0.0625rem", color: "var(--accent)" }}>
+                    <path d="M2 5.5h8.5M7 2l3.5 3.5L7 9" />
+                  </svg>
+                  <span style={{ flex: 1, minWidth: 0, fontSize: "0.71875rem", lineHeight: 1.45, fontFamily: "'DM Sans', sans-serif" }}>
+                    “{excerptPreview(activeSelectedExcerpt, 240)}”
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedExcerptByNode((current) => {
+                      if (activeNodeId === null) return current;
+                      const { [activeNodeId]: _excerpt, ...remaining } = current;
+                      return remaining;
+                    })}
+                    aria-label="Remove selected excerpt"
+                    title="Remove excerpt"
+                    style={{
+                      width: "1.25rem",
+                      height: "1.25rem",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      padding: 0,
+                      flexShrink: 0,
+                      border: "none",
+                      background: "none",
+                      color: "var(--text-tertiary)",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" aria-hidden="true">
+                      <path d="m3 3 10 10M13 3 3 13" />
+                    </svg>
+                  </button>
+                </div>
+              )}
               <form onSubmit={handleChatSubmit}>
                 <div
                   style={{
@@ -2179,10 +2348,11 @@ export function TimelineCanvas({
                   }}
                 >
                   <input
+                    ref={chatInputRef}
                     type="text"
                     value={chatInput}
                     onChange={(e) => setChatInput(e.target.value)}
-                    placeholder="Ask about this paper..."
+                    placeholder={activeSelectedExcerpt ? "Ask Claude about this excerpt..." : "Ask about this paper..."}
                     disabled={isThinking}
                     style={{
                       flex: 1,
@@ -2224,6 +2394,15 @@ export function TimelineCanvas({
         )}
       </AnimatePresence>
 
+      <PaperReaderModal
+        open={paperReaderOpen}
+        content={paperReaderContent}
+        loading={paperReaderLoading}
+        error={paperReaderError}
+        onClose={closePaperReader}
+        onAskClaude={askClaudeAboutSelectedExcerpt}
+      />
+
       {!readOnly && (
         <GlobalChatPanel
           data={data}
@@ -2254,6 +2433,16 @@ function needsFullPaperConfirmation(message: ChatMessage): boolean {
   );
 }
 
+function excerptPreview(excerpt: string, maxLength: number): string {
+  const normalized = excerpt.replace(/\s+/g, " ").trim();
+  return normalized.length > maxLength ? `${normalized.slice(0, maxLength - 1)}…` : normalized;
+}
+
+function selectedExcerptFromToolUses(toolUses: Record<string, unknown>[]): string | undefined {
+  const selectedExcerpt = toolUses.find((tool) => tool.name === "paper_selected_excerpt")?.excerpt;
+  return typeof selectedExcerpt === "string" && selectedExcerpt.trim() ? selectedExcerpt : undefined;
+}
+
 function mobilePanelEditButtonStyle(disabled: boolean): React.CSSProperties {
   return {
     height: "1.9rem",
@@ -2275,6 +2464,7 @@ function toolLabel(name: string, status?: string, result?: Record<string, unknow
   if (name === "check_paper_access") return `Checked paper access${suffix}`;
   if (name === "retrieve_paper_content") {
     if (status === "started") return "Accessing complete paper";
+    if (status === "processing") return "Paper indexing is still in progress";
     if (status === "error" || status === "unavailable") {
       const message = typeof result?.message === "string" ? result.message : "Complete paper access failed";
       return message;
@@ -2329,12 +2519,16 @@ function truncateCitationLabel(label: string): string {
 
 function paperAccessLabel(access: PaperAccessState): string {
   if (access.accessStatus === "checking") return "Checking access";
+  if ("ingestionStatus" in access && access.ingestionStatus === "processing") return "Indexing full text";
+  if ("ingestionStatus" in access && access.ingestionStatus === "failed") return "Indexing failed";
   if (access.accessStatus === "failed") return "Access failed";
   if (access.accessStatus === "unavailable") return "Abstract only";
   return access.ingestionStatus === "ready" ? "Full text cached" : "Full text available";
 }
 
 function paperAccessColor(access: PaperAccessState): string {
+  if ("ingestionStatus" in access && access.ingestionStatus === "processing") return "var(--accent)";
+  if ("ingestionStatus" in access && access.ingestionStatus === "failed") return "var(--danger, #b45309)";
   if (access.accessStatus === "available") return "var(--accent)";
   if (access.accessStatus === "failed") return "var(--danger, #b45309)";
   return "var(--text-tertiary)";

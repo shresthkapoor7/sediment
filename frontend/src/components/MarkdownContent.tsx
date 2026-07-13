@@ -1,6 +1,7 @@
 "use client";
 
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import remarkBreaks from "remark-breaks";
 import rehypeKatex from "rehype-katex";
@@ -14,7 +15,7 @@ export function MarkdownContent({ children, style }: MarkdownContentProps) {
   return (
     <div style={style}>
       <ReactMarkdown
-        remarkPlugins={[remarkMath, remarkBreaks]}
+        remarkPlugins={[remarkGfm, remarkMath, remarkBreaks]}
         rehypePlugins={[rehypeKatex]}
         components={{
           p: ({ children }) => <p style={{ margin: "0 0 0.7em" }}>{children}</p>,
@@ -24,6 +25,15 @@ export function MarkdownContent({ children, style }: MarkdownContentProps) {
           ul: ({ children }) => <ul style={{ margin: "0.35em 0 0.7em", paddingLeft: "1.2em" }}>{children}</ul>,
           ol: ({ children }) => <ol style={{ margin: "0.35em 0 0.7em", paddingLeft: "1.2em" }}>{children}</ol>,
           li: ({ children }) => <li style={{ margin: "0.25em 0" }}>{children}</li>,
+          table: ({ children }) => (
+            <div style={{ overflowX: "auto", margin: "0.9em 0 1.15em", border: "0.0625rem solid var(--border)", borderRadius: "0.5rem" }}>
+              <table style={{ width: "100%", minWidth: "max-content", borderCollapse: "collapse", fontSize: "0.9em", lineHeight: 1.45 }}>
+                {children}
+              </table>
+            </div>
+          ),
+          th: ({ children }) => <th style={{ padding: "0.5em 0.625em", textAlign: "left", borderBottom: "0.0625rem solid var(--border)", background: "var(--bg-secondary)", color: "var(--text-primary)", fontWeight: 650, whiteSpace: "nowrap" }}>{children}</th>,
+          td: ({ children }) => <td style={{ padding: "0.5em 0.625em", borderBottom: "0.0625rem solid var(--border)", verticalAlign: "top" }}>{children}</td>,
           a: ({ href, children }) => (
             <a href={href} target="_blank" rel="noopener noreferrer" style={{ color: "var(--accent)" }}>
               {children}

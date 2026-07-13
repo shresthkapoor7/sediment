@@ -1,17 +1,25 @@
 from __future__ import annotations
 
+import asyncio
 import gzip
 import unittest
 from unittest.mock import AsyncMock, patch
 
+from app.config import settings
+from app.services.paper_access import ContentCandidate, DownloadedContent
 from app.services.paper_ingestion import (
     IngestionError,
     MAX_TOKENS,
+    PaperIngestionService,
+    PaperIngestionLease,
+    PAPER_PARSE_EXECUTOR,
     ParsedBlock,
     ParsedPaper,
     TokenCodec,
     chunk_paper,
     embed_chunks,
+    _normalize_pdf_text,
+    parse_downloaded_paper_in_executor,
     parse_tei,
 )
 from app.services.voyage import VoyageError
@@ -50,6 +58,10 @@ class TeiParserTests(unittest.TestCase):
 
 
 class ChunkingTests(unittest.TestCase):
+    def test_table_text_preserves_markdown_rows(self) -> None:
+        table = "| Metric | Score |\n| --- | --- |\n| BLEU | 31.4 |"
+        self.assertEqual(_normalize_pdf_text(table, preserve_lines=True), table)
+
     def test_chunks_are_bounded_and_include_embedding_context(self) -> None:
         codec = TokenCodec()
         paragraphs = [
@@ -65,6 +77,160 @@ class ChunkingTests(unittest.TestCase):
 
 
 class EmbeddingErrorTests(unittest.IsolatedAsyncioTestCase):
+    async def test_parse_timeout_marks_the_document_failed(self) -> None:
+        service = object.__new__(PaperIngestionService)
+        service.db = AsyncMock()
+        service.db.get_ready_paper_document.return_value = None
+        service.db.prepare_paper_ingestion.return_value = {
+            "document_id": "document-1",
+            "is_claimed": True,
+            "lease_id": "lease-1",
+        }
+        service.db.renew_paper_ingestion_lease.return_value = True
+        service.codec = TokenCodec()
+
+        downloaded = DownloadedContent(
+            candidate=ContentCandidate("openalex_pdf", "https://example.test/paper.pdf", "pdf", None),
+            content=b"%PDF-1.7",
+            source_url="https://example.test/paper.pdf",
+        )
+        access = AsyncMock()
+        access.download_first_available.return_value = downloaded
+
+        class OpenAlexContext:
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *_args):
+                return False
+
+            async def fetch_access_metadata(self, _openalex_id):
+                return {"doi": None}
+
+        async def never_returns():
+            await __import__("asyncio").Event().wait()
+
+        with patch("app.services.paper_ingestion.OpenAlexClient", return_value=OpenAlexContext()):
+            with patch("app.services.paper_ingestion.PaperAccessChecker", return_value=access):
+                with patch(
+                    "app.services.paper_ingestion.parse_downloaded_paper_in_executor",
+                    new=lambda *_args, **_kwargs: never_returns(),
+                ):
+                    with patch.object(settings, "paper_parse_timeout_seconds", 0.001):
+                        with self.assertRaisesRegex(IngestionError, "timed out") as raised:
+                            await service.ingest("W1", {"title": "Test"})
+
+        self.assertEqual(raised.exception.code, "pdf_parse_timed_out")
+        service.db.fail_paper_ingestion.assert_awaited_with(
+            "document-1", "lease-1", "pdf_parse_timed_out",
+        )
+
+    async def test_lease_transitions_and_heartbeats_verify_ownership(self) -> None:
+        db = AsyncMock()
+        db.renew_paper_ingestion_lease.return_value = True
+        lease = PaperIngestionLease(db, "document-1", "lease-1")
+
+        await lease.transition("fetching")
+        await lease.transition("parsing")
+        await lease.transition("embedding")
+
+        self.assertEqual(lease.status, "embedding")
+        self.assertEqual(
+            db.renew_paper_ingestion_lease.await_args_list[0].args,
+            ("document-1", "lease-1", "fetching"),
+        )
+        self.assertEqual(
+            db.renew_paper_ingestion_lease.await_args_list[1].args,
+            ("document-1", "lease-1", "parsing"),
+        )
+        self.assertEqual(
+            db.renew_paper_ingestion_lease.await_args_list[2].args,
+            ("document-1", "lease-1", "embedding"),
+        )
+
+    async def test_heartbeat_marks_a_lost_lease_before_later_writes(self) -> None:
+        db = AsyncMock()
+        db.renew_paper_ingestion_lease.return_value = False
+        lease = PaperIngestionLease(db, "document-1", "lease-1")
+        lease.status = "parsing"
+
+        with patch("app.services.paper_ingestion.asyncio.sleep", AsyncMock()):
+            await lease._heartbeat()
+
+        db.renew_paper_ingestion_lease.assert_awaited_once_with("document-1", "lease-1", "parsing")
+        with self.assertRaisesRegex(IngestionError, "ownership was lost"):
+            lease.ensure_active()
+
+    async def test_parser_uses_the_dedicated_bounded_executor(self) -> None:
+        expected = ParsedPaper("Test", [])
+        event_loop = asyncio.get_running_loop()
+
+        class FakeLoop:
+            def __init__(self):
+                self.executor = None
+
+            def run_in_executor(self, executor, _function, *_args):
+                self.executor = executor
+                future = event_loop.create_future()
+                future.set_result(expected)
+                return future
+
+        fake_loop = FakeLoop()
+        downloaded = DownloadedContent(
+            candidate=ContentCandidate("openalex_pdf", "https://example.test/paper.pdf", "pdf", None),
+            content=b"%PDF-1.7",
+            source_url="https://example.test/paper.pdf",
+        )
+        with patch("app.services.paper_ingestion.asyncio.get_running_loop", return_value=fake_loop):
+            result = await parse_downloaded_paper_in_executor(downloaded, "Fallback")
+
+        self.assertIs(result, expected)
+        self.assertIs(fake_loop.executor, PAPER_PARSE_EXECUTOR)
+
+    async def test_unexpected_ingestion_failure_is_logged_before_wrapping(self) -> None:
+        service = object.__new__(PaperIngestionService)
+        service.db = AsyncMock()
+        service.db.get_ready_paper_document.return_value = None
+        service.db.prepare_paper_ingestion.return_value = {
+            "document_id": "document-1",
+            "is_claimed": True,
+            "lease_id": "lease-1",
+        }
+        service.db.renew_paper_ingestion_lease.return_value = True
+        service.codec = TokenCodec()
+        downloaded = DownloadedContent(
+            candidate=ContentCandidate("openalex_pdf", "https://example.test/paper.pdf", "pdf", None),
+            content=b"%PDF-1.7",
+            source_url="https://example.test/paper.pdf",
+        )
+        access = AsyncMock()
+        access.download_first_available.return_value = downloaded
+
+        class OpenAlexContext:
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *_args):
+                return False
+
+            async def fetch_access_metadata(self, _openalex_id):
+                return {"doi": None}
+
+        with patch("app.services.paper_ingestion.OpenAlexClient", return_value=OpenAlexContext()):
+            with patch("app.services.paper_ingestion.PaperAccessChecker", return_value=access):
+                with patch(
+                    "app.services.paper_ingestion.parse_downloaded_paper_in_executor",
+                    AsyncMock(return_value=ParsedPaper("Test", [])),
+                ):
+                    with patch("app.services.paper_ingestion.chunk_paper", side_effect=RuntimeError("parser bug")):
+                        with patch("app.services.paper_ingestion.logger.exception") as log_failure:
+                            with self.assertRaises(IngestionError) as raised:
+                                await service.ingest("W1", {"title": "Test"})
+
+        self.assertEqual(raised.exception.code, "ingestion_failed")
+        log_failure.assert_called_once_with("Paper ingestion failed for document_id=%r", "document-1")
+        service.db.fail_paper_ingestion.assert_awaited_with("document-1", "lease-1", "ingestion_failed")
+
     async def test_embedding_error_preserves_safe_provider_code(self) -> None:
         chunk = chunk_paper(
             ParsedPaper("Test", [ParsedBlock("method text " * 40, "Methods", "body")]),

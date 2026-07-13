@@ -5,6 +5,7 @@ import {
   PaperChatResponse,
   PaperChatStreamEvent,
   PaperAccessResponse,
+  PaperContentResponse,
   PersistentChatSession,
   SavedGraph,
   SavedGraphListItem,
@@ -155,6 +156,7 @@ export async function streamChatAboutPaper(
   question: string,
   onEvent: (event: PaperChatStreamEvent) => void,
   persistence?: { graphId: string; userId: string },
+  selectedExcerpt?: string,
 ): Promise<PaperChatResponse | null> {
   const response = await fetch(`${EXPENSIVE_API_BASE}/api/chat/stream`, {
     method: "POST",
@@ -166,6 +168,7 @@ export async function streamChatAboutPaper(
       year: node.paper.year,
       summary: node.paper.summary,
       question,
+      ...(selectedExcerpt ? { selectedExcerpt } : {}),
     }),
   });
 
@@ -216,6 +219,22 @@ export async function fetchPaperAccess(openalexId: string): Promise<PaperAccessR
   if (!response.ok) {
     const detail = await readErrorDetail(response);
     throw new APIError(detail || `Access check failed with status ${response.status}`, response.status);
+  }
+  return response.json();
+}
+
+export async function fetchCachedPaperContent(
+  graphId: string,
+  userId: string,
+  openalexId: string,
+): Promise<PaperContentResponse> {
+  const response = await fetch(
+    `${EXPENSIVE_API_BASE}/api/graphs/${encodeURIComponent(graphId)}/papers/${encodeURIComponent(openalexId)}/content?userId=${encodeURIComponent(userId)}`,
+    { cache: "no-store" },
+  );
+  if (!response.ok) {
+    const detail = await readErrorDetail(response);
+    throw new APIError(detail || `Paper content failed with status ${response.status}`, response.status);
   }
   return response.json();
 }

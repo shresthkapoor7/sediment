@@ -41,16 +41,36 @@ class DownloadedContent:
 
 class PaperAccessChecker:
     async def check(self, openalex_id: str) -> dict:
-        cached = await self._get_cached_document(openalex_id)
-        if cached:
+        document = await self._get_document(openalex_id)
+        if document and document.get("ingestion_status") == "ready" and int(document.get("chunk_count") or 0) > 0:
             return {
                 "openalexId": openalex_id,
                 "accessStatus": "available",
                 "ingestionStatus": "ready",
-                "sourceType": cached.get("source_type"),
-                "license": cached.get("license"),
+                "sourceType": document.get("source_type"),
+                "license": document.get("license"),
                 "requiresConfirmation": False,
                 "message": "Complete paper text is cached and ready to search.",
+            }
+        if document and document.get("ingestion_status") in {"fetching", "parsing", "embedding"}:
+            return {
+                "openalexId": openalex_id,
+                "accessStatus": "available",
+                "ingestionStatus": "processing",
+                "sourceType": document.get("source_type"),
+                "license": document.get("license"),
+                "requiresConfirmation": False,
+                "message": "Complete paper text is still being indexed. It is not available to search yet.",
+            }
+        if document and document.get("ingestion_status") == "failed":
+            return {
+                "openalexId": openalex_id,
+                "accessStatus": "available",
+                "ingestionStatus": "failed",
+                "sourceType": document.get("source_type"),
+                "license": document.get("license"),
+                "requiresConfirmation": True,
+                "message": "The previous paper indexing attempt failed. Confirm to retry it.",
             }
 
         try:
@@ -97,9 +117,11 @@ class PaperAccessChecker:
                 return await self._download_candidate(session, unpaywall_candidate)
         return None
 
-    async def _get_cached_document(self, openalex_id: str) -> dict | None:
+    async def _get_document(self, openalex_id: str) -> dict | None:
         try:
-            return await SupabaseClient().get_ready_paper_document(openalex_id)
+            db = SupabaseClient()
+            ready_document = await db.get_ready_paper_document(openalex_id)
+            return ready_document or await db.get_latest_paper_document(openalex_id)
         except (SupabaseConfigError, SupabaseAPIError):
             return None
 

@@ -283,6 +283,32 @@ class SupabaseClient:
         )
         return await self._request("GET", query, expect_single=True, allow_empty=True)
 
+    async def get_latest_paper_document(self, openalex_id: str) -> dict[str, Any] | None:
+        query = (
+            "/rest/v1/paper_documents"
+            "?select=id,openalex_id,source_type,license,ingestion_status,ingestion_error,chunk_count,updated_at"
+            f"&openalex_id=eq.{quote(openalex_id, safe='')}"
+            "&order=created_at.desc"
+            "&limit=1"
+        )
+        return await self._request("GET", query, expect_single=True, allow_empty=True)
+
+    async def list_paper_document_chunks(
+        self,
+        document_id: str,
+        *,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]]:
+        safe_limit = min(max(limit, 1), 1_000) if limit is not None else None
+        query = (
+            "/rest/v1/paper_chunks"
+            "?select=chunk_index,content,section,section_type,page_start,page_end"
+            f"&document_id=eq.{quote(document_id, safe='')}"
+            "&order=chunk_index.asc"
+            + (f"&limit={safe_limit}" if safe_limit is not None else "")
+        )
+        return await self._request("GET", query)
+
     async def prepare_paper_ingestion(self, payload: dict[str, Any]) -> dict[str, Any]:
         return await self.rpc("prepare_paper_ingestion", payload, expect_single=True)
 
@@ -301,6 +327,36 @@ class SupabaseClient:
             },
         )
 
+    async def renew_paper_ingestion_lease(
+        self,
+        document_id: str,
+        lease_id: str,
+        status: str,
+    ) -> bool:
+        return bool(await self.rpc(
+            "renew_paper_ingestion_lease",
+            {
+                "p_document_id": document_id,
+                "p_lease_id": lease_id,
+                "p_status": status,
+            },
+        ))
+
+    async def fail_paper_ingestion(
+        self,
+        document_id: str,
+        lease_id: str,
+        error_code: str | None = None,
+    ) -> bool:
+        return bool(await self.rpc(
+            "fail_paper_ingestion",
+            {
+                "p_document_id": document_id,
+                "p_lease_id": lease_id,
+                "p_error_code": error_code,
+            },
+        ))
+
     async def replace_paper_chunks(self, document_id: str, chunks: list[dict[str, Any]]) -> None:
         delete_query = (
             "/rest/v1/paper_chunks"
@@ -316,10 +372,10 @@ class SupabaseClient:
                 allow_empty=True,
             )
 
-    async def complete_paper_ingestion(self, document_id: str) -> dict[str, Any]:
+    async def complete_paper_ingestion(self, document_id: str, lease_id: str) -> dict[str, Any]:
         return await self.rpc(
             "complete_paper_ingestion",
-            {"p_document_id": document_id},
+            {"p_document_id": document_id, "p_lease_id": lease_id},
             expect_single=True,
         )
 

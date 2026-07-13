@@ -1,4 +1,5 @@
 import logging
+from contextlib import asynccontextmanager
 from ipaddress import ip_address, ip_network
 from typing import Optional
 
@@ -9,10 +10,19 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from .config import settings
 from .routers import changelog, chat, clarify, expand, paper_access, persistence, search, usage
+from .services.paper_ingestion import shutdown_paper_parse_executor
 
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="Sediment API")
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    try:
+        yield
+    finally:
+        shutdown_paper_parse_executor()
+
+
+app = FastAPI(title="Sediment API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,

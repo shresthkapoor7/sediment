@@ -135,6 +135,27 @@ class PaperAgentChatTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["citations"][0]["id"], "paper:W1:document:D1:chunk:0")
         self.assertEqual(client.client.messages.create.await_count, 2)
 
+    async def test_selected_excerpt_is_included_as_user_provided_context(self) -> None:
+        client = LLMClient(api_key="test-key", model="claude-test")
+        final = SimpleNamespace(
+            content=[FakeBlock(type="text", text="The excerpt describes the evaluation setup.")],
+            usage=SimpleNamespace(input_tokens=10, output_tokens=5),
+        )
+        client.client.messages.create = AsyncMock(return_value=final)
+
+        with patch("app.services.llm.limiter.record_usage", AsyncMock()):
+            await client.chat_about_paper_agentic(
+                {"title": "Paper", "year": 2020, "summary": "Summary"},
+                "What does this mean?",
+                selected_excerpt="The model is evaluated on the development set.",
+                tool_runner=AsyncMock(),
+                ip="127.0.0.1",
+            )
+
+        prompt = client.client.messages.create.await_args.kwargs["messages"][-1]["content"]
+        self.assertIn("User-selected excerpt from this paper:", prompt)
+        self.assertIn("The model is evaluated on the development set.", prompt)
+
     async def test_streaming_emits_text_deltas_and_keeps_final_message(self) -> None:
         client = LLMClient(api_key="test-key", model="claude-test")
         final = SimpleNamespace(

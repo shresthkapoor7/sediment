@@ -604,8 +604,8 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
                       ))}
                       {(msg.toolEvents ?? []).map((tool) => (
                         <div key={`${msg.id}-${tool.name}`} style={{ display: "flex", alignItems: "center", gap: "0.375rem", color: "var(--text-secondary)", fontSize: "0.6875rem", fontFamily: "'DM Sans', sans-serif" }}>
-                          <span style={{ color: tool.status === "started" ? "var(--accent)" : tool.status === "error" ? "var(--danger, #b45309)" : "var(--text-tertiary)" }}>
-                            {tool.status === "started" ? "↻" : tool.status === "error" ? "!" : "✓"}
+                          <span style={{ color: tool.status === "started" || tool.status === "processing" ? "var(--accent)" : tool.status === "error" ? "var(--danger, #b45309)" : "var(--text-tertiary)" }}>
+                            {tool.status === "started" || tool.status === "processing" ? "↻" : tool.status === "error" ? "!" : "✓"}
                           </span>
                           {tool.label}
                         </div>
@@ -891,6 +891,7 @@ function globalToolLabel(name: string, status?: string, result?: Record<string, 
   if (name === "check_paper_access") return status === "started" ? "Checking paper access" : "Checked paper access";
   if (name === "retrieve_paper_content") {
     if (status === "needs_confirmation") return "Complete paper access needs confirmation";
+    if (status === "processing") return "Paper indexing is still in progress";
     return status === "started" ? "Accessing and indexing complete paper" : "Paper access finished";
   }
   if (name === "search_paper_content") {
