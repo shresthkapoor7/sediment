@@ -26,6 +26,7 @@ from ..models import (
 )
 from ..services.chat_memory import ChatContext, ChatMemoryService, serialize_chat_context
 from ..services.llm import LLMClient, LLMParseError
+from ..services.openalex import OpenAlexClient, OpenAlexError
 from ..services.paper_access import PaperAccessChecker
 from ..services.paper_ingestion import IngestionError, PaperIngestionService
 from ..services.paper_retrieval import PaperRetrievalService, RetrievalError
@@ -59,6 +60,17 @@ def _graph_papers(graph_data: object) -> list[dict]:
     return papers
 
 
+def _graph_root_openalex_id(graph_data: object) -> str | None:
+    if not isinstance(graph_data, dict) or not isinstance(graph_data.get("nodes"), dict):
+        return None
+    root_id = graph_data.get("rootId")
+    node = graph_data["nodes"].get(str(root_id))
+    if node is None:
+        node = graph_data["nodes"].get(root_id)
+    paper = node.get("paper") if isinstance(node, dict) else None
+    return paper.get("openalexId") if isinstance(paper, dict) and isinstance(paper.get("openalexId"), str) else None
+
+
 def _normalize_openalex_id(paper_id: object) -> str:
     if not isinstance(paper_id, str):
         return ""
@@ -66,6 +78,63 @@ def _normalize_openalex_id(paper_id: object) -> str:
     if "/" in value:
         value = value.rstrip("/").rsplit("/", 1)[-1]
     return value.upper()
+
+
+def _unique_openalex_ids(value: object, limit: int) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    unique: list[str] = []
+    seen: set[str] = set()
+    for paper_id in value:
+        normalized = _normalize_openalex_id(paper_id)
+        if normalized and normalized not in seen:
+            seen.add(normalized)
+            unique.append(normalized)
+        if len(unique) >= limit:
+            break
+    return unique
+
+
+def _lineage_paper_payload(paper: dict[str, Any]) -> dict[str, Any]:
+    detail = str(paper.get("detail") or paper.get("abstract") or "").strip()
+    summary = detail.split(".", 1)[0].strip()
+    if summary:
+        summary = f"{summary}."
+    else:
+        summary = "OpenAlex metadata for this paper."
+    return {
+        "openalexId": paper.get("openalexId"),
+        "title": paper.get("title") or "Untitled paper",
+        "year": paper.get("year") if isinstance(paper.get("year"), int) else None,
+        "summary": summary[:500],
+        "detail": detail[:4_000],
+        "authors": [author for author in paper.get("authors", []) if isinstance(author, str)][:20],
+        "doi": paper.get("doi") if isinstance(paper.get("doi"), str) else None,
+        "oaUrl": paper.get("oaUrl") if isinstance(paper.get("oaUrl"), str) else None,
+        "isOa": bool(paper.get("isOa")),
+        "oaStatus": paper.get("oaStatus") if isinstance(paper.get("oaStatus"), str) else None,
+        "hasFulltext": bool(paper.get("hasFulltext")),
+        "hasContentPdf": bool(paper.get("hasContentPdf")),
+        "hasContentTei": bool(paper.get("hasContentTei")),
+        "oaLicense": paper.get("oaLicense") if isinstance(paper.get("oaLicense"), str) else None,
+        "concepts": [concept for concept in paper.get("concepts", []) if isinstance(concept, str)][:5],
+        "type": paper.get("type") if isinstance(paper.get("type"), str) else None,
+        "citedByCount": paper.get("citedByCount") if isinstance(paper.get("citedByCount"), int) else 0,
+        "referencesCount": paper.get("referencedWorksCount") if isinstance(paper.get("referencedWorksCount"), int) else 0,
+    }
+
+
+def _lineage_search_candidate(paper: dict[str, Any]) -> dict[str, Any]:
+    return {
+        **_lineage_paper_payload(paper),
+        "abstract": str(paper.get("abstract") or "")[:1_200],
+        "referencedPaperIds": [
+            paper_id
+            for paper_id in paper.get("referencedWorks", [])
+            if isinstance(paper_id, str)
+        ][:30],
+        "primaryTopic": paper.get("primaryTopic") if isinstance(paper.get("primaryTopic"), str) else None,
+    }
 
 
 def _latest_pending_action(context: ChatContext | None) -> dict[str, Any] | None:
@@ -150,12 +219,21 @@ def _compact_tool_result_for_event(result: dict[str, Any]) -> dict[str, Any]:
     compact = {
         key: value
         for key, value in result.items()
-        if key != "matches"
+        if key not in {"matches", "papers", "addedPapers", "edges"}
     }
     matches = result.get("matches")
     if isinstance(matches, list):
         compact["matchCount"] = len(matches)
         compact["citations"] = _tool_citations(result)
+    papers = result.get("papers")
+    if isinstance(papers, list):
+        compact["paperCount"] = len(papers)
+    added_papers = result.get("addedPapers")
+    if isinstance(added_papers, list):
+        compact["addedPaperCount"] = len(added_papers)
+    edges = result.get("edges")
+    if isinstance(edges, list):
+        compact["edgeCount"] = len(edges)
     return compact
 
 
@@ -345,6 +423,10 @@ async def _run_paper_chat(req: ChatRequest, request_ip: str, event_emitter: Chat
 
 
 def _tool_status_message(name: str, state: str) -> str:
+    if name == "search_openalex_papers":
+        return "Searching OpenAlex" if state == "started" else "OpenAlex search finished"
+    if name == "update_lineage":
+        return "Updating the lineage" if state == "started" else "Lineage updated"
     if name == "check_paper_access":
         return "Checking paper access" if state == "started" else "Checked paper access"
     if name == "retrieve_paper_content":
@@ -415,6 +497,7 @@ async def _run_global_chat(req: GlobalChatRequest, request_ip: str, event_emitte
 
     context = None
     memory = None
+    graph_data: dict[str, Any] | None = None
     papers = [p.model_dump() for p in req.papers]
     paper_by_normalized_id = {
         _normalize_openalex_id(paper.get("openalexId")): paper
@@ -430,7 +513,8 @@ async def _run_global_chat(req: GlobalChatRequest, request_ip: str, event_emitte
                 req.userId,
                 "graph",
             )
-            papers = _graph_papers(graph.get("data"))
+            graph_data = graph.get("data") if isinstance(graph.get("data"), dict) else None
+            papers = _graph_papers(graph_data)
             if not papers:
                 raise HTTPException(status_code=400, detail="Graph contains no papers.")
             paper_by_normalized_id = {
@@ -456,14 +540,193 @@ async def _run_global_chat(req: GlobalChatRequest, request_ip: str, event_emitte
 
     valid_ids = {paper.get("openalexId") for paper in papers}
     primary_paper_id = mentioned_paper_ids[0] if mentioned_paper_ids else None
+    root_paper_id = _graph_root_openalex_id(graph_data)
     pending_action = _latest_pending_action(context)
     if pending_action and not pending_action.get("paperId") and primary_paper_id:
         pending_action = {**pending_action, "paperId": primary_paper_id}
     retrieval = PaperRetrievalService(memory.db) if memory else None
+    searched_openalex_papers: dict[str, dict[str, Any]] = {}
+    lineage_edges: list[dict[str, str]] = []
 
     async def run_global_tool(name: str, tool_input: dict[str, Any]) -> dict[str, Any]:
         await _emit(event_emitter, "tool_started", {"name": name, "input": tool_input})
         await _emit(event_emitter, "status", {"message": _tool_status_message(name, "started")})
+
+        if name == "search_openalex_papers":
+            query = str(tool_input.get("query") or "").strip()[:300]
+            try:
+                limit = max(1, min(int(tool_input.get("limit") or 5), 8))
+            except (TypeError, ValueError):
+                limit = 5
+            if not query:
+                result = {"status": "error", "message": "A search query is required."}
+                await _emit(event_emitter, "tool_completed", {"name": name, "status": "error", "result": result})
+                return result
+            try:
+                async with OpenAlexClient(
+                    api_key=settings.openalex_api_key,
+                    mailto=settings.openalex_mailto,
+                ) as openalex:
+                    matches = await openalex.search_papers(query, limit=limit)
+            except OpenAlexError:
+                result = {"status": "error", "message": "OpenAlex search is currently unavailable."}
+                await _emit(event_emitter, "tool_completed", {"name": name, "status": "error", "result": result})
+                return result
+
+            candidates = []
+            for paper in matches[:8]:
+                normalized = _normalize_openalex_id(paper.get("openalexId"))
+                if not normalized:
+                    continue
+                searched_openalex_papers[normalized] = paper
+                candidates.append(_lineage_search_candidate(paper))
+            result = {"status": "completed", "query": query, "papers": candidates}
+            await _emit(event_emitter, "tool_completed", {
+                "name": name,
+                "status": result["status"],
+                "result": _compact_tool_result_for_event(result),
+            })
+            return result
+
+        if name == "update_lineage":
+            if not req.graphId or not req.userId:
+                result = {
+                    "status": "error",
+                    "message": "Lineage edits require a saved graph. Try again after the timeline has been saved.",
+                }
+                await _emit(event_emitter, "tool_completed", {"name": name, "status": "error", "result": result})
+                return result
+
+            requested_additions = _unique_openalex_ids(tool_input.get("addPaperIds"), 5)
+            requested_removals = _unique_openalex_ids(tool_input.get("removePaperIds"), 10)
+            current_by_normalized_id = {
+                _normalize_openalex_id(paper.get("openalexId")): paper
+                for paper in papers
+                if _normalize_openalex_id(paper.get("openalexId"))
+            }
+            skipped: list[dict[str, str]] = []
+            removed_paper_ids: list[str] = []
+            for paper_id in requested_removals:
+                paper = current_by_normalized_id.get(paper_id)
+                if not paper:
+                    skipped.append({"paperId": paper_id, "reason": "not_in_timeline"})
+                    continue
+                canonical_id = str(paper.get("openalexId"))
+                if _normalize_openalex_id(canonical_id) == _normalize_openalex_id(root_paper_id):
+                    skipped.append({"paperId": canonical_id, "reason": "seed_paper"})
+                    continue
+                removed_paper_ids.append(canonical_id)
+
+            added_papers: list[dict[str, Any]] = []
+            for paper_id in requested_additions:
+                if paper_id in current_by_normalized_id:
+                    skipped.append({"paperId": current_by_normalized_id[paper_id]["openalexId"], "reason": "already_in_timeline"})
+                    continue
+                paper = searched_openalex_papers.get(paper_id)
+                if not paper:
+                    skipped.append({"paperId": paper_id, "reason": "not_returned_by_openalex_search"})
+                    continue
+                added_papers.append(_lineage_paper_payload(paper))
+
+            retained_ids = {
+                _normalize_openalex_id(paper.get("openalexId"))
+                for paper in papers
+                if _normalize_openalex_id(paper.get("openalexId"))
+                and paper.get("openalexId") not in removed_paper_ids
+            }
+            known_papers = {
+                **{
+                    _normalize_openalex_id(paper.get("openalexId")): str(paper.get("openalexId"))
+                    for paper in papers
+                    if _normalize_openalex_id(paper.get("openalexId"))
+                },
+                **{
+                    _normalize_openalex_id(paper.get("openalexId")): str(paper.get("openalexId"))
+                    for paper in added_papers
+                    if _normalize_openalex_id(paper.get("openalexId"))
+                },
+            }
+            retained_ids.update(_normalize_openalex_id(paper.get("openalexId")) for paper in added_papers)
+            edges: list[dict[str, str]] = []
+            edge_keys = {
+                f"{edge['parentOpenalexId']}->{edge['childOpenalexId']}"
+                for edge in lineage_edges
+            }
+            raw_edges = tool_input.get("edges") if isinstance(tool_input.get("edges"), list) else []
+            for raw_edge in raw_edges[:12]:
+                if not isinstance(raw_edge, dict):
+                    skipped.append({"paperId": "<invalid edge>", "reason": "edge_invalid_payload"})
+                    continue
+                parent_normalized = _normalize_openalex_id(raw_edge.get("parentPaperId"))
+                child_normalized = _normalize_openalex_id(raw_edge.get("childPaperId"))
+                edge_id = f"{raw_edge.get('parentPaperId') or '?'}->{raw_edge.get('childPaperId') or '?'}"
+                if (
+                    not parent_normalized
+                    or not child_normalized
+                    or parent_normalized not in retained_ids
+                    or child_normalized not in retained_ids
+                ):
+                    skipped.append({"paperId": edge_id, "reason": "edge_invalid_reference"})
+                    continue
+                if parent_normalized == child_normalized:
+                    skipped.append({"paperId": edge_id, "reason": "edge_self_loop"})
+                    continue
+                relation = raw_edge.get("relation")
+                if relation not in {"influenced", "inferred"}:
+                    skipped.append({"paperId": edge_id, "reason": "edge_invalid_relation"})
+                    continue
+                edge = {
+                    "parentOpenalexId": known_papers[parent_normalized],
+                    "childOpenalexId": known_papers[child_normalized],
+                    "relation": relation,
+                }
+                key = f"{edge['parentOpenalexId']}->{edge['childOpenalexId']}"
+                if key in edge_keys:
+                    skipped.append({"paperId": edge_id, "reason": "edge_duplicate"})
+                    continue
+                edge_keys.add(key)
+                edges.append(edge)
+
+            result = {
+                "status": "completed",
+                "addedPapers": added_papers,
+                "removedPaperIds": list(dict.fromkeys(removed_paper_ids)),
+                "edges": edges,
+                "skipped": skipped,
+            }
+            removed_normalized_ids = {_normalize_openalex_id(paper_id) for paper_id in removed_paper_ids}
+            papers[:] = [
+                paper
+                for paper in papers
+                if _normalize_openalex_id(paper.get("openalexId")) not in removed_normalized_ids
+            ]
+            current_ids = {
+                _normalize_openalex_id(paper.get("openalexId"))
+                for paper in papers
+                if _normalize_openalex_id(paper.get("openalexId"))
+            }
+            for paper in added_papers:
+                normalized_id = _normalize_openalex_id(paper.get("openalexId"))
+                if normalized_id and normalized_id not in current_ids:
+                    papers.append(paper)
+                    current_ids.add(normalized_id)
+            valid_ids.clear()
+            valid_ids.update(paper.get("openalexId") for paper in papers)
+            lineage_edges[:] = [
+                edge
+                for edge in [*lineage_edges, *edges]
+                if (
+                    _normalize_openalex_id(edge["parentOpenalexId"]) not in removed_normalized_ids
+                    and _normalize_openalex_id(edge["childOpenalexId"]) not in removed_normalized_ids
+                )
+            ]
+            await _emit(event_emitter, "tool_completed", {
+                "name": name,
+                "status": result["status"],
+                "result": _compact_tool_result_for_event(result),
+            })
+            return result
+
         requested_paper_id = str(tool_input.get("paperId") or primary_paper_id or "")
         paper = _paper_by_id(papers, requested_paper_id)
         canonical_paper_id = paper.get("openalexId") if paper else requested_paper_id

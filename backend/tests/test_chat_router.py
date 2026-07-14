@@ -10,6 +10,188 @@ from app.services.chat_memory import ChatContext
 
 
 class PersistentChatRouterTests(unittest.IsolatedAsyncioTestCase):
+    async def test_global_lineage_tools_search_then_return_a_validated_change(self) -> None:
+        memory = AsyncMock()
+        memory.append.side_effect = [
+            {"sequence_number": 3},
+            {"sequence_number": 4},
+        ]
+        context = ChatContext(
+            session={"id": "session-1", "summary": None, "summary_through_sequence": 0},
+            messages=[],
+        )
+        graph = {
+            "data": {
+                "rootId": 1,
+                "nodes": {
+                    "1": {"paper": {"openalexId": "W1", "title": "Root Paper", "year": 2017, "summary": "Root"}},
+                    "2": {"paper": {"openalexId": "W2", "title": "Optional Paper", "year": 2018, "summary": "Optional"}},
+                },
+            },
+        }
+
+        class FakeOpenAlex:
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *_args):
+                return None
+
+            async def search_papers(self, query, limit=8):
+                if query != "residual learning" or limit != 5:
+                    raise AssertionError(f"Unexpected OpenAlex search: {query!r}, limit={limit}")
+                return [{
+                    "openalexId": "W3",
+                    "title": "Deep Residual Learning for Image Recognition",
+                    "year": 2015,
+                    "detail": "Residual connections enable deep networks.",
+                    "authors": ["Kaiming He"],
+                    "referencedWorks": ["W1"],
+                    "referencedWorksCount": 1,
+                    "citedByCount": 100,
+                }]
+
+        fake_openalex = FakeOpenAlex()
+
+        async def answer(_papers, _question, **kwargs):
+            search_result = await kwargs["tool_runner"](
+                "search_openalex_papers",
+                {"query": "residual learning"},
+            )
+            self.assertEqual(search_result["papers"][0]["openalexId"], "W3")
+            change = await kwargs["tool_runner"](
+                "update_lineage",
+                {
+                    "addPaperIds": ["W3"],
+                    "removePaperIds": ["W2", "W1"],
+                    "edges": [{"parentPaperId": "W3", "childPaperId": "W1", "relation": "influenced"}],
+                },
+            )
+            self.assertEqual(change["removedPaperIds"], ["W2"])
+            self.assertEqual(change["addedPapers"][0]["openalexId"], "W3")
+            self.assertEqual(change["edges"][0]["parentOpenalexId"], "W3")
+            self.assertIn({"paperId": "W1", "reason": "seed_paper"}, change["skipped"])
+            return {
+                "text": "Updated the lineage.",
+                "highlightedPaperIds": ["W1"],
+                "suggestion": None,
+                "toolUses": [],
+                "citations": [],
+                "lineageChanges": [change],
+            }
+
+        request = SimpleNamespace(state=SimpleNamespace(verified_client_ip="127.0.0.1"), client=None)
+        req = GlobalChatRequest(
+            graphId="00000000-0000-0000-0000-000000000001",
+            userId="00000000-0000-0000-0000-000000000002",
+            papers=[
+                {"openalexId": "W1", "title": "Root Paper", "year": 2017, "summary": "Root"},
+                {"openalexId": "W2", "title": "Optional Paper", "year": 2018, "summary": "Optional"},
+            ],
+            question="Add residual learning and delete the optional paper.",
+        )
+
+        with patch("app.routers.chat.limiter.claim_request", AsyncMock()):
+            with patch(
+                "app.routers.chat._load_persistent_context",
+                AsyncMock(return_value=(AsyncMock(), graph, memory, context)),
+            ):
+                with patch("app.routers.chat.OpenAlexClient", return_value=fake_openalex):
+                    with patch("app.routers.chat._llm.chat_about_timeline_agentic", AsyncMock(side_effect=answer)):
+                        response = await chat_global(req, request)
+
+        self.assertEqual(response.lineageChanges[0]["addedPapers"][0]["openalexId"], "W3")
+        self.assertEqual(response.lineageChanges[0]["removedPaperIds"], ["W2"])
+
+    async def test_global_lineage_updates_retain_prior_papers_and_edges_within_one_turn(self) -> None:
+        memory = AsyncMock()
+        memory.append.side_effect = [{"sequence_number": 3}, {"sequence_number": 4}]
+        context = ChatContext(
+            session={"id": "session-1", "summary": None, "summary_through_sequence": 0},
+            messages=[],
+        )
+        graph = {
+            "data": {
+                "rootId": 1,
+                "nodes": {
+                    "1": {"paper": {"openalexId": "W1", "title": "Root Paper", "year": 2017, "summary": "Root"}},
+                },
+            },
+        }
+
+        class FakeOpenAlex:
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *_args):
+                return None
+
+            async def search_papers(self, _query, limit=8):
+                if limit != 5:
+                    raise AssertionError(f"Unexpected OpenAlex limit: {limit}")
+                return [{
+                    "openalexId": "W3",
+                    "title": "Added Paper",
+                    "year": 2015,
+                    "detail": "A candidate paper.",
+                    "authors": [],
+                }]
+
+        async def answer(_papers, _question, **kwargs):
+            await kwargs["tool_runner"]("search_openalex_papers", {"query": "added paper"})
+            first = await kwargs["tool_runner"]("update_lineage", {
+                "addPaperIds": ["W3"],
+                "edges": [
+                    {"parentPaperId": "W3", "childPaperId": "W1", "relation": "influenced"},
+                    {"parentPaperId": "W3", "childPaperId": "W404", "relation": "influenced"},
+                    {"parentPaperId": "W3", "childPaperId": "W3", "relation": "influenced"},
+                    {"parentPaperId": "W3", "childPaperId": "W1", "relation": "unsupported"},
+                ],
+            })
+            self.assertIn({"paperId": "W3->W404", "reason": "edge_invalid_reference"}, first["skipped"])
+            self.assertIn({"paperId": "W3->W3", "reason": "edge_self_loop"}, first["skipped"])
+            self.assertIn({"paperId": "W3->W1", "reason": "edge_invalid_relation"}, first["skipped"])
+
+            second = await kwargs["tool_runner"]("update_lineage", {
+                "edges": [{"parentPaperId": "W1", "childPaperId": "W3", "relation": "inferred"}],
+            })
+            self.assertEqual(second["edges"], [{
+                "parentOpenalexId": "W1",
+                "childOpenalexId": "W3",
+                "relation": "inferred",
+            }])
+
+            duplicate = await kwargs["tool_runner"]("update_lineage", {
+                "edges": [{"parentPaperId": "W3", "childPaperId": "W1", "relation": "influenced"}],
+            })
+            self.assertEqual(duplicate["edges"], [])
+            self.assertIn({"paperId": "W3->W1", "reason": "edge_duplicate"}, duplicate["skipped"])
+            return {
+                "text": "Updated the lineage.",
+                "highlightedPaperIds": ["W3"],
+                "suggestion": None,
+                "toolUses": [],
+                "citations": [],
+                "lineageChanges": [first, second],
+            }
+
+        request = SimpleNamespace(state=SimpleNamespace(verified_client_ip="127.0.0.1"), client=None)
+        req = GlobalChatRequest(
+            graphId="00000000-0000-0000-0000-000000000001",
+            userId="00000000-0000-0000-0000-000000000002",
+            papers=[{"openalexId": "W1", "title": "Root Paper", "year": 2017, "summary": "Root"}],
+            question="Add a paper and connect it.",
+        )
+
+        with patch("app.routers.chat.limiter.claim_request", AsyncMock()):
+            with patch("app.routers.chat._load_persistent_context", AsyncMock(return_value=(AsyncMock(), graph, memory, context))):
+                with patch("app.routers.chat.OpenAlexClient", return_value=FakeOpenAlex()):
+                    with patch("app.routers.chat._llm.chat_about_timeline_agentic", AsyncMock(side_effect=answer)):
+                        response = await chat_global(req, request)
+
+        self.assertEqual(response.highlightedPaperIds, ["W3"])
+        self.assertEqual(response.lineageChanges[1]["edges"][0]["childOpenalexId"], "W3")
+
     async def test_global_pending_confirmation_without_paper_id_uses_mentioned_paper(self) -> None:
         memory = AsyncMock()
         memory.append.side_effect = [

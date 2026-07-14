@@ -1,4 +1,4 @@
-import { NodeBorderColor, TimelineData, TimelineGraphAction, TimelineNode } from "./types";
+import { GraphEdge, GraphPaper, LineageChange, NodeBorderColor, TimelineData, TimelineGraphAction, TimelineNode } from "./types";
 import { GAP_X, LANE_HEIGHT, NODE_DIMENSIONS, PADDING_X, PADDING_Y } from "./dummy-data";
 
 interface TimelineGraphActionOptions {
@@ -32,6 +32,209 @@ export function applyTimelineGraphAction(
     return applyNoteDisconnection(data, action.noteId, action.nodeId);
   }
   return data;
+}
+
+export function applyTimelineLineageChanges(
+  data: TimelineData,
+  changes: LineageChange[],
+  options: TimelineGraphActionOptions = {},
+): TimelineData {
+  return changes.reduce(
+    (current, change) => applyTimelineLineageChange(current, change, options),
+    data,
+  );
+}
+
+function normalizeOpenalexId(value: unknown): string {
+  if (typeof value !== "string") return "";
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+  return (trimmed.includes("/") ? trimmed.replace(/\/+$/, "").split("/").pop() ?? trimmed : trimmed).toUpperCase();
+}
+
+function isUsableGraphPaper(paper: GraphPaper | undefined | null): paper is GraphPaper {
+  return Boolean(
+    paper
+    && typeof paper.openalexId === "string"
+    && paper.openalexId.trim()
+    && typeof paper.title === "string"
+    && paper.title.trim(),
+  );
+}
+
+function isUsableGraphEdge(edge: GraphEdge | undefined | null): edge is GraphEdge {
+  return Boolean(
+    edge
+    && typeof edge.parentOpenalexId === "string"
+    && typeof edge.childOpenalexId === "string"
+    && (edge.relation === "influenced" || edge.relation === "inferred"),
+  );
+}
+
+function graphPaperToTimelinePaper(paper: GraphPaper, id: number): TimelineNode["paper"] {
+  return {
+    id,
+    openalexId: paper.openalexId,
+    title: paper.title,
+    year: paper.year ?? 0,
+    summary: paper.summary ?? "",
+    detail: paper.detail,
+    authors: paper.authors ?? [],
+    doi: paper.doi,
+    oaUrl: paper.oaUrl,
+    isOa: paper.isOa,
+    oaStatus: paper.oaStatus,
+    hasFulltext: paper.hasFulltext,
+    hasContentPdf: paper.hasContentPdf,
+    hasContentTei: paper.hasContentTei,
+    oaLicense: paper.oaLicense,
+    concepts: paper.concepts ?? [],
+    type: paper.type,
+    citedByCount: paper.citedByCount,
+    referencesCount: paper.referencesCount,
+  };
+}
+
+function cloneNodes(nodes: Record<number, TimelineNode>): Record<number, TimelineNode> {
+  return Object.fromEntries(
+    Object.entries(nodes).map(([id, node]) => [Number(id), {
+      ...node,
+      paper: { ...node.paper, authors: [...(node.paper.authors ?? [])] },
+    }]),
+  );
+}
+
+function cloneAdjacency(adjacency: Record<number, number[]>): Record<number, number[]> {
+  return Object.fromEntries(
+    Object.entries(adjacency).map(([id, children]) => [Number(id), [...children]]),
+  );
+}
+
+function nextNumericId(nodes: Record<number, TimelineNode>): number {
+  return Math.max(0, ...Object.keys(nodes).map(Number)) + 1;
+}
+
+function wouldCreateCycle(adjacency: Record<number, number[]>, parentId: number, childId: number): boolean {
+  const queue = [childId];
+  const visited = new Set<number>();
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+    if (current === parentId) return true;
+    if (visited.has(current)) continue;
+    visited.add(current);
+    queue.push(...(adjacency[current] ?? []));
+  }
+  return false;
+}
+
+function strongerRelation(
+  current: GraphEdge["relation"] | undefined,
+  incoming: GraphEdge["relation"],
+): GraphEdge["relation"] {
+  return current === "influenced" || incoming === "influenced" ? "influenced" : "inferred";
+}
+
+function applyTimelineLineageChange(
+  data: TimelineData,
+  change: LineageChange,
+  options: TimelineGraphActionOptions,
+): TimelineData {
+  let next = data;
+  const removalIds = new Set(
+    (change.removedPaperIds ?? [])
+      .map(normalizeOpenalexId)
+      .filter(Boolean),
+  );
+  for (const node of Object.values(next.nodes)) {
+    if (removalIds.has(normalizeOpenalexId(node.paper.openalexId))) {
+      next = applyNodeDeletion(next, node.id, options);
+    }
+  }
+
+  const additions = (change.addedPapers ?? []).filter(isUsableGraphPaper);
+  const edges = (change.edges ?? []).filter(isUsableGraphEdge);
+  if (additions.length === 0 && edges.length === 0) return next;
+
+  const nodes = cloneNodes(next.nodes);
+  const adjacency = cloneAdjacency(next.adjacency);
+  const edgeRelations = { ...(next.edgeRelations ?? {}) };
+  const numericIdByOpenalexId = new Map(
+    Object.values(nodes).map((node) => [normalizeOpenalexId(node.paper.openalexId), node.id]),
+  );
+  const addedNodeIds: number[] = [];
+  let nextLane = Math.max(next.lanes, ...Object.values(nodes).map((node) => node.lane + 1), 0);
+
+  for (const paper of additions) {
+    const normalizedId = normalizeOpenalexId(paper.openalexId);
+    if (!normalizedId || numericIdByOpenalexId.has(normalizedId)) continue;
+    const nodeId = nextNumericId(nodes);
+    const node: TimelineNode = {
+      id: nodeId,
+      paper: graphPaperToTimelinePaper(paper, nodeId),
+      x: PADDING_X,
+      y: PADDING_Y + nextLane * LANE_HEIGHT,
+      lane: nextLane,
+      parentId: null,
+      expanded: false,
+      generation: 0,
+    };
+    nodes[nodeId] = node;
+    adjacency[nodeId] = [];
+    numericIdByOpenalexId.set(normalizedId, nodeId);
+    addedNodeIds.push(nodeId);
+    nextLane += 1;
+  }
+
+  for (const edge of edges) {
+    const parentId = numericIdByOpenalexId.get(normalizeOpenalexId(edge.parentOpenalexId));
+    const childId = numericIdByOpenalexId.get(normalizeOpenalexId(edge.childOpenalexId));
+    if (!parentId || !childId || parentId === childId || wouldCreateCycle(adjacency, parentId, childId)) continue;
+    const children = adjacency[parentId] ?? [];
+    if (!children.includes(childId)) {
+      adjacency[parentId] = [...children, childId];
+    }
+    edgeRelations[edgeKey(parentId, childId)] = strongerRelation(edgeRelations[edgeKey(parentId, childId)], edge.relation);
+  }
+
+  const columnWidth = NODE_DIMENSIONS.width + GAP_X;
+  const defaultX = Math.max(PADDING_X, ...Object.values(next.nodes).map((node) => node.x + columnWidth));
+  for (let pass = 0; pass < addedNodeIds.length + 1; pass += 1) {
+    for (const nodeId of addedNodeIds) {
+      const node = nodes[nodeId];
+      if (!node) continue;
+      const parentIds = Object.entries(adjacency)
+        .filter(([, children]) => children.includes(nodeId))
+        .map(([parentId]) => Number(parentId))
+        .filter((parentId) => Boolean(nodes[parentId]));
+      const childIds = (adjacency[nodeId] ?? []).filter((childId) => Boolean(nodes[childId]));
+      const parentNodes = parentIds.map((parentId) => nodes[parentId]);
+      const childNodes = childIds.map((childId) => nodes[childId]);
+      const x = parentNodes.length > 0
+        ? Math.max(...parentNodes.map((parent) => parent.x + columnWidth))
+        : childNodes.length > 0
+          ? Math.min(...childNodes.map((child) => child.x - columnWidth))
+          : defaultX;
+      const generation = parentNodes.length > 0
+        ? Math.max(...parentNodes.map((parent) => parent.generation)) + 1
+        : childNodes.length > 0
+          ? Math.max(0, Math.min(...childNodes.map((child) => child.generation)) - 1)
+          : Math.max(...Object.values(next.nodes).map((existing) => existing.generation), 0) + 1;
+      nodes[nodeId] = {
+        ...node,
+        x,
+        generation,
+        parentId: parentIds[0] ?? null,
+      };
+    }
+  }
+
+  return {
+    ...next,
+    nodes,
+    adjacency,
+    edgeRelations,
+    lanes: Math.max(next.lanes, nextLane),
+  };
 }
 
 function applyNodeHighlight(
