@@ -546,6 +546,7 @@ async def _run_global_chat(req: GlobalChatRequest, request_ip: str, event_emitte
         pending_action = {**pending_action, "paperId": primary_paper_id}
     retrieval = PaperRetrievalService(memory.db) if memory else None
     searched_openalex_papers: dict[str, dict[str, Any]] = {}
+    lineage_edges: list[dict[str, str]] = []
 
     async def run_global_tool(name: str, tool_input: dict[str, Any]) -> dict[str, Any]:
         await _emit(event_emitter, "tool_started", {"name": name, "input": tool_input})
@@ -647,23 +648,32 @@ async def _run_global_chat(req: GlobalChatRequest, request_ip: str, event_emitte
             }
             retained_ids.update(_normalize_openalex_id(paper.get("openalexId")) for paper in added_papers)
             edges: list[dict[str, str]] = []
-            edge_keys: set[str] = set()
+            edge_keys = {
+                f"{edge['parentOpenalexId']}->{edge['childOpenalexId']}"
+                for edge in lineage_edges
+            }
             raw_edges = tool_input.get("edges") if isinstance(tool_input.get("edges"), list) else []
             for raw_edge in raw_edges[:12]:
                 if not isinstance(raw_edge, dict):
+                    skipped.append({"paperId": "<invalid edge>", "reason": "edge_invalid_payload"})
                     continue
                 parent_normalized = _normalize_openalex_id(raw_edge.get("parentPaperId"))
                 child_normalized = _normalize_openalex_id(raw_edge.get("childPaperId"))
+                edge_id = f"{raw_edge.get('parentPaperId') or '?'}->{raw_edge.get('childPaperId') or '?'}"
                 if (
                     not parent_normalized
                     or not child_normalized
-                    or parent_normalized == child_normalized
                     or parent_normalized not in retained_ids
                     or child_normalized not in retained_ids
                 ):
+                    skipped.append({"paperId": edge_id, "reason": "edge_invalid_reference"})
+                    continue
+                if parent_normalized == child_normalized:
+                    skipped.append({"paperId": edge_id, "reason": "edge_self_loop"})
                     continue
                 relation = raw_edge.get("relation")
                 if relation not in {"influenced", "inferred"}:
+                    skipped.append({"paperId": edge_id, "reason": "edge_invalid_relation"})
                     continue
                 edge = {
                     "parentOpenalexId": known_papers[parent_normalized],
@@ -671,9 +681,11 @@ async def _run_global_chat(req: GlobalChatRequest, request_ip: str, event_emitte
                     "relation": relation,
                 }
                 key = f"{edge['parentOpenalexId']}->{edge['childOpenalexId']}"
-                if key not in edge_keys:
-                    edge_keys.add(key)
-                    edges.append(edge)
+                if key in edge_keys:
+                    skipped.append({"paperId": edge_id, "reason": "edge_duplicate"})
+                    continue
+                edge_keys.add(key)
+                edges.append(edge)
 
             result = {
                 "status": "completed",
@@ -682,6 +694,32 @@ async def _run_global_chat(req: GlobalChatRequest, request_ip: str, event_emitte
                 "edges": edges,
                 "skipped": skipped,
             }
+            removed_normalized_ids = {_normalize_openalex_id(paper_id) for paper_id in removed_paper_ids}
+            papers[:] = [
+                paper
+                for paper in papers
+                if _normalize_openalex_id(paper.get("openalexId")) not in removed_normalized_ids
+            ]
+            current_ids = {
+                _normalize_openalex_id(paper.get("openalexId"))
+                for paper in papers
+                if _normalize_openalex_id(paper.get("openalexId"))
+            }
+            for paper in added_papers:
+                normalized_id = _normalize_openalex_id(paper.get("openalexId"))
+                if normalized_id and normalized_id not in current_ids:
+                    papers.append(paper)
+                    current_ids.add(normalized_id)
+            valid_ids.clear()
+            valid_ids.update(paper.get("openalexId") for paper in papers)
+            lineage_edges[:] = [
+                edge
+                for edge in [*lineage_edges, *edges]
+                if (
+                    _normalize_openalex_id(edge["parentOpenalexId"]) not in removed_normalized_ids
+                    and _normalize_openalex_id(edge["childOpenalexId"]) not in removed_normalized_ids
+                )
+            ]
             await _emit(event_emitter, "tool_completed", {
                 "name": name,
                 "status": result["status"],
