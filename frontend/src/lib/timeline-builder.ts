@@ -147,6 +147,7 @@ export function mergeTimelineWithGraph(
   };
 
   return {
+    ...existing,
     nodes: mergedNodes,
     adjacency: mergedAdjacency,
     edgeRelations: mergedEdgeRelations,

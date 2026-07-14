@@ -128,6 +128,14 @@ export interface GlobalChatResponse {
   sessionId?: string | null;
   toolUses?: Record<string, unknown>[];
   citations?: Record<string, unknown>[];
+  lineageChanges?: LineageChange[];
+}
+
+export interface LineageChange {
+  addedPapers: GraphPaper[];
+  removedPaperIds: string[];
+  edges: GraphEdge[];
+  skipped?: { paperId: string; reason: string }[];
 }
 
 export type GlobalChatStreamEvent =

@@ -72,6 +72,74 @@ PAPER_AGENT_TOOLS = [
 ]
 GLOBAL_AGENT_TOOLS = [
     {
+        "name": "search_openalex_papers",
+        "description": (
+            "Search OpenAlex for papers that could be added to the current lineage. "
+            "Use this before update_lineage whenever the user asks to add, include, or insert a paper. "
+            "Choose addPaperIds only from the OpenAlex IDs returned by this tool in the current conversation."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "A focused paper title, author/title combination, or research topic to search.",
+                },
+                "limit": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 8,
+                    "description": "Number of candidate papers to return.",
+                },
+            },
+            "required": ["query"],
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "update_lineage",
+        "description": (
+            "Apply an explicit user-requested edit to the visible lineage. Use only after the user clearly asks "
+            "to add, include, insert, remove, or delete papers. For additions, call search_openalex_papers first and "
+            "use IDs it returned. Add edges when the relationship is known: parentPaperId is the earlier/influencing "
+            "paper and childPaperId is the later paper. Use relation 'influenced' for a known citation/influence and "
+            "'inferred' only for a clearly explained conceptual connection."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "addPaperIds": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "maxItems": 5,
+                    "description": "OpenAlex IDs of searched candidate papers to add.",
+                },
+                "removePaperIds": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "maxItems": 10,
+                    "description": "OpenAlex IDs of papers currently in the visible timeline to remove.",
+                },
+                "edges": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "parentPaperId": {"type": "string"},
+                            "childPaperId": {"type": "string"},
+                            "relation": {"type": "string", "enum": ["influenced", "inferred"]},
+                        },
+                        "required": ["parentPaperId", "childPaperId", "relation"],
+                        "additionalProperties": False,
+                    },
+                    "maxItems": 12,
+                    "description": "Connections to create or retain between current and newly added papers.",
+                },
+            },
+            "additionalProperties": False,
+        },
+    },
+    {
         "name": "check_paper_access",
         "description": (
             "Check whether a paper in the current timeline has complete text cached or legally retrievable. "
@@ -527,6 +595,13 @@ Use the tools when they would materially improve factual grounding:
 - Use web_search for reliable public sources when timeline metadata or cached paper text is insufficient.
 - If a paper tool reports status "processing", explain that indexing is still in progress; do not claim the paper was accessed or searched successfully.
 
+Lineage-edit rules:
+- Only edit the lineage when the user explicitly asks to add, include, insert, remove, or delete papers. Do not edit it merely because a paper is relevant or recommended.
+- For every addition, search OpenAlex first in this turn, then add only an exact candidate returned by that search.
+- Use update_lineage for the actual edit. To delete, use exact OpenAlex IDs from the current timeline.
+- Prefer adding a relationship edge when OpenAlex metadata shows a citation/reference relationship. If you infer a conceptual edge, say so plainly in the final response.
+- Never claim an edit happened unless update_lineage returned status "completed" and reported the resulting change.
+
 Rules:
 - If the user mentioned papers with @, treat those papers as the primary focus.
 - Resolve incomplete or shorthand phrasing against mentioned papers. If two papers are mentioned and the user asks something like "how are they related" or "how is related to", answer the relationship between those mentioned papers instead of asking which papers they meant.
@@ -632,12 +707,27 @@ Rules:
             if isinstance(result, dict) and result.get("paperId") in valid_ids:
                 highlight_candidates.append(result["paperId"])
         highlighted = list(dict.fromkeys(highlight_candidates))[:5]
+        lineage_changes = [
+            record["result"]
+            for record in tool_records
+            if (
+                record.get("name") == "update_lineage"
+                and record.get("status") == "completed"
+                and isinstance(record.get("result"), dict)
+                and (
+                    record["result"].get("addedPapers")
+                    or record["result"].get("removedPaperIds")
+                    or record["result"].get("edges")
+                )
+            )
+        ]
         return {
             "text": text or "I could not produce a useful answer for that question.",
             "highlightedPaperIds": highlighted,
             "suggestion": None,
             "toolUses": tool_records,
             "citations": _dedupe_citations([*citations, *_message_citations(response)]),
+            "lineageChanges": lineage_changes,
             "textStreamed": text_emitter is not None,
         }
 

@@ -3,9 +3,10 @@
 import { useState, useRef, useEffect, useId, useCallback, type ReactNode } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { MarkdownContent } from "./MarkdownContent";
+import { ConversationNavigator } from "./ConversationNavigator";
 import { openChatSession, streamChatAboutTimeline, suggestTimelineQuestions } from "@/lib/api";
 import { DETAIL_PANEL_DEFAULT_WIDTH, DETAIL_PANEL_MAX_WIDTH, DETAIL_PANEL_MIN_WIDTH, DETAIL_PANEL_WIDTH_KEY } from "@/lib/detail-panel";
-import { GlobalChatStreamEvent, TimelineData } from "@/lib/types";
+import { GlobalChatStreamEvent, LineageChange, TimelineData } from "@/lib/types";
 
 interface ToolEvent {
   name: string;
@@ -31,12 +32,13 @@ interface GlobalChatPanelProps {
   onOpenChange: (open: boolean) => void;
   onHighlight: (ids: string[]) => void;
   onMentionedPaperIdsChange?: (ids: string[]) => void;
+  onLineageChanges?: (changes: LineageChange[]) => void;
   onUsageChanged?: () => void;
   graphId?: string | null;
   userId?: string | null;
 }
 
-export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMentionedPaperIdsChange, onUsageChanged, graphId, userId }: GlobalChatPanelProps) {
+export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMentionedPaperIdsChange, onLineageChanges, onUsageChanged, graphId, userId }: GlobalChatPanelProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [mentionedPaperIds, setMentionedPaperIds] = useState<string[]>([]);
@@ -80,8 +82,39 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
     onMentionedPaperIdsChange?.(inputFocused ? mentionedPaperIds : []);
   }, [inputFocused, mentionedPaperIds, onMentionedPaperIdsChange]);
 
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const [inputHeight, setInputHeight] = useState(24);
   const panelId = useId();
+  const [activeNavigationId, setActiveNavigationId] = useState<string | null>(null);
+  const navigationItems = messages
+    .filter((message) => message.role === "user" && message.text.trim())
+    .map((message) => ({ id: String(message.id), label: message.text.trim() }));
+  const latestNavigationId = navigationItems[navigationItems.length - 1]?.id ?? null;
+
+  useEffect(() => {
+    if (latestNavigationId) setActiveNavigationId(latestNavigationId);
+  }, [latestNavigationId]);
+
+  const jumpToMessage = useCallback((messageId: string) => {
+    setActiveNavigationId(messageId);
+    document.getElementById(`${panelId}-message-${messageId}`)?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+  }, [panelId]);
+
+  const resizeInput = useCallback((element: HTMLTextAreaElement | null = inputRef.current) => {
+    if (!element) return;
+    element.style.height = "0px";
+    const nextHeight = Math.min(Math.max(element.scrollHeight, 24), 128);
+    element.style.height = `${nextHeight}px`;
+    element.style.overflowY = element.scrollHeight > 128 ? "auto" : "hidden";
+    setInputHeight(nextHeight);
+  }, []);
+
+  useEffect(() => {
+    resizeInput();
+  }, [input, resizeInput]);
 
   const getClampedPanelWidth = useCallback((desiredWidth: number) => {
     const safeMax = Math.min(
@@ -216,6 +249,51 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
     }, 0);
   }, [input, papers]);
 
+  const startLineageEdit = useCallback(() => {
+    const command = "Add or delete papers in this lineage: ";
+    setInput((current) => current.trim() ? current : command);
+    setMentionedPaperIds([]);
+    setMentionOpen(false);
+    setMentionQuery("");
+    window.setTimeout(() => {
+      const element = inputRef.current;
+      if (!element) return;
+      element.focus({ preventScroll: true });
+      if (!element.value.trim()) {
+        element.setSelectionRange(command.length, command.length);
+      } else {
+        element.setSelectionRange(element.value.length, element.value.length);
+      }
+      resizeInput(element);
+    }, 0);
+  }, [resizeInput]);
+
+  const startPaperMention = useCallback(() => {
+    setInput((current) => current.trim() ? `${current.trimEnd()} @` : "@");
+    window.setTimeout(() => {
+      const element = inputRef.current;
+      if (!element) return;
+      element.focus({ preventScroll: true });
+      element.setSelectionRange(element.value.length, element.value.length);
+      updateMentionSearch(element.value, element.value.length);
+      resizeInput(element);
+    }, 0);
+  }, [resizeInput, updateMentionSearch]);
+
+  const startPaperAccess = useCallback(() => {
+    const command = "Access the complete paper text of @";
+    setInput((current) => current.trim() ? `${current.trimEnd()} ${command}` : command);
+    setMentionedPaperIds([]);
+    window.setTimeout(() => {
+      const element = inputRef.current;
+      if (!element) return;
+      element.focus({ preventScroll: true });
+      element.setSelectionRange(element.value.length, element.value.length);
+      updateMentionSearch(element.value, element.value.length);
+      resizeInput(element);
+    }, 0);
+  }, [resizeInput, updateMentionSearch]);
+
   async function send() {
     const focusedPaperIds = mentionedPaperIds;
     const q = input.trim() || (focusedPaperIds.length > 0 ? "Tell me about the mentioned paper(s)." : "");
@@ -260,6 +338,12 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
         return { ...message, toolEvents: next };
       }));
     };
+    let lineageChangesApplied = false;
+    const applyReturnedLineageChanges = (changes: LineageChange[] | undefined) => {
+      if (lineageChangesApplied || !changes?.length) return;
+      lineageChangesApplied = true;
+      onLineageChanges?.(changes);
+    };
 
     try {
       const res = await streamChatAboutTimeline(
@@ -286,6 +370,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
           }
           if (event.type === "citations") updateAssistant({ citations: event.citations });
           if (event.type === "message_completed") {
+            applyReturnedLineageChanges(event.response.lineageChanges);
             updateAssistant({
               text: event.response.text,
               citations: event.response.citations ?? [],
@@ -300,6 +385,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
         focusedPaperIds,
       );
       if (res) {
+        applyReturnedLineageChanges(res.lineageChanges);
         updateAssistant({
           text: res.text,
           citations: res.citations ?? [],
@@ -511,25 +597,108 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
                 >
                   All timeline
                 </span>
-                <span
+                <button
+                  type="button"
+                  onClick={startPaperMention}
+                  disabled={isThinking}
                   style={{
                     display: "inline-flex",
                     alignItems: "center",
                     borderRadius: "999px",
                     border: "0.0625rem dashed var(--border-hover)",
+                    background: "transparent",
                     color: "var(--text-tertiary)",
                     padding: "0.25rem 0.55rem",
                     fontSize: "0.6875rem",
                     fontFamily: "'JetBrains Mono', monospace",
+                    cursor: isThinking ? "default" : "pointer",
+                    opacity: isThinking ? 0.55 : 1,
+                    transition: "border-color 0.15s, color 0.15s, background 0.15s",
+                  }}
+                  onMouseEnter={(event) => {
+                    if (isThinking) return;
+                    event.currentTarget.style.borderColor = "var(--accent)";
+                    event.currentTarget.style.color = "var(--accent)";
+                    event.currentTarget.style.background = "var(--accent-soft)";
+                  }}
+                  onMouseLeave={(event) => {
+                    event.currentTarget.style.borderColor = "var(--border-hover)";
+                    event.currentTarget.style.color = "var(--text-tertiary)";
+                    event.currentTarget.style.background = "transparent";
                   }}
                 >
                   @ paper mentions
-                </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={startLineageEdit}
+                  disabled={isThinking}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    borderRadius: "999px",
+                    border: "0.0625rem dashed var(--border-hover)",
+                    background: "transparent",
+                    color: "var(--text-tertiary)",
+                    padding: "0.25rem 0.55rem",
+                    fontSize: "0.6875rem",
+                    fontFamily: "'JetBrains Mono', monospace",
+                    cursor: isThinking ? "default" : "pointer",
+                    opacity: isThinking ? 0.55 : 1,
+                    transition: "border-color 0.15s, color 0.15s, background 0.15s",
+                  }}
+                  onMouseEnter={(event) => {
+                    if (isThinking) return;
+                    event.currentTarget.style.borderColor = "var(--accent)";
+                    event.currentTarget.style.color = "var(--accent)";
+                    event.currentTarget.style.background = "var(--accent-soft)";
+                  }}
+                  onMouseLeave={(event) => {
+                    event.currentTarget.style.borderColor = "var(--border-hover)";
+                    event.currentTarget.style.color = "var(--text-tertiary)";
+                    event.currentTarget.style.background = "transparent";
+                  }}
+                >
+                  Add/Delete papers
+                </button>
+                <button
+                  type="button"
+                  onClick={startPaperAccess}
+                  disabled={isThinking}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    borderRadius: "999px",
+                    border: "0.0625rem dashed var(--border-hover)",
+                    background: "transparent",
+                    color: "var(--text-tertiary)",
+                    padding: "0.25rem 0.55rem",
+                    fontSize: "0.6875rem",
+                    fontFamily: "'JetBrains Mono', monospace",
+                    cursor: isThinking ? "default" : "pointer",
+                    opacity: isThinking ? 0.55 : 1,
+                    transition: "border-color 0.15s, color 0.15s, background 0.15s",
+                  }}
+                  onMouseEnter={(event) => {
+                    if (isThinking) return;
+                    event.currentTarget.style.borderColor = "var(--accent)";
+                    event.currentTarget.style.color = "var(--accent)";
+                    event.currentTarget.style.background = "var(--accent-soft)";
+                  }}
+                  onMouseLeave={(event) => {
+                    event.currentTarget.style.borderColor = "var(--border-hover)";
+                    event.currentTarget.style.color = "var(--text-tertiary)";
+                    event.currentTarget.style.background = "transparent";
+                  }}
+                >
+                  Access paper
+                </button>
               </div>
             </div>
 
             {/* Messages */}
-            <div ref={messagesRef} style={{ flex: 1, overflowY: "auto", padding: "0.625rem 0.875rem", display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+            <div style={{ position: "relative", flex: 1, minHeight: 0 }}>
+              <div ref={messagesRef} style={{ height: "100%", overflowY: "auto", padding: "0.625rem 0.875rem", display: "flex", flexDirection: "column", gap: "0.5rem" }}>
               {messages.length === 0 && (
                 <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem", marginTop: "0.25rem" }}>
                   {loadingSuggestions ? (
@@ -568,7 +737,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
               )}
 
               {messages.map((msg) => (
-                <div key={msg.id} style={{ display: "flex", flexDirection: "column", gap: "0.25rem", alignItems: msg.role === "user" ? "flex-end" : "flex-start" }}>
+                <div id={`${panelId}-message-${msg.id}`} key={msg.id} style={{ display: "flex", flexDirection: "column", gap: "0.25rem", alignItems: msg.role === "user" ? "flex-end" : "flex-start" }}>
                   <div style={{
                     maxWidth: "88%",
                     padding: "0.4375rem 0.625rem",
@@ -627,6 +796,21 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
                   ))}
                 </div>
               )}
+              </div>
+              <ConversationNavigator
+                side="left"
+                items={navigationItems}
+                activeId={activeNavigationId ?? latestNavigationId}
+                onActiveChange={setActiveNavigationId}
+                onJump={jumpToMessage}
+              />
+              <ConversationNavigator
+                side="right"
+                items={navigationItems}
+                activeId={activeNavigationId ?? latestNavigationId}
+                onActiveChange={setActiveNavigationId}
+                onJump={jumpToMessage}
+              />
             </div>
 
             {/* Input bar */}
@@ -642,7 +826,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
                       position: "absolute",
                       left: "1rem",
                       right: "1rem",
-                      bottom: "4.25rem",
+                      bottom: `calc(${inputHeight}px + 2.75rem)`,
                       zIndex: 4,
                       borderRadius: "0.875rem",
                       border: "0.0625rem solid var(--border)",
@@ -730,7 +914,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
                 <div
                   style={{
                     display: "flex",
-                    alignItems: "center",
+                    alignItems: "flex-end",
                     gap: "0.5rem",
                     flexWrap: "nowrap",
                     background: "var(--bg-secondary)",
@@ -740,9 +924,9 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
                     transition: "border-color 0.15s",
                   }}
                 >
-                  <input
+                  <textarea
                     ref={inputRef}
-                    type="text"
+                    rows={1}
                     value={input}
                     onChange={(e) => {
                       const nextInput = e.target.value;
@@ -752,6 +936,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
                         return paper ? nextInput.includes(`@${paper.title}`) : false;
                       }));
                       updateMentionSearch(nextInput, e.target.selectionStart);
+                      resizeInput(e.currentTarget);
                     }}
                     onFocus={() => setInputFocused(true)}
                     onBlur={() => {
@@ -766,12 +951,19 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
                     disabled={isThinking}
                     style={{
                       flex: 1,
+                      height: `${inputHeight}px`,
+                      minHeight: "1.5rem",
+                      maxHeight: "8rem",
                       background: "none",
                       border: "none",
                       outline: "none",
                       color: "var(--text-primary)",
                       fontSize: "0.8125rem",
                       fontFamily: "'DM Sans', sans-serif",
+                      lineHeight: 1.5,
+                      resize: "none",
+                      overflowY: "hidden",
+                      padding: 0,
                     }}
                   />
                   <button
@@ -888,6 +1080,20 @@ function escapeRegExp(value: string): string {
 }
 
 function globalToolLabel(name: string, status?: string, result?: Record<string, unknown>): string {
+  if (name === "search_openalex_papers") {
+    const count = typeof result?.paperCount === "number" ? result.paperCount : null;
+    return count === null ? "Searching OpenAlex" : `Searched OpenAlex · ${count} candidates`;
+  }
+  if (name === "update_lineage") {
+    const additions = typeof result?.addedPaperCount === "number" ? result.addedPaperCount : 0;
+    const removals = Array.isArray(result?.removedPaperIds) ? result.removedPaperIds.length : 0;
+    if (status === "started") return "Updating lineage";
+    if (additions || removals) {
+      const parts = [additions ? `${additions} added` : "", removals ? `${removals} removed` : ""].filter(Boolean);
+      return `Lineage updated · ${parts.join(", ")}`;
+    }
+    return "Checked lineage update";
+  }
   if (name === "check_paper_access") return status === "started" ? "Checking paper access" : "Checked paper access";
   if (name === "retrieve_paper_content") {
     if (status === "needs_confirmation") return "Complete paper access needs confirmation";

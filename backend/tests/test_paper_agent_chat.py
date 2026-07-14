@@ -77,6 +77,58 @@ class PaperAgentChatTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("do not ask the user to name the papers again", prompt)
         self.assertEqual(result["highlightedPaperIds"], ["W1", "W2"])
 
+    async def test_global_agent_returns_completed_lineage_changes(self) -> None:
+        client = LLMClient(api_key="test-key", model="claude-test")
+        search = SimpleNamespace(
+            content=[FakeBlock(
+                type="tool_use",
+                id="toolu_search",
+                name="search_openalex_papers",
+                input={"query": "Residual Learning"},
+            )],
+            usage=SimpleNamespace(input_tokens=10, output_tokens=5),
+        )
+        update = SimpleNamespace(
+            content=[FakeBlock(
+                type="tool_use",
+                id="toolu_update",
+                name="update_lineage",
+                input={
+                    "addPaperIds": ["W3"],
+                    "edges": [{"parentPaperId": "W3", "childPaperId": "W1", "relation": "influenced"}],
+                },
+            )],
+            usage=SimpleNamespace(input_tokens=12, output_tokens=6),
+        )
+        final = SimpleNamespace(
+            content=[FakeBlock(type="text", text="I added the requested paper and connected it to the lineage.")],
+            usage=SimpleNamespace(input_tokens=15, output_tokens=8),
+        )
+        client.client.messages.create = AsyncMock(side_effect=[search, update, final])
+
+        async def run_tool(name, _tool_input):
+            if name == "search_openalex_papers":
+                return {"status": "completed", "papers": [{"openalexId": "W3", "title": "Deep Residual Learning"}]}
+            if name == "update_lineage":
+                return {
+                    "status": "completed",
+                    "addedPapers": [{"openalexId": "W3", "title": "Deep Residual Learning", "year": 2015, "summary": "Residual networks."}],
+                    "removedPaperIds": [],
+                    "edges": [{"parentOpenalexId": "W3", "childOpenalexId": "W1", "relation": "influenced"}],
+                }
+            self.fail(f"Unexpected tool: {name}")
+
+        with patch("app.services.llm.limiter.record_usage", AsyncMock()):
+            result = await client.chat_about_timeline_agentic(
+                [{"openalexId": "W1", "title": "Current Paper", "year": 2017, "summary": "Current"}],
+                "Add the residual learning paper to this lineage.",
+                tool_runner=run_tool,
+                ip="127.0.0.1",
+            )
+
+        self.assertEqual(len(result["lineageChanges"]), 1)
+        self.assertEqual(result["lineageChanges"][0]["addedPapers"][0]["openalexId"], "W3")
+
     async def test_tool_result_is_returned_and_citations_are_collected(self) -> None:
         client = LLMClient(api_key="test-key", model="claude-test")
         first = SimpleNamespace(

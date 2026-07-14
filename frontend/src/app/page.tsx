@@ -25,13 +25,14 @@ import {
   updateSavedGraph,
 } from "@/lib/api";
 import { useHoverPreviewToggle } from "@/lib/hover-preview";
-import { applyTimelineGraphAction } from "@/lib/timeline-actions";
+import { applyTimelineGraphAction, applyTimelineLineageChanges } from "@/lib/timeline-actions";
 import {
   buildTimelineFromGraph,
   mergeTimelineWithGraph,
 } from "@/lib/timeline-builder";
 import {
   SavedGraphListItem,
+  LineageChange,
   SeedCandidate,
   TimelineData,
   TimelineGraphAction,
@@ -2319,6 +2320,19 @@ export default function Home() {
     [isExpanding, scheduleGraphUpdate, searchedQuery, selectedSeedOpenalexId, timelineData],
   );
 
+  const handleTimelineLineageChanges = useCallback(
+    (changes: LineageChange[]) => {
+      if (!timelineData || isExpanding || changes.length === 0) return;
+      const nextTimelineData = applyTimelineLineageChanges(timelineData, changes, {
+        lockedOpenalexIds: selectedSeedOpenalexId ? [selectedSeedOpenalexId] : [],
+      });
+      if (nextTimelineData === timelineData) return;
+      setTimelineData(nextTimelineData);
+      scheduleGraphUpdate(nextTimelineData, searchedQuery);
+    },
+    [isExpanding, scheduleGraphUpdate, searchedQuery, selectedSeedOpenalexId, timelineData],
+  );
+
   const handleRefreshCurrent = useCallback(() => {
     if (!searchedQuery || isExpanding) return;
     void runSearch(searchedQuery, selectedSeedOpenalexId ?? undefined);
@@ -4554,6 +4568,7 @@ export default function Home() {
                 data={timelineData!}
                 onExpandNode={handleExpandNode}
                 onGraphAction={handleTimelineGraphAction}
+                onLineageChanges={handleTimelineLineageChanges}
                 lockedNodeOpenalexId={selectedSeedOpenalexId}
                 isExpanding={isExpanding}
                 onUsageChanged={refreshCredits}

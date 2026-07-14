@@ -6,7 +6,7 @@ import { MarkdownContent } from "./MarkdownContent";
 import { fetchCachedPaperContent, fetchPaperAccess, openChatSession, streamChatAboutPaper } from "@/lib/api";
 import { DETAIL_PANEL_DEFAULT_WIDTH, DETAIL_PANEL_MAX_WIDTH, DETAIL_PANEL_MIN_WIDTH, DETAIL_PANEL_WIDTH_KEY } from "@/lib/detail-panel";
 import { TIMELINE_MOBILE_BREAKPOINT_PX } from "@/lib/hover-preview";
-import { TimelineData, ChatSuggestion, PaperAccessResponse, PaperContentResponse, TimelineNode, PaperChatStreamEvent, TimelineGraphAction, NodeBorderColor, TimelineNote } from "@/lib/types";
+import { TimelineData, ChatSuggestion, PaperAccessResponse, PaperContentResponse, TimelineNode, PaperChatStreamEvent, TimelineGraphAction, NodeBorderColor, TimelineNote, LineageChange } from "@/lib/types";
 import { NODE_BORDER_COLOR_OPTIONS } from "@/lib/node-style";
 import { TIMELINE_NOTE_DEFAULT_WIDTH, TIMELINE_NOTE_MIN_HEIGHT } from "@/lib/note-style";
 import { NODE_DIMENSIONS } from "@/lib/dummy-data";
@@ -15,6 +15,7 @@ import { TimelineEdgeLine } from "./TimelineEdge";
 import { TimelineNoteCard } from "./TimelineNote";
 import { TimelineNoteEdgeLine } from "./TimelineNoteEdge";
 import { GlobalChatPanel } from "./GlobalChatPanel";
+import { ConversationNavigator } from "./ConversationNavigator";
 import { PaperReaderModal } from "./PaperReaderModal";
 
 interface ChatMessage {
@@ -39,6 +40,7 @@ interface TimelineCanvasProps {
   data: TimelineData;
   onExpandNode: (nodeId: number, query: string) => void;
   onGraphAction?: (action: TimelineGraphAction) => void;
+  onLineageChanges?: (changes: LineageChange[]) => void;
   lockedNodeOpenalexId?: string | null;
   isExpanding: boolean;
   onUsageChanged?: () => void;
@@ -69,6 +71,7 @@ export function TimelineCanvas({
   data,
   onExpandNode,
   onGraphAction,
+  onLineageChanges,
   lockedNodeOpenalexId,
   isExpanding,
   onUsageChanged,
@@ -104,6 +107,7 @@ export function TimelineCanvas({
   const [cursorStyle, setCursorStyle] = useState("default");
   const [activeNodeId, setActiveNodeId] = useState<number | null>(null);
   const [chatHistories, setChatHistories] = useState<Record<number, ChatMessage[]>>({});
+  const [activePaperNavigationIds, setActivePaperNavigationIds] = useState<Record<number, string>>({});
   const [chatInput, setChatInput] = useState("");
   const [selectedExcerptByNode, setSelectedExcerptByNode] = useState<Record<number, string>>({});
   const [isThinking, setIsThinking] = useState(false);
@@ -163,6 +167,7 @@ export function TimelineCanvas({
 
   useEffect(() => {
     setChatHistories({});
+    setActivePaperNavigationIds({});
     chatHistoryLoadsRef.current.clear();
     setSelectedExcerptByNode({});
     setPaperReaderOpen(false);
@@ -700,6 +705,33 @@ export function TimelineCanvas({
   }
 
   const activeNode = activeNodeId !== null ? data.nodes[activeNodeId] : null;
+  const paperNavigationItems = activeNodeId === null
+    ? []
+    : (chatHistories[activeNodeId] ?? [])
+      .filter((message) => message.role === "user" && message.content.trim())
+      .map((message) => ({ id: String(message.id), label: message.content.trim() }));
+  const latestPaperNavigationId = paperNavigationItems[paperNavigationItems.length - 1]?.id ?? null;
+  const activePaperNavigationId = activeNodeId === null
+    ? null
+    : activePaperNavigationIds[activeNodeId] ?? latestPaperNavigationId;
+
+  useEffect(() => {
+    if (activeNodeId === null || !latestPaperNavigationId) return;
+    setActivePaperNavigationIds((current) => (
+      current[activeNodeId] === latestPaperNavigationId
+        ? current
+        : { ...current, [activeNodeId]: latestPaperNavigationId }
+    ));
+  }, [activeNodeId, latestPaperNavigationId]);
+
+  const jumpToPaperMessage = useCallback((messageId: string) => {
+    if (activeNodeId === null) return;
+    setActivePaperNavigationIds((current) => ({ ...current, [activeNodeId]: messageId }));
+    document.getElementById(`paper-chat-${activeNodeId}-${messageId}`)?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+  }, [activeNodeId]);
   const graphActionsDisabled = readOnly || isExpanding;
   const activePaperHref = activeNode ? getPaperHref(activeNode) : null;
   const activePaperAccess = activeNode
@@ -2034,14 +2066,15 @@ export function TimelineCanvas({
               </div>
 
             {/* Scrollable chat area */}
-            <div
-              style={{
-                flex: 1,
-                overflowY: "auto",
-                padding: "1.25rem 1.25rem 0.5rem",
-                touchAction: "pan-y",
-              }}
-            >
+            <div style={{ position: "relative", flex: 1, minHeight: 0 }}>
+              <div
+                style={{
+                  height: "100%",
+                  overflowY: "auto",
+                  padding: "1.25rem 1.25rem 0.5rem",
+                  touchAction: "pan-y",
+                }}
+              >
 
               {/* Paper context — shown as a subtle block at the top */}
               <div
@@ -2125,6 +2158,7 @@ export function TimelineCanvas({
               {/* Chat messages */}
               {(chatHistories[activeNodeId] ?? []).map((msg) => (
                 <motion.div
+                  id={`paper-chat-${activeNodeId}-${msg.id}`}
                   key={msg.id}
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -2281,6 +2315,27 @@ export function TimelineCanvas({
               </AnimatePresence>
 
               <div ref={chatEndRef} />
+              </div>
+              <ConversationNavigator
+                side="left"
+                items={paperNavigationItems}
+                activeId={activePaperNavigationId}
+                onActiveChange={(messageId) => {
+                  if (activeNodeId === null) return;
+                  setActivePaperNavigationIds((current) => ({ ...current, [activeNodeId]: messageId }));
+                }}
+                onJump={jumpToPaperMessage}
+              />
+              <ConversationNavigator
+                side="right"
+                items={paperNavigationItems}
+                activeId={activePaperNavigationId}
+                onActiveChange={(messageId) => {
+                  if (activeNodeId === null) return;
+                  setActivePaperNavigationIds((current) => ({ ...current, [activeNodeId]: messageId }));
+                }}
+                onJump={jumpToPaperMessage}
+              />
             </div>
 
             {/* Input bar */}
@@ -2410,6 +2465,7 @@ export function TimelineCanvas({
           onOpenChange={onGlobalChatOpenChange ?? (() => undefined)}
           onHighlight={handleGlobalHighlight}
           onMentionedPaperIdsChange={handleGlobalMentionedPaperIdsChange}
+          onLineageChanges={onLineageChanges}
           onUsageChanged={onUsageChanged}
           graphId={graphId}
           userId={userId}

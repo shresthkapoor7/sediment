@@ -229,6 +229,7 @@ class GlobalChatResponse(BaseModel):
     sessionId: Optional[str] = None
     toolUses: list[dict[str, Any]] = Field(default_factory=list)
     citations: list[dict[str, Any]] = Field(default_factory=list)
+    lineageChanges: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class ChatSessionRequest(StrictRequestModel):
