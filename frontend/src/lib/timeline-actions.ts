@@ -1,5 +1,6 @@
-import { GraphEdge, GraphPaper, LineageChange, NodeBorderColor, TimelineData, TimelineGraphAction, TimelineNode } from "./types";
+import { GraphEdge, GraphPaper, LineageChange, NodeBorderColor, TimelineData, TimelineGraphAction, TimelineNode, TimelineNote, TimelineNoteChange } from "./types";
 import { GAP_X, LANE_HEIGHT, NODE_DIMENSIONS, PADDING_X, PADDING_Y } from "./dummy-data";
+import { TIMELINE_NOTE_DEFAULT_WIDTH, TIMELINE_NOTE_MIN_HEIGHT } from "./note-style";
 
 interface TimelineGraphActionOptions {
   lockedOpenalexIds?: string[];
@@ -41,6 +42,13 @@ export function applyTimelineLineageChanges(
 ): TimelineData {
   return changes.reduce(
     (current, change) => applyTimelineLineageChange(current, change, options),
+    data,
+  );
+}
+
+export function applyTimelineNoteChanges(data: TimelineData, changes: TimelineNoteChange[]): TimelineData {
+  return changes.reduce(
+    (current, change) => applyTimelineNoteChange(current, change),
     data,
   );
 }
@@ -235,6 +243,110 @@ function applyTimelineLineageChange(
     edgeRelations,
     lanes: Math.max(next.lanes, nextLane),
   };
+}
+
+function applyTimelineNoteChange(data: TimelineData, change: TimelineNoteChange): TimelineData {
+  let next = data;
+  const timestamp = new Date().toISOString();
+
+  for (const created of change.createdNotes ?? []) {
+    if (
+      !created
+      || typeof created.id !== "string"
+      || !created.id.trim()
+      || typeof created.text !== "string"
+      || !created.text.trim()
+      || next.notes?.[created.id]
+    ) {
+      continue;
+    }
+    const connection = (change.connections ?? []).find((candidate) => candidate.noteId === created.id);
+    const targetNodeId = connection ? nodeIdForPaper(next, connection.paperId) : null;
+    const position = positionNewAgentNote(next, targetNodeId);
+    const note: TimelineNote = {
+      id: created.id,
+      text: created.text,
+      kind: isNoteKind(created.kind) ? created.kind : "field_note",
+      color: isNoteColor(created.color) ? created.color : "paper",
+      x: position.x,
+      y: position.y,
+      width: TIMELINE_NOTE_DEFAULT_WIDTH,
+      height: TIMELINE_NOTE_MIN_HEIGHT,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    };
+    next = applyNoteAddition(next, {
+      type: "add_note",
+      note,
+      connectToNodeId: targetNodeId,
+      relation: connection?.relation,
+    });
+  }
+
+  for (const update of change.updatedNotes ?? []) {
+    if (!update || typeof update.noteId !== "string" || !next.notes?.[update.noteId]) continue;
+    const patch = update.patch ?? {};
+    const safePatch: Partial<TimelineNote> = {
+      updatedAt: timestamp,
+    };
+    if (typeof patch.text === "string" && patch.text.trim()) safePatch.text = patch.text;
+    if (isNoteKind(patch.kind)) safePatch.kind = patch.kind;
+    if (isNoteColor(patch.color)) safePatch.color = patch.color;
+    next = applyNoteUpdate(next, update.noteId, safePatch);
+  }
+
+  for (const noteId of change.deletedNoteIds ?? []) {
+    if (typeof noteId === "string") next = applyNoteDeletion(next, noteId);
+  }
+
+  for (const connection of change.connections ?? []) {
+    if (!connection || typeof connection.noteId !== "string") continue;
+    const nodeId = nodeIdForPaper(next, connection.paperId);
+    if (nodeId === null) continue;
+    next = applyNoteConnection(next, connection.noteId, nodeId, connection.relation);
+  }
+
+  for (const connection of change.disconnections ?? []) {
+    if (!connection || typeof connection.noteId !== "string") continue;
+    const nodeId = nodeIdForPaper(next, connection.paperId);
+    if (nodeId === null) continue;
+    next = applyNoteDisconnection(next, connection.noteId, nodeId);
+  }
+
+  return next;
+}
+
+function nodeIdForPaper(data: TimelineData, paperId: unknown): number | null {
+  const normalizedId = normalizeOpenalexId(paperId);
+  if (!normalizedId) return null;
+  return Object.values(data.nodes).find((node) => normalizeOpenalexId(node.paper.openalexId) === normalizedId)?.id ?? null;
+}
+
+function positionNewAgentNote(data: TimelineData, targetNodeId: number | null): { x: number; y: number } {
+  const target = targetNodeId === null ? null : data.nodes[targetNodeId];
+  if (target) {
+    return {
+      x: target.x + NODE_DIMENSIONS.width + 56,
+      y: target.y + ((Object.keys(data.notes ?? {}).length % 3) * 24),
+    };
+  }
+  const maxX = Math.max(
+    PADDING_X,
+    ...Object.values(data.nodes).map((node) => node.x + NODE_DIMENSIONS.width + GAP_X),
+    ...Object.values(data.notes ?? {}).map((note) => note.x + (note.width ?? TIMELINE_NOTE_DEFAULT_WIDTH) + 32),
+  );
+  return {
+    x: maxX,
+    y: PADDING_Y + ((Object.keys(data.notes ?? {}).length % Math.max(data.lanes, 1)) * LANE_HEIGHT),
+  };
+}
+
+function isNoteKind(value: unknown): value is NonNullable<TimelineNote["kind"]> {
+  return value === "field_note" || value === "question" || value === "insight" || value === "todo" || value === "contradiction";
+}
+
+function isNoteColor(value: unknown): value is NonNullable<TimelineNote["color"]> {
+  return value === "paper" || value === "amber" || value === "blue" || value === "green" || value === "rose";
 }
 
 function applyNodeHighlight(

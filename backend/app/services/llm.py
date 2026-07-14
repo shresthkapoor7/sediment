@@ -140,6 +140,129 @@ GLOBAL_AGENT_TOOLS = [
         },
     },
     {
+        "name": "read_timeline_notes",
+        "description": (
+            "Read user-authored notes on the current canvas. Use this before answering questions about notes or "
+            "before changing notes selected by color, type, or their text. It can read multiple notes at once, "
+            "such as every green note."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "noteIds": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "maxItems": 50,
+                    "description": "Exact note IDs to read when already known.",
+                },
+                "colors": {
+                    "type": "array",
+                    "items": {"type": "string", "enum": ["paper", "amber", "blue", "green", "rose"]},
+                    "maxItems": 5,
+                },
+                "kinds": {
+                    "type": "array",
+                    "items": {"type": "string", "enum": ["field_note", "question", "insight", "todo", "contradiction"]},
+                    "maxItems": 5,
+                },
+                "query": {
+                    "type": "string",
+                    "description": "Optional case-insensitive text to find in notes.",
+                },
+                "limit": {"type": "integer", "minimum": 1, "maximum": 50},
+            },
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "create_timeline_notes",
+        "description": (
+            "Create new user-visible canvas notes only when the user explicitly asks to add, create, or write notes. "
+            "Each note may be connected to one or more existing timeline papers by exact OpenAlex ID."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "notes": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 5,
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "text": {"type": "string"},
+                            "kind": {"type": "string", "enum": ["field_note", "question", "insight", "todo", "contradiction"]},
+                            "color": {"type": "string", "enum": ["paper", "amber", "blue", "green", "rose"]},
+                            "connectToPaperIds": {"type": "array", "items": {"type": "string"}, "maxItems": 5},
+                            "relation": {"type": "string", "enum": ["about", "question", "insight", "todo", "contradiction"]},
+                        },
+                        "required": ["text"],
+                        "additionalProperties": False,
+                    },
+                },
+            },
+            "required": ["notes"],
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "update_timeline_notes",
+        "description": (
+            "Edit, delete, or connect existing user-visible canvas notes only when the user explicitly asks. "
+            "Use read_timeline_notes first to identify target note IDs unless the exact IDs were just returned. "
+            "Connections link a note to an existing timeline paper, not to another note."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "updates": {
+                    "type": "array",
+                    "maxItems": 10,
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "noteId": {"type": "string"},
+                            "text": {"type": "string"},
+                            "kind": {"type": "string", "enum": ["field_note", "question", "insight", "todo", "contradiction"]},
+                            "color": {"type": "string", "enum": ["paper", "amber", "blue", "green", "rose"]},
+                        },
+                        "required": ["noteId"],
+                        "additionalProperties": False,
+                    },
+                },
+                "deleteNoteIds": {"type": "array", "items": {"type": "string"}, "maxItems": 10},
+                "connections": {
+                    "type": "array",
+                    "maxItems": 15,
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "noteId": {"type": "string"},
+                            "paperId": {"type": "string"},
+                            "relation": {"type": "string", "enum": ["about", "question", "insight", "todo", "contradiction"]},
+                        },
+                        "required": ["noteId", "paperId", "relation"],
+                        "additionalProperties": False,
+                    },
+                },
+                "disconnections": {
+                    "type": "array",
+                    "maxItems": 15,
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "noteId": {"type": "string"},
+                            "paperId": {"type": "string"},
+                        },
+                        "required": ["noteId", "paperId"],
+                        "additionalProperties": False,
+                    },
+                },
+            },
+            "additionalProperties": False,
+        },
+    },
+    {
         "name": "check_paper_access",
         "description": (
             "Check whether a paper in the current timeline has complete text cached or legally retrievable. "
@@ -538,6 +661,7 @@ Rules:
         summary: str | None = None,
         mentioned_paper_ids: list[str] | None = None,
         pending_action: dict[str, Any] | None = None,
+        timeline_note_index: list[dict[str, Any]] | None = None,
     ) -> dict:
         mentioned_ids = {
             paper_id
@@ -576,6 +700,9 @@ Timeline papers:
 Papers explicitly mentioned by the user with @:
 {json.dumps(mentioned_papers, indent=2) if mentioned_papers else "None"}
 
+Canvas note index (metadata only; use read_timeline_notes for note text):
+{json.dumps(timeline_note_index or [], indent=2)}
+
 Prior conversation summary:
 {summary or "None"}
 
@@ -600,12 +727,21 @@ Lineage-edit rules:
 - For every addition, search OpenAlex first in this turn, then add only an exact candidate returned by that search.
 - Use update_lineage for the actual edit. To delete, use exact OpenAlex IDs from the current timeline.
 - Prefer adding a relationship edge when OpenAlex metadata shows a citation/reference relationship. If you infer a conceptual edge, say so plainly in the final response.
+- Never use update_lineage to create a connection requested for a canvas note; it only changes paper-to-paper lineage edges.
 - Never claim an edit happened unless update_lineage returned status "completed" and reported the resulting change.
+
+Canvas-note rules:
+- Use read_timeline_notes whenever the user asks about note content, including a color- or type-based group such as "green notes". Read the matching notes before answering.
+- Only create, edit, delete, connect, or disconnect notes when the user explicitly asks for that change. Do not alter notes merely because a change would be useful.
+- For edits selected by note text, color, or type, call read_timeline_notes first and use the returned exact note IDs with update_timeline_notes.
+- A request to connect a note, or a pronoun such as "it" that follows a note action, always means update_timeline_notes—even if the user @-mentions a paper as the connection target.
+- Canvas note connections target timeline papers by exact OpenAlex ID. Never claim a note change happened unless the relevant note tool returned a completed result with a reported change.
 
 Rules:
 - If the user mentioned papers with @, treat those papers as the primary focus.
 - Resolve incomplete or shorthand phrasing against mentioned papers. If two papers are mentioned and the user asks something like "how are they related" or "how is related to", answer the relationship between those mentioned papers instead of asking which papers they meant.
 - If one paper is mentioned, interpret "this paper", "it", or similarly vague references as that mentioned paper.
+- Exception: when the request refers to a note or follows a note action, resolve "it" to that note; an @-mentioned paper is the note's connection target, not a paper-to-paper edge.
 - Do not claim you read full paper text unless search_paper_content returned matching chunks.
 - Use exact OpenAlex IDs from the timeline when calling paper tools.
 - Cite retrieved paper chunks inline using bracketed citation IDs like [paper:...:chunk:3] when relying on them.
@@ -721,6 +857,22 @@ Rules:
                 )
             )
         ]
+        note_changes = [
+            record["result"]
+            for record in tool_records
+            if (
+                record.get("name") in {"create_timeline_notes", "update_timeline_notes"}
+                and record.get("status") == "completed"
+                and isinstance(record.get("result"), dict)
+                and (
+                    record["result"].get("createdNotes")
+                    or record["result"].get("updatedNotes")
+                    or record["result"].get("deletedNoteIds")
+                    or record["result"].get("connections")
+                    or record["result"].get("disconnections")
+                )
+            )
+        ]
         return {
             "text": text or "I could not produce a useful answer for that question.",
             "highlightedPaperIds": highlighted,
@@ -728,6 +880,7 @@ Rules:
             "toolUses": tool_records,
             "citations": _dedupe_citations([*citations, *_message_citations(response)]),
             "lineageChanges": lineage_changes,
+            "noteChanges": note_changes,
             "textStreamed": text_emitter is not None,
         }
 

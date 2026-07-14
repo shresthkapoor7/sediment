@@ -53,6 +53,34 @@ export interface TimelineNoteEdge {
   relation?: TimelineNoteRelation;
 }
 
+export interface TimelineNoteContext {
+  notes: Array<Pick<TimelineNote, "id" | "text" | "kind" | "color">>;
+  connections: Array<{
+    noteId: string;
+    paperId: string;
+    relation?: TimelineNoteRelation;
+  }>;
+}
+
+export interface TimelineNoteChange {
+  createdNotes: Array<Pick<TimelineNote, "id" | "text" | "kind" | "color">>;
+  updatedNotes: Array<{
+    noteId: string;
+    patch: Partial<Pick<TimelineNote, "text" | "kind" | "color">>;
+  }>;
+  deletedNoteIds: string[];
+  connections: Array<{
+    noteId: string;
+    paperId: string;
+    relation?: TimelineNoteRelation;
+  }>;
+  disconnections: Array<{
+    noteId: string;
+    paperId: string;
+  }>;
+  skipped?: Array<{ noteId: string; reason: string }>;
+}
+
 export type TimelineGraphAction =
   | {
       type: "highlight_node";
@@ -129,6 +157,7 @@ export interface GlobalChatResponse {
   toolUses?: Record<string, unknown>[];
   citations?: Record<string, unknown>[];
   lineageChanges?: LineageChange[];
+  noteChanges?: TimelineNoteChange[];
 }
 
 export interface LineageChange {

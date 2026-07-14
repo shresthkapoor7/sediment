@@ -6,7 +6,7 @@ import { MarkdownContent } from "./MarkdownContent";
 import { ConversationNavigator } from "./ConversationNavigator";
 import { openChatSession, streamChatAboutTimeline, suggestTimelineQuestions } from "@/lib/api";
 import { DETAIL_PANEL_DEFAULT_WIDTH, DETAIL_PANEL_MAX_WIDTH, DETAIL_PANEL_MIN_WIDTH, DETAIL_PANEL_WIDTH_KEY } from "@/lib/detail-panel";
-import { GlobalChatStreamEvent, LineageChange, TimelineData } from "@/lib/types";
+import { GlobalChatStreamEvent, LineageChange, TimelineData, TimelineNoteChange } from "@/lib/types";
 
 interface ToolEvent {
   name: string;
@@ -33,12 +33,13 @@ interface GlobalChatPanelProps {
   onHighlight: (ids: string[]) => void;
   onMentionedPaperIdsChange?: (ids: string[]) => void;
   onLineageChanges?: (changes: LineageChange[]) => void;
+  onNoteChanges?: (changes: TimelineNoteChange[]) => void;
   onUsageChanged?: () => void;
   graphId?: string | null;
   userId?: string | null;
 }
 
-export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMentionedPaperIdsChange, onLineageChanges, onUsageChanged, graphId, userId }: GlobalChatPanelProps) {
+export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMentionedPaperIdsChange, onLineageChanges, onNoteChanges, onUsageChanged, graphId, userId }: GlobalChatPanelProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [mentionedPaperIds, setMentionedPaperIds] = useState<string[]>([]);
@@ -216,6 +217,22 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
       );
     })
     .slice(0, 8);
+  const noteContext = {
+    notes: Object.values(data.notes ?? {})
+      .filter((note) => note.id && note.text.trim())
+      .map((note) => ({
+        id: note.id,
+        text: note.text,
+        kind: note.kind ?? "field_note",
+        color: note.color ?? "paper",
+      })),
+    connections: (data.noteEdges ?? [])
+      .map((edge) => {
+        const paperId = data.nodes[edge.nodeId]?.paper.openalexId;
+        return paperId ? { noteId: edge.noteId, paperId, relation: edge.relation ?? "about" } : null;
+      })
+      .filter((connection): connection is { noteId: string; paperId: string; relation: "about" | "question" | "insight" | "todo" | "contradiction" } => Boolean(connection)),
+  };
 
   const updateMentionSearch = useCallback((value: string, cursor: number | null) => {
     const activeMention = getActiveMention(value, cursor ?? value.length);
@@ -251,6 +268,25 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
 
   const startLineageEdit = useCallback(() => {
     const command = "Add or delete papers in this lineage: ";
+    setInput((current) => current.trim() ? current : command);
+    setMentionedPaperIds([]);
+    setMentionOpen(false);
+    setMentionQuery("");
+    window.setTimeout(() => {
+      const element = inputRef.current;
+      if (!element) return;
+      element.focus({ preventScroll: true });
+      if (!element.value.trim()) {
+        element.setSelectionRange(command.length, command.length);
+      } else {
+        element.setSelectionRange(element.value.length, element.value.length);
+      }
+      resizeInput(element);
+    }, 0);
+  }, [resizeInput]);
+
+  const startNoteEdit = useCallback(() => {
+    const command = "Read, add, edit, delete, or connect canvas notes: ";
     setInput((current) => current.trim() ? current : command);
     setMentionedPaperIds([]);
     setMentionOpen(false);
@@ -339,10 +375,16 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
       }));
     };
     let lineageChangesApplied = false;
+    let noteChangesApplied = false;
     const applyReturnedLineageChanges = (changes: LineageChange[] | undefined) => {
       if (lineageChangesApplied || !changes?.length) return;
       lineageChangesApplied = true;
       onLineageChanges?.(changes);
+    };
+    const applyReturnedNoteChanges = (changes: TimelineNoteChange[] | undefined) => {
+      if (noteChangesApplied || !changes?.length) return;
+      noteChangesApplied = true;
+      onNoteChanges?.(changes);
     };
 
     try {
@@ -371,6 +413,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
           if (event.type === "citations") updateAssistant({ citations: event.citations });
           if (event.type === "message_completed") {
             applyReturnedLineageChanges(event.response.lineageChanges);
+            applyReturnedNoteChanges(event.response.noteChanges);
             updateAssistant({
               text: event.response.text,
               citations: event.response.citations ?? [],
@@ -383,9 +426,11 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
         },
         graphId && userId ? { graphId, userId } : undefined,
         focusedPaperIds,
+        noteContext,
       );
       if (res) {
         applyReturnedLineageChanges(res.lineageChanges);
+        applyReturnedNoteChanges(res.noteChanges);
         updateAssistant({
           text: res.text,
           citations: res.citations ?? [],
@@ -660,6 +705,38 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
                   }}
                 >
                   Add/Delete papers
+                </button>
+                <button
+                  type="button"
+                  onClick={startNoteEdit}
+                  disabled={isThinking}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    borderRadius: "999px",
+                    border: "0.0625rem dashed var(--border-hover)",
+                    background: "transparent",
+                    color: "var(--text-tertiary)",
+                    padding: "0.25rem 0.55rem",
+                    fontSize: "0.6875rem",
+                    fontFamily: "'JetBrains Mono', monospace",
+                    cursor: isThinking ? "default" : "pointer",
+                    opacity: isThinking ? 0.55 : 1,
+                    transition: "border-color 0.15s, color 0.15s, background 0.15s",
+                  }}
+                  onMouseEnter={(event) => {
+                    if (isThinking) return;
+                    event.currentTarget.style.borderColor = "var(--accent)";
+                    event.currentTarget.style.color = "var(--accent)";
+                    event.currentTarget.style.background = "var(--accent-soft)";
+                  }}
+                  onMouseLeave={(event) => {
+                    event.currentTarget.style.borderColor = "var(--border-hover)";
+                    event.currentTarget.style.color = "var(--text-tertiary)";
+                    event.currentTarget.style.background = "transparent";
+                  }}
+                >
+                  Manage notes
                 </button>
                 <button
                   type="button"
@@ -1093,6 +1170,18 @@ function globalToolLabel(name: string, status?: string, result?: Record<string, 
       return `Lineage updated · ${parts.join(", ")}`;
     }
     return "Checked lineage update";
+  }
+  if (name === "read_timeline_notes") {
+    const count = typeof result?.noteCount === "number" ? result.noteCount : null;
+    return count === null ? "Reading canvas notes" : `Read ${count} canvas note${count === 1 ? "" : "s"}`;
+  }
+  if (name === "create_timeline_notes") {
+    const count = typeof result?.createdNoteCount === "number" ? result.createdNoteCount : null;
+    return count === null ? "Creating canvas notes" : `Created ${count} canvas note${count === 1 ? "" : "s"}`;
+  }
+  if (name === "update_timeline_notes") {
+    const count = typeof result?.updatedNoteCount === "number" ? result.updatedNoteCount : null;
+    return count === null ? "Updating canvas notes" : `Updated ${count} canvas note${count === 1 ? "" : "s"}`;
   }
   if (name === "check_paper_access") return status === "started" ? "Checking paper access" : "Checked paper access";
   if (name === "retrieve_paper_content") {

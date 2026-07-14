@@ -16,6 +16,9 @@ MAX_CHAT_QUESTION_LENGTH = 1_000
 MAX_SELECTED_EXCERPT_LENGTH = 6_000
 MAX_PAPER_CONTENT_CHUNKS = 100
 MAX_TIMELINE_PAPERS = 25
+MAX_TIMELINE_NOTES = 100
+MAX_NOTE_ID_LENGTH = 128
+MAX_NOTE_TEXT_LENGTH = 12_000
 MAX_USER_ID_LENGTH = 128
 MAX_GRAPH_ID_LENGTH = 128
 MAX_SHARE_ID_LENGTH = 64
@@ -208,12 +211,31 @@ class PaperSummary(StrictRequestModel):
     summary: str = Field(default="", max_length=MAX_SUMMARY_LENGTH)
 
 
+class TimelineNoteSnapshot(StrictRequestModel):
+    id: str = Field(min_length=1, max_length=MAX_NOTE_ID_LENGTH)
+    text: str = Field(min_length=1, max_length=MAX_NOTE_TEXT_LENGTH)
+    kind: Literal["field_note", "question", "insight", "todo", "contradiction"] = "field_note"
+    color: Literal["paper", "amber", "blue", "green", "rose"] = "paper"
+
+
+class TimelineNoteConnectionSnapshot(StrictRequestModel):
+    noteId: str = Field(min_length=1, max_length=MAX_NOTE_ID_LENGTH)
+    paperId: str = Field(min_length=1, max_length=MAX_OPENALEX_ID_LENGTH)
+    relation: Literal["about", "question", "insight", "todo", "contradiction"] = "about"
+
+
+class TimelineNoteContext(StrictRequestModel):
+    notes: list[TimelineNoteSnapshot] = Field(default_factory=list, max_length=MAX_TIMELINE_NOTES)
+    connections: list[TimelineNoteConnectionSnapshot] = Field(default_factory=list, max_length=MAX_TIMELINE_NOTES * 5)
+
+
 class GlobalChatRequest(StrictRequestModel):
     graphId: Optional[str] = Field(default=None, max_length=MAX_GRAPH_ID_LENGTH)
     userId: Optional[str] = Field(default=None, max_length=MAX_USER_ID_LENGTH)
     papers: list[PaperSummary] = Field(min_length=1, max_length=MAX_TIMELINE_PAPERS)
     question: str = Field(min_length=1, max_length=MAX_CHAT_QUESTION_LENGTH)
     mentionedPaperIds: list[str] = Field(default_factory=list, max_length=MAX_TIMELINE_PAPERS)
+    noteContext: Optional[TimelineNoteContext] = None
 
     @model_validator(mode="after")
     def validate_persistence_context(self):
@@ -230,6 +252,7 @@ class GlobalChatResponse(BaseModel):
     toolUses: list[dict[str, Any]] = Field(default_factory=list)
     citations: list[dict[str, Any]] = Field(default_factory=list)
     lineageChanges: list[dict[str, Any]] = Field(default_factory=list)
+    noteChanges: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class ChatSessionRequest(StrictRequestModel):

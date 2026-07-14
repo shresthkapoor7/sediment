@@ -29,6 +29,12 @@ export function ConversationNavigator({
   const closeTimerRef = useRef<number | null>(null);
   const visibleItems = useMemo(() => items.slice(-12), [items]);
 
+  useEffect(() => () => {
+    if (closeTimerRef.current !== null) {
+      window.clearTimeout(closeTimerRef.current);
+    }
+  }, []);
+
   if (visibleItems.length < 2) return null;
 
   const barCount = 7;
@@ -53,8 +59,6 @@ export function ConversationNavigator({
       closeTimerRef.current = null;
     }, 220);
   };
-
-  useEffect(() => () => cancelClose(), []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div

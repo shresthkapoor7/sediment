@@ -13,6 +13,7 @@ import {
   SavedGraphMetadata,
   TimelineData,
   TimelineNode,
+  TimelineNoteContext,
   TraversalSettings,
 } from "./types";
 
@@ -256,11 +257,12 @@ export async function chatAboutTimeline(
   question: string,
   persistence?: { graphId: string; userId: string },
   mentionedPaperIds: string[] = [],
+  noteContext?: TimelineNoteContext,
 ): Promise<GlobalChatResponse> {
   const response = await fetch(`${EXPENSIVE_API_BASE}/api/chat/global`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ ...(persistence ?? {}), papers, question, mentionedPaperIds }),
+    body: JSON.stringify({ ...(persistence ?? {}), papers, question, mentionedPaperIds, ...(noteContext ? { noteContext } : {}) }),
   });
 
   if (!response.ok) {
@@ -277,11 +279,12 @@ export async function streamChatAboutTimeline(
   onEvent: (event: GlobalChatStreamEvent) => void,
   persistence?: { graphId: string; userId: string },
   mentionedPaperIds: string[] = [],
+  noteContext?: TimelineNoteContext,
 ): Promise<GlobalChatResponse | null> {
   const response = await fetch(`${EXPENSIVE_API_BASE}/api/chat/global/stream`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
-    body: JSON.stringify({ ...(persistence ?? {}), papers, question, mentionedPaperIds }),
+    body: JSON.stringify({ ...(persistence ?? {}), papers, question, mentionedPaperIds, ...(noteContext ? { noteContext } : {}) }),
   });
 
   if (!response.ok || !response.body) {
