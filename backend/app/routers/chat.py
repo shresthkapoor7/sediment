@@ -45,9 +45,19 @@ NOTE_KINDS = {"field_note", "question", "insight", "todo", "contradiction"}
 NOTE_COLORS = {"paper", "amber", "blue", "green", "rose"}
 NOTE_RELATIONS = {"about", "question", "insight", "todo", "contradiction"}
 NODE_BORDER_COLORS = {"accent", "blue", "green", "purple", "amber", "rose"}
-NOTE_MUTATION_RE = re.compile(r"\b(add|create|write|make|edit|update|change|delete|remove|connect|disconnect|link|unlink)\b", re.I)
 NOTE_REFERENCE_RE = re.compile(r"\b(notes?|canvas)\b", re.I)
-NODE_COLOR_MUTATION_RE = re.compile(r"\b(color|colour|highlight|unhighlight|clear)\b", re.I)
+MUTATION_QUESTION_RE = re.compile(r"\?|^\s*(can|could|would|will|should|do|does|did|is|are|what|why|how|when|where|who)\b", re.I)
+MUTATION_NEGATION_RE = re.compile(r"\b(do\s+not|don't|dont|never|avoid|without)\b", re.I)
+NOTE_MUTATION_INTENT_RE = re.compile(
+    r"^\s*(?:please\s+)?(?:add|create|write|make|edit|update|change|delete|remove|connect|disconnect|link|unlink)\b"
+    r"|^\s*i\s+(?:want|need|would\s+like)\s+(?:you\s+)?to\s+(?:add|create|write|make|edit|update|change|delete|remove|connect|disconnect|link|unlink)\b",
+    re.I,
+)
+NODE_COLOR_MUTATION_INTENT_RE = re.compile(
+    r"^\s*(?:please\s+)?(?:color|colour|highlight|unhighlight|clear)\b"
+    r"|^\s*i\s+(?:want|need|would\s+like)\s+(?:you\s+)?to\s+(?:color|colour|highlight|unhighlight|clear)\b",
+    re.I,
+)
 
 _llm = LLMClient(api_key=settings.anthropic_api_key, model=settings.llm_model)
 
@@ -250,13 +260,22 @@ def _has_recent_note_action(context: ChatContext | None) -> bool:
 def _allows_timeline_note_mutation(question: str, has_recent_note_action: bool) -> bool:
     """Require a current user request before model-selected note mutations."""
     return bool(
-        NOTE_MUTATION_RE.search(question)
+        _has_affirmative_mutation_intent(question, NOTE_MUTATION_INTENT_RE)
         and (NOTE_REFERENCE_RE.search(question) or has_recent_note_action)
     )
 
 
 def _allows_timeline_node_color_mutation(question: str) -> bool:
-    return bool(NODE_COLOR_MUTATION_RE.search(question))
+    return _has_affirmative_mutation_intent(question, NODE_COLOR_MUTATION_INTENT_RE)
+
+
+def _has_affirmative_mutation_intent(question: str, intent_re: re.Pattern[str]) -> bool:
+    return bool(
+        question.strip()
+        and not MUTATION_QUESTION_RE.search(question)
+        and not MUTATION_NEGATION_RE.search(question)
+        and intent_re.search(question)
+    )
 
 
 def _allows_paper_retrieval(
@@ -1018,6 +1037,9 @@ async def _run_global_chat(req: GlobalChatRequest, request_ip: str, event_emitte
                     skipped.append({"paperId": canonical_paper_id, "reason": "invalid_node_border_color"})
                     continue
                 seen_paper_ids.add(normalized_id)
+                if node_colors_by_normalized_paper_id.get(normalized_id) == border_color:
+                    skipped.append({"paperId": canonical_paper_id, "reason": "node_color_unchanged"})
+                    continue
                 if border_color is None:
                     node_colors_by_normalized_paper_id.pop(normalized_id, None)
                 else:

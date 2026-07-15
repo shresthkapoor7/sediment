@@ -5,11 +5,22 @@ import unittest
 from unittest.mock import AsyncMock, patch
 
 from app.models import ChatRequest, GlobalChatRequest
-from app.routers.chat import chat, chat_global
+from app.routers.chat import _allows_timeline_node_color_mutation, _allows_timeline_note_mutation, chat, chat_global
 from app.services.chat_memory import ChatContext
 
 
 class PersistentChatRouterTests(unittest.IsolatedAsyncioTestCase):
+    def test_mutation_authorization_requires_affirmative_non_negated_intent(self) -> None:
+        self.assertTrue(_allows_timeline_note_mutation("Delete the green note.", False))
+        self.assertTrue(_allows_timeline_note_mutation("Connect it to W1.", True))
+        self.assertFalse(_allows_timeline_note_mutation("Could you delete the green note?", False))
+        self.assertFalse(_allows_timeline_note_mutation("Do not delete the green note.", False))
+        self.assertFalse(_allows_timeline_note_mutation("The note says delete it.", False))
+        self.assertTrue(_allows_timeline_node_color_mutation("Color W1 green."))
+        self.assertTrue(_allows_timeline_node_color_mutation("I would like you to clear W1."))
+        self.assertFalse(_allows_timeline_node_color_mutation("How do I color W1 green?"))
+        self.assertFalse(_allows_timeline_node_color_mutation("Do not color W1 green."))
+
     async def test_global_lineage_tools_search_then_return_a_validated_change(self) -> None:
         memory = AsyncMock()
         memory.append.side_effect = [
@@ -422,6 +433,41 @@ class PersistentChatRouterTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(response.nodeColorChanges[0].paperId, "W1")
         self.assertEqual(response.nodeColorChanges[0].borderColor, "green")
+
+    async def test_global_node_color_tool_skips_unchanged_colors(self) -> None:
+        async def answer(_papers, _question, **kwargs):
+            unchanged = await kwargs["tool_runner"]("update_timeline_node_colors", {
+                "updates": [
+                    {"paperId": "W1", "borderColor": "green"},
+                    {"paperId": "W2", "borderColor": None},
+                ],
+            })
+            self.assertEqual(unchanged["nodeColorChanges"], [])
+            self.assertIn({"paperId": "W1", "reason": "node_color_unchanged"}, unchanged["skipped"])
+            self.assertIn({"paperId": "W2", "reason": "node_color_unchanged"}, unchanged["skipped"])
+
+            changed = await kwargs["tool_runner"]("update_timeline_node_colors", {
+                "updates": [{"paperId": "W1", "borderColor": "rose"}],
+            })
+            self.assertEqual(changed["nodeColorChanges"], [{"paperId": "W1", "borderColor": "rose"}])
+
+            current = await kwargs["tool_runner"]("read_timeline_node_colors", {"paperIds": ["W1"]})
+            self.assertEqual(current["nodeColors"][0]["borderColor"], "rose")
+            return {"text": "Root Paper is rose.", "highlightedPaperIds": ["W1"], "suggestion": None, "toolUses": [], "citations": []}
+
+        request = SimpleNamespace(state=SimpleNamespace(verified_client_ip="127.0.0.1"), client=None)
+        req = GlobalChatRequest(
+            papers=[
+                {"openalexId": "W1", "title": "Root Paper", "year": 2017, "summary": "Root"},
+                {"openalexId": "W2", "title": "Second Paper", "year": 2018, "summary": "Second"},
+            ],
+            question="Color Root Paper rose.",
+            nodeColorContext=[{"paperId": "W1", "borderColor": "green"}],
+        )
+
+        with patch("app.routers.chat.limiter.claim_request", AsyncMock()):
+            with patch("app.routers.chat._llm.chat_about_timeline_agentic", AsyncMock(side_effect=answer)):
+                await chat_global(req, request)
 
     async def test_global_node_color_tool_rejects_unrequested_changes(self) -> None:
         async def answer(_papers, _question, **kwargs):
