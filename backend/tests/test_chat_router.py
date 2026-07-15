@@ -453,7 +453,14 @@ class PersistentChatRouterTests(unittest.IsolatedAsyncioTestCase):
 
             current = await kwargs["tool_runner"]("read_timeline_node_colors", {"paperIds": ["W1"]})
             self.assertEqual(current["nodeColors"][0]["borderColor"], "rose")
-            return {"text": "Root Paper is rose.", "highlightedPaperIds": ["W1"], "suggestion": None, "toolUses": [], "citations": []}
+            return {
+                "text": "Root Paper is rose.",
+                "highlightedPaperIds": ["W1"],
+                "suggestion": None,
+                "toolUses": [],
+                "citations": [],
+                "nodeColorChanges": changed["nodeColorChanges"],
+            }
 
         request = SimpleNamespace(state=SimpleNamespace(verified_client_ip="127.0.0.1"), client=None)
         req = GlobalChatRequest(
@@ -467,7 +474,12 @@ class PersistentChatRouterTests(unittest.IsolatedAsyncioTestCase):
 
         with patch("app.routers.chat.limiter.claim_request", AsyncMock()):
             with patch("app.routers.chat._llm.chat_about_timeline_agentic", AsyncMock(side_effect=answer)):
-                await chat_global(req, request)
+                response = await chat_global(req, request)
+
+        response_changes = [(change.paperId, change.borderColor) for change in response.nodeColorChanges]
+        self.assertEqual(response_changes, [("W1", "rose")])
+        self.assertNotIn(("W1", "green"), response_changes)
+        self.assertNotIn(("W2", None), response_changes)
 
     async def test_global_node_color_tool_rejects_unrequested_changes(self) -> None:
         async def answer(_papers, _question, **kwargs):
