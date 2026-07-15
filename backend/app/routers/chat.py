@@ -5,6 +5,7 @@ import contextlib
 import json
 import logging
 import re
+from uuid import uuid4
 from collections.abc import Awaitable, Callable, AsyncIterator
 from typing import Any
 
@@ -15,6 +16,8 @@ from pydantic import ValidationError
 from ..config import settings
 from ..db.supabase import SupabaseAPIError, SupabaseClient, SupabaseConfigError
 from ..models import (
+    MAX_TIMELINE_NOTE_CONNECTIONS,
+    MAX_TIMELINE_NOTES,
     MAX_TIMELINE_PAPERS,
     ChatRequest,
     ChatResponse,
@@ -38,6 +41,23 @@ logger = logging.getLogger(__name__)
 CONFIRMATION_RE = re.compile(r"\b(yes|yeah|yep|sure|confirm|confirmed|go ahead|do it|access it|retrieve it)\b", re.I)
 FULL_PAPER_RE = re.compile(r"\b(full|complete|entire)\s+(paper|text|article)|\b(access|retrieve|get|read|load|index)\s+(the\s+)?(full|complete|entire)?\s*(paper|text|article)\b", re.I)
 ChatEventEmitter = Callable[[str, dict[str, Any]], Awaitable[None]]
+NOTE_KINDS = {"field_note", "question", "insight", "todo", "contradiction"}
+NOTE_COLORS = {"paper", "amber", "blue", "green", "rose"}
+NOTE_RELATIONS = {"about", "question", "insight", "todo", "contradiction"}
+NODE_BORDER_COLORS = {"accent", "blue", "green", "purple", "amber", "rose"}
+NOTE_REFERENCE_RE = re.compile(r"\b(notes?|canvas)\b", re.I)
+MUTATION_QUESTION_RE = re.compile(r"\?|^\s*(can|could|would|will|should|do|does|did|is|are|what|why|how|when|where|who)\b", re.I)
+MUTATION_NEGATION_RE = re.compile(r"\b(do\s+not|don't|dont|never|avoid|without)\b", re.I)
+NOTE_MUTATION_INTENT_RE = re.compile(
+    r"^\s*(?:please\s+)?(?:add|create|write|make|edit|update|change|delete|remove|connect|disconnect|link|unlink)\b"
+    r"|^\s*i\s+(?:want|need|would\s+like)\s+(?:you\s+)?to\s+(?:add|create|write|make|edit|update|change|delete|remove|connect|disconnect|link|unlink)\b",
+    re.I,
+)
+NODE_COLOR_MUTATION_INTENT_RE = re.compile(
+    r"^\s*(?:please\s+)?(?:color|colour|highlight|unhighlight|clear)\b"
+    r"|^\s*i\s+(?:want|need|would\s+like)\s+(?:you\s+)?to\s+(?:color|colour|highlight|unhighlight|clear)\b",
+    re.I,
+)
 
 _llm = LLMClient(api_key=settings.anthropic_api_key, model=settings.llm_model)
 
@@ -93,6 +113,59 @@ def _unique_openalex_ids(value: object, limit: int) -> list[str]:
         if len(unique) >= limit:
             break
     return unique
+
+
+def _note_context_from_graph(graph_data: object) -> dict[str, list[dict[str, str]]]:
+    if not isinstance(graph_data, dict):
+        return {"notes": [], "connections": []}
+    raw_notes = graph_data.get("notes")
+    notes: list[dict[str, str]] = []
+    if isinstance(raw_notes, dict):
+        for note_id, raw_note in raw_notes.items():
+            if not isinstance(raw_note, dict):
+                continue
+            resolved_id = str(raw_note.get("id") or note_id).strip()
+            text = str(raw_note.get("text") or "").strip()
+            kind = raw_note.get("kind") if raw_note.get("kind") in NOTE_KINDS else "field_note"
+            color = raw_note.get("color") if raw_note.get("color") in NOTE_COLORS else "paper"
+            if resolved_id and text:
+                notes.append({"id": resolved_id, "text": text, "kind": kind, "color": color})
+
+    raw_nodes = graph_data.get("nodes")
+    raw_connections = graph_data.get("noteEdges")
+    connections: list[dict[str, str]] = []
+    if isinstance(raw_nodes, dict) and isinstance(raw_connections, list):
+        for raw_connection in raw_connections:
+            if not isinstance(raw_connection, dict):
+                continue
+            note_id = str(raw_connection.get("noteId") or "").strip()
+            node = raw_nodes.get(str(raw_connection.get("nodeId")))
+            if node is None:
+                node = raw_nodes.get(raw_connection.get("nodeId"))
+            paper = node.get("paper") if isinstance(node, dict) else None
+            paper_id = paper.get("openalexId") if isinstance(paper, dict) else None
+            relation = raw_connection.get("relation") if raw_connection.get("relation") in NOTE_RELATIONS else "about"
+            if note_id and isinstance(paper_id, str) and paper_id.strip():
+                connections.append({"noteId": note_id, "paperId": paper_id, "relation": relation})
+    return {"notes": notes, "connections": connections}
+
+
+def _node_color_context_from_graph(graph_data: object) -> list[dict[str, str]]:
+    if not isinstance(graph_data, dict) or not isinstance(graph_data.get("nodes"), dict):
+        return []
+    colors: list[dict[str, str]] = []
+    for node in graph_data["nodes"].values():
+        if not isinstance(node, dict):
+            continue
+        paper = node.get("paper")
+        annotation = node.get("annotation")
+        paper_id = paper.get("openalexId") if isinstance(paper, dict) else None
+        border_color = annotation.get("borderColor") if isinstance(annotation, dict) else None
+        if isinstance(paper_id, str) and paper_id.strip() and border_color in NODE_BORDER_COLORS:
+            colors.append({"paperId": paper_id, "borderColor": border_color})
+            if len(colors) >= MAX_TIMELINE_PAPERS:
+                break
+    return colors
 
 
 def _lineage_paper_payload(paper: dict[str, Any]) -> dict[str, Any]:
@@ -163,6 +236,48 @@ def _latest_pending_action(context: ChatContext | None) -> dict[str, Any] | None
     return None
 
 
+def _has_recent_note_action(context: ChatContext | None) -> bool:
+    if not context:
+        return False
+    for message in reversed(context.messages):
+        if message.get("role") != "assistant":
+            continue
+        tool_uses = message.get("tool_uses")
+        if not isinstance(tool_uses, list):
+            continue
+        for tool in reversed(tool_uses):
+            if not isinstance(tool, dict) or tool.get("name") not in {"create_timeline_notes", "update_timeline_notes"}:
+                continue
+            result = tool.get("result")
+            if not isinstance(result, dict):
+                continue
+            if any(result.get(key) for key in {"createdNotes", "updatedNotes", "deletedNoteIds", "connections", "disconnections"}):
+                return True
+        return False
+    return False
+
+
+def _allows_timeline_note_mutation(question: str, has_recent_note_action: bool) -> bool:
+    """Require a current user request before model-selected note mutations."""
+    return bool(
+        _has_affirmative_mutation_intent(question, NOTE_MUTATION_INTENT_RE)
+        and (NOTE_REFERENCE_RE.search(question) or has_recent_note_action)
+    )
+
+
+def _allows_timeline_node_color_mutation(question: str) -> bool:
+    return _has_affirmative_mutation_intent(question, NODE_COLOR_MUTATION_INTENT_RE)
+
+
+def _has_affirmative_mutation_intent(question: str, intent_re: re.Pattern[str]) -> bool:
+    return bool(
+        question.strip()
+        and not MUTATION_QUESTION_RE.search(question)
+        and not MUTATION_NEGATION_RE.search(question)
+        and intent_re.search(question)
+    )
+
+
 def _allows_paper_retrieval(
     question: str,
     tool_input: dict[str, Any],
@@ -219,7 +334,7 @@ def _compact_tool_result_for_event(result: dict[str, Any]) -> dict[str, Any]:
     compact = {
         key: value
         for key, value in result.items()
-        if key not in {"matches", "papers", "addedPapers", "edges"}
+        if key not in {"matches", "papers", "addedPapers", "edges", "notes", "createdNotes", "updatedNotes", "connections", "disconnections", "nodeColorChanges", "nodeColors"}
     }
     matches = result.get("matches")
     if isinstance(matches, list):
@@ -234,6 +349,21 @@ def _compact_tool_result_for_event(result: dict[str, Any]) -> dict[str, Any]:
     edges = result.get("edges")
     if isinstance(edges, list):
         compact["edgeCount"] = len(edges)
+    notes = result.get("notes")
+    if isinstance(notes, list):
+        compact["noteCount"] = len(notes)
+    created_notes = result.get("createdNotes")
+    if isinstance(created_notes, list):
+        compact["createdNoteCount"] = len(created_notes)
+    updated_notes = result.get("updatedNotes")
+    if isinstance(updated_notes, list):
+        compact["updatedNoteCount"] = len(updated_notes)
+    node_color_changes = result.get("nodeColorChanges")
+    if isinstance(node_color_changes, list):
+        compact["nodeColorCount"] = len(node_color_changes)
+    node_colors = result.get("nodeColors")
+    if isinstance(node_colors, list):
+        compact["nodeColorCount"] = len(node_colors)
     return compact
 
 
@@ -427,6 +557,16 @@ def _tool_status_message(name: str, state: str) -> str:
         return "Searching OpenAlex" if state == "started" else "OpenAlex search finished"
     if name == "update_lineage":
         return "Updating the lineage" if state == "started" else "Lineage updated"
+    if name == "update_timeline_node_colors":
+        return "Coloring timeline nodes" if state == "started" else "Timeline nodes colored"
+    if name == "read_timeline_node_colors":
+        return "Reading timeline node colors" if state == "started" else "Timeline node colors read"
+    if name == "read_timeline_notes":
+        return "Reading canvas notes" if state == "started" else "Canvas notes read"
+    if name == "create_timeline_notes":
+        return "Creating canvas notes" if state == "started" else "Canvas notes created"
+    if name == "update_timeline_notes":
+        return "Updating canvas notes" if state == "started" else "Canvas notes updated"
     if name == "check_paper_access":
         return "Checking paper access" if state == "started" else "Checked paper access"
     if name == "retrieve_paper_content":
@@ -542,11 +682,105 @@ async def _run_global_chat(req: GlobalChatRequest, request_ip: str, event_emitte
     primary_paper_id = mentioned_paper_ids[0] if mentioned_paper_ids else None
     root_paper_id = _graph_root_openalex_id(graph_data)
     pending_action = _latest_pending_action(context)
+    has_recent_note_action = _has_recent_note_action(context)
     if pending_action and not pending_action.get("paperId") and primary_paper_id:
         pending_action = {**pending_action, "paperId": primary_paper_id}
     retrieval = PaperRetrievalService(memory.db) if memory else None
     searched_openalex_papers: dict[str, dict[str, Any]] = {}
     lineage_edges: list[dict[str, str]] = []
+    raw_note_context = req.noteContext.model_dump() if req.noteContext else _note_context_from_graph(graph_data)
+    raw_node_color_context = (
+        [item.model_dump() for item in req.nodeColorContext]
+        if req.nodeColorContext is not None
+        else _node_color_context_from_graph(graph_data)
+    )
+    notes_by_id = {
+        note["id"]: dict(note)
+        for note in raw_note_context["notes"][:MAX_TIMELINE_NOTES]
+        if note.get("id") and note.get("text")
+    }
+
+    def resolve_current_paper_id(paper_id: object) -> str | None:
+        normalized_id = _normalize_openalex_id(paper_id)
+        if not normalized_id:
+            return None
+        for paper in papers:
+            if _normalize_openalex_id(paper.get("openalexId")) == normalized_id:
+                return str(paper.get("openalexId"))
+        return None
+
+    node_colors_by_normalized_paper_id: dict[str, str] = {}
+    for raw_color in raw_node_color_context:
+        if not isinstance(raw_color, dict):
+            continue
+        canonical_paper_id = resolve_current_paper_id(raw_color.get("paperId"))
+        border_color = raw_color.get("borderColor")
+        if canonical_paper_id and border_color in NODE_BORDER_COLORS:
+            node_colors_by_normalized_paper_id[_normalize_openalex_id(canonical_paper_id)] = border_color
+
+    note_connections: list[dict[str, str]] = []
+    seen_note_connection_keys: set[tuple[str, str]] = set()
+    for raw_connection in raw_note_context["connections"]:
+        if not isinstance(raw_connection, dict):
+            continue
+        note_id = str(raw_connection.get("noteId") or "").strip()
+        canonical_paper_id = resolve_current_paper_id(raw_connection.get("paperId"))
+        relation = raw_connection.get("relation")
+        if (
+            note_id not in notes_by_id
+            or not canonical_paper_id
+            or relation not in NOTE_RELATIONS
+        ):
+            continue
+        key = (note_id, _normalize_openalex_id(canonical_paper_id))
+        if key in seen_note_connection_keys:
+            continue
+        if len(note_connections) >= MAX_TIMELINE_NOTE_CONNECTIONS:
+            break
+        seen_note_connection_keys.add(key)
+        note_connections.append({
+            "noteId": note_id,
+            "paperId": canonical_paper_id,
+            "relation": relation,
+        })
+
+    timeline_note_index = [
+        {
+            "id": note["id"],
+            "kind": note["kind"],
+            "color": note["color"],
+            "connectedPaperIds": [
+                connection["paperId"]
+                for connection in note_connections
+                if connection["noteId"] == note["id"]
+            ],
+        }
+        for note in notes_by_id.values()
+    ]
+
+    def add_note_connection(note_id: str, paper_id: object, relation: object, skipped: list[dict[str, str]]) -> dict[str, str] | None:
+        canonical_paper_id = resolve_current_paper_id(paper_id)
+        if note_id not in notes_by_id:
+            skipped.append({"noteId": note_id, "reason": "note_not_found"})
+            return None
+        if not canonical_paper_id:
+            skipped.append({"noteId": note_id, "reason": "paper_not_in_timeline"})
+            return None
+        if relation not in NOTE_RELATIONS:
+            skipped.append({"noteId": note_id, "reason": "invalid_note_relation"})
+            return None
+        connection = {"noteId": note_id, "paperId": canonical_paper_id, "relation": relation}
+        if any(
+            existing["noteId"] == note_id and _normalize_openalex_id(existing["paperId"]) == _normalize_openalex_id(canonical_paper_id)
+            for existing in note_connections
+        ):
+            skipped.append({"noteId": note_id, "reason": "note_connection_duplicate"})
+            return None
+        if len(note_connections) >= MAX_TIMELINE_NOTE_CONNECTIONS:
+            skipped.append({"noteId": note_id, "reason": "note_connection_limit_reached"})
+            return None
+        note_connections.append(connection)
+        return connection
 
     async def run_global_tool(name: str, tool_input: dict[str, Any]) -> dict[str, Any]:
         await _emit(event_emitter, "tool_started", {"name": name, "input": tool_input})
@@ -589,6 +823,17 @@ async def _run_global_chat(req: GlobalChatRequest, request_ip: str, event_emitte
             return result
 
         if name == "update_lineage":
+            asks_to_connect_a_note = bool(re.search(r"\bnote\b", req.question, re.I)) or (
+                has_recent_note_action
+                and bool(re.search(r"\b(connect|link)\s+(it|this|that)\b", req.question, re.I))
+            )
+            if asks_to_connect_a_note and not tool_input.get("addPaperIds") and not tool_input.get("removePaperIds"):
+                result = {
+                    "status": "error",
+                    "message": "This request targets a canvas note. Use update_timeline_notes to connect the note to the paper.",
+                }
+                await _emit(event_emitter, "tool_completed", {"name": name, "status": "error", "result": result})
+                return result
             if not req.graphId or not req.userId:
                 result = {
                     "status": "error",
@@ -727,6 +972,297 @@ async def _run_global_chat(req: GlobalChatRequest, request_ip: str, event_emitte
             })
             return result
 
+        if name == "read_timeline_node_colors":
+            requested_paper_ids = {
+                _normalize_openalex_id(paper_id)
+                for paper_id in tool_input.get("paperIds", [])
+                if isinstance(paper_id, str) and _normalize_openalex_id(paper_id)
+            }
+            requested_colors = {
+                color
+                for color in tool_input.get("colors", [])
+                if color in NODE_BORDER_COLORS
+            }
+            node_colors = []
+            for paper in papers:
+                paper_id = str(paper.get("openalexId") or "")
+                normalized_id = _normalize_openalex_id(paper_id)
+                border_color = node_colors_by_normalized_paper_id.get(normalized_id)
+                if not border_color:
+                    continue
+                if requested_paper_ids and normalized_id not in requested_paper_ids:
+                    continue
+                if requested_colors and border_color not in requested_colors:
+                    continue
+                node_colors.append({
+                    "paperId": paper_id,
+                    "title": str(paper.get("title") or "Untitled paper"),
+                    "borderColor": border_color,
+                })
+            result = {"status": "completed", "nodeColors": node_colors}
+            await _emit(event_emitter, "tool_completed", {
+                "name": name,
+                "status": result["status"],
+                "result": _compact_tool_result_for_event(result),
+            })
+            return result
+
+        if name == "update_timeline_node_colors":
+            if not _allows_timeline_node_color_mutation(req.question):
+                result = {
+                    "status": "error",
+                    "message": "Node colors require an explicit color request in the current message.",
+                }
+                await _emit(event_emitter, "tool_completed", {"name": name, "status": "error", "result": result})
+                return result
+
+            changes: list[dict[str, str | None]] = []
+            skipped: list[dict[str, str]] = []
+            seen_paper_ids: set[str] = set()
+            raw_updates = tool_input.get("updates") if isinstance(tool_input.get("updates"), list) else []
+            for raw_update in raw_updates[:10]:
+                if not isinstance(raw_update, dict):
+                    skipped.append({"paperId": "<unknown>", "reason": "invalid_node_color_payload"})
+                    continue
+                canonical_paper_id = resolve_current_paper_id(raw_update.get("paperId"))
+                if not canonical_paper_id:
+                    skipped.append({"paperId": str(raw_update.get("paperId") or "<unknown>"), "reason": "paper_not_in_timeline"})
+                    continue
+                normalized_id = _normalize_openalex_id(canonical_paper_id)
+                if normalized_id in seen_paper_ids:
+                    skipped.append({"paperId": canonical_paper_id, "reason": "node_color_duplicate"})
+                    continue
+                border_color = raw_update.get("borderColor")
+                if border_color is not None and border_color not in NODE_BORDER_COLORS:
+                    skipped.append({"paperId": canonical_paper_id, "reason": "invalid_node_border_color"})
+                    continue
+                seen_paper_ids.add(normalized_id)
+                if node_colors_by_normalized_paper_id.get(normalized_id) == border_color:
+                    skipped.append({"paperId": canonical_paper_id, "reason": "node_color_unchanged"})
+                    continue
+                if border_color is None:
+                    node_colors_by_normalized_paper_id.pop(normalized_id, None)
+                else:
+                    node_colors_by_normalized_paper_id[normalized_id] = border_color
+                changes.append({"paperId": canonical_paper_id, "borderColor": border_color})
+
+            result = {"status": "completed", "nodeColorChanges": changes, "skipped": skipped}
+            await _emit(event_emitter, "tool_completed", {
+                "name": name,
+                "status": result["status"],
+                "result": _compact_tool_result_for_event(result),
+            })
+            return result
+
+        if name == "read_timeline_notes":
+            requested_ids = {
+                str(note_id).strip()
+                for note_id in tool_input.get("noteIds", [])
+                if isinstance(note_id, str) and note_id.strip()
+            }
+            requested_colors = {
+                color for color in tool_input.get("colors", [])
+                if color in NOTE_COLORS
+            }
+            requested_kinds = {
+                kind for kind in tool_input.get("kinds", [])
+                if kind in NOTE_KINDS
+            }
+            query = str(tool_input.get("query") or "").strip().lower()[:300]
+            try:
+                limit = max(1, min(int(tool_input.get("limit") or 30), 50))
+            except (TypeError, ValueError):
+                limit = 30
+
+            matching_notes = []
+            for note in notes_by_id.values():
+                if requested_ids and note["id"] not in requested_ids:
+                    continue
+                if requested_colors and note["color"] not in requested_colors:
+                    continue
+                if requested_kinds and note["kind"] not in requested_kinds:
+                    continue
+                if query and query not in note["text"].lower():
+                    continue
+                connections = [
+                    {
+                        "paperId": connection["paperId"],
+                        "relation": connection["relation"],
+                    }
+                    for connection in note_connections
+                    if connection["noteId"] == note["id"]
+                ]
+                matching_notes.append({**note, "connections": connections})
+                if len(matching_notes) >= limit:
+                    break
+            result = {"status": "completed", "notes": matching_notes}
+            await _emit(event_emitter, "tool_completed", {
+                "name": name,
+                "status": result["status"],
+                "result": _compact_tool_result_for_event(result),
+            })
+            return result
+
+        if name in {"create_timeline_notes", "update_timeline_notes"} and not _allows_timeline_note_mutation(
+            req.question,
+            has_recent_note_action,
+        ):
+            result = {
+                "status": "error",
+                "message": "Canvas note changes require an explicit request in the current message.",
+            }
+            await _emit(event_emitter, "tool_completed", {"name": name, "status": "error", "result": result})
+            return result
+
+        if name == "create_timeline_notes":
+            created_notes: list[dict[str, str]] = []
+            connections: list[dict[str, str]] = []
+            skipped: list[dict[str, str]] = []
+            raw_notes = tool_input.get("notes") if isinstance(tool_input.get("notes"), list) else []
+            for raw_note in raw_notes[:5]:
+                if not isinstance(raw_note, dict):
+                    skipped.append({"noteId": "<new note>", "reason": "invalid_note_payload"})
+                    continue
+                text = str(raw_note.get("text") or "").strip()
+                kind = raw_note.get("kind") if raw_note.get("kind") in NOTE_KINDS else "field_note"
+                color = raw_note.get("color") if raw_note.get("color") in NOTE_COLORS else "paper"
+                if not text:
+                    skipped.append({"noteId": "<new note>", "reason": "empty_note_text"})
+                    continue
+                if len(notes_by_id) >= MAX_TIMELINE_NOTES:
+                    skipped.append({"noteId": "<new note>", "reason": "note_limit_reached"})
+                    continue
+                note = {
+                    "id": f"note-agent-{uuid4().hex[:12]}",
+                    "text": text[:12_000],
+                    "kind": kind,
+                    "color": color,
+                }
+                notes_by_id[note["id"]] = note
+                created_notes.append(note)
+                relation = raw_note.get("relation") if raw_note.get("relation") in NOTE_RELATIONS else "about"
+                paper_ids = raw_note.get("connectToPaperIds") if isinstance(raw_note.get("connectToPaperIds"), list) else []
+                for paper_id in paper_ids[:5]:
+                    connection = add_note_connection(note["id"], paper_id, relation, skipped)
+                    if connection:
+                        connections.append(connection)
+            result = {
+                "status": "completed",
+                "createdNotes": created_notes,
+                "updatedNotes": [],
+                "deletedNoteIds": [],
+                "connections": connections,
+                "disconnections": [],
+                "skipped": skipped,
+            }
+            await _emit(event_emitter, "tool_completed", {
+                "name": name,
+                "status": result["status"],
+                "result": _compact_tool_result_for_event(result),
+            })
+            return result
+
+        if name == "update_timeline_notes":
+            updated_notes: list[dict[str, Any]] = []
+            deleted_note_ids: list[str] = []
+            connections: list[dict[str, str]] = []
+            disconnections: list[dict[str, str]] = []
+            skipped: list[dict[str, str]] = []
+            raw_updates = tool_input.get("updates") if isinstance(tool_input.get("updates"), list) else []
+            for raw_update in raw_updates[:10]:
+                if not isinstance(raw_update, dict):
+                    skipped.append({"noteId": "<unknown>", "reason": "invalid_note_update"})
+                    continue
+                note_id = str(raw_update.get("noteId") or "").strip()
+                note = notes_by_id.get(note_id)
+                if not note:
+                    skipped.append({"noteId": note_id or "<unknown>", "reason": "note_not_found"})
+                    continue
+                patch: dict[str, str] = {}
+                if "text" in raw_update:
+                    text = str(raw_update.get("text") or "").strip()
+                    if not text:
+                        skipped.append({"noteId": note_id, "reason": "empty_note_text"})
+                    else:
+                        patch["text"] = text[:12_000]
+                if "kind" in raw_update:
+                    if raw_update["kind"] in NOTE_KINDS:
+                        patch["kind"] = raw_update["kind"]
+                    else:
+                        skipped.append({"noteId": note_id, "reason": "invalid_note_kind"})
+                if "color" in raw_update:
+                    if raw_update["color"] in NOTE_COLORS:
+                        patch["color"] = raw_update["color"]
+                    else:
+                        skipped.append({"noteId": note_id, "reason": "invalid_note_color"})
+                if not patch:
+                    continue
+                note.update(patch)
+                updated_notes.append({"noteId": note_id, "patch": patch})
+
+            raw_deletions = tool_input.get("deleteNoteIds") if isinstance(tool_input.get("deleteNoteIds"), list) else []
+            for raw_note_id in raw_deletions[:10]:
+                note_id = str(raw_note_id or "").strip()
+                if note_id not in notes_by_id:
+                    skipped.append({"noteId": note_id or "<unknown>", "reason": "note_not_found"})
+                    continue
+                del notes_by_id[note_id]
+                note_connections[:] = [connection for connection in note_connections if connection["noteId"] != note_id]
+                deleted_note_ids.append(note_id)
+
+            raw_connections = tool_input.get("connections") if isinstance(tool_input.get("connections"), list) else []
+            for raw_connection in raw_connections[:15]:
+                if not isinstance(raw_connection, dict):
+                    skipped.append({"noteId": "<unknown>", "reason": "invalid_note_connection"})
+                    continue
+                note_id = str(raw_connection.get("noteId") or "").strip()
+                connection = add_note_connection(note_id, raw_connection.get("paperId"), raw_connection.get("relation"), skipped)
+                if connection:
+                    connections.append(connection)
+
+            raw_disconnections = tool_input.get("disconnections") if isinstance(tool_input.get("disconnections"), list) else []
+            for raw_connection in raw_disconnections[:15]:
+                if not isinstance(raw_connection, dict):
+                    skipped.append({"noteId": "<unknown>", "reason": "invalid_note_connection"})
+                    continue
+                note_id = str(raw_connection.get("noteId") or "").strip()
+                canonical_paper_id = resolve_current_paper_id(raw_connection.get("paperId"))
+                if note_id not in notes_by_id:
+                    skipped.append({"noteId": note_id or "<unknown>", "reason": "note_not_found"})
+                    continue
+                if not canonical_paper_id:
+                    skipped.append({"noteId": note_id, "reason": "paper_not_in_timeline"})
+                    continue
+                before = len(note_connections)
+                note_connections[:] = [
+                    connection
+                    for connection in note_connections
+                    if not (
+                        connection["noteId"] == note_id
+                        and _normalize_openalex_id(connection["paperId"]) == _normalize_openalex_id(canonical_paper_id)
+                    )
+                ]
+                if len(note_connections) == before:
+                    skipped.append({"noteId": note_id, "reason": "note_connection_not_found"})
+                    continue
+                disconnections.append({"noteId": note_id, "paperId": canonical_paper_id})
+
+            result = {
+                "status": "completed",
+                "createdNotes": [],
+                "updatedNotes": updated_notes,
+                "deletedNoteIds": deleted_note_ids,
+                "connections": connections,
+                "disconnections": disconnections,
+                "skipped": skipped,
+            }
+            await _emit(event_emitter, "tool_completed", {
+                "name": name,
+                "status": result["status"],
+                "result": _compact_tool_result_for_event(result),
+            })
+            return result
+
         requested_paper_id = str(tool_input.get("paperId") or primary_paper_id or "")
         paper = _paper_by_id(papers, requested_paper_id)
         canonical_paper_id = paper.get("openalexId") if paper else requested_paper_id
@@ -814,6 +1350,7 @@ async def _run_global_chat(req: GlobalChatRequest, request_ip: str, event_emitte
             summary=context.summary if context else None,
             mentioned_paper_ids=mentioned_paper_ids,
             pending_action=pending_action,
+            timeline_note_index=timeline_note_index,
         )
     except LLMParseError as e:
         logger.warning("Timeline chat failed for %s papers", len(req.papers), exc_info=e)

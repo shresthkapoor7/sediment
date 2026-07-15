@@ -5,11 +5,22 @@ import unittest
 from unittest.mock import AsyncMock, patch
 
 from app.models import ChatRequest, GlobalChatRequest
-from app.routers.chat import chat, chat_global
+from app.routers.chat import _allows_timeline_node_color_mutation, _allows_timeline_note_mutation, chat, chat_global
 from app.services.chat_memory import ChatContext
 
 
 class PersistentChatRouterTests(unittest.IsolatedAsyncioTestCase):
+    def test_mutation_authorization_requires_affirmative_non_negated_intent(self) -> None:
+        self.assertTrue(_allows_timeline_note_mutation("Delete the green note.", False))
+        self.assertTrue(_allows_timeline_note_mutation("Connect it to W1.", True))
+        self.assertFalse(_allows_timeline_note_mutation("Could you delete the green note?", False))
+        self.assertFalse(_allows_timeline_note_mutation("Do not delete the green note.", False))
+        self.assertFalse(_allows_timeline_note_mutation("The note says delete it.", False))
+        self.assertTrue(_allows_timeline_node_color_mutation("Color W1 green."))
+        self.assertTrue(_allows_timeline_node_color_mutation("I would like you to clear W1."))
+        self.assertFalse(_allows_timeline_node_color_mutation("How do I color W1 green?"))
+        self.assertFalse(_allows_timeline_node_color_mutation("Do not color W1 green."))
+
     async def test_global_lineage_tools_search_then_return_a_validated_change(self) -> None:
         memory = AsyncMock()
         memory.append.side_effect = [
@@ -191,6 +202,340 @@ class PersistentChatRouterTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(response.highlightedPaperIds, ["W3"])
         self.assertEqual(response.lineageChanges[1]["edges"][0]["childOpenalexId"], "W3")
+
+    async def test_global_note_tools_read_and_mutate_canvas_notes_within_one_turn(self) -> None:
+        memory = AsyncMock()
+        memory.append.side_effect = [{"sequence_number": 3}, {"sequence_number": 4}]
+        context = ChatContext(
+            session={"id": "session-1", "summary": None, "summary_through_sequence": 0},
+            messages=[{
+                "role": "assistant",
+                "sequence_number": 2,
+                "content": "Created the requested canvas note.",
+                "tool_uses": [{
+                    "name": "create_timeline_notes",
+                    "status": "completed",
+                    "result": {"createdNotes": [{"id": "note-green"}]},
+                }],
+            }],
+        )
+        graph = {
+            "data": {
+                "rootId": 1,
+                "nodes": {
+                    "1": {"paper": {"openalexId": "W1", "title": "Root Paper", "year": 2017, "summary": "Root"}},
+                    "2": {"paper": {"openalexId": "W2", "title": "Second Paper", "year": 2018, "summary": "Second"}},
+                },
+            },
+        }
+
+        async def answer(_papers, _question, **kwargs):
+            self.assertEqual(kwargs["timeline_note_index"], [
+                {"id": "note-green", "kind": "field_note", "color": "green", "connectedPaperIds": ["W1"]},
+                {"id": "note-green-2", "kind": "todo", "color": "green", "connectedPaperIds": []},
+            ])
+            green_notes = await kwargs["tool_runner"]("read_timeline_notes", {"colors": ["green"]})
+            self.assertEqual({note["id"] for note in green_notes["notes"]}, {"note-green", "note-green-2"})
+
+            duplicate = await kwargs["tool_runner"]("update_timeline_notes", {
+                "connections": [{"noteId": "note-green", "paperId": "W1", "relation": "about"}],
+            })
+            self.assertEqual(duplicate["connections"], [])
+            self.assertIn({"noteId": "note-green", "reason": "note_connection_duplicate"}, duplicate["skipped"])
+
+            wrong_lineage = await kwargs["tool_runner"]("update_lineage", {
+                "edges": [{"parentOpenalexId": "W1", "childOpenalexId": "W2", "relation": "influenced"}],
+            })
+            self.assertEqual(wrong_lineage["status"], "error")
+            self.assertIn("canvas note", wrong_lineage["message"])
+
+            created = await kwargs["tool_runner"]("create_timeline_notes", {
+                "notes": [{
+                    "text": "Compare both papers' training objectives.",
+                    "kind": "question",
+                    "color": "green",
+                    "connectToPaperIds": ["W1"],
+                    "relation": "question",
+                }],
+            })
+            created_id = created["createdNotes"][0]["id"]
+
+            updated = await kwargs["tool_runner"]("update_timeline_notes", {
+                "updates": [{"noteId": "note-green", "text": "Resolved observation", "kind": "insight", "color": "blue"}],
+                "deleteNoteIds": ["note-green-2"],
+                "connections": [{"noteId": created_id, "paperId": "W2", "relation": "question"}],
+                "disconnections": [{"noteId": "note-green", "paperId": "W1"}],
+            })
+            self.assertEqual(updated["updatedNotes"][0]["patch"]["color"], "blue")
+            self.assertEqual(updated["deletedNoteIds"], ["note-green-2"])
+
+            remaining_green = await kwargs["tool_runner"]("read_timeline_notes", {"colors": ["green"]})
+            self.assertEqual([note["id"] for note in remaining_green["notes"]], [created_id])
+            self.assertEqual(
+                {connection["paperId"] for connection in remaining_green["notes"][0]["connections"]},
+                {"W1", "W2"},
+            )
+            return {
+                "text": "Updated the selected notes.",
+                "highlightedPaperIds": [],
+                "suggestion": None,
+                "toolUses": [],
+                "citations": [],
+                "lineageChanges": [],
+                "noteChanges": [created, updated],
+            }
+
+        request = SimpleNamespace(state=SimpleNamespace(verified_client_ip="127.0.0.1"), client=None)
+        req = GlobalChatRequest(
+            graphId="00000000-0000-0000-0000-000000000001",
+            userId="00000000-0000-0000-0000-000000000002",
+            papers=[
+                {"openalexId": "W1", "title": "Root Paper", "year": 2017, "summary": "Root"},
+                {"openalexId": "W2", "title": "Second Paper", "year": 2018, "summary": "Second"},
+            ],
+            question="Create a note, update the green note, delete the extra note, and connect the new note with @Second Paper.",
+            mentionedPaperIds=["W2"],
+            noteContext={
+                "notes": [
+                    {"id": "note-green", "text": "Initial observation", "kind": "field_note", "color": "green"},
+                    {"id": "note-green-2", "text": "A second observation", "kind": "todo", "color": "green"},
+                ],
+                "connections": [
+                    {"noteId": "note-green", "paperId": "W1", "relation": "about"},
+                    {"noteId": "note-green", "paperId": "W404", "relation": "about"},
+                ],
+            },
+        )
+
+        with patch("app.routers.chat.limiter.claim_request", AsyncMock()):
+            with patch("app.routers.chat._load_persistent_context", AsyncMock(return_value=(AsyncMock(), graph, memory, context))):
+                with patch("app.routers.chat._llm.chat_about_timeline_agentic", AsyncMock(side_effect=answer)):
+                    response = await chat_global(req, request)
+
+        self.assertEqual(len(response.noteChanges), 2)
+        self.assertEqual(response.noteChanges[0].createdNotes[0].color, "green")
+        self.assertEqual(response.noteChanges[1].deletedNoteIds, ["note-green-2"])
+
+    async def test_global_note_mutations_require_current_user_authorization(self) -> None:
+        async def answer(_papers, _question, **kwargs):
+            before = await kwargs["tool_runner"]("read_timeline_notes", {"noteIds": ["note-1"]})
+            self.assertEqual(before["notes"][0]["text"], "Keep this note")
+
+            created = await kwargs["tool_runner"]("create_timeline_notes", {
+                "notes": [{"text": "Unauthorized note", "kind": "todo", "color": "rose"}],
+            })
+            updated = await kwargs["tool_runner"]("update_timeline_notes", {
+                "deleteNoteIds": ["note-1"],
+            })
+            self.assertEqual(created["status"], "error")
+            self.assertEqual(updated["status"], "error")
+
+            after = await kwargs["tool_runner"]("read_timeline_notes", {"noteIds": ["note-1"]})
+            self.assertEqual(after["notes"][0]["text"], "Keep this note")
+            return {"text": "The note says to keep it.", "highlightedPaperIds": [], "suggestion": None, "toolUses": [], "citations": []}
+
+        request = SimpleNamespace(state=SimpleNamespace(verified_client_ip="127.0.0.1"), client=None)
+        req = GlobalChatRequest(
+            papers=[{"openalexId": "W1", "title": "Root Paper", "year": 2017, "summary": "Root"}],
+            question="Summarize my notes.",
+            noteContext={
+                "notes": [{"id": "note-1", "text": "Keep this note", "kind": "field_note", "color": "green"}],
+                "connections": [{"noteId": "note-1", "paperId": "W1", "relation": "about"}],
+            },
+        )
+
+        with patch("app.routers.chat.limiter.claim_request", AsyncMock()):
+            with patch("app.routers.chat._llm.chat_about_timeline_agentic", AsyncMock(side_effect=answer)):
+                response = await chat_global(req, request)
+
+        self.assertEqual(response.noteChanges, [])
+
+    async def test_global_note_mutations_enforce_note_and_connection_limits(self) -> None:
+        papers = [
+            {"openalexId": f"W{index}", "title": f"Paper {index}", "year": 2000 + index, "summary": "Summary"}
+            for index in range(1, 26)
+        ]
+        note_context = {
+            "notes": [
+                {"id": f"note-{index}", "text": f"Note {index}", "kind": "todo", "color": "paper"}
+                for index in range(100)
+            ],
+            "connections": [
+                {"noteId": f"note-{note_index}", "paperId": f"W{paper_index}", "relation": "about"}
+                for note_index in range(20)
+                for paper_index in range(1, 26)
+            ],
+        }
+
+        async def answer(_papers, _question, **kwargs):
+            created = await kwargs["tool_runner"]("create_timeline_notes", {
+                "notes": [{"text": "Overflow", "kind": "todo", "color": "blue", "connectToPaperIds": ["W1"]}],
+            })
+            connected = await kwargs["tool_runner"]("update_timeline_notes", {
+                "connections": [{"noteId": "note-20", "paperId": "W1", "relation": "todo"}],
+            })
+            self.assertEqual(created["createdNotes"], [])
+            self.assertIn({"noteId": "<new note>", "reason": "note_limit_reached"}, created["skipped"])
+            self.assertEqual(connected["connections"], [])
+            self.assertIn({"noteId": "note-20", "reason": "note_connection_limit_reached"}, connected["skipped"])
+
+            untouched = await kwargs["tool_runner"]("read_timeline_notes", {"noteIds": ["note-20"]})
+            self.assertEqual(untouched["notes"][0]["connections"], [])
+            return {"text": "No changes were needed.", "highlightedPaperIds": [], "suggestion": None, "toolUses": [], "citations": []}
+
+        request = SimpleNamespace(state=SimpleNamespace(verified_client_ip="127.0.0.1"), client=None)
+        req = GlobalChatRequest(
+            papers=papers,
+            question="Create a note and connect a canvas note.",
+            noteContext=note_context,
+        )
+
+        with patch("app.routers.chat.limiter.claim_request", AsyncMock()):
+            with patch("app.routers.chat._llm.chat_about_timeline_agentic", AsyncMock(side_effect=answer)):
+                await chat_global(req, request)
+
+    async def test_global_node_color_tool_returns_validated_color_changes(self) -> None:
+        async def answer(_papers, _question, **kwargs):
+            colored = await kwargs["tool_runner"]("update_timeline_node_colors", {
+                "updates": [
+                    {"paperId": "https://openalex.org/W1", "borderColor": "green"},
+                    {"paperId": "W404", "borderColor": "blue"},
+                    {"paperId": "W2", "borderColor": "not-a-color"},
+                    {"paperId": "W1", "borderColor": "rose"},
+                ],
+            })
+            self.assertEqual(colored["nodeColorChanges"], [{"paperId": "W1", "borderColor": "green"}])
+            self.assertIn({"paperId": "W404", "reason": "paper_not_in_timeline"}, colored["skipped"])
+            self.assertIn({"paperId": "W2", "reason": "invalid_node_border_color"}, colored["skipped"])
+            self.assertIn({"paperId": "W1", "reason": "node_color_duplicate"}, colored["skipped"])
+            return {
+                "text": "Colored Root Paper green.",
+                "highlightedPaperIds": ["W1"],
+                "suggestion": None,
+                "toolUses": [],
+                "citations": [],
+                "nodeColorChanges": colored["nodeColorChanges"],
+            }
+
+        request = SimpleNamespace(state=SimpleNamespace(verified_client_ip="127.0.0.1"), client=None)
+        req = GlobalChatRequest(
+            papers=[
+                {"openalexId": "W1", "title": "Root Paper", "year": 2017, "summary": "Root"},
+                {"openalexId": "W2", "title": "Second Paper", "year": 2018, "summary": "Second"},
+            ],
+            question="Color @Root Paper green.",
+            mentionedPaperIds=["W1"],
+        )
+
+        with patch("app.routers.chat.limiter.claim_request", AsyncMock()):
+            with patch("app.routers.chat._llm.chat_about_timeline_agentic", AsyncMock(side_effect=answer)):
+                response = await chat_global(req, request)
+
+        self.assertEqual(response.nodeColorChanges[0].paperId, "W1")
+        self.assertEqual(response.nodeColorChanges[0].borderColor, "green")
+
+    async def test_global_node_color_tool_skips_unchanged_colors(self) -> None:
+        async def answer(_papers, _question, **kwargs):
+            unchanged = await kwargs["tool_runner"]("update_timeline_node_colors", {
+                "updates": [
+                    {"paperId": "W1", "borderColor": "green"},
+                    {"paperId": "W2", "borderColor": None},
+                ],
+            })
+            self.assertEqual(unchanged["nodeColorChanges"], [])
+            self.assertIn({"paperId": "W1", "reason": "node_color_unchanged"}, unchanged["skipped"])
+            self.assertIn({"paperId": "W2", "reason": "node_color_unchanged"}, unchanged["skipped"])
+
+            changed = await kwargs["tool_runner"]("update_timeline_node_colors", {
+                "updates": [{"paperId": "W1", "borderColor": "rose"}],
+            })
+            self.assertEqual(changed["nodeColorChanges"], [{"paperId": "W1", "borderColor": "rose"}])
+
+            current = await kwargs["tool_runner"]("read_timeline_node_colors", {"paperIds": ["W1"]})
+            self.assertEqual(current["nodeColors"][0]["borderColor"], "rose")
+            return {
+                "text": "Root Paper is rose.",
+                "highlightedPaperIds": ["W1"],
+                "suggestion": None,
+                "toolUses": [],
+                "citations": [],
+                "nodeColorChanges": changed["nodeColorChanges"],
+            }
+
+        request = SimpleNamespace(state=SimpleNamespace(verified_client_ip="127.0.0.1"), client=None)
+        req = GlobalChatRequest(
+            papers=[
+                {"openalexId": "W1", "title": "Root Paper", "year": 2017, "summary": "Root"},
+                {"openalexId": "W2", "title": "Second Paper", "year": 2018, "summary": "Second"},
+            ],
+            question="Color Root Paper rose.",
+            nodeColorContext=[{"paperId": "W1", "borderColor": "green"}],
+        )
+
+        with patch("app.routers.chat.limiter.claim_request", AsyncMock()):
+            with patch("app.routers.chat._llm.chat_about_timeline_agentic", AsyncMock(side_effect=answer)):
+                response = await chat_global(req, request)
+
+        response_changes = [(change.paperId, change.borderColor) for change in response.nodeColorChanges]
+        self.assertEqual(response_changes, [("W1", "rose")])
+        self.assertNotIn(("W1", "green"), response_changes)
+        self.assertNotIn(("W2", None), response_changes)
+
+    async def test_global_node_color_tool_rejects_unrequested_changes(self) -> None:
+        async def answer(_papers, _question, **kwargs):
+            result = await kwargs["tool_runner"]("update_timeline_node_colors", {
+                "updates": [{"paperId": "W1", "borderColor": "green"}],
+            })
+            self.assertEqual(result["status"], "error")
+            return {"text": "Root Paper is relevant.", "highlightedPaperIds": ["W1"], "suggestion": None, "toolUses": [], "citations": []}
+
+        request = SimpleNamespace(state=SimpleNamespace(verified_client_ip="127.0.0.1"), client=None)
+        req = GlobalChatRequest(
+            papers=[{"openalexId": "W1", "title": "Root Paper", "year": 2017, "summary": "Root"}],
+            question="Tell me why @Root Paper matters.",
+            mentionedPaperIds=["W1"],
+        )
+
+        with patch("app.routers.chat.limiter.claim_request", AsyncMock()):
+            with patch("app.routers.chat._llm.chat_about_timeline_agentic", AsyncMock(side_effect=answer)):
+                response = await chat_global(req, request)
+
+        self.assertEqual(response.nodeColorChanges, [])
+
+    async def test_global_node_color_reader_filters_current_colored_papers(self) -> None:
+        async def answer(_papers, _question, **kwargs):
+            green_nodes = await kwargs["tool_runner"]("read_timeline_node_colors", {"colors": ["green"]})
+            self.assertEqual(green_nodes["nodeColors"], [{
+                "paperId": "W1",
+                "title": "Root Paper",
+                "borderColor": "green",
+            }])
+
+            all_colored_nodes = await kwargs["tool_runner"]("read_timeline_node_colors", {})
+            self.assertEqual(
+                {node["paperId"] for node in all_colored_nodes["nodeColors"]},
+                {"W1", "W2"},
+            )
+            return {"text": "The green paper is Root Paper.", "highlightedPaperIds": ["W1"], "suggestion": None, "toolUses": [], "citations": []}
+
+        request = SimpleNamespace(state=SimpleNamespace(verified_client_ip="127.0.0.1"), client=None)
+        req = GlobalChatRequest(
+            papers=[
+                {"openalexId": "W1", "title": "Root Paper", "year": 2017, "summary": "Root"},
+                {"openalexId": "W2", "title": "Second Paper", "year": 2018, "summary": "Second"},
+            ],
+            question="Answer based on all green colored nodes.",
+            nodeColorContext=[
+                {"paperId": "https://openalex.org/W1", "borderColor": "green"},
+                {"paperId": "W2", "borderColor": "blue"},
+            ],
+        )
+
+        with patch("app.routers.chat.limiter.claim_request", AsyncMock()):
+            with patch("app.routers.chat._llm.chat_about_timeline_agentic", AsyncMock(side_effect=answer)):
+                response = await chat_global(req, request)
+
+        self.assertEqual(response.highlightedPaperIds, ["W1"])
 
     async def test_global_pending_confirmation_without_paper_id_uses_mentioned_paper(self) -> None:
         memory = AsyncMock()

@@ -31,6 +31,11 @@ export interface TimelineNodeAnnotation {
   borderColor?: NodeBorderColor;
 }
 
+export interface TimelineNodeColorChange {
+  paperId: string;
+  borderColor: NodeBorderColor | null;
+}
+
 export type TimelineNoteRelation = "about" | "question" | "insight" | "todo" | "contradiction";
 export type TimelineNoteKind = "field_note" | "question" | "insight" | "todo" | "contradiction";
 
@@ -51,6 +56,36 @@ export interface TimelineNoteEdge {
   noteId: string;
   nodeId: number;
   relation?: TimelineNoteRelation;
+}
+
+export type TimelineNoteSummary = Pick<TimelineNote, "id" | "text" | "kind" | "color">;
+
+export interface TimelineNoteConnection {
+  noteId: string;
+  paperId: string;
+  relation?: TimelineNoteRelation;
+}
+
+export interface TimelineNoteDisconnection {
+  noteId: string;
+  paperId: string;
+}
+
+export interface TimelineNoteContext {
+  notes: TimelineNoteSummary[];
+  connections: TimelineNoteConnection[];
+}
+
+export interface TimelineNoteChange {
+  createdNotes: TimelineNoteSummary[];
+  updatedNotes: Array<{
+    noteId: string;
+    patch: Partial<Pick<TimelineNote, "text" | "kind" | "color">>;
+  }>;
+  deletedNoteIds: string[];
+  connections: TimelineNoteConnection[];
+  disconnections: TimelineNoteDisconnection[];
+  skipped?: Array<{ noteId: string; reason: string }>;
 }
 
 export type TimelineGraphAction =
@@ -129,6 +164,8 @@ export interface GlobalChatResponse {
   toolUses?: Record<string, unknown>[];
   citations?: Record<string, unknown>[];
   lineageChanges?: LineageChange[];
+  noteChanges?: TimelineNoteChange[];
+  nodeColorChanges?: TimelineNodeColorChange[];
 }
 
 export interface LineageChange {
