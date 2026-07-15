@@ -6,7 +6,15 @@ import { MarkdownContent } from "./MarkdownContent";
 import { ConversationNavigator } from "./ConversationNavigator";
 import { openChatSession, streamChatAboutTimeline, suggestTimelineQuestions } from "@/lib/api";
 import { DETAIL_PANEL_DEFAULT_WIDTH, DETAIL_PANEL_MAX_WIDTH, DETAIL_PANEL_MIN_WIDTH, DETAIL_PANEL_WIDTH_KEY } from "@/lib/detail-panel";
-import { GlobalChatStreamEvent, LineageChange, TimelineData, TimelineNoteChange } from "@/lib/types";
+import {
+  GlobalChatStreamEvent,
+  LineageChange,
+  TimelineData,
+  TimelineNodeColorChange,
+  TimelineNoteChange,
+  TimelineNoteContext,
+  TimelineNoteRelation,
+} from "@/lib/types";
 
 interface ToolEvent {
   name: string;
@@ -34,12 +42,35 @@ interface GlobalChatPanelProps {
   onMentionedPaperIdsChange?: (ids: string[]) => void;
   onLineageChanges?: (changes: LineageChange[]) => void;
   onNoteChanges?: (changes: TimelineNoteChange[]) => void;
+  onNodeColorChanges?: (changes: TimelineNodeColorChange[]) => void;
   onUsageChanged?: () => void;
   graphId?: string | null;
   userId?: string | null;
 }
 
-export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMentionedPaperIdsChange, onLineageChanges, onNoteChanges, onUsageChanged, graphId, userId }: GlobalChatPanelProps) {
+const NOTE_CONTEXT_REQUEST_RE = /\b(notes?|canvas)\b/i;
+const NOTE_PRONOUN_ACTION_RE = /\b(add|create|write|make|edit|update|change|delete|remove|connect|disconnect|link|unlink)\s+(it|this|that)\b/i;
+const NODE_COLOR_CONTEXT_REQUEST_RE = /\b(colors?|colours?|highlight(?:ed)?|accent|blue|green|purple|amber|rose)\b/i;
+const NODE_COLOR_FOLLOWUP_RE = /\b(it|them|these|those)\b/i;
+
+function requiresTimelineNoteContext(question: string, messages: Message[]): boolean {
+  if (NOTE_CONTEXT_REQUEST_RE.test(question)) return true;
+  if (!NOTE_PRONOUN_ACTION_RE.test(question)) return false;
+  return messages.slice(-4).some((message) => (
+    NOTE_CONTEXT_REQUEST_RE.test(message.text)
+    || message.toolEvents?.some((tool) => tool.name === "create_timeline_notes" || tool.name === "update_timeline_notes")
+  ));
+}
+
+function requiresTimelineNodeColorContext(question: string, messages: Message[]): boolean {
+  if (NODE_COLOR_CONTEXT_REQUEST_RE.test(question)) return true;
+  if (!NODE_COLOR_FOLLOWUP_RE.test(question)) return false;
+  return messages.slice(-4).some((message) => (
+    message.toolEvents?.some((tool) => tool.name === "update_timeline_node_colors")
+  ));
+}
+
+export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMentionedPaperIdsChange, onLineageChanges, onNoteChanges, onNodeColorChanges, onUsageChanged, graphId, userId }: GlobalChatPanelProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [mentionedPaperIds, setMentionedPaperIds] = useState<string[]>([]);
@@ -217,7 +248,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
       );
     })
     .slice(0, 8);
-  const noteContext = {
+  const buildNoteContext = useCallback((): TimelineNoteContext => ({
     notes: Object.values(data.notes ?? {})
       .filter((note) => note.id && note.text.trim())
       .map((note) => ({
@@ -231,8 +262,15 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
         const paperId = data.nodes[edge.nodeId]?.paper.openalexId;
         return paperId ? { noteId: edge.noteId, paperId, relation: edge.relation ?? "about" } : null;
       })
-      .filter((connection): connection is { noteId: string; paperId: string; relation: "about" | "question" | "insight" | "todo" | "contradiction" } => Boolean(connection)),
-  };
+      .filter((connection): connection is { noteId: string; paperId: string; relation: TimelineNoteRelation } => Boolean(connection)),
+  }), [data]);
+  const buildNodeColorContext = useCallback((): TimelineNodeColorChange[] => (
+    Object.values(data.nodes).flatMap((node) => (
+      node.annotation?.borderColor
+        ? [{ paperId: node.paper.openalexId, borderColor: node.annotation.borderColor }]
+        : []
+    ))
+  ), [data.nodes]);
 
   const updateMentionSearch = useCallback((value: string, cursor: number | null) => {
     const activeMention = getActiveMention(value, cursor ?? value.length);
@@ -266,8 +304,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
     }, 0);
   }, [input, papers]);
 
-  const startLineageEdit = useCallback(() => {
-    const command = "Add or delete papers in this lineage: ";
+  const startTemplatedCommand = useCallback((command: string) => {
     setInput((current) => current.trim() ? current : command);
     setMentionedPaperIds([]);
     setMentionOpen(false);
@@ -276,33 +313,18 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
       const element = inputRef.current;
       if (!element) return;
       element.focus({ preventScroll: true });
-      if (!element.value.trim()) {
-        element.setSelectionRange(command.length, command.length);
-      } else {
-        element.setSelectionRange(element.value.length, element.value.length);
-      }
+      element.setSelectionRange(element.value.length, element.value.length);
       resizeInput(element);
     }, 0);
   }, [resizeInput]);
 
+  const startLineageEdit = useCallback(() => {
+    startTemplatedCommand("Add or delete papers in this lineage: ");
+  }, [startTemplatedCommand]);
+
   const startNoteEdit = useCallback(() => {
-    const command = "Read, add, edit, delete, or connect canvas notes: ";
-    setInput((current) => current.trim() ? current : command);
-    setMentionedPaperIds([]);
-    setMentionOpen(false);
-    setMentionQuery("");
-    window.setTimeout(() => {
-      const element = inputRef.current;
-      if (!element) return;
-      element.focus({ preventScroll: true });
-      if (!element.value.trim()) {
-        element.setSelectionRange(command.length, command.length);
-      } else {
-        element.setSelectionRange(element.value.length, element.value.length);
-      }
-      resizeInput(element);
-    }, 0);
-  }, [resizeInput]);
+    startTemplatedCommand("Read, add, edit, delete, or connect canvas notes: ");
+  }, [startTemplatedCommand]);
 
   const startPaperMention = useCallback(() => {
     setInput((current) => current.trim() ? `${current.trimEnd()} @` : "@");
@@ -334,6 +356,8 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
     const focusedPaperIds = mentionedPaperIds;
     const q = input.trim() || (focusedPaperIds.length > 0 ? "Tell me about the mentioned paper(s)." : "");
     if (!q || isThinking) return;
+    const noteContext = requiresTimelineNoteContext(q, messages) ? buildNoteContext() : undefined;
+    const nodeColorContext = requiresTimelineNodeColorContext(q, messages) ? buildNodeColorContext() : undefined;
     setInput("");
     setMentionedPaperIds([]);
     setMentionOpen(false);
@@ -376,6 +400,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
     };
     let lineageChangesApplied = false;
     let noteChangesApplied = false;
+    let nodeColorChangesApplied = false;
     const applyReturnedLineageChanges = (changes: LineageChange[] | undefined) => {
       if (lineageChangesApplied || !changes?.length) return;
       lineageChangesApplied = true;
@@ -385,6 +410,11 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
       if (noteChangesApplied || !changes?.length) return;
       noteChangesApplied = true;
       onNoteChanges?.(changes);
+    };
+    const applyReturnedNodeColorChanges = (changes: TimelineNodeColorChange[] | undefined) => {
+      if (nodeColorChangesApplied || !changes?.length) return;
+      nodeColorChangesApplied = true;
+      onNodeColorChanges?.(changes);
     };
 
     try {
@@ -414,6 +444,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
           if (event.type === "message_completed") {
             applyReturnedLineageChanges(event.response.lineageChanges);
             applyReturnedNoteChanges(event.response.noteChanges);
+            applyReturnedNodeColorChanges(event.response.nodeColorChanges);
             updateAssistant({
               text: event.response.text,
               citations: event.response.citations ?? [],
@@ -427,10 +458,12 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
         graphId && userId ? { graphId, userId } : undefined,
         focusedPaperIds,
         noteContext,
+        nodeColorContext,
       );
       if (res) {
         applyReturnedLineageChanges(res.lineageChanges);
         applyReturnedNoteChanges(res.noteChanges);
+        applyReturnedNodeColorChanges(res.nodeColorChanges);
         updateAssistant({
           text: res.text,
           citations: res.citations ?? [],
@@ -1170,6 +1203,14 @@ function globalToolLabel(name: string, status?: string, result?: Record<string, 
       return `Lineage updated · ${parts.join(", ")}`;
     }
     return "Checked lineage update";
+  }
+  if (name === "update_timeline_node_colors") {
+    const count = typeof result?.nodeColorCount === "number" ? result.nodeColorCount : null;
+    return count === null ? "Coloring timeline nodes" : `Colored ${count} timeline node${count === 1 ? "" : "s"}`;
+  }
+  if (name === "read_timeline_node_colors") {
+    const count = typeof result?.nodeColorCount === "number" ? result.nodeColorCount : null;
+    return count === null ? "Reading timeline node colors" : `Read ${count} colored timeline node${count === 1 ? "" : "s"}`;
   }
   if (name === "read_timeline_notes") {
     const count = typeof result?.noteCount === "number" ? result.noteCount : null;

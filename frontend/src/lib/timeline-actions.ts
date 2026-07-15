@@ -1,4 +1,4 @@
-import { GraphEdge, GraphPaper, LineageChange, NodeBorderColor, TimelineData, TimelineGraphAction, TimelineNode, TimelineNote, TimelineNoteChange } from "./types";
+import { GraphEdge, GraphPaper, LineageChange, NodeBorderColor, TimelineData, TimelineGraphAction, TimelineNode, TimelineNodeColorChange, TimelineNote, TimelineNoteChange } from "./types";
 import { GAP_X, LANE_HEIGHT, NODE_DIMENSIONS, PADDING_X, PADDING_Y } from "./dummy-data";
 import { TIMELINE_NOTE_DEFAULT_WIDTH, TIMELINE_NOTE_MIN_HEIGHT } from "./note-style";
 
@@ -51,6 +51,16 @@ export function applyTimelineNoteChanges(data: TimelineData, changes: TimelineNo
     (current, change) => applyTimelineNoteChange(current, change),
     data,
   );
+}
+
+export function applyTimelineNodeColorChanges(data: TimelineData, changes: TimelineNodeColorChange[]): TimelineData {
+  return changes.reduce((current, change) => {
+    const normalizedPaperId = normalizeOpenalexId(change.paperId);
+    const node = Object.values(current.nodes).find(
+      (candidate) => normalizeOpenalexId(candidate.paper.openalexId) === normalizedPaperId,
+    );
+    return node ? applyNodeHighlight(current, node.id, change.borderColor) : current;
+  }, data);
 }
 
 function normalizeOpenalexId(value: unknown): string {

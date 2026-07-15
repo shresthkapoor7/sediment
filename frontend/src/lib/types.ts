@@ -31,6 +31,11 @@ export interface TimelineNodeAnnotation {
   borderColor?: NodeBorderColor;
 }
 
+export interface TimelineNodeColorChange {
+  paperId: string;
+  borderColor: NodeBorderColor | null;
+}
+
 export type TimelineNoteRelation = "about" | "question" | "insight" | "todo" | "contradiction";
 export type TimelineNoteKind = "field_note" | "question" | "insight" | "todo" | "contradiction";
 
@@ -53,31 +58,33 @@ export interface TimelineNoteEdge {
   relation?: TimelineNoteRelation;
 }
 
+export type TimelineNoteSummary = Pick<TimelineNote, "id" | "text" | "kind" | "color">;
+
+export interface TimelineNoteConnection {
+  noteId: string;
+  paperId: string;
+  relation?: TimelineNoteRelation;
+}
+
+export interface TimelineNoteDisconnection {
+  noteId: string;
+  paperId: string;
+}
+
 export interface TimelineNoteContext {
-  notes: Array<Pick<TimelineNote, "id" | "text" | "kind" | "color">>;
-  connections: Array<{
-    noteId: string;
-    paperId: string;
-    relation?: TimelineNoteRelation;
-  }>;
+  notes: TimelineNoteSummary[];
+  connections: TimelineNoteConnection[];
 }
 
 export interface TimelineNoteChange {
-  createdNotes: Array<Pick<TimelineNote, "id" | "text" | "kind" | "color">>;
+  createdNotes: TimelineNoteSummary[];
   updatedNotes: Array<{
     noteId: string;
     patch: Partial<Pick<TimelineNote, "text" | "kind" | "color">>;
   }>;
   deletedNoteIds: string[];
-  connections: Array<{
-    noteId: string;
-    paperId: string;
-    relation?: TimelineNoteRelation;
-  }>;
-  disconnections: Array<{
-    noteId: string;
-    paperId: string;
-  }>;
+  connections: TimelineNoteConnection[];
+  disconnections: TimelineNoteDisconnection[];
   skipped?: Array<{ noteId: string; reason: string }>;
 }
 
@@ -158,6 +165,7 @@ export interface GlobalChatResponse {
   citations?: Record<string, unknown>[];
   lineageChanges?: LineageChange[];
   noteChanges?: TimelineNoteChange[];
+  nodeColorChanges?: TimelineNodeColorChange[];
 }
 
 export interface LineageChange {

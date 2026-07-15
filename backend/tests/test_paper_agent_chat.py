@@ -169,6 +169,41 @@ class PaperAgentChatTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(result["noteChanges"]), 1)
         self.assertEqual(result["noteChanges"][0]["createdNotes"][0]["color"], "green")
 
+    async def test_global_agent_returns_completed_node_color_changes(self) -> None:
+        client = LLMClient(api_key="test-key", model="claude-test")
+        update = SimpleNamespace(
+            content=[FakeBlock(
+                type="tool_use",
+                id="toolu_node_color",
+                name="update_timeline_node_colors",
+                input={"updates": [{"paperId": "W1", "borderColor": "green"}]},
+            )],
+            usage=SimpleNamespace(input_tokens=10, output_tokens=5),
+        )
+        final = SimpleNamespace(
+            content=[FakeBlock(type="text", text="I colored the paper green.")],
+            usage=SimpleNamespace(input_tokens=10, output_tokens=5),
+        )
+        client.client.messages.create = AsyncMock(side_effect=[update, final])
+
+        async def run_tool(name, _tool_input):
+            self.assertEqual(name, "update_timeline_node_colors")
+            return {
+                "status": "completed",
+                "nodeColorChanges": [{"paperId": "W1", "borderColor": "green"}],
+                "skipped": [],
+            }
+
+        with patch("app.services.llm.limiter.record_usage", AsyncMock()):
+            result = await client.chat_about_timeline_agentic(
+                [{"openalexId": "W1", "title": "Current Paper", "year": 2017, "summary": "Current"}],
+                "Color Current Paper green.",
+                tool_runner=run_tool,
+                ip="127.0.0.1",
+            )
+
+        self.assertEqual(result["nodeColorChanges"], [{"paperId": "W1", "borderColor": "green"}])
+
     async def test_tool_result_is_returned_and_citations_are_collected(self) -> None:
         client = LLMClient(api_key="test-key", model="claude-test")
         first = SimpleNamespace(

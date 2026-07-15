@@ -13,6 +13,7 @@ import {
   SavedGraphMetadata,
   TimelineData,
   TimelineNode,
+  TimelineNodeColorChange,
   TimelineNoteContext,
   TraversalSettings,
 } from "./types";
@@ -258,11 +259,12 @@ export async function chatAboutTimeline(
   persistence?: { graphId: string; userId: string },
   mentionedPaperIds: string[] = [],
   noteContext?: TimelineNoteContext,
+  nodeColorContext?: TimelineNodeColorChange[],
 ): Promise<GlobalChatResponse> {
   const response = await fetch(`${EXPENSIVE_API_BASE}/api/chat/global`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ ...(persistence ?? {}), papers, question, mentionedPaperIds, ...(noteContext ? { noteContext } : {}) }),
+    body: JSON.stringify({ ...(persistence ?? {}), papers, question, mentionedPaperIds, ...(noteContext ? { noteContext } : {}), ...(nodeColorContext ? { nodeColorContext } : {}) }),
   });
 
   if (!response.ok) {
@@ -280,11 +282,12 @@ export async function streamChatAboutTimeline(
   persistence?: { graphId: string; userId: string },
   mentionedPaperIds: string[] = [],
   noteContext?: TimelineNoteContext,
+  nodeColorContext?: TimelineNodeColorChange[],
 ): Promise<GlobalChatResponse | null> {
   const response = await fetch(`${EXPENSIVE_API_BASE}/api/chat/global/stream`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
-    body: JSON.stringify({ ...(persistence ?? {}), papers, question, mentionedPaperIds, ...(noteContext ? { noteContext } : {}) }),
+    body: JSON.stringify({ ...(persistence ?? {}), papers, question, mentionedPaperIds, ...(noteContext ? { noteContext } : {}), ...(nodeColorContext ? { nodeColorContext } : {}) }),
   });
 
   if (!response.ok || !response.body) {

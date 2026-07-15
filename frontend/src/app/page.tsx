@@ -25,7 +25,7 @@ import {
   updateSavedGraph,
 } from "@/lib/api";
 import { useHoverPreviewToggle } from "@/lib/hover-preview";
-import { applyTimelineGraphAction, applyTimelineLineageChanges, applyTimelineNoteChanges } from "@/lib/timeline-actions";
+import { applyTimelineGraphAction, applyTimelineLineageChanges, applyTimelineNodeColorChanges, applyTimelineNoteChanges } from "@/lib/timeline-actions";
 import {
   buildTimelineFromGraph,
   mergeTimelineWithGraph,
@@ -36,6 +36,7 @@ import {
   SeedCandidate,
   TimelineData,
   TimelineGraphAction,
+  TimelineNodeColorChange,
   TimelineNoteChange,
   TraversalSettings,
 } from "@/lib/types";
@@ -2345,6 +2346,17 @@ export default function Home() {
     [isExpanding, scheduleGraphUpdate, searchedQuery, timelineData],
   );
 
+  const handleTimelineNodeColorChanges = useCallback(
+    (changes: TimelineNodeColorChange[]) => {
+      if (!timelineData || isExpanding || changes.length === 0) return;
+      const nextTimelineData = applyTimelineNodeColorChanges(timelineData, changes);
+      if (nextTimelineData === timelineData) return;
+      setTimelineData(nextTimelineData);
+      scheduleGraphUpdate(nextTimelineData, searchedQuery);
+    },
+    [isExpanding, scheduleGraphUpdate, searchedQuery, timelineData],
+  );
+
   const handleRefreshCurrent = useCallback(() => {
     if (!searchedQuery || isExpanding) return;
     void runSearch(searchedQuery, selectedSeedOpenalexId ?? undefined);
@@ -4582,6 +4594,7 @@ export default function Home() {
                 onGraphAction={handleTimelineGraphAction}
                 onLineageChanges={handleTimelineLineageChanges}
                 onNoteChanges={handleTimelineNoteChanges}
+                onNodeColorChanges={handleTimelineNodeColorChanges}
                 lockedNodeOpenalexId={selectedSeedOpenalexId}
                 isExpanding={isExpanding}
                 onUsageChanged={refreshCredits}
