@@ -4,7 +4,7 @@
 
 > Trace any research concept back through time. Knowledge, layered.
 
-Sediment is an agent-powered research lineage explorer. Enter a concept or paper, and it traces the intellectual ancestry — surfacing the key papers, ideas, and breakthroughs that led to it, rendered as an interactive chronological timeline you can explore and expand.
+Sediment is an agentic research lineage explorer, built to be the 'cursor for academic research.' Enter any concept or paper, and sediment recursively compiles its intellectual ancestry: mapping the exact theoretical dependencies, seminal citations, and core breakthroughs that made it possible, rendered as an interactive, chronological graph you can deep-trace and expand.
 
 ## Stack
 
