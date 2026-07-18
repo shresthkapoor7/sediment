@@ -44,7 +44,7 @@ export function SearchInput({ onSearch, isSearching, traceMode, onTraceModeChang
   };
 
   const { w, h } = boxSize;
-  const r = 14; // matches CSS border-radius; SVG now covers the full border-box
+  const r = 12; // matches the field's 0.75rem border-radius
   const mx = w / 2;
   const my = h / 2;
   const modeLabel = traceMode === "deep" ? "Deep trace" : "Quick trace";

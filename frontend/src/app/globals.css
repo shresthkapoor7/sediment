@@ -9,7 +9,7 @@
 
   --text-primary: #1b1915;
   --text-secondary: #625c53;
-  --text-tertiary: #847d72;
+  --text-tertiary: #6b645a;
 
   --border: #ddd5c8;
   --border-hover: #bcb1a1;
@@ -290,7 +290,15 @@ body {
 }
 
 .app-header-compact .app-header-credit-count {
-  display: none;
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .app-header-compact .app-header-credit-visual {
@@ -1502,6 +1510,10 @@ input:focus-visible {
 
   .landing-scroll-hint {
     transition: none;
+  }
+
+  .landing-helix-particles {
+    display: none;
   }
 
   .landing-scroll-lines > span {

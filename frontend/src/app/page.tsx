@@ -2478,7 +2478,7 @@ export default function Home() {
     >
       {/* Top bar */}
       <motion.header
-        className={`app-header${!timelineData ? " app-header-landing" : ""}${isLandingHeaderCompact ? " app-header-compact" : ""}`}
+        className={`app-header${!timelineData ? " app-header-landing" : ""}${!timelineData && isLandingHeaderCompact ? " app-header-compact" : ""}`}
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
@@ -2814,6 +2814,7 @@ export default function Home() {
                   </div>
                   <span
                     className="app-header-credit-ring"
+                    aria-hidden="true"
                     style={
                       {
                         "--credit-progress": `${credits * 10}%`,
@@ -2823,6 +2824,12 @@ export default function Home() {
                 </div>
                 <span
                   className="app-header-credit-count"
+                  role="meter"
+                  aria-label="Daily usage credits remaining"
+                  aria-valuemin={0}
+                  aria-valuemax={10}
+                  aria-valuenow={credits}
+                  aria-valuetext={`${credits} of 10 daily usage credits remaining`}
                   style={{
                     fontSize: "0.6875rem",
                     color:
@@ -3108,127 +3115,6 @@ export default function Home() {
                 )}
               </AnimatePresence>
             </div>
-
-            {/* Graph actions are consolidated in Session actions above. */}
-            <AnimatePresence>
-              {false && timelineData && (
-                <>
-                  <motion.button
-                    initial={{ opacity: 0, y: -4 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -4 }}
-                    transition={{ duration: 0.25 }}
-                    onClick={handleExport}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "0.375rem",
-                      padding: "0 0.75rem",
-                      height: "2rem",
-                      boxSizing: "border-box",
-                      background: "none",
-                      border: "0.0625rem solid var(--border)",
-                      borderRadius: "0.4375rem",
-                      color: "var(--text-secondary)",
-                      fontSize: "0.75rem",
-                      fontFamily: "'DM Sans', sans-serif",
-                      fontWeight: 500,
-                      cursor: "pointer",
-                      transition: "border-color 0.15s, color 0.15s",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.borderColor = "var(--accent)";
-                      e.currentTarget.style.color = "var(--accent)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.borderColor = "var(--border)";
-                      e.currentTarget.style.color = "var(--text-secondary)";
-                    }}
-                  >
-                    <svg
-                      width="13"
-                      height="13"
-                      viewBox="0 0 16 16"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.5"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M8 2v9M4 7l4 4 4-4" />
-                      <path d="M2 13h12" />
-                    </svg>
-                    Export
-                  </motion.button>
-
-                  <motion.button
-                    initial={{ opacity: 0, y: -4 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -4 }}
-                    transition={{ duration: 0.25, delay: 0.05 }}
-                    onClick={handleShare}
-                    disabled={shareState === "sharing"}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "0.375rem",
-                      padding: "0 0.75rem",
-                      height: "2rem",
-                      boxSizing: "border-box",
-                      background:
-                        shareState === "copied" ? "var(--accent-soft)" : "none",
-                      border: `0.0625rem solid ${shareState === "copied" ? "var(--accent)" : shareState === "error" ? "#d16f5b" : "var(--border)"}`,
-                      borderRadius: "0.4375rem",
-                      color:
-                        shareState === "copied"
-                          ? "var(--accent)"
-                          : shareState === "error"
-                            ? "#d16f5b"
-                            : "var(--text-secondary)",
-                      fontSize: "0.75rem",
-                      fontFamily: "'DM Sans', sans-serif",
-                      fontWeight: 500,
-                      cursor: shareState === "sharing" ? "default" : "pointer",
-                      transition:
-                        "border-color 0.15s, color 0.15s, background 0.15s",
-                    }}
-                    onMouseEnter={(e) => {
-                      if (shareState === "idle") {
-                        e.currentTarget.style.borderColor = "var(--accent)";
-                        e.currentTarget.style.color = "var(--accent)";
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      if (shareState === "idle") {
-                        e.currentTarget.style.borderColor = "var(--border)";
-                        e.currentTarget.style.color = "var(--text-secondary)";
-                      }
-                    }}
-                  >
-                    <svg
-                      width="13"
-                      height="13"
-                      viewBox="0 0 16 16"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.5"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M11 3a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM5 8a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM11 9a2 2 0 1 1 0 4 2 2 0 0 1 0-4z" />
-                      <path d="M9 4.5l-4 3M9 11.5l-4-3" />
-                    </svg>
-                    {shareState === "sharing"
-                      ? "Sharing..."
-                      : shareState === "copied"
-                        ? "Copied!"
-                        : shareState === "error"
-                          ? "Failed"
-                          : "Share"}
-                  </motion.button>
-                </>
-              )}
-            </AnimatePresence>
 
             <a
               className="app-header-labeled-action"
