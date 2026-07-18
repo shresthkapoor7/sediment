@@ -108,9 +108,10 @@ export default function SharedGraphPage() {
               position: "absolute",
               left: "50%",
               transform: "translateX(-50%)",
-              fontSize: "0.75rem",
-              color: "var(--text-tertiary)",
+              fontSize: "0.875rem",
+              color: "var(--text-secondary)",
               fontFamily: "'JetBrains Mono', monospace",
+              fontWeight: 500,
               letterSpacing: "0.02em",
               whiteSpace: "nowrap",
               overflow: "hidden",
@@ -119,7 +120,7 @@ export default function SharedGraphPage() {
               pointerEvents: "none",
             }}
           >
-            tracing: {query}
+            {query}
           </span>
         )}
 
@@ -135,13 +136,14 @@ export default function SharedGraphPage() {
                 overflow: "hidden",
                 textOverflow: "ellipsis",
                 whiteSpace: "nowrap",
-                fontSize: "0.75rem",
-                color: "var(--text-tertiary)",
+                fontSize: "0.875rem",
+                color: "var(--text-secondary)",
                 fontFamily: "'JetBrains Mono', monospace",
+                fontWeight: 500,
                 letterSpacing: "0.02em",
               }}
             >
-              tracing: {query}
+              {query}
             </span>
           </div>
         )}
