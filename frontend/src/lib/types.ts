@@ -66,6 +66,16 @@ export interface TimelineNoteConnection {
   relation?: TimelineNoteRelation;
 }
 
+export interface TraceNote extends TimelineNoteSummary {
+  connections: TimelineNoteConnection[];
+}
+
+export interface TraceSummary {
+  traceMode: "standard" | "deep";
+  rationale: string;
+  steps: string[];
+}
+
 export interface TimelineNoteDisconnection {
   noteId: string;
   paperId: string;
@@ -212,9 +222,10 @@ export interface TraversalSettings {
 
 export interface SearchMeta {
   query: string;
-  mode: "resolved" | "resolved_inferred" | "needs_disambiguation";
+  mode: "resolved" | "resolved_inferred" | "needs_disambiguation" | "no_results";
   confidence?: "high" | "medium" | "low" | null;
   cacheHit: boolean;
+  traceMode?: "standard" | "deep";
 }
 
 export interface LineageGraphResponse {
@@ -224,6 +235,8 @@ export interface LineageGraphResponse {
   rootIds: string[];
   meta: SearchMeta;
   disambiguation?: SeedCandidate[] | null;
+  traceNotes?: TraceNote[];
+  traceSummary?: TraceSummary | null;
 }
 
 export interface Paper {
@@ -270,6 +283,7 @@ export interface TimelineData {
   lanes: number;
   rootId: number;
   expansions: Expansion[];
+  traceSummary?: TraceSummary;
 }
 
 export interface PaperAccessResponse {

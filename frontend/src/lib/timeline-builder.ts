@@ -1,5 +1,6 @@
 import { GAP_X, LANE_HEIGHT, NODE_DIMENSIONS, PADDING_X, PADDING_Y } from "./dummy-data";
-import { GraphEdge, GraphPaper, LineageGraphResponse, TimelineData, TimelineNode } from "./types";
+import { estimateTimelineNoteDimensions, layoutTimelineNotes } from "./note-layout";
+import { GraphEdge, GraphPaper, LineageGraphResponse, TimelineData, TimelineNode, TraceNote } from "./types";
 
 interface BuildContext {
   paperById: Map<string, GraphPaper>;
@@ -16,7 +17,12 @@ interface CanonicalGraph {
 
 export function buildTimelineFromGraph(response: LineageGraphResponse): TimelineData {
   const canonical = canonicalizeGraph(response.papers, response.edges);
-  return buildTimelineData(canonical.papers, canonical.edges);
+  const timeline = applyTraceNotes(
+    buildTimelineData(canonical.papers, canonical.edges),
+    response.traceNotes ?? [],
+    canonical,
+  );
+  return response.traceSummary ? { ...timeline, traceSummary: response.traceSummary } : timeline;
 }
 
 export function mergeTimelineWithGraph(
@@ -254,6 +260,50 @@ function buildTimelineData(papers: GraphPaper[], edges: GraphEdge[]): TimelineDa
     rootId,
     expansions: [],
   };
+}
+
+function applyTraceNotes(data: TimelineData, traceNotes: TraceNote[], canonical: CanonicalGraph): TimelineData {
+  if (!traceNotes.length) return data;
+
+  const nodeIdByOpenalexId = new Map(
+    Object.values(data.nodes).map((node) => [node.paper.openalexId, node.id]),
+  );
+  const notes: NonNullable<TimelineData["notes"]> = {};
+  const noteEdges: NonNullable<TimelineData["noteEdges"]> = [];
+
+  for (const traceNote of traceNotes) {
+    if (Object.keys(notes).length >= 5) break;
+    if (!traceNote.id || !traceNote.text.trim() || notes[traceNote.id]) continue;
+
+    const connections = traceNote.connections
+      .map((connection) => ({
+        ...connection,
+        nodeId: nodeIdByOpenalexId.get(canonical.canonicalIdFor(connection.paperId)),
+      }))
+      .filter((connection): connection is typeof connection & { nodeId: number } => connection.nodeId !== undefined);
+    if (!connections.length) continue;
+    const dimensions = estimateTimelineNoteDimensions(traceNote.text);
+
+    notes[traceNote.id] = {
+      id: traceNote.id,
+      text: traceNote.text,
+      kind: traceNote.kind,
+      color: traceNote.color,
+      x: PADDING_X,
+      y: PADDING_Y,
+      ...dimensions,
+    };
+    connections.forEach((connection) => {
+      noteEdges.push({
+        noteId: traceNote.id,
+        nodeId: connection.nodeId,
+        relation: connection.relation,
+      });
+    });
+  }
+
+  if (!Object.keys(notes).length) return data;
+  return layoutTimelineNotes({ ...data, notes, noteEdges }, Object.keys(notes));
 }
 
 function canonicalizeGraph(papers: GraphPaper[], edges: GraphEdge[]): CanonicalGraph {

@@ -7,6 +7,7 @@ import { TimelineCanvas } from "@/components/TimelineCanvas";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { fetchSharedGraph } from "@/lib/api";
 import { useHoverPreviewToggle } from "@/lib/hover-preview";
+import { upgradeLegacyTimelineNoteLayout } from "@/lib/note-layout";
 import { TimelineData } from "@/lib/types";
 import { exportObsidianZip } from "@/lib/export";
 
@@ -31,7 +32,7 @@ export default function SharedGraphPage() {
 
     void fetchSharedGraph(shareId)
       .then((graph) => {
-        setTimelineData(graph.data);
+        setTimelineData(upgradeLegacyTimelineNoteLayout(graph.data));
         setQuery(graph.query);
         document.title = `${graph.query} — Sediment`;
       })

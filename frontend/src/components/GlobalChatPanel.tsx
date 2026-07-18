@@ -70,6 +70,26 @@ function requiresTimelineNodeColorContext(question: string, messages: Message[])
   ));
 }
 
+function traceSummaryMessage(summary: NonNullable<TimelineData["traceSummary"]>): string {
+  const steps = summary.steps
+    .filter(Boolean)
+    .slice(0, 3)
+    .map((step) => `- ${step}`)
+    .join("\n");
+  return `${summary.rationale}${steps ? `\n\n${steps}` : ""}`;
+}
+
+function mergeMessagesById(current: Message[], restored: Message[]): Message[] {
+  const messageIds = new Set(current.map((message) => String(message.id)));
+  const missing = restored.filter((message) => {
+    const id = String(message.id);
+    if (messageIds.has(id)) return false;
+    messageIds.add(id);
+    return true;
+  });
+  return missing.length ? [...current, ...missing] : current;
+}
+
 export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMentionedPaperIdsChange, onLineageChanges, onNoteChanges, onNodeColorChanges, onUsageChanged, graphId, userId }: GlobalChatPanelProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -104,11 +124,29 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
             citations: message.citations,
           };
         });
-        setMessages((current) => current.length ? current : restored);
+        setMessages((current) => mergeMessagesById(current, restored));
       })
       .catch(() => undefined);
     return () => { cancelled = true; };
   }, [graphId, userId]);
+
+  const traceSummaryKey = data.traceSummary
+    ? `${data.traceSummary.traceMode}:${data.traceSummary.rationale}:${data.traceSummary.steps.join("|")}`
+    : "";
+
+  useEffect(() => {
+    if (!data.traceSummary || !traceSummaryKey) return;
+    const id = `trace-summary:${traceSummaryKey}`;
+    setMessages((current) => (
+      current.some((message) => message.id === id)
+        ? current
+        : [{
+          id,
+          role: "assistant",
+          text: traceSummaryMessage(data.traceSummary!),
+        }, ...current]
+    ));
+  }, [data.traceSummary, graphId, traceSummaryKey]);
 
   useEffect(() => {
     onMentionedPaperIdsChange?.(inputFocused ? mentionedPaperIds : []);

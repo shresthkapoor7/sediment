@@ -99,6 +99,12 @@ def _informative_tokens(text: str) -> list[str]:
     return meaningful_token_list(text)
 
 
+def _filter_search_value(value: str) -> str:
+    """Quote a literal OpenAlex filter value so commas are not parsed as filter separators."""
+    escaped = value.replace("\\", "\\\\").replace('"', '\\"')
+    return f'"{escaped}"'
+
+
 async def _get(session: aiohttp.ClientSession, url: str, params: dict) -> dict:
     await asyncio.sleep(REQUEST_DELAY)
     try:
@@ -236,14 +242,14 @@ class OpenAlexClient:
         # Title search catches specific paper titles; broad search catches general concepts.
         title_params = {
             **self._base_params(),
-            "filter": f"display_name.search:{query}",
+            "filter": f"display_name.search:{_filter_search_value(query)}",
             "per-page": str(limit),
             "select": SEARCH_SELECT,
             "sort": "cited_by_count:desc",
         }
         broad_params = {
             **self._base_params(),
-            "filter": f"title_and_abstract.search:{query}",
+            "filter": f"title_and_abstract.search:{_filter_search_value(query)}",
             "per-page": str(limit),
             "select": SEARCH_SELECT,
             "sort": "cited_by_count:desc",
@@ -325,7 +331,7 @@ class OpenAlexClient:
 
         params: dict = {
             **self._base_params(),
-            "filter": f"title_and_abstract.search:{query}",
+            "filter": f"title_and_abstract.search:{_filter_search_value(query)}",
             "per-page": str(limit),
             "select": SEARCH_SELECT,
             "sort": "cited_by_count:desc",
@@ -393,7 +399,7 @@ class OpenAlexClient:
         async def _search(query: str) -> list[dict]:
             params: dict[str, str] = {
                 **self._base_params(),
-                "filter": f"title_and_abstract.search:{query},publication_year:<{year}",
+                "filter": f"title_and_abstract.search:{_filter_search_value(query)},publication_year:<{year}",
                 "per-page": str(limit),
                 "select": SEARCH_SELECT,
                 "sort": "cited_by_count:desc",

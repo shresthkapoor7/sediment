@@ -51,6 +51,99 @@ class FakeStream:
 
 
 class PaperAgentChatTests(unittest.IsolatedAsyncioTestCase):
+    async def test_deep_trace_agent_researches_before_submitting_a_trace(self) -> None:
+        client = LLMClient(api_key="test-key", model="claude-test")
+        search = SimpleNamespace(
+            content=[FakeBlock(
+                type="tool_use",
+                id="toolu_search",
+                name="search_openalex_papers",
+                input={"query": "attention mechanisms"},
+            )],
+            usage=SimpleNamespace(input_tokens=10, output_tokens=5),
+        )
+        references = SimpleNamespace(
+            content=[FakeBlock(
+                type="tool_use",
+                id="toolu_references",
+                name="get_openalex_references",
+                input={"paperId": "W3"},
+            )],
+            usage=SimpleNamespace(input_tokens=12, output_tokens=6),
+        )
+        finish = SimpleNamespace(
+            content=[FakeBlock(
+                type="tool_use",
+                id="toolu_finish",
+                name="finish_deep_trace",
+                input={"seedPaperId": "W3", "papers": [], "edges": [], "notes": []},
+            )],
+            usage=SimpleNamespace(input_tokens=14, output_tokens=7),
+        )
+        client.client.messages.create = AsyncMock(side_effect=[search, references, finish])
+        tool_names: list[str] = []
+        proposal = {"seedPaperId": "W3", "papers": [{"openalexId": "W3"}], "traceNotes": []}
+
+        async def run_tool(name, _tool_input):
+            tool_names.append(name)
+            if name == "finish_deep_trace":
+                return {"status": "completed", "proposal": proposal}
+            return {"status": "completed", "papers": []}
+
+        with patch("app.services.llm.limiter.record_usage", AsyncMock()):
+            result = await client.trace_lineage_agentic(
+                "attention mechanisms",
+                run_tool,
+                ip="127.0.0.1",
+            )
+
+        self.assertEqual(tool_names, [
+            "search_openalex_papers",
+            "get_openalex_references",
+            "finish_deep_trace",
+        ])
+        self.assertEqual(result, proposal)
+
+    async def test_deep_trace_agent_requires_a_final_submission_on_its_last_turn(self) -> None:
+        client = LLMClient(api_key="test-key", model="claude-test")
+        tool_calls = [
+            SimpleNamespace(
+                content=[FakeBlock(
+                    type="tool_use",
+                    id=f"toolu_{index}",
+                    name="search_openalex_papers" if index != 1 else "get_openalex_references",
+                    input={"query": "attention"} if index != 1 else {"paperId": "W1"},
+                )],
+                usage=SimpleNamespace(input_tokens=10, output_tokens=5),
+            )
+            for index in range(5)
+        ]
+        proposal = {"seedPaperId": "W1", "papers": [{"openalexId": "W1"}], "traceNotes": []}
+        tool_calls.append(SimpleNamespace(
+            content=[FakeBlock(
+                type="tool_use",
+                id="toolu_finish",
+                name="finish_deep_trace",
+                input={"seedPaperId": "W1", "papers": [], "edges": [], "notes": []},
+            )],
+            usage=SimpleNamespace(input_tokens=10, output_tokens=5),
+        ))
+        client.client.messages.create = AsyncMock(side_effect=tool_calls)
+
+        async def run_tool(name, _tool_input):
+            if name == "finish_deep_trace":
+                return {"status": "completed", "proposal": proposal}
+            return {"status": "completed", "papers": []}
+
+        with patch("app.services.llm.limiter.record_usage", AsyncMock()):
+            result = await client.trace_lineage_agentic("attention", run_tool, ip="127.0.0.1")
+
+        self.assertEqual(result, proposal)
+        self.assertEqual(
+            client.client.messages.create.await_args_list[-1].kwargs["tool_choice"],
+            {"type": "tool", "name": "finish_deep_trace", "disable_parallel_tool_use": True},
+        )
+
     async def test_global_agent_receives_the_mentioned_papers_as_current_context(self) -> None:
         client = LLMClient(api_key="test-key", model="claude-test")
         final = SimpleNamespace(

@@ -40,6 +40,7 @@ export async function searchLineage(
   query: string,
   seedOpenalexId?: string,
   settings?: TraversalSettings,
+  traceMode: "standard" | "deep" = "standard",
 ): Promise<LineageGraphResponse> {
   const response = await fetch(`${EXPENSIVE_API_BASE}/api/search`, {
     method: "POST",
@@ -48,6 +49,7 @@ export async function searchLineage(
       query,
       ...(seedOpenalexId ? { seedOpenalexId } : {}),
       ...(settings ? { settings } : {}),
+      traceMode,
     }),
   });
 

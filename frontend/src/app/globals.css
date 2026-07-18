@@ -281,32 +281,33 @@ body {
   color: var(--text-tertiary);
 }
 
-.landing-scroll-track {
-  position: relative;
-  width: 1.375rem;
-  height: 2.125rem;
-  border: 0.0625rem solid var(--border-hover);
+.landing-scroll-lines {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4375rem;
+}
+
+.landing-scroll-lines > span {
+  display: block;
+  height: 0.0625rem;
   border-radius: 999px;
+  background: var(--border-hover);
+  opacity: 0.42;
+  animation: landing-scroll-line-glow 2.4s ease-in-out infinite;
 }
 
-.landing-scroll-dot {
-  position: absolute;
-  left: 50%;
-  top: 0.4375rem;
-  width: 0.1875rem;
-  height: 0.1875rem;
-  margin-left: -0.09375rem;
-  border-radius: 50%;
-  background: var(--accent);
-  box-shadow: 0 0 0.5rem var(--accent-glow);
-  animation: landing-scroll-dot 2s cubic-bezier(.4, 0, .2, 1) infinite;
-}
-
-@keyframes landing-scroll-dot {
-  0% { transform: translateY(0); opacity: 0; }
-  20% { opacity: 1; }
-  70% { opacity: 1; }
-  100% { transform: translateY(1rem); opacity: 0; }
+@keyframes landing-scroll-line-glow {
+  0%, 14%, 100% {
+    background: var(--border-hover);
+    box-shadow: none;
+    opacity: 0.42;
+  }
+  25%, 42% {
+    background: var(--accent);
+    box-shadow: 0 0 0.5rem var(--accent-glow);
+    opacity: 0.9;
+  }
 }
 
 .landing-demo-stack {
@@ -978,9 +979,9 @@ body {
     transition: none;
   }
 
-  .landing-scroll-dot {
+  .landing-scroll-lines > span {
     animation: none;
-    opacity: 1;
+    opacity: 0.6;
   }
 
   .demo-search-caret,
