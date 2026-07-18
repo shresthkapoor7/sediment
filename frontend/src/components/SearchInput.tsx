@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 
 const EXAMPLES = [
   "Transformer",
@@ -12,11 +12,14 @@ const EXAMPLES = [
 interface SearchInputProps {
   onSearch: (query: string) => void;
   isSearching: boolean;
+  traceMode: "standard" | "deep";
+  onTraceModeChange: (mode: "standard" | "deep") => void;
 }
 
-export function SearchInput({ onSearch, isSearching }: SearchInputProps) {
+export function SearchInput({ onSearch, isSearching, traceMode, onTraceModeChange }: SearchInputProps) {
   const [query, setQuery] = useState("");
   const [focused, setFocused] = useState(false);
+  const [modeOpen, setModeOpen] = useState(false);
   const borderRef = useRef<HTMLDivElement>(null);
   const [boxSize, setBoxSize] = useState({ w: 0, h: 0 });
 
@@ -44,6 +47,7 @@ export function SearchInput({ onSearch, isSearching }: SearchInputProps) {
   const r = 14; // matches CSS border-radius; SVG now covers the full border-box
   const mx = w / 2;
   const my = h / 2;
+  const modeLabel = traceMode === "deep" ? "Deep trace" : "Quick trace";
 
   // 4 paths, each starting from center of a horizontal edge, sweeping outward and meeting at vertical midpoints:
   // Top-right: center-top → top-right corner → mid-right
@@ -264,6 +268,105 @@ export function SearchInput({ onSearch, isSearching }: SearchInputProps) {
             {example}
           </motion.button>
         ))}
+        <div style={{ position: "relative", zIndex: 3 }}>
+          <button
+            type="button"
+            onClick={() => setModeOpen((open) => !open)}
+            aria-expanded={modeOpen}
+            aria-haspopup="menu"
+            disabled={isSearching}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "0.375rem",
+              minHeight: "1.9375rem",
+              padding: "0.375rem 0.6875rem",
+              borderRadius: "0.5rem",
+              border: "0.0625rem solid var(--border)",
+              background: "color-mix(in srgb, var(--bg-secondary) 92%, var(--accent) 8%)",
+              color: "var(--text-secondary)",
+              fontFamily: "'DM Sans', sans-serif",
+              fontSize: "0.75rem",
+              fontWeight: 500,
+              cursor: isSearching ? "default" : "pointer",
+              opacity: isSearching ? 0.65 : 1,
+            }}
+          >
+            <span aria-hidden="true" style={{ width: "0.38rem", height: "0.38rem", borderRadius: "50%", background: traceMode === "deep" ? "var(--accent)" : "var(--text-tertiary)", boxShadow: traceMode === "deep" ? "0 0 0.45rem color-mix(in srgb, var(--accent) 65%, transparent)" : "none" }} />
+            <span>{modeLabel}</span>
+            <span style={{ padding: "0.08rem 0.25rem", borderRadius: "0.28rem", background: "color-mix(in srgb, var(--accent) 16%, transparent)", color: "var(--accent)", fontFamily: "'JetBrains Mono', monospace", fontSize: "0.56rem", letterSpacing: "0.04em" }}>AI</span>
+            <svg width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden="true" style={{ transform: modeOpen ? "rotate(180deg)" : "none", transition: "transform 0.15s" }}>
+              <path d="m2.5 4.5 3.5 3 3.5-3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+
+          <AnimatePresence>
+            {modeOpen && (
+              <motion.div
+                initial={{ opacity: 0, y: -5, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -5, scale: 0.98 }}
+                transition={{ duration: 0.14 }}
+                role="menu"
+                style={{
+                  position: "absolute",
+                  top: "calc(100% + 0.45rem)",
+                  right: 0,
+                  width: "min(20rem, calc(100vw - 2rem))",
+                  padding: "0.375rem",
+                  borderRadius: "1rem",
+                  border: "0.0625rem solid var(--border-hover)",
+                  background: "color-mix(in srgb, var(--bg-secondary) 96%, #17100b 4%)",
+                  boxShadow: "0 1rem 2.5rem rgba(0,0,0,0.28)",
+                }}
+              >
+                {([
+                  ["standard", "Quick trace", "Fast, focused lineage from the best matching seed."],
+                  ["deep", "Deep trace", "Agentic research, reference checks, and colored guide notes."],
+                ] as const).map(([mode, label, description]) => {
+                  const selected = traceMode === mode;
+                  return (
+                    <button
+                      key={mode}
+                      type="button"
+                      role="menuitemradio"
+                      aria-checked={selected}
+                      onClick={() => {
+                        onTraceModeChange(mode);
+                        setModeOpen(false);
+                      }}
+                      style={{
+                        width: "100%",
+                        display: "grid",
+                        gridTemplateColumns: "1.25rem 1fr 1.25rem",
+                        gap: "0.625rem",
+                        alignItems: "start",
+                        padding: "0.75rem",
+                        border: "none",
+                        borderRadius: "0.75rem",
+                        background: selected ? "color-mix(in srgb, var(--accent) 12%, transparent)" : "transparent",
+                        color: "var(--text-primary)",
+                        textAlign: "left",
+                        cursor: "pointer",
+                        fontFamily: "'DM Sans', sans-serif",
+                      }}
+                    >
+                      <span style={{ color: selected ? "var(--accent)" : "var(--text-tertiary)", fontSize: "1.1rem", lineHeight: 1 }}>{mode === "deep" ? "⌁" : "⌕"}</span>
+                      <span>
+                        <span style={{ display: "flex", alignItems: "center", gap: "0.4rem", fontSize: "0.9rem", fontWeight: 600 }}>
+                          {label}
+                          {mode === "deep" && <span style={{ padding: "0.1rem 0.35rem", borderRadius: "0.4rem", background: "color-mix(in srgb, var(--accent) 18%, transparent)", color: "var(--accent)", fontSize: "0.625rem", fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.04em" }}>AGENTIC</span>}
+                        </span>
+                        <span style={{ display: "block", marginTop: "0.2rem", color: "var(--text-tertiary)", fontSize: "0.73rem", lineHeight: 1.35 }}>{description}</span>
+                      </span>
+                      <span aria-hidden="true" style={{ color: selected ? "var(--accent)" : "transparent", fontSize: "1rem", lineHeight: 1 }}>✓</span>
+                    </button>
+                  );
+                })}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
       </motion.div>
     </motion.form>
   );

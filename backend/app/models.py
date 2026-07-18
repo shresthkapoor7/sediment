@@ -43,6 +43,7 @@ class SearchRequest(StrictRequestModel):
     query: str = Field(min_length=1, max_length=MAX_QUERY_LENGTH)
     seedOpenalexId: Optional[str] = Field(default=None, max_length=MAX_OPENALEX_ID_LENGTH)
     settings: Optional[TraversalSettings] = None
+    traceMode: Literal["standard", "deep"] = "standard"
 
 
 class ExpandRequest(StrictRequestModel):
@@ -104,18 +105,10 @@ class SeedCandidate(BaseModel):
 
 class SearchMeta(BaseModel):
     query: str
-    mode: Literal["resolved", "resolved_inferred", "needs_disambiguation"] = "resolved"
+    mode: Literal["resolved", "resolved_inferred", "needs_disambiguation", "no_results"] = "resolved"
     confidence: Optional[Literal["high", "medium", "low"]] = None
     cacheHit: bool = False
-
-
-class LineageGraphResponse(BaseModel):
-    seedPaperId: Optional[str] = None
-    papers: list[GraphPaper] = Field(default_factory=list)
-    edges: list[GraphEdge] = Field(default_factory=list)
-    rootIds: list[str] = Field(default_factory=list)
-    meta: SearchMeta
-    disambiguation: Optional[list[SeedCandidate]] = None
+    traceMode: Literal["standard", "deep"] = "standard"
 
 
 class ChatSuggestion(BaseModel):
@@ -223,6 +216,27 @@ class TimelineNoteConnectionSnapshot(StrictRequestModel):
     noteId: str = Field(min_length=1, max_length=MAX_NOTE_ID_LENGTH)
     paperId: str = Field(min_length=1, max_length=MAX_OPENALEX_ID_LENGTH)
     relation: Literal["about", "question", "insight", "todo", "contradiction"] = "about"
+
+
+class TraceNote(TimelineNoteSnapshot):
+    connections: list[TimelineNoteConnectionSnapshot] = Field(default_factory=list, max_length=5)
+
+
+class TraceSummary(BaseModel):
+    traceMode: Literal["standard", "deep"]
+    rationale: str = Field(min_length=1, max_length=2_000)
+    steps: list[str] = Field(default_factory=list, max_length=8)
+
+
+class LineageGraphResponse(BaseModel):
+    seedPaperId: Optional[str] = None
+    papers: list[GraphPaper] = Field(default_factory=list)
+    edges: list[GraphEdge] = Field(default_factory=list)
+    rootIds: list[str] = Field(default_factory=list)
+    meta: SearchMeta
+    disambiguation: Optional[list[SeedCandidate]] = None
+    traceNotes: list[TraceNote] = Field(default_factory=list, max_length=5)
+    traceSummary: Optional[TraceSummary] = None
 
 
 class TimelineNoteContext(StrictRequestModel):

@@ -43,6 +43,7 @@ async def search(req: SearchRequest, request: Request):
                 seed_openalex_id=req.seedOpenalexId,
                 settings=req.settings,
                 ip=request_ip,
+                trace_mode=req.traceMode,
             )
     except LLMParseError as e:
         logger.warning("Search failed due to LLM parse error for query=%r", req.query, exc_info=e)

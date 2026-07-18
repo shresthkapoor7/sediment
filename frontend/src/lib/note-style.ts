@@ -1,7 +1,7 @@
 import { TimelineNote, TimelineNoteKind } from "./types";
 
-export const TIMELINE_NOTE_DEFAULT_WIDTH = 220;
-export const TIMELINE_NOTE_MIN_HEIGHT = 132;
+export const TIMELINE_NOTE_DEFAULT_WIDTH = 300;
+export const TIMELINE_NOTE_MIN_HEIGHT = 176;
 
 export const NOTE_COLOR_OPTIONS: Array<{
   key: NonNullable<TimelineNote["color"]>;

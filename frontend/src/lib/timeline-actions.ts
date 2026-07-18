@@ -1,6 +1,6 @@
 import { GraphEdge, GraphPaper, LineageChange, NodeBorderColor, TimelineData, TimelineGraphAction, TimelineNode, TimelineNodeColorChange, TimelineNote, TimelineNoteChange } from "./types";
 import { GAP_X, LANE_HEIGHT, NODE_DIMENSIONS, PADDING_X, PADDING_Y } from "./dummy-data";
-import { TIMELINE_NOTE_DEFAULT_WIDTH, TIMELINE_NOTE_MIN_HEIGHT } from "./note-style";
+import { estimateTimelineNoteDimensions, layoutTimelineNotes } from "./note-layout";
 
 interface TimelineGraphActionOptions {
   lockedOpenalexIds?: string[];
@@ -18,7 +18,8 @@ export function applyTimelineGraphAction(
     return applyNodeDeletion(data, action.nodeId, options);
   }
   if (action.type === "add_note") {
-    return applyNoteAddition(data, action);
+    const next = applyNoteAddition(data, action);
+    return next === data ? data : layoutTimelineNotes(next, [action.note.id]);
   }
   if (action.type === "update_note") {
     return applyNoteUpdate(data, action.noteId, action.patch);
@@ -258,6 +259,7 @@ function applyTimelineLineageChange(
 function applyTimelineNoteChange(data: TimelineData, change: TimelineNoteChange): TimelineData {
   let next = data;
   const timestamp = new Date().toISOString();
+  const createdNoteIds: string[] = [];
 
   for (const created of change.createdNotes ?? []) {
     if (
@@ -270,27 +272,23 @@ function applyTimelineNoteChange(data: TimelineData, change: TimelineNoteChange)
     ) {
       continue;
     }
-    const connection = (change.connections ?? []).find((candidate) => candidate.noteId === created.id);
-    const targetNodeId = connection ? nodeIdForPaper(next, connection.paperId) : null;
-    const position = positionNewAgentNote(next, targetNodeId);
+    const dimensions = estimateTimelineNoteDimensions(created.text);
     const note: TimelineNote = {
       id: created.id,
       text: created.text,
       kind: isNoteKind(created.kind) ? created.kind : "field_note",
       color: isNoteColor(created.color) ? created.color : "paper",
-      x: position.x,
-      y: position.y,
-      width: TIMELINE_NOTE_DEFAULT_WIDTH,
-      height: TIMELINE_NOTE_MIN_HEIGHT,
+      x: PADDING_X,
+      y: PADDING_Y,
+      ...dimensions,
       createdAt: timestamp,
       updatedAt: timestamp,
     };
     next = applyNoteAddition(next, {
       type: "add_note",
       note,
-      connectToNodeId: targetNodeId,
-      relation: connection?.relation,
     });
+    createdNoteIds.push(created.id);
   }
 
   for (const update of change.updatedNotes ?? []) {
@@ -323,32 +321,13 @@ function applyTimelineNoteChange(data: TimelineData, change: TimelineNoteChange)
     next = applyNoteDisconnection(next, connection.noteId, nodeId);
   }
 
-  return next;
+  return createdNoteIds.length ? layoutTimelineNotes(next, createdNoteIds) : next;
 }
 
 function nodeIdForPaper(data: TimelineData, paperId: unknown): number | null {
   const normalizedId = normalizeOpenalexId(paperId);
   if (!normalizedId) return null;
   return Object.values(data.nodes).find((node) => normalizeOpenalexId(node.paper.openalexId) === normalizedId)?.id ?? null;
-}
-
-function positionNewAgentNote(data: TimelineData, targetNodeId: number | null): { x: number; y: number } {
-  const target = targetNodeId === null ? null : data.nodes[targetNodeId];
-  if (target) {
-    return {
-      x: target.x + NODE_DIMENSIONS.width + 56,
-      y: target.y + ((Object.keys(data.notes ?? {}).length % 3) * 24),
-    };
-  }
-  const maxX = Math.max(
-    PADDING_X,
-    ...Object.values(data.nodes).map((node) => node.x + NODE_DIMENSIONS.width + GAP_X),
-    ...Object.values(data.notes ?? {}).map((note) => note.x + (note.width ?? TIMELINE_NOTE_DEFAULT_WIDTH) + 32),
-  );
-  return {
-    x: maxX,
-    y: PADDING_Y + ((Object.keys(data.notes ?? {}).length % Math.max(data.lanes, 1)) * LANE_HEIGHT),
-  };
 }
 
 function isNoteKind(value: unknown): value is NonNullable<TimelineNote["kind"]> {
@@ -499,12 +478,15 @@ function applyNoteAddition(
   action: Extract<TimelineGraphAction, { type: "add_note" }>,
 ): TimelineData {
   if (!action.note.id) return data;
+  const dimensions = estimateTimelineNoteDimensions(action.note.text || "New research note");
 
   const notes = {
     ...(data.notes ?? {}),
     [action.note.id]: {
       ...action.note,
       text: action.note.text || "New research note",
+      width: action.note.width ?? dimensions.width,
+      height: action.note.height ?? dimensions.height,
     },
   };
   const noteEdges = [...(data.noteEdges ?? [])];

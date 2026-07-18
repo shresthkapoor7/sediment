@@ -25,6 +25,7 @@ import {
   updateSavedGraph,
 } from "@/lib/api";
 import { useHoverPreviewToggle } from "@/lib/hover-preview";
+import { upgradeLegacyTimelineNoteLayout } from "@/lib/note-layout";
 import { applyTimelineGraphAction, applyTimelineLineageChanges, applyTimelineNodeColorChanges, applyTimelineNoteChanges } from "@/lib/timeline-actions";
 import {
   buildTimelineFromGraph,
@@ -579,30 +580,13 @@ function LandingScrollHint({
       >
         Scroll to trace
       </span>
-      <span
-        style={{
-          position: "relative",
-          width: "1.375rem",
-          height: "2.125rem",
-          border: "0.0625rem solid var(--border-hover)",
-          borderRadius: "999px",
-        }}
-      >
-        <span
-          style={{
-            position: "absolute",
-            left: "50%",
-            top: "0.4375rem",
-            width: "0.1875rem",
-            height: "0.1875rem",
-            marginLeft: "-0.09375rem",
-            borderRadius: "50%",
-            background: "var(--accent)",
-            boxShadow: "0 0 0.5rem var(--accent-glow)",
-            animation:
-              "landing-scroll-dot 2s cubic-bezier(.4, 0, .2, 1) infinite",
-          }}
-        />
+      <span className="landing-scroll-lines">
+        {["5rem", "3.5rem", "2.25rem"].map((width, index) => (
+          <span
+            key={width}
+            style={{ width, animationDelay: `${index * 0.28}s` }}
+          />
+        ))}
       </span>
     </div>
   );
@@ -1863,6 +1847,7 @@ export default function Home() {
   const [searchedQuery, setSearchedQuery] = useState("");
   const [searchError, setSearchError] = useState("");
   const [disambiguation, setDisambiguation] = useState<SeedCandidate[]>([]);
+  const [traceMode, setTraceMode] = useState<"standard" | "deep">("standard");
   const [settings, setSettings] = useState<TraversalSettings>(DEFAULT_SETTINGS);
   const [draftSettings, setDraftSettings] =
     useState<TraversalSettings>(DEFAULT_SETTINGS);
@@ -1960,7 +1945,7 @@ export default function Home() {
 
     void fetchSavedGraph(lastGraphId, nextUserId)
       .then((graph) => {
-        setTimelineData(graph.data);
+        setTimelineData(upgradeLegacyTimelineNoteLayout(graph.data));
         setSearchedQuery(graph.query);
         setGraphId(graph.id);
         setSelectedSeedOpenalexId(graph.seedPaperId ?? null);
@@ -2079,6 +2064,7 @@ export default function Home() {
       seedOpenalexId?: string,
       searchSettings: TraversalSettings = settings,
       requestQuery: string = query,
+      selectedTraceMode: "standard" | "deep" = traceMode,
     ) => {
       if (isExpanding) return;
       if (saveTimeoutRef.current) {
@@ -2097,6 +2083,7 @@ export default function Home() {
           requestQuery,
           seedOpenalexId,
           searchSettings,
+          selectedTraceMode,
         );
         const normalizedDisplayQuery = query.trim().toLowerCase();
         const normalizedRequestQuery = requestQuery.trim().toLowerCase();
@@ -2105,7 +2092,7 @@ export default function Home() {
           normalizedRequestQuery &&
           normalizedRequestQuery !== normalizedDisplayQuery
         ) {
-          response = await searchLineage(query, seedOpenalexId, searchSettings);
+          response = await searchLineage(query, seedOpenalexId, searchSettings, selectedTraceMode);
         }
         if (response.meta.mode === "needs_disambiguation") {
           setTimelineData(null);
@@ -2116,6 +2103,16 @@ export default function Home() {
           setDisambiguation(response.disambiguation ?? []);
           return;
         }
+        if (response.meta.mode === "no_results" || response.papers.length === 0) {
+          setTimelineData(null);
+          setGraphId(null);
+          setSelectedSeedOpenalexId(null);
+          setGlobalChatOpen(false);
+          setSaveState("idle");
+          persistLastGraphId(null);
+          setSearchError("I couldn’t find papers for that full query. Try one concept or paper title at a time.");
+          return;
+        }
         const nextTimelineData = buildTimelineFromGraph(response);
         const nextSeedPaperId =
           response.seedPaperId ??
@@ -2124,6 +2121,7 @@ export default function Home() {
           null;
         setTimelineData(nextTimelineData);
         setSelectedSeedOpenalexId(nextSeedPaperId);
+        setGlobalChatOpen(Boolean(nextTimelineData.traceSummary));
 
         if (userId) {
           try {
@@ -2166,6 +2164,7 @@ export default function Home() {
       persistLastGraphId,
       refreshCredits,
       settings,
+      traceMode,
       userId,
     ],
   );
@@ -2406,7 +2405,7 @@ export default function Home() {
       setIsHistoryLoading(true);
       void fetchSavedGraph(savedGraphId, userId)
         .then((graph) => {
-          setTimelineData(graph.data);
+          setTimelineData(upgradeLegacyTimelineNoteLayout(graph.data));
           setSearchedQuery(graph.query);
           setGraphId(graph.id);
           setSelectedSeedOpenalexId(graph.seedPaperId ?? null);
@@ -4338,6 +4337,8 @@ export default function Home() {
                     <SearchInput
                       onSearch={handleSearch}
                       isSearching={isSearching || isExpanding || isClarifying}
+                      traceMode={traceMode}
+                      onTraceModeChange={setTraceMode}
                     />
                   </div>
 
@@ -4439,17 +4440,6 @@ export default function Home() {
                     alignItems: "center",
                   }}
                 >
-                  {["5rem", "3.5rem", "2.25rem"].map((w, i) => (
-                    <div
-                      key={i}
-                      style={{
-                        width: w,
-                        height: "0.0625rem",
-                        background: "var(--border)",
-                        opacity: 0.6 - i * 0.15,
-                      }}
-                    />
-                  ))}
                   <a
                     href={GITHUB_REPO_URL}
                     target="_blank"
@@ -4576,7 +4566,9 @@ export default function Home() {
                   ? "restoring your last graph"
                   : isClarifying
                     ? "checking your query..."
-                    : `tracing lineage for "${searchedQuery}"`}
+                    : traceMode === "deep"
+                      ? `researching a deep trace for "${searchedQuery}"`
+                      : `tracing lineage for "${searchedQuery}"`}
               </motion.p>
             </motion.div>
           ) : (
