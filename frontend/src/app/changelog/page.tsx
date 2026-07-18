@@ -70,6 +70,9 @@ function detectCategories(summary: string | null): Category[] {
   if (/\*\*(documentation|docs)\*\*/i.test(summary)) {
     categories.push({ label: "Docs", color: "gray" });
   }
+  if (/\*\*(tests?|testing)\*\*/i.test(summary)) {
+    categories.push({ label: "Tests", color: "purple" });
+  }
 
   return categories;
 }
@@ -100,7 +103,7 @@ function cleanSummary(summary: string): string {
     .trim();
 }
 
-function ChangelogCard({ entry, index }: { entry: ChangelogEntry; index: number }) {
+function ChangelogCard({ entry }: { entry: ChangelogEntry }) {
   const { rest: displayTitle } = parseTitle(entry.title);
   const categories = detectCategories(entry.summary);
   const dotColor = categories.length > 0 ? TAG_COLORS[categories[0].color] : TAG_COLORS.accent;
@@ -110,10 +113,6 @@ function ChangelogCard({ entry, index }: { entry: ChangelogEntry; index: number 
       style={{
         display: "flex",
         gap: "1.5rem",
-        opacity: 0,
-        transform: "translateY(0.5rem)",
-        animation: "changelog-card-in 320ms ease-out forwards",
-        animationDelay: `${(index % CHANGELOG_PAGE_SIZE) * 75}ms`,
       }}
     >
       <div
@@ -314,7 +313,6 @@ function ChangelogCard({ entry, index }: { entry: ChangelogEntry; index: number 
 }
 
 export default function ChangelogPage() {
-  const [mounted, setMounted] = useState(false);
   const [entries, setEntries] = useState<ChangelogEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -322,9 +320,9 @@ export default function ChangelogPage() {
   const [nextOffset, setNextOffset] = useState<number | null>(0);
   const [error, setError] = useState<string | null>(null);
   const [loadMoreError, setLoadMoreError] = useState<string | null>(null);
+  const [isHeaderCompact, setIsHeaderCompact] = useState(false);
 
   useEffect(() => {
-    setMounted(true);
     document.title = "Changelog — Sediment";
     document.body.style.overflow = "auto";
 
@@ -351,6 +349,13 @@ export default function ChangelogPage() {
       controller.abort();
       document.body.style.overflow = "";
     };
+  }, []);
+
+  useEffect(() => {
+    const updateHeader = () => setIsHeaderCompact(window.scrollY > 48);
+    updateHeader();
+    window.addEventListener("scroll", updateHeader, { passive: true });
+    return () => window.removeEventListener("scroll", updateHeader);
   }, []);
 
   function loadMore() {
@@ -381,10 +386,6 @@ export default function ChangelogPage() {
       });
   }
 
-  if (!mounted) {
-    return null;
-  }
-
   return (
     <div
       style={{
@@ -394,107 +395,119 @@ export default function ChangelogPage() {
       }}
     >
       <header
+        className={`changelog-dock${isHeaderCompact ? " changelog-dock-compact" : ""}`}
         style={{
-          position: "sticky",
-          top: 0,
+          position: "fixed",
+          top: "1.25rem",
+          left: 0,
+          right: 0,
           zIndex: 10,
-          background: "color-mix(in srgb, var(--bg-primary) 85%, transparent)",
-          backdropFilter: "blur(12px)",
-          borderBottom: "0.0625rem solid var(--border)",
+          padding: "0 1rem",
+          pointerEvents: "none",
         }}
       >
         <div
+          className="changelog-dock-content"
           style={{
-            maxWidth: "48rem",
+            width: "max-content",
+            maxWidth: "100%",
             margin: "0 auto",
-            padding: "1rem 1.5rem",
+            padding: "0.3125rem 0.375rem",
             display: "flex",
             alignItems: "center",
-            justifyContent: "space-between",
+            gap: "0.125rem",
+            border: "0.0625rem solid color-mix(in srgb, var(--border) 72%, transparent)",
+            borderRadius: "0.875rem",
+            background: "color-mix(in srgb, var(--bg-primary) 82%, transparent)",
+            boxShadow: "0 0.625rem 1.75rem rgba(0, 0, 0, 0.12)",
+            backdropFilter: "blur(16px)",
+            pointerEvents: "auto",
           }}
         >
           <Link
             href="/"
+            className="changelog-dock-item"
             style={{
               display: "flex",
               alignItems: "center",
-              gap: "0.75rem",
+              gap: "0.375rem",
+              height: "2rem",
+              padding: "0 0.625rem",
+              borderRadius: "0.5rem",
               textDecoration: "none",
-              color: "var(--text-primary)",
+              color: "var(--text-secondary)",
+              fontFamily: "'DM Sans', sans-serif",
+              fontSize: "0.75rem",
+              fontWeight: 500,
             }}
           >
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: "0.1875rem",
-                opacity: 0.6,
-              }}
-            >
-              <div
-                style={{
-                  width: "1.75rem",
-                  height: "0.125rem",
-                  background: "var(--border-hover)",
-                }}
-              />
-              <div
-                style={{
-                  width: "1rem",
-                  height: "0.125rem",
-                  background: "var(--border-hover)",
-                }}
-              />
-              <div
-                style={{
-                  width: "0.625rem",
-                  height: "0.125rem",
-                  background: "var(--border-hover)",
-                }}
-              />
-            </div>
-            <span
-              style={{
-                fontFamily: "'Instrument Serif', Georgia, serif",
-                fontSize: "1.5rem",
-                letterSpacing: "-0.02em",
-              }}
-            >
-              Sediment
-            </span>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M2 7l10-5 10 5-10 5L2 7z" />
+              <path d="M2 12l10 5 10-5" opacity="0.65" />
+              <path d="M2 17l10 5 10-5" opacity="0.35" />
+            </svg>
+            <span className="changelog-dock-label">Sediment</span>
           </Link>
 
-          <Link
-            href="/"
+          <span className="changelog-dock-divider" style={{ width: "0.0625rem", height: "1.25rem", background: "var(--border)", margin: "0 0.125rem" }} />
+
+          <span
+            className="changelog-dock-item"
             style={{
-              display: "inline-flex",
+              display: "flex",
               alignItems: "center",
               gap: "0.375rem",
-              padding: "0.5rem 0.875rem",
+              height: "2rem",
+              padding: "0 0.625rem",
               borderRadius: "0.5rem",
-              border: "0.0625rem solid var(--border-hover)",
-              background: "transparent",
+              background: "color-mix(in srgb, var(--accent) 9%, transparent)",
               color: "var(--text-primary)",
-              fontSize: "0.875rem",
+              fontFamily: "'DM Sans', sans-serif",
+              fontSize: "0.75rem",
               fontWeight: 500,
-              textDecoration: "none",
-              transition: "background 0.15s ease",
             }}
           >
             <svg
               width="14"
               height="14"
-              viewBox="0 0 24 24"
+              viewBox="0 0 16 16"
               fill="none"
               stroke="currentColor"
-              strokeWidth="2"
+              strokeWidth="1.5"
               strokeLinecap="round"
               strokeLinejoin="round"
+              aria-hidden="true"
             >
-              <path d="M19 12H5" />
-              <path d="M12 19l-7-7 7-7" />
+              <path d="M3 2.5h7l3 3v8H3z" />
+              <path d="M10 2.5v3h3M5.5 8h5M5.5 10.5h5" />
             </svg>
-            Back
+            <span className="changelog-dock-label">Changelog</span>
+          </span>
+
+          <span className="changelog-dock-divider" style={{ width: "0.0625rem", height: "1.25rem", background: "var(--border)", margin: "0 0.125rem" }} />
+
+          <Link
+            href="/"
+            className="changelog-dock-item"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "0.375rem",
+              height: "2rem",
+              padding: "0 0.625rem",
+              borderRadius: "0.5rem",
+              color: "var(--text-secondary)",
+              fontFamily: "'DM Sans', sans-serif",
+              fontSize: "0.75rem",
+              fontWeight: 500,
+              textDecoration: "none",
+            }}
+          >
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M13 8H3" />
+              <path d="M7 4l-4 4 4 4" />
+            </svg>
+            <span className="changelog-dock-label">Back</span>
           </Link>
         </div>
       </header>
@@ -503,22 +516,10 @@ export default function ChangelogPage() {
         style={{
           maxWidth: "48rem",
           margin: "0 auto",
-          padding: "4rem 1.5rem 6rem",
+          padding: "6rem 1.5rem 6rem",
         }}
       >
-        <div style={{ textAlign: "center", marginBottom: "4rem" }}>
-          <h1
-            style={{
-              fontFamily: "'Instrument Serif', Georgia, serif",
-              fontSize: "clamp(2.5rem, 6vw, 3.5rem)",
-              fontWeight: 400,
-              letterSpacing: "-0.02em",
-              color: "var(--text-primary)",
-              marginBottom: "1rem",
-            }}
-          >
-            Changelog
-          </h1>
+        <div style={{ textAlign: "center", marginBottom: "3rem" }}>
           <p
             style={{
               fontSize: "1.125rem",
@@ -571,16 +572,8 @@ export default function ChangelogPage() {
 
         {!loading && !error && entries.length > 0 && (
           <div>
-            <style jsx>{`
-              @keyframes changelog-card-in {
-                to {
-                  opacity: 1;
-                  transform: translateY(0);
-                }
-              }
-            `}</style>
-            {entries.map((entry, index) => (
-              <ChangelogCard key={entry.id} entry={entry} index={index} />
+            {entries.map((entry) => (
+              <ChangelogCard key={entry.id} entry={entry} />
             ))}
             {hasMore && (
               <div style={{ textAlign: "center", marginTop: "1rem" }}>

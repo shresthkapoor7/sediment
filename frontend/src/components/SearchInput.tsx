@@ -5,8 +5,8 @@ import { AnimatePresence, motion } from "framer-motion";
 
 const EXAMPLES = [
   "Transformer",
-  "CRISPR",
-  "Diffusion Models",
+  "VLMs",
+  "Feynman Path Integrals",
 ];
 
 interface SearchInputProps {
@@ -61,18 +61,21 @@ export function SearchInput({ onSearch, isSearching, traceMode, onTraceModeChang
 
   return (
     <motion.form
+      className="trace-search"
       onSubmit={handleSubmit}
+      aria-label="Search the research lineage"
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
       style={{
         position: "relative",
         width: "100%",
-        maxWidth: "32.5rem",
+        maxWidth: "39rem",
       }}
     >
       <div
         ref={borderRef}
+        className="trace-search-field"
         style={{
           position: "relative",
           display: "flex",
@@ -80,8 +83,8 @@ export function SearchInput({ onSearch, isSearching, traceMode, onTraceModeChang
           gap: "0.75rem",
           background: "var(--bg-secondary)",
           border: "0.0625rem solid var(--border)",
-          borderRadius: "0.875rem",
-          padding: "0.875rem 1.125rem",
+          borderRadius: "0.75rem",
+          padding: "0.75rem 0.875rem 0.75rem 1rem",
           boxShadow: focused
             ? "0 0.125rem 1rem rgba(0,0,0,0.08)"
             : "0 0.125rem 0.75rem rgba(0,0,0,0.04)",
@@ -147,7 +150,7 @@ export function SearchInput({ onSearch, isSearching, traceMode, onTraceModeChang
           onChange={(e) => setQuery(e.target.value)}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
-          placeholder="Trace a concept..."
+          placeholder="Search a concept, paper, DOI, or arXiv ID"
           disabled={isSearching}
           style={{
             flex: 1,
@@ -212,6 +215,7 @@ export function SearchInput({ onSearch, isSearching, traceMode, onTraceModeChang
 
       {/* Examples */}
       <motion.div
+        className="trace-search-examples"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.4, duration: 0.5 }}
@@ -226,6 +230,7 @@ export function SearchInput({ onSearch, isSearching, traceMode, onTraceModeChang
         {EXAMPLES.map((example, i) => (
           <motion.button
             key={example}
+            className={`trace-search-suggestion${example === "Feynman Path Integrals" ? " hide-mobile" : ""}`}
             type="button"
             disabled={isSearching}
             onClick={() => onSearch(example)}
@@ -271,6 +276,7 @@ export function SearchInput({ onSearch, isSearching, traceMode, onTraceModeChang
         <div style={{ position: "relative", zIndex: 3 }}>
           <button
             type="button"
+            className="trace-search-mode"
             onClick={() => setModeOpen((open) => !open)}
             aria-expanded={modeOpen}
             aria-haspopup="menu"
@@ -279,22 +285,46 @@ export function SearchInput({ onSearch, isSearching, traceMode, onTraceModeChang
               display: "flex",
               alignItems: "center",
               gap: "0.375rem",
-              minHeight: "1.9375rem",
-              padding: "0.375rem 0.6875rem",
+              minHeight: "2.5rem",
+              padding: "0.375rem 0.75rem",
               borderRadius: "0.5rem",
-              border: "0.0625rem solid var(--border)",
-              background: "color-mix(in srgb, var(--bg-secondary) 92%, var(--accent) 8%)",
+              border: traceMode === "deep"
+                ? "0.0625rem solid color-mix(in srgb, var(--accent) 58%, var(--border))"
+                : "0.0625rem solid var(--border)",
+              background: "var(--bg-secondary)",
               color: "var(--text-secondary)",
               fontFamily: "'DM Sans', sans-serif",
               fontSize: "0.75rem",
               fontWeight: 500,
               cursor: isSearching ? "default" : "pointer",
               opacity: isSearching ? 0.65 : 1,
+              transition: "border-color 0.15s, color 0.15s, background 0.15s",
+            }}
+            onMouseEnter={(e) => {
+              if (!isSearching) {
+                e.currentTarget.style.borderColor = "var(--accent)";
+                e.currentTarget.style.color = "var(--text-primary)";
+                e.currentTarget.style.background = "var(--accent-soft)";
+              }
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = traceMode === "deep"
+                ? "color-mix(in srgb, var(--accent) 58%, var(--border))"
+                : "var(--border)";
+              e.currentTarget.style.color = "var(--text-secondary)";
+              e.currentTarget.style.background = "var(--bg-secondary)";
             }}
           >
-            <span aria-hidden="true" style={{ width: "0.38rem", height: "0.38rem", borderRadius: "50%", background: traceMode === "deep" ? "var(--accent)" : "var(--text-tertiary)", boxShadow: traceMode === "deep" ? "0 0 0.45rem color-mix(in srgb, var(--accent) 65%, transparent)" : "none" }} />
+            {traceMode === "deep" ? (
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true" style={{ flexShrink: 0, color: "var(--accent)" }}>
+                <path d="M9.25 1.5 3.5 8h4.1L6.75 14.5l5.75-7H8.4z" fill="currentColor" />
+              </svg>
+            ) : (
+              <svg width="12" height="12" viewBox="0 0 18 18" fill="none" aria-hidden="true" style={{ flexShrink: 0, color: "var(--accent)" }}>
+                <path d="M16.5 16.5L12.875 12.875M14.8333 8.16667C14.8333 11.8486 11.8486 14.8333 8.16667 14.8333C4.48477 14.8333 1.5 11.8486 1.5 8.16667C1.5 4.48477 4.48477 1.5 8.16667 1.5C11.8486 1.5 14.8333 4.48477 14.8333 8.16667Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            )}
             <span>{modeLabel}</span>
-            <span style={{ padding: "0.08rem 0.25rem", borderRadius: "0.28rem", background: "color-mix(in srgb, var(--accent) 16%, transparent)", color: "var(--accent)", fontFamily: "'JetBrains Mono', monospace", fontSize: "0.56rem", letterSpacing: "0.04em" }}>AI</span>
             <svg width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden="true" style={{ transform: modeOpen ? "rotate(180deg)" : "none", transition: "transform 0.15s" }}>
               <path d="m2.5 4.5 3.5 3 3.5-3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
@@ -338,7 +368,7 @@ export function SearchInput({ onSearch, isSearching, traceMode, onTraceModeChang
                       style={{
                         width: "100%",
                         display: "grid",
-                        gridTemplateColumns: "1.25rem 1fr 1.25rem",
+                        gridTemplateColumns: "1.25rem 1fr",
                         gap: "0.625rem",
                         alignItems: "start",
                         padding: "0.75rem",
@@ -355,11 +385,10 @@ export function SearchInput({ onSearch, isSearching, traceMode, onTraceModeChang
                       <span>
                         <span style={{ display: "flex", alignItems: "center", gap: "0.4rem", fontSize: "0.9rem", fontWeight: 600 }}>
                           {label}
-                          {mode === "deep" && <span style={{ padding: "0.1rem 0.35rem", borderRadius: "0.4rem", background: "color-mix(in srgb, var(--accent) 18%, transparent)", color: "var(--accent)", fontSize: "0.625rem", fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.04em" }}>AGENTIC</span>}
+                          {mode === "deep" && <span style={{ padding: "0.1rem 0.35rem", borderRadius: "0.4rem", background: "color-mix(in srgb, var(--accent) 18%, transparent)", color: "var(--accent)", fontSize: "0.625rem", fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.04em" }}>NEW</span>}
                         </span>
                         <span style={{ display: "block", marginTop: "0.2rem", color: "var(--text-tertiary)", fontSize: "0.73rem", lineHeight: 1.35 }}>{description}</span>
                       </span>
-                      <span aria-hidden="true" style={{ color: selected ? "var(--accent)" : "transparent", fontSize: "1rem", lineHeight: 1 }}>✓</span>
                     </button>
                   );
                 })}

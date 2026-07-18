@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState, useCallback, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ClarificationModal } from "@/components/ClarificationModal";
@@ -553,33 +554,8 @@ function LandingScrollHint({
   return (
     <div
       aria-hidden
-      style={{
-        position: "absolute",
-        left: "50%",
-        bottom: "6.5rem",
-        transform: hidden
-          ? "translateX(-50%) translateY(0.625rem)"
-          : "translateX(-50%)",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        gap: "0.875rem",
-        pointerEvents: "none",
-        transition: "opacity 0.4s ease, transform 0.4s ease",
-        opacity: hidden ? 0 : 1,
-      }}
+      className={`landing-scroll-hint${hidden ? " is-hidden" : ""}`}
     >
-      <span
-        style={{
-          fontFamily: "'JetBrains Mono', monospace",
-          fontSize: "0.625rem",
-          letterSpacing: "0.2em",
-          textTransform: "uppercase",
-          color: "var(--text-tertiary)",
-        }}
-      >
-        Scroll to trace
-      </span>
       <span className="landing-scroll-lines">
         {["5rem", "3.5rem", "2.25rem"].map((width, index) => (
           <span
@@ -1463,7 +1439,7 @@ function DemoChatScene({
                   color: "var(--text-tertiary)",
                 }}
               >
-                claude-sonnet
+                sediment-agent
               </em>
             </div>
 
@@ -1822,9 +1798,9 @@ function DemoFooter({ compact }: { compact: boolean }) {
             >
               GitHub
             </a>
-            <a href="/changelog" style={footerLinkStyle}>
+            <Link href="/changelog" style={footerLinkStyle}>
               Changelog
-            </a>
+            </Link>
             <a href="mailto:shresthkapoor7@gmail.com" style={footerLinkStyle}>
               Contact
             </a>
@@ -1852,6 +1828,7 @@ export default function Home() {
   const [draftSettings, setDraftSettings] =
     useState<TraversalSettings>(DEFAULT_SETTINGS);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [sessionActionsOpen, setSessionActionsOpen] = useState(false);
   const { hoverPreviewEnabled, onToggleHoverPreview } = useHoverPreviewToggle();
   const [userId, setUserId] = useState<string | null>(null);
   const [graphId, setGraphId] = useState<string | null>(null);
@@ -1892,6 +1869,7 @@ export default function Home() {
   const landingSearchRef = useRef<HTMLDivElement | null>(null);
   const savedGraphIdsRef = useRef<Set<string>>(new Set());
   const { compact, mobile } = useLandingViewport();
+  const [isLandingHeaderCompact, setIsLandingHeaderCompact] = useState(false);
 
   useEffect(() => {
     document.title = searchedQuery
@@ -2234,6 +2212,7 @@ export default function Home() {
 
   const handleReset = useCallback(() => {
     clarifyRequestIdRef.current += 1;
+    setIsLandingHeaderCompact(false);
     if (saveTimeoutRef.current) {
       window.clearTimeout(saveTimeoutRef.current);
     }
@@ -2249,6 +2228,8 @@ export default function Home() {
     setDisambiguation([]);
     setClarification(null);
     setGlobalChatOpen(false);
+    setSessionActionsOpen(false);
+    setSettingsOpen(false);
     setClosePaperPanelSignal((value) => value + 1);
     setDraftSettings(settings);
     persistLastGraphId(null);
@@ -2487,7 +2468,7 @@ export default function Home() {
 
   return (
     <div
-      className="grain"
+      className="grain app-shell"
       style={{
         height: "100vh",
         display: "flex",
@@ -2497,6 +2478,7 @@ export default function Home() {
     >
       {/* Top bar */}
       <motion.header
+        className={`app-header${!timelineData ? " app-header-landing" : ""}${isLandingHeaderCompact ? " app-header-compact" : ""}`}
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
@@ -2506,50 +2488,54 @@ export default function Home() {
           alignItems: "center",
           justifyContent: "space-between",
           gap: "0.75rem",
-          padding: "0.875rem 1.5rem",
+          minHeight: "4.5rem",
+          padding: "0.75rem clamp(1rem, 4vw, 3rem)",
           borderBottom: "0.0625rem solid var(--border)",
           background: "var(--bg-primary)",
-          zIndex: 50,
+          zIndex: !timelineData && historyOpen ? 10 : 50,
           flexShrink: 0,
         }}
       >
-        <button
-          onClick={handleReset}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "0.625rem",
-            background: "none",
-            border: "none",
-            cursor: "pointer",
-            color: "var(--text-primary)",
-          }}
-        >
-          {/* Strata icon */}
-          <svg
-            width="22"
-            height="22"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="var(--accent)"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-          >
-            <path d="M2 17l10 4 10-4" opacity="0.3" />
-            <path d="M2 12l10 4 10-4" opacity="0.6" />
-            <path d="M12 2L2 7l10 5 10-5L12 2z" />
-          </svg>
-          <span
+        {timelineData && (
+          <button
+            className="app-header-brand"
+            onClick={handleReset}
             style={{
-              fontFamily: "'Instrument Serif', Georgia, serif",
-              fontSize: "1.125rem",
-              fontWeight: 400,
-              letterSpacing: "-0.01em",
+              display: "flex",
+              alignItems: "center",
+              gap: "0.625rem",
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              color: "var(--text-primary)",
             }}
           >
-            Sediment
-          </span>
-        </button>
+            {/* Strata icon */}
+            <svg
+              width="22"
+              height="22"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="var(--accent)"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+            >
+              <path d="M2 17l10 4 10-4" opacity="0.3" />
+              <path d="M2 12l10 4 10-4" opacity="0.6" />
+              <path d="M12 2L2 7l10 5 10-5L12 2z" />
+            </svg>
+            <span
+              style={{
+                fontFamily: "'Instrument Serif', Georgia, serif",
+                fontSize: "1.125rem",
+                fontWeight: 400,
+                letterSpacing: "-0.01em",
+              }}
+            >
+              Sediment
+            </span>
+          </button>
+        )}
 
         <AnimatePresence>
           {searchedQuery && (
@@ -2568,9 +2554,10 @@ export default function Home() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -4 }}
                 style={{
-                  fontSize: "0.75rem",
-                  color: "var(--text-tertiary)",
+                  fontSize: "0.875rem",
+                  color: "var(--text-secondary)",
                   fontFamily: "'JetBrains Mono', monospace",
+                  fontWeight: 500,
                   letterSpacing: "0.02em",
                   overflow: "hidden",
                   textOverflow: "ellipsis",
@@ -2578,7 +2565,7 @@ export default function Home() {
                   minWidth: 0,
                 }}
               >
-                tracing: {searchedQuery}
+                {searchedQuery}
               </motion.span>
 
               {timelineData && saveState !== "idle" && (
@@ -2632,6 +2619,7 @@ export default function Home() {
 
         {/* ── Right side: desktop buttons + always-visible controls ── */}
         <div
+          className="app-header-actions"
           style={{
             display: "flex",
             alignItems: "center",
@@ -2646,6 +2634,35 @@ export default function Home() {
           >
             {!timelineData && (
               <motion.button
+                type="button"
+                className="app-header-labeled-action"
+                initial={{ opacity: 0, y: -4 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.25 }}
+                onClick={handleReset}
+                aria-label="Sediment home"
+              >
+                <svg
+                  className="app-header-sediment-icon"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                >
+                  <path d="M2 17l10 4 10-4" opacity="0.3" />
+                  <path d="M2 12l10 4 10-4" opacity="0.6" />
+                  <path d="M12 2L2 7l10 5 10-5L12 2z" />
+                </svg>
+                <span className="app-header-action-label">Sediment</span>
+              </motion.button>
+            )}
+
+            {!timelineData && (
+              <motion.button
+                className="app-header-labeled-action"
                 initial={{ opacity: 0, y: -4 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.25 }}
@@ -2684,16 +2701,14 @@ export default function Home() {
                   <path d="M2.5 3.5h11M2.5 8h11M2.5 12.5h11" />
                   <path d="M4.5 3.5v9" opacity="0.35" />
                 </svg>
-                History
+                <span className="app-header-action-label">History</span>
               </motion.button>
             )}
 
             {!timelineData && (
-              <motion.a
+              <Link
+                className="app-header-labeled-action"
                 href="/changelog"
-                initial={{ opacity: 0, y: -4 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.25 }}
                 style={{
                   display: "flex",
                   alignItems: "center",
@@ -2726,12 +2741,13 @@ export default function Home() {
                   <path d="M3 2.5h7l3 3v8H3z" />
                   <path d="M10 2.5v3h3M5.5 8h5M5.5 10.5h5" />
                 </svg>
-                Changelog
-              </motion.a>
+                <span className="app-header-action-label">Changelog</span>
+              </Link>
             )}
 
             {/* Credits indicator */}
             <div
+              className="app-header-credit"
               style={{ position: "relative" }}
               onMouseEnter={() => setShowCreditsHint(true)}
               onMouseLeave={() => setShowCreditsHint(false)}
@@ -2759,35 +2775,21 @@ export default function Home() {
                   Daily usage credits. Resets every day.
                 </div>
               )}
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.4375rem",
-                  padding: "0 0.625rem",
-                  height: "2rem",
-                  border: "0.0625rem solid var(--border)",
-                  borderRadius: "0.4375rem",
-                  background: "var(--bg-secondary)",
-                  boxSizing: "border-box",
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "0.125rem",
-                  }}
-                >
-                  {Array.from({ length: 10 }).map((_, i) => {
-                    const filled = i < credits;
-                    const segColor =
-                      credits <= 3
-                        ? "#ef4444"
-                        : credits <= 6
-                          ? "#f59e0b"
-                          : "var(--accent)";
-                    return (
+              <div className="app-header-credit-indicator">
+                <div className="app-header-credit-visual" aria-hidden="true">
+                  <div
+                    className="app-header-credit-bars"
+                    style={{ display: "flex", flexWrap: "nowrap" }}
+                  >
+                    {Array.from({ length: 10 }).map((_, i) => {
+                      const filled = i < credits;
+                      const segColor =
+                        credits <= 3
+                          ? "#ef4444"
+                          : credits <= 6
+                            ? "#f59e0b"
+                            : "var(--accent)";
+                      return (
                       <div
                         key={i}
                         style={{
@@ -2798,19 +2800,29 @@ export default function Home() {
                           opacity: filled ? 1 - i * 0.05 : 1,
                         }}
                       />
-                    );
-                  })}
-                  <div
-                    style={{
-                      width: "0.125rem",
-                      height: "0.3125rem",
-                      borderRadius: "0 0.0625rem 0.0625rem 0",
-                      background: "var(--border)",
-                      marginLeft: "0.0625rem",
-                    }}
+                      );
+                    })}
+                    <div
+                      style={{
+                        width: "0.125rem",
+                        height: "0.3125rem",
+                        borderRadius: "0 0.0625rem 0.0625rem 0",
+                        background: "var(--border)",
+                        marginLeft: "0.0625rem",
+                      }}
+                    />
+                  </div>
+                  <span
+                    className="app-header-credit-ring"
+                    style={
+                      {
+                        "--credit-progress": `${credits * 10}%`,
+                      } as React.CSSProperties
+                    }
                   />
                 </div>
                 <span
+                  className="app-header-credit-count"
                   style={{
                     fontSize: "0.6875rem",
                     color:
@@ -2828,20 +2840,32 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Settings */}
+            {/* Settings / graph session actions */}
             <div style={{ position: "relative" }}>
               <button
+                className="app-header-labeled-action"
                 onClick={() => {
+                  if (timelineData) {
+                    setSessionActionsOpen((open) => !open);
+                    setSettingsOpen(false);
+                    setDraftSettings(settings);
+                    return;
+                  }
                   setSettingsOpen((open) => {
                     setDraftSettings(settings);
                     return !open;
                   });
                 }}
+                aria-label={timelineData ? "Session actions" : "Settings"}
+                aria-expanded={timelineData ? sessionActionsOpen : settingsOpen}
+                title={timelineData ? "Session actions" : undefined}
                 style={{
                   display: "flex",
                   alignItems: "center",
-                  gap: "0.375rem",
-                  padding: "0 0.75rem",
+                  justifyContent: "center",
+                  gap: timelineData ? 0 : "0.375rem",
+                  padding: timelineData ? 0 : "0 0.75rem",
+                  width: timelineData ? "2rem" : "auto",
                   height: "2rem",
                   boxSizing: "border-box",
                   background: "none",
@@ -2863,25 +2887,35 @@ export default function Home() {
                   e.currentTarget.style.color = "var(--text-secondary)";
                 }}
               >
-                <svg
-                  width="13"
-                  height="13"
-                  viewBox="0 0 16 16"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M6.5 1.5h3M6 14.5h4M3.5 5.5h9M2.5 10.5h11" />
-                  <circle cx="10.5" cy="5.5" r="1.5" />
-                  <circle cx="5.5" cy="10.5" r="1.5" />
-                </svg>
-                Settings
+                {timelineData ? (
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                    <circle cx="3" cy="8" r="1.35" />
+                    <circle cx="8" cy="8" r="1.35" />
+                    <circle cx="13" cy="8" r="1.35" />
+                  </svg>
+                ) : (
+                  <>
+                    <svg
+                      width="13"
+                      height="13"
+                      viewBox="0 0 16 16"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M6.5 1.5h3M6 14.5h4M3.5 5.5h9M2.5 10.5h11" />
+                      <circle cx="10.5" cy="5.5" r="1.5" />
+                      <circle cx="5.5" cy="10.5" r="1.5" />
+                    </svg>
+                    <span className="app-header-action-label">Settings</span>
+                  </>
+                )}
               </button>
 
               <AnimatePresence>
-                {settingsOpen && (
+                {(settingsOpen || sessionActionsOpen) && (
                   <motion.div
                     initial={{ opacity: 0, y: -6, scale: 0.98 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -2891,7 +2925,7 @@ export default function Home() {
                       position: "absolute",
                       top: "2.5rem",
                       right: 0,
-                      width: "15rem",
+                      width: timelineData ? "16rem" : "15rem",
                       padding: "0.875rem 0.875rem 0.75rem",
                       background: "var(--bg-secondary)",
                       border: "0.0625rem solid var(--border-hover)",
@@ -2904,6 +2938,65 @@ export default function Home() {
                       gap: "0.625rem",
                     }}
                   >
+                    {timelineData && (
+                      <p
+                        style={{
+                          fontSize: "0.625rem",
+                          color: "var(--text-tertiary)",
+                          fontFamily: "'JetBrains Mono', monospace",
+                          letterSpacing: "0.06em",
+                          textTransform: "uppercase",
+                        }}
+                      >
+                        Session actions
+                      </p>
+                    )}
+                    {timelineData && (
+                      <div
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "0.125rem",
+                          paddingBottom: "0.625rem",
+                          borderBottom: "0.0625rem solid var(--border)",
+                        }}
+                      >
+                        <button
+                          onClick={() => {
+                            handleExport();
+                            setSessionActionsOpen(false);
+                          }}
+                          style={{
+                            display: "flex", alignItems: "center", gap: "0.625rem", width: "100%", height: "2rem", padding: "0 0.5rem", border: "none", borderRadius: "0.375rem", background: "none", color: "var(--text-primary)", cursor: "pointer", fontFamily: "'DM Sans', sans-serif", fontSize: "0.75rem", fontWeight: 500, textAlign: "left",
+                          }}
+                        >
+                          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="var(--text-tertiary)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M8 2v9M4 7l4 4 4-4" /><path d="M2 13h12" /></svg>
+                          Export
+                        </button>
+                        <button
+                          onClick={() => void handleShare()}
+                          disabled={shareState === "sharing"}
+                          style={{
+                            display: "flex", alignItems: "center", gap: "0.625rem", width: "100%", height: "2rem", padding: "0 0.5rem", border: "none", borderRadius: "0.375rem", background: "none", color: shareState === "copied" ? "var(--accent)" : "var(--text-primary)", cursor: shareState === "sharing" ? "default" : "pointer", fontFamily: "'DM Sans', sans-serif", fontSize: "0.75rem", fontWeight: 500, textAlign: "left",
+                          }}
+                        >
+                          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke={shareState === "copied" ? "var(--accent)" : "var(--text-tertiary)"} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M11 3a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM5 8a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM11 9a2 2 0 1 1 0 4 2 2 0 0 1 0-4z" /><path d="M9 4.5l-4 3M9 11.5l-4-3" /></svg>
+                          {shareState === "sharing" ? "Sharing…" : shareState === "copied" ? "Link copied" : shareState === "error" ? "Share failed" : "Share"}
+                        </button>
+                        <a
+                          href={GITHUB_REPO_URL}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ display: "flex", alignItems: "center", gap: "0.625rem", width: "100%", height: "2rem", padding: "0 0.5rem", borderRadius: "0.375rem", color: "var(--text-primary)", fontFamily: "'DM Sans', sans-serif", fontSize: "0.75rem", fontWeight: 500, textDecoration: "none" }}
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style={{ color: "var(--text-tertiary)" }} aria-hidden="true">
+                            <path d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.7c-2.78.6-3.36-1.34-3.36-1.34-.45-1.15-1.1-1.46-1.1-1.46-.9-.62.07-.61.07-.61 1 .07 1.53 1.03 1.53 1.03.89 1.53 2.34 1.09 2.91.83.09-.65.35-1.09.63-1.34-2.22-.25-4.55-1.11-4.55-4.94 0-1.09.39-1.98 1.03-2.68-.1-.25-.45-1.27.1-2.65 0 0 .84-.27 2.75 1.02A9.5 9.5 0 0 1 12 6.84c.85 0 1.71.11 2.5.34 1.91-1.29 2.75-1.02 2.75-1.02.55 1.38.2 2.4.1 2.65.64.7 1.03 1.59 1.03 2.68 0 3.84-2.34 4.69-4.57 4.94.36.31.68.92.68 1.85v2.74c0 .27.18.58.69.48A10 10 0 0 0 12 2z" />
+                          </svg>
+                          GitHub
+                        </a>
+                        <ThemeToggle showLabel fullWidth />
+                      </div>
+                    )}
                     <p
                       style={{
                         fontSize: "0.625rem",
@@ -2991,6 +3084,7 @@ export default function Home() {
                               draftSettings,
                             );
                           setSettingsOpen(false);
+                          setSessionActionsOpen(false);
                         }}
                         disabled={isExpanding}
                         style={{
@@ -3015,8 +3109,9 @@ export default function Home() {
               </AnimatePresence>
             </div>
 
+            {/* Graph actions are consolidated in Session actions above. */}
             <AnimatePresence>
-              {timelineData && (
+              {false && timelineData && (
                 <>
                   <motion.button
                     initial={{ opacity: 0, y: -4 }}
@@ -3136,12 +3231,13 @@ export default function Home() {
             </AnimatePresence>
 
             <a
+              className="app-header-labeled-action"
               href={GITHUB_REPO_URL}
               target="_blank"
               rel="noopener noreferrer"
               aria-label="View on GitHub"
               style={{
-                display: "flex",
+                display: timelineData ? "none" : "flex",
                 alignItems: "center",
                 justifyContent: "center",
                 width: "2rem",
@@ -3173,6 +3269,9 @@ export default function Home() {
               >
                 <path d="M12 2C6.477 2 2 6.477 2 12c0 4.418 2.865 8.166 6.839 9.489.5.092.682-.217.682-.482 0-.237-.009-.868-.013-1.703-2.782.604-3.369-1.342-3.369-1.342-.454-1.155-1.11-1.463-1.11-1.463-.908-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.831.092-.646.35-1.086.636-1.336-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.029-2.683-.103-.253-.446-1.27.098-2.647 0 0 .84-.269 2.75 1.025A9.578 9.578 0 0 1 12 6.836a9.59 9.59 0 0 1 2.504.337c1.909-1.294 2.747-1.025 2.747-1.025.546 1.377.203 2.394.1 2.647.64.699 1.028 1.592 1.028 2.683 0 3.842-2.339 4.687-4.566 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.741 0 .267.18.578.688.48C19.138 20.163 22 16.418 22 12c0-5.523-4.477-10-10-10z" />
               </svg>
+              {!timelineData && (
+                <span className="app-header-action-label">GitHub</span>
+              )}
             </a>
           </div>
 
@@ -3180,7 +3279,36 @@ export default function Home() {
           <div
             style={{ display: "flex", alignItems: "center", gap: "0.375rem" }}
           >
-            <ThemeToggle />
+            {!timelineData && mobile && (
+              <button
+                type="button"
+                className="show-mobile app-header-mobile-dock-brand app-header-labeled-action"
+                onClick={handleReset}
+                aria-label="Sediment home"
+              >
+                <svg
+                  className="app-header-sediment-icon"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                >
+                  <path d="M2 17l10 4 10-4" opacity="0.3" />
+                  <path d="M2 12l10 4 10-4" opacity="0.6" />
+                  <path d="M12 2L2 7l10 5 10-5L12 2z" />
+                </svg>
+                <span className="app-header-action-label">Sediment</span>
+              </button>
+            )}
+            {!timelineData && (
+              <ThemeToggle
+                showLabel
+                className="app-header-labeled-action"
+              />
+            )}
 
             {timelineData && (
               <button
@@ -3424,7 +3552,7 @@ export default function Home() {
               )}
 
               {!timelineData && (
-                <a
+                <Link
                   href="/changelog"
                   onClick={() => setMobileMenuOpen(false)}
                   style={{
@@ -3455,7 +3583,7 @@ export default function Home() {
                     <path d="M10 2.5v3h3M5.5 8h5M5.5 10.5h5" />
                   </svg>
                   Changelog
-                </a>
+                </Link>
               )}
 
               {/* Settings — inline sliders */}
@@ -3791,6 +3919,45 @@ export default function Home() {
                   overflow: "hidden",
                 }}
               >
+                <button
+                  type="button"
+                  onClick={() => setHistoryOpen(false)}
+                  aria-label="Close history"
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    right: 0,
+                    zIndex: 100,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    width: "4.25rem",
+                    height: "4.75rem",
+                    color: "var(--text-tertiary)",
+                    cursor: "pointer",
+                    fontSize: "1.25rem",
+                    lineHeight: 1,
+                    textDecoration: "none",
+                    border: "none",
+                    padding: 0,
+                    background: "transparent",
+                  }}
+                >
+                  <span
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      width: "2rem",
+                      height: "2rem",
+                      borderRadius: "0.5rem",
+                      border: "0.0625rem solid var(--border)",
+                      background: "var(--bg-primary)",
+                    }}
+                  >
+                    ×
+                  </span>
+                </button>
                 <div
                   style={{
                     display: "flex",
@@ -3826,23 +3993,6 @@ export default function Home() {
                     </h2>
                   </div>
 
-                  <button
-                    onClick={() => setHistoryOpen(false)}
-                    style={{
-                      width: "2rem",
-                      height: "2rem",
-                      borderRadius: "0.5rem",
-                      border: "0.0625rem solid var(--border)",
-                      background: "none",
-                      color: "var(--text-tertiary)",
-                      cursor: "pointer",
-                      fontSize: "1.125rem",
-                      lineHeight: 1,
-                    }}
-                    aria-label="Close history"
-                  >
-                    ×
-                  </button>
                 </div>
 
                 <div
@@ -4219,11 +4369,15 @@ export default function Home() {
             /* Landing state */
             <motion.div
               key="landing"
+              className="landing-scroll-root"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0, y: -20, scale: 0.98 }}
               transition={{ duration: 0.4 }}
               ref={landingScrollRef}
+              onScroll={(event) => {
+                setIsLandingHeaderCompact(event.currentTarget.scrollTop > 48);
+              }}
               style={{
                 height: "100%",
                 position: "relative",
@@ -4233,46 +4387,54 @@ export default function Home() {
                 scrollBehavior: "smooth",
               }}
             >
-              <section
-                style={{
-                  minHeight: "100%",
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: "1.5rem",
-                  padding: mobile ? "1.25rem 1rem 3.5rem" : "1.5rem",
-                  position: "relative",
-                }}
-              >
-                {/* Decorative background glow */}
-                <div
-                  style={{
-                    position: "absolute",
-                    top: "30%",
-                    left: "50%",
-                    transform: "translate(-50%, -50%)",
-                    width: "37.5rem",
-                    height: "25rem",
-                    borderRadius: "50%",
-                    background:
-                      "radial-gradient(ellipse, var(--accent-glow) 0%, transparent 70%)",
-                    filter: "blur(5rem)",
-                    pointerEvents: "none",
-                  }}
-                />
+              <section className="landing-hero-shell">
+                <div className="landing-hero-grid" aria-hidden="true" />
+                <div className="landing-hero-strata" aria-hidden="true">
+                  <span />
+                  <span />
+                  <span />
+                  <span />
+                  <svg
+                    className="landing-helix-particles"
+                    viewBox="0 0 1248 448"
+                    preserveAspectRatio="none"
+                  >
+                    <g className="landing-helix-particle">
+                      <animateMotion
+                        dur="26s"
+                        repeatCount="indefinite"
+                        path="M202.6 102.37 A524.16 64 -5 1 1 886.9 136.85 A586.56 64 4 1 0 1065.12 248.63 A474.24 64 -3 1 0 909.29 284.48 A561.6 64 4 1 1 175.2 250.63 A474.24 64 -3 0 1 335.98 211.95 A586.56 64 4 1 0 202.6 102.37"
+                      />
+                      <animate
+                        attributeName="opacity"
+                        values="0;0.9;0.9;0"
+                        keyTimes="0;0.035;0.96;1"
+                        dur="26s"
+                        repeatCount="indefinite"
+                      />
+                      <circle className="landing-helix-core" r="4.25" />
+                    </g>
+                    <g className="landing-helix-particle landing-helix-particle-secondary">
+                      <animateMotion
+                        dur="26s"
+                        begin="-13s"
+                        repeatCount="indefinite"
+                        path="M202.6 102.37 A586.56 64 4 1 1 335.98 211.95 A474.24 64 -3 0 0 175.2 250.63 A561.6 64 4 1 0 909.29 284.48 A474.24 64 -3 1 1 1065.12 248.63 A586.56 64 4 1 1 886.9 136.85 A524.16 64 -5 1 0 202.6 102.37"
+                      />
+                      <animate
+                        attributeName="opacity"
+                        values="0;0.7;0.7;0"
+                        keyTimes="0;0.035;0.96;1"
+                        dur="26s"
+                        begin="-13s"
+                        repeatCount="indefinite"
+                      />
+                      <circle className="landing-helix-core" r="4.25" />
+                    </g>
+                  </svg>
+                </div>
 
-                <div
-                  style={{
-                    width: "100%",
-                    minHeight: "100%",
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: "1.5rem",
-                  }}
-                >
+                <div className="landing-hero-content">
                   <motion.div
                     initial={{ opacity: 0, y: 16 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -4280,59 +4442,32 @@ export default function Home() {
                       duration: 0.7,
                       ease: [0.16, 1, 0.3, 1],
                     }}
-                    style={{ textAlign: "center", position: "relative" }}
+                    className="landing-hero-copy"
                   >
                     <motion.p
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       transition={{ delay: 0.1, duration: 0.5 }}
-                      style={{
-                        fontSize: "0.75rem",
-                        fontFamily: "'JetBrains Mono', monospace",
-                        color: "var(--accent)",
-                        letterSpacing: "0.12em",
-                        textTransform: "uppercase",
-                        marginBottom: "1rem",
-                      }}
+                      className="landing-eyebrow"
                     >
+                      <span aria-hidden="true" />
                       Research lineage explorer
+                      <span aria-hidden="true" />
                     </motion.p>
-                    <h1
-                      style={{
-                        fontFamily: "'Instrument Serif', Georgia, serif",
-                        fontSize: "3.5rem",
-                        fontWeight: 400,
-                        letterSpacing: "-0.03em",
-                        lineHeight: 1.05,
-                        marginBottom: "1rem",
-                        color: "var(--text-primary)",
-                      }}
-                    >
-                      Knowledge,
+                    <h1 className="landing-hero-title">
+                      Follow the work
                       <br />
-                      <em style={{ fontStyle: "italic" }}>layered.</em>
+                      <em>beneath the work.</em>
                     </h1>
-                    <p
-                      style={{
-                        fontSize: "1rem",
-                        color: "var(--text-secondary)",
-                        maxWidth: "27.5rem",
-                        lineHeight: 1.6,
-                        margin: "0 auto",
-                      }}
-                    >
-                      Trace any research concept back through time. See the
-                      papers, ideas, and breakthroughs that built on each other.
+                    <p className="landing-hero-description">
+                      Start with a concept or paper. Sediment maps the ideas,
+                      citations, and breakthroughs that made it possible.
                     </p>
                   </motion.div>
 
                   <div
                     ref={landingSearchRef}
-                    style={{
-                      width: "100%",
-                      display: "flex",
-                      justifyContent: "center",
-                    }}
+                    className="landing-search-zone"
                   >
                     <SearchInput
                       onSearch={handleSearch}
@@ -4424,38 +4559,32 @@ export default function Home() {
                   )}
                 </div>
 
+                <dl className="landing-hero-ledger" aria-label="How Sediment works">
+                  <div>
+                    <dt>01</dt>
+                    <dd>Begin with a question</dd>
+                  </div>
+                  <div>
+                    <dt>02</dt>
+                    <dd>Resolve the anchor paper</dd>
+                  </div>
+                  <div>
+                    <dt>03</dt>
+                    <dd>Trace its foundations</dd>
+                  </div>
+                </dl>
+
                 <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   transition={{ delay: 0.6, duration: 1 }}
-                  className="hide-mobile"
-                  style={{
-                    position: "absolute",
-                    bottom: "2.5rem",
-                    left: "50%",
-                    transform: "translateX(-50%)",
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "0.375rem",
-                    alignItems: "center",
-                  }}
+                  className="hide-mobile landing-hero-footer"
                 >
                   <a
                     href={GITHUB_REPO_URL}
                     target="_blank"
                     rel="noopener noreferrer"
-                    style={{
-                      marginTop: "0.75rem",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "0.375rem",
-                      fontSize: "0.6875rem",
-                      color: "var(--text-tertiary)",
-                      fontFamily: "'JetBrains Mono', monospace",
-                      letterSpacing: "0.04em",
-                      textDecoration: "none",
-                      transition: "color 0.15s",
-                    }}
+                    className="landing-open-source"
                     onMouseEnter={(e) => {
                       (e.currentTarget as HTMLAnchorElement).style.color =
                         "var(--accent)";
@@ -4475,9 +4604,8 @@ export default function Home() {
                     </svg>
                     open source
                   </a>
+                  <LandingScrollHint containerRef={landingScrollRef} />
                 </motion.div>
-
-                <LandingScrollHint containerRef={landingScrollRef} />
               </section>
 
               <div style={{ position: "relative" }}>

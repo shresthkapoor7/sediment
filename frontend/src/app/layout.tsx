@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import "./globals.css";
 import "katex/dist/katex.min.css";
@@ -31,7 +32,9 @@ export default function RootLayout({
           rel="stylesheet"
         />
         {/* Prevent flash of wrong theme */}
-        <script
+        <Script
+          id="theme-preference"
+          strategy="beforeInteractive"
           dangerouslySetInnerHTML={{
             __html: `
               (function() {
