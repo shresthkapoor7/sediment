@@ -98,7 +98,11 @@ export function layoutTimelineNotes(data: TimelineData, noteIds?: string[]): Tim
 /** Migrate saved cards that predate content-aware sizing and collision avoidance. */
 export function upgradeLegacyTimelineNoteLayout(data: TimelineData): TimelineData {
   const legacyNoteIds = Object.values(data.notes ?? {})
-    .filter((note) => (note.width ?? 220) <= 220 && (note.height ?? 132) <= 132)
+    .filter((note) => (
+      note.width === undefined
+      || note.height === undefined
+      || (note.width === 220 && note.height === 132)
+    ))
     .map((note) => note.id);
   if (!legacyNoteIds.length) return data;
 

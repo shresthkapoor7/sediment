@@ -3,10 +3,115 @@ from __future__ import annotations
 import unittest
 
 from app.models import LineageGraphResponse
-from app.services.lineage import trace_lineage
+from app.services.lineage import (
+    _normalize_planned_trace_notes,
+    _validate_deep_trace_proposal,
+    trace_lineage,
+)
 
 
 class DeepTraceTests(unittest.IsolatedAsyncioTestCase):
+    async def test_deep_trace_retains_an_explicit_user_selected_seed(self) -> None:
+        class FakeOpenAlex:
+            def __init__(self):
+                self.fetched_work_ids: list[str] = []
+
+            async def fetch_work(self, paper_id: str):
+                self.fetched_work_ids.append(paper_id)
+                if paper_id == "W2":
+                    return {"openalexId": "W2", "title": "Selected Seed", "year": 2017}
+                return None
+
+            async def search_papers(self, _query: str, limit: int = 10):
+                return [{"openalexId": "W3", "title": "Alternate Seed", "year": 2018}]
+
+            async def fetch_references(self, paper_id: str, limit: int = 20):
+                test_case.assertEqual(paper_id, "W2")
+                return [{"openalexId": "W1", "title": "Foundation", "year": 2014}]
+
+        class FakeLlm:
+            async def trace_lineage_agentic(self, _concept, tool_runner, ip="unknown", selected_seed=None):
+                test_case.assertEqual(selected_seed["openalexId"], "W2")
+                await tool_runner("search_openalex_papers", {"query": "selected seed"})
+                await tool_runner("get_openalex_references", {"paperId": "W2"})
+                rejected = await tool_runner("finish_deep_trace", {
+                    "seedPaperId": "W3",
+                    "papers": [
+                        {"paperId": "W2", "summary": "The user-selected seed."},
+                        {"paperId": "W3", "summary": "A tempting alternate seed."},
+                    ],
+                    "edges": [{"parentPaperId": "W2", "childPaperId": "W3"}],
+                    "notes": [{"text": "Compare the two candidate seed papers.", "kind": "question", "color": "amber", "paperIds": ["W2", "W3"], "relation": "question"}],
+                })
+                test_case.assertEqual(rejected["status"], "error")
+                test_case.assertIn("user-selected seed", rejected["message"])
+                finished = await tool_runner("finish_deep_trace", {
+                    "seedPaperId": "W2",
+                    "papers": [
+                        {"paperId": "W1", "summary": "A direct foundation for the selected seed."},
+                        {"paperId": "W2", "summary": "The seed chosen by the user."},
+                    ],
+                    "edges": [{"parentPaperId": "W1", "childPaperId": "W2"}],
+                    "notes": [{"text": "The foundation directly leads into the selected seed.", "kind": "insight", "color": "green", "paperIds": ["W1", "W2"], "relation": "insight"}],
+                })
+                return finished.get("proposal")
+
+        test_case = self
+        openalex = FakeOpenAlex()
+        graph = await trace_lineage(
+            "selected seed",
+            openalex,
+            FakeLlm(),
+            seed_openalex_id="W2",
+            trace_mode="deep",
+        )
+
+        self.assertEqual(openalex.fetched_work_ids, ["W2"])
+        self.assertEqual(graph["seedPaperId"], "W2")
+        self.assertEqual({paper["openalexId"] for paper in graph["papers"]}, {"W1", "W2"})
+
+    async def test_deep_trace_rejects_disconnected_paper_selections(self) -> None:
+        proposal, reason = _validate_deep_trace_proposal(
+            {
+                "seedPaperId": "W1",
+                "papers": [
+                    {"paperId": "W1", "summary": "The selected seed."},
+                    {"paperId": "W2", "summary": "An unconnected candidate."},
+                ],
+                "edges": [],
+                "notes": [{"text": "A note.", "kind": "insight", "color": "green", "paperIds": ["W1"], "relation": "insight"}],
+            },
+            {
+                "W1": {"openalexId": "W1", "title": "Seed", "year": 2017},
+                "W2": {"openalexId": "W2", "title": "Disconnected", "year": 2012},
+            },
+            set(),
+        )
+
+        self.assertIsNone(proposal)
+        self.assertIn("connected lineage", reason)
+
+    async def test_trace_note_normalization_skips_invalid_entries_and_keeps_later_notes(self) -> None:
+        notes = _normalize_planned_trace_notes(
+            [
+                "not a note",
+                {
+                    "text": "This connects the precursor to the seed.",
+                    "kind": "insight",
+                    "color": "green",
+                    "paperIds": ["W1", "W2"],
+                    "relation": "insight",
+                },
+            ],
+            [
+                {"openalexId": "W1", "title": "Foundation"},
+                {"openalexId": "W2", "title": "Seed"},
+            ],
+        )
+
+        self.assertEqual(len(notes), 1)
+        self.assertEqual({connection["paperId"] for connection in notes[0]["connections"]}, {"W1", "W2"})
+
     async def test_verbose_comma_separated_query_retries_its_leading_concept(self) -> None:
         full_query = "Attention Is All You Need, transformers, neural networks, perceptron model all of it"
 

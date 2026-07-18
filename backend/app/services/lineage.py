@@ -38,6 +38,7 @@ async def trace_lineage(
             concept,
             openalex,
             llm,
+            seed_openalex_id=seed_openalex_id,
             settings=settings,
             ip=ip,
         )
@@ -233,6 +234,7 @@ async def _trace_lineage_deep(
     openalex: OpenAlexClient,
     llm: LLMClient,
     *,
+    seed_openalex_id: str | None,
     settings: TraversalSettings | None,
     ip: str,
 ) -> dict | None:
@@ -261,6 +263,16 @@ async def _trace_lineage_deep(
     def resolve_known_id(value: Any) -> str | None:
         paper = known_papers.get(_normalize_openalex_id(value))
         return str(paper.get("openalexId")) if paper else None
+
+    required_seed_id = _normalize_openalex_id(seed_openalex_id)
+    selected_seed: dict[str, Any] | None = None
+    if required_seed_id:
+        seed = await openalex.fetch_work(seed_openalex_id or required_seed_id)
+        if seed:
+            register_papers([seed])
+            selected_seed = _deep_trace_paper_payload(seed)
+        else:
+            selected_seed = {"openalexId": seed_openalex_id}
 
     async def tool_runner(name: str, tool_input: dict[str, Any]) -> dict[str, Any]:
         nonlocal search_count, reference_count
@@ -317,6 +329,7 @@ async def _trace_lineage_deep(
                 tool_input,
                 known_papers,
                 direct_reference_edges,
+                required_seed_id=required_seed_id,
             )
             if proposal is None:
                 return {"status": "error", "message": reason}
@@ -324,7 +337,10 @@ async def _trace_lineage_deep(
 
         return {"status": "error", "message": "Unknown deep-trace tool."}
 
-    proposal = await llm.trace_lineage_agentic(concept, tool_runner, ip=ip)
+    agent_kwargs: dict[str, Any] = {"ip": ip}
+    if selected_seed is not None:
+        agent_kwargs["selected_seed"] = selected_seed
+    proposal = await llm.trace_lineage_agentic(concept, tool_runner, **agent_kwargs)
     if not isinstance(proposal, dict):
         logger.info("Deep trace did not return a validated final proposal; falling back to the standard trace for query=%r", concept)
         return None
@@ -361,6 +377,8 @@ def _validate_deep_trace_proposal(
     raw: dict[str, Any],
     known_papers: dict[str, dict],
     direct_reference_edges: set[tuple[str, str]],
+    *,
+    required_seed_id: str | None = None,
 ) -> tuple[dict | None, str]:
     raw_papers = raw.get("papers")
     if not isinstance(raw_papers, list) or not raw_papers:
@@ -382,6 +400,8 @@ def _validate_deep_trace_proposal(
     seed_normalized_id = _normalize_openalex_id(raw.get("seedPaperId"))
     if seed_normalized_id not in selected:
         return None, "The seed paper must be one of the selected researched papers."
+    if required_seed_id and seed_normalized_id != required_seed_id:
+        return None, "The user-selected seed paper must remain the trace seed."
 
     edges: list[dict[str, str]] = []
     edge_keys: set[tuple[str, str]] = set()
@@ -405,6 +425,21 @@ def _validate_deep_trace_proposal(
             "childOpenalexId": selected[child_id][0],
             "relation": relation,
         })
+
+    if len(selected) > 1:
+        adjacency = {paper_id: set() for paper_id in selected}
+        for parent_id, child_id in edge_keys:
+            adjacency[parent_id].add(child_id)
+            adjacency[child_id].add(parent_id)
+        reachable = {seed_normalized_id}
+        pending = deque([seed_normalized_id])
+        while pending:
+            paper_id = pending.popleft()
+            for neighbor_id in adjacency[paper_id] - reachable:
+                reachable.add(neighbor_id)
+                pending.append(neighbor_id)
+        if len(reachable) != len(selected):
+            return None, "Edges must form one connected lineage containing the seed paper."
 
     raw_notes = raw.get("notes")
     if not isinstance(raw_notes, list) or not 1 <= len(raw_notes) <= min(3, MAX_TIMELINE_NOTES):
@@ -508,8 +543,10 @@ def _normalize_planned_trace_notes(raw_notes: Any, papers: list[dict]) -> list[d
     }
     notes: list[dict] = []
     for raw_note in raw_notes:
-        if len(notes) >= min(3, MAX_TIMELINE_NOTES) or not isinstance(raw_note, dict):
+        if len(notes) >= min(3, MAX_TIMELINE_NOTES):
             break
+        if not isinstance(raw_note, dict):
+            continue
         text = str(raw_note.get("text") or "").strip()
         kind = str(raw_note.get("kind") or "").strip()
         color = str(raw_note.get("color") or "").strip()

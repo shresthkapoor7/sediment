@@ -271,8 +271,9 @@ function applyTraceNotes(data: TimelineData, traceNotes: TraceNote[], canonical:
   const notes: NonNullable<TimelineData["notes"]> = {};
   const noteEdges: NonNullable<TimelineData["noteEdges"]> = [];
 
-  traceNotes.slice(0, 5).forEach((traceNote) => {
-    if (!traceNote.id || !traceNote.text.trim() || notes[traceNote.id]) return;
+  for (const traceNote of traceNotes) {
+    if (Object.keys(notes).length >= 5) break;
+    if (!traceNote.id || !traceNote.text.trim() || notes[traceNote.id]) continue;
 
     const connections = traceNote.connections
       .map((connection) => ({
@@ -280,7 +281,7 @@ function applyTraceNotes(data: TimelineData, traceNotes: TraceNote[], canonical:
         nodeId: nodeIdByOpenalexId.get(canonical.canonicalIdFor(connection.paperId)),
       }))
       .filter((connection): connection is typeof connection & { nodeId: number } => connection.nodeId !== undefined);
-    if (!connections.length) return;
+    if (!connections.length) continue;
     const dimensions = estimateTimelineNoteDimensions(traceNote.text);
 
     notes[traceNote.id] = {
@@ -299,7 +300,7 @@ function applyTraceNotes(data: TimelineData, traceNotes: TraceNote[], canonical:
         relation: connection.relation,
       });
     });
-  });
+  }
 
   if (!Object.keys(notes).length) return data;
   return layoutTimelineNotes({ ...data, notes, noteEdges }, Object.keys(notes));
