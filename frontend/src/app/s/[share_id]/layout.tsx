@@ -17,7 +17,7 @@ export async function generateMetadata({
 
   try {
     const res = await fetch(`${API_BASE}/api/share/${encodeURIComponent(share_id)}`, {
-      cache: "no-store",
+      next: { revalidate: 60 },
       signal: controller.signal,
     });
     clearTimeout(timeout);

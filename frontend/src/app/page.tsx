@@ -3850,6 +3850,84 @@ export default function Home() {
                 />
               )}
 
+              {timelineData && canEditGraphTitle && !isEditingGraphTitle && (
+                <button
+                  type="button"
+                  onClick={startGraphTitleEdit}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.625rem",
+                    width: "100%",
+                    padding: "0.625rem 0.5rem",
+                    background: "none",
+                    border: "none",
+                    borderRadius: "0.5rem",
+                    color: "var(--text-primary)",
+                    fontSize: "0.875rem",
+                    fontFamily: "'DM Sans', sans-serif",
+                    fontWeight: 500,
+                    cursor: "pointer",
+                    textAlign: "left",
+                  }}
+                >
+                  <svg
+                    width="15"
+                    height="15"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="var(--text-tertiary)"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="m3 11.75 1.1-3.3L11.7.85l3.45 3.45-7.6 7.6L3 12.75z" />
+                    <path d="m9.8 2.75 3.45 3.45" />
+                  </svg>
+                  Rename timeline
+                </button>
+              )}
+
+              {timelineData && canEditGraphTitle && isEditingGraphTitle && (
+                <form
+                  className="show-mobile"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    saveGraphTitle();
+                  }}
+                  style={{ display: "flex", gap: "0.5rem", padding: "0.375rem 0.5rem" }}
+                >
+                  <input
+                    ref={graphTitleInputRef}
+                    value={graphTitleDraft}
+                    onChange={(event) => setGraphTitleDraft(event.target.value)}
+                    onBlur={saveGraphTitle}
+                    onKeyDown={(event) => {
+                      if (event.key === "Escape") {
+                        event.preventDefault();
+                        cancelGraphTitleEdit();
+                      }
+                    }}
+                    maxLength={200}
+                    aria-label="Timeline title"
+                    style={{
+                      flex: 1,
+                      minWidth: 0,
+                      height: "2.25rem",
+                      padding: "0 0.625rem",
+                      border: "0.0625rem solid var(--accent)",
+                      borderRadius: "0.5rem",
+                      outline: "none",
+                      background: "var(--bg-secondary)",
+                      color: "var(--text-primary)",
+                      fontFamily: "'DM Sans', sans-serif",
+                      fontSize: "0.875rem",
+                    }}
+                  />
+                </form>
+              )}
+
               {/* Export */}
               {timelineData && (
                 <button

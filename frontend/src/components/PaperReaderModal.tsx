@@ -132,17 +132,18 @@ export function PaperReaderModal({ open, content, loading, error, onClose, onAsk
     selectedRangeRef.current = selectedRange;
     if (typeof CSS !== "undefined" && "highlights" in CSS && typeof Highlight !== "undefined") {
       CSS.highlights.set(PAPER_READER_SELECTION_HIGHLIGHT, new Highlight(selectedRange));
+    } else {
+      const contentRect = readerContent.getBoundingClientRect();
+      setSelectionHighlightRects(Array.from(range.getClientRects())
+        .filter((selectionRect) => selectionRect.width && selectionRect.height)
+        .map((selectionRect) => ({
+          top: selectionRect.top - contentRect.top + readerContent.scrollTop,
+          left: selectionRect.left - contentRect.left + readerContent.scrollLeft,
+          width: selectionRect.width,
+          height: selectionRect.height,
+        })));
     }
     const readerRect = reader.getBoundingClientRect();
-    const contentRect = readerContent.getBoundingClientRect();
-    setSelectionHighlightRects(Array.from(range.getClientRects())
-      .filter((selectionRect) => selectionRect.width && selectionRect.height)
-      .map((selectionRect) => ({
-        top: selectionRect.top - contentRect.top + readerContent.scrollTop,
-        left: selectionRect.left - contentRect.left + readerContent.scrollLeft,
-        width: selectionRect.width,
-        height: selectionRect.height,
-      })));
     setSelectedQuote({
       text: text.slice(0, 6_000),
       top: Math.max(0.75 * 16, rect.top - readerRect.top - 0.5 * 16),
