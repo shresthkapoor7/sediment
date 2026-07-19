@@ -7,6 +7,7 @@ const EXAMPLES = [
   "Transformer",
   "VLMs",
   "Feynman Path Integrals",
+  "CRISPR",
 ];
 
 interface SearchInputProps {
@@ -230,7 +231,7 @@ export function SearchInput({ onSearch, isSearching, traceMode, onTraceModeChang
         {EXAMPLES.map((example, i) => (
           <motion.button
             key={example}
-            className={`trace-search-suggestion${example === "Feynman Path Integrals" ? " hide-mobile" : ""}`}
+            className={`trace-search-suggestion${example === "Feynman Path Integrals" ? " hide-mobile" : ""}${example === "CRISPR" ? " show-mobile" : ""}`}
             type="button"
             disabled={isSearching}
             onClick={() => onSearch(example)}
@@ -273,7 +274,7 @@ export function SearchInput({ onSearch, isSearching, traceMode, onTraceModeChang
             {example}
           </motion.button>
         ))}
-        <div style={{ position: "relative", zIndex: 3 }}>
+        <div className="trace-search-mode-control" style={{ position: "relative", zIndex: 3 }}>
           <button
             type="button"
             className="trace-search-mode"
@@ -333,6 +334,7 @@ export function SearchInput({ onSearch, isSearching, traceMode, onTraceModeChang
           <AnimatePresence>
             {modeOpen && (
               <motion.div
+                className="trace-search-mode-menu"
                 initial={{ opacity: 0, y: -5, scale: 0.98 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: -5, scale: 0.98 }}

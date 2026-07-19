@@ -529,6 +529,104 @@ function DemoGraph({
   );
 }
 
+function buildMobileEllipsePath(
+  width: number,
+  top: number,
+  height: number,
+  scaleX: number,
+  rotationDegrees: number,
+  reverse = false,
+) {
+  const centerX = width / 2;
+  const centerY = top + height / 2;
+  const radiusX = width / 2;
+  const radiusY = height / 2;
+  const rotation = (rotationDegrees * Math.PI) / 180;
+  const steps = 180;
+  const points = Array.from({ length: steps + 1 }, (_, index) => {
+    const progress = index / steps;
+    const angle = (reverse ? -progress : progress) * Math.PI * 2;
+    const x = radiusX * Math.cos(angle) * scaleX;
+    const y = radiusY * Math.sin(angle);
+    return [
+      centerX + Math.cos(rotation) * x - Math.sin(rotation) * y,
+      centerY + Math.sin(rotation) * x + Math.cos(rotation) * y,
+    ];
+  });
+
+  return points
+    .map(([x, y], index) => `${index === 0 ? "M" : "L"}${x.toFixed(2)} ${y.toFixed(2)}`)
+    .join(" ");
+}
+
+function MobileLandingHelixParticles() {
+  const svgRef = useRef<SVGSVGElement | null>(null);
+  const [frame, setFrame] = useState({ width: 1, height: 1, paths: ["", ""] });
+
+  useEffect(() => {
+    const svg = svgRef.current;
+    const strata = svg?.parentElement;
+    if (!svg || !strata) return;
+
+    const updatePaths = () => {
+      const ellipseElements = Array.from(
+        strata.querySelectorAll<HTMLElement>(":scope > span"),
+      );
+      const width = strata.clientWidth;
+      const height = strata.clientHeight;
+      if (!width || !height || ellipseElements.length < 3) return;
+
+      const primary = ellipseElements[0];
+      const secondary = ellipseElements[2];
+      setFrame({
+        width,
+        height,
+        paths: [
+          buildMobileEllipsePath(width, primary.offsetTop, primary.offsetHeight, 0.84, -5),
+          buildMobileEllipsePath(width, secondary.offsetTop, secondary.offsetHeight, 0.76, -3, true),
+        ],
+      });
+    };
+
+    updatePaths();
+    const observer = new ResizeObserver(updatePaths);
+    observer.observe(strata);
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <svg
+      ref={svgRef}
+      className="landing-helix-particles landing-helix-particles-mobile"
+      viewBox={`0 0 ${frame.width} ${frame.height}`}
+      preserveAspectRatio="none"
+    >
+      {frame.paths.map((path, index) => path && (
+        <g
+          key={index}
+          className={`landing-helix-particle${index === 1 ? " landing-helix-particle-secondary" : ""}`}
+        >
+          <animateMotion
+            dur="26s"
+            begin={index === 1 ? "-13s" : undefined}
+            repeatCount="indefinite"
+            path={path}
+          />
+          <animate
+            attributeName="opacity"
+            values={index === 1 ? "0;0.7;0.7;0" : "0;0.9;0.9;0"}
+            keyTimes="0;0.035;0.96;1"
+            dur="26s"
+            begin={index === 1 ? "-13s" : undefined}
+            repeatCount="indefinite"
+          />
+          <circle className="landing-helix-core" r="4.25" />
+        </g>
+      ))}
+    </svg>
+  );
+}
+
 function LandingScrollHint({
   containerRef,
 }: {
@@ -1870,6 +1968,7 @@ export default function Home() {
   const savedGraphIdsRef = useRef<Set<string>>(new Set());
   const { compact, mobile } = useLandingViewport();
   const [isLandingHeaderCompact, setIsLandingHeaderCompact] = useState(false);
+  const [isGraphHeaderCompact, setIsGraphHeaderCompact] = useState(false);
 
   useEffect(() => {
     document.title = searchedQuery
@@ -2478,7 +2577,7 @@ export default function Home() {
     >
       {/* Top bar */}
       <motion.header
-        className={`app-header${!timelineData ? " app-header-landing" : ""}${!timelineData && isLandingHeaderCompact ? " app-header-compact" : ""}`}
+        className={`app-header${!timelineData ? " app-header-landing" : ""}${timelineData ? " app-header-graph" : ""}${(!timelineData && isLandingHeaderCompact) || (timelineData && isGraphHeaderCompact) ? " app-header-compact" : ""}`}
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
@@ -2540,6 +2639,7 @@ export default function Home() {
         <AnimatePresence>
           {searchedQuery && (
             <div
+              className="app-header-query"
               style={{
                 display: "flex",
                 alignItems: "center",
@@ -2568,51 +2668,6 @@ export default function Home() {
                 {searchedQuery}
               </motion.span>
 
-              {timelineData && saveState !== "idle" && (
-                <motion.span
-                  initial={{ opacity: 0, y: -4 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -4 }}
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: "0.375rem",
-                    padding: "0.25rem 0.5rem",
-                    borderRadius: 999,
-                    border: "0.0625rem solid var(--border)",
-                    background: "var(--bg-secondary)",
-                    fontSize: "0.6875rem",
-                    color:
-                      saveState === "error"
-                        ? "#d16f5b"
-                        : saveState === "saved"
-                          ? "var(--accent)"
-                          : "var(--text-tertiary)",
-                    fontFamily: "'JetBrains Mono', monospace",
-                    letterSpacing: "0.03em",
-                  }}
-                >
-                  <span
-                    style={{
-                      width: "0.375rem",
-                      height: "0.375rem",
-                      borderRadius: 999,
-                      background:
-                        saveState === "error"
-                          ? "#d16f5b"
-                          : saveState === "saved"
-                            ? "var(--accent)"
-                            : "var(--text-tertiary)",
-                      opacity: saveState === "saving" ? 0.75 : 1,
-                    }}
-                  />
-                  {saveState === "saving"
-                    ? "Saving..."
-                    : saveState === "saved"
-                      ? "Saved"
-                      : "Save failed"}
-                </motion.span>
-              )}
             </div>
           )}
         </AnimatePresence>
@@ -2632,6 +2687,38 @@ export default function Home() {
             className="desktop-only"
             style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}
           >
+            {timelineData && (
+              <button
+                type="button"
+                className="app-header-labeled-action"
+                onClick={handleReset}
+                aria-label="Return to Sediment home"
+                title="Return to Sediment home"
+              >
+                <svg
+                  className="app-header-sediment-icon"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                >
+                  <path d="M2 17l10 4 10-4" opacity="0.3" />
+                  <path d="M2 12l10 4 10-4" opacity="0.6" />
+                  <path d="M12 2L2 7l10 5 10-5L12 2z" />
+                </svg>
+                <span className="app-header-action-label">Sediment</span>
+              </button>
+            )}
+
+            {timelineData && searchedQuery && (
+              <span className="app-header-graph-query" title={searchedQuery}>
+                {searchedQuery}
+              </span>
+            )}
+
             {!timelineData && (
               <motion.button
                 type="button"
@@ -2850,7 +2937,7 @@ export default function Home() {
             {/* Settings / graph session actions */}
             <div style={{ position: "relative" }}>
               <button
-                className="app-header-labeled-action"
+                className={`app-header-labeled-action${timelineData ? " app-header-graph-icon-action" : ""}`}
                 onClick={() => {
                   if (timelineData) {
                     setSessionActionsOpen((open) => !open);
@@ -3001,7 +3088,7 @@ export default function Home() {
                           </svg>
                           GitHub
                         </a>
-                        <ThemeToggle showLabel fullWidth />
+                        <ThemeToggle className="app-header-graph-session-theme" showLabel fullWidth />
                       </div>
                     )}
                     <p
@@ -3116,8 +3203,29 @@ export default function Home() {
               </AnimatePresence>
             </div>
 
+            {timelineData && (
+              <button
+                type="button"
+                className="app-header-labeled-action app-header-graph-compact-toggle"
+                onClick={() => setIsGraphHeaderCompact((compact) => !compact)}
+                aria-label={isGraphHeaderCompact ? "Expand graph dock" : "Collapse graph dock"}
+                aria-pressed={isGraphHeaderCompact}
+                title={isGraphHeaderCompact ? "Expand dock" : "Collapse dock"}
+              >
+                {isGraphHeaderCompact ? (
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M6 2H2v4M10 2h4v4M2 10v4h4M14 10v4h-4" />
+                  </svg>
+                ) : (
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden="true">
+                    <path d="M2 4h12M4 8h8M6 12h4" />
+                  </svg>
+                )}
+              </button>
+            )}
+
             <a
-              className="app-header-labeled-action"
+              className="app-header-labeled-action app-header-github-action"
               href={GITHUB_REPO_URL}
               target="_blank"
               rel="noopener noreferrer"
@@ -3198,6 +3306,7 @@ export default function Home() {
 
             {timelineData && (
               <button
+                className="app-header-graph-icon-action"
                 onClick={handleToggleGlobalChat}
                 aria-label={globalChatOpen ? "Close timeline sidebar" : "Open timeline sidebar"}
                 aria-pressed={globalChatOpen}
@@ -3719,7 +3828,7 @@ export default function Home() {
                   gap: "0.625rem",
                   padding: "0.625rem 0.5rem",
                   borderRadius: "0.5rem",
-                  color: "var(--text-secondary)",
+                  color: "var(--text-primary)",
                   fontSize: "0.875rem",
                   fontFamily: "'DM Sans', sans-serif",
                   fontWeight: 500,
@@ -3736,6 +3845,9 @@ export default function Home() {
                 </svg>
                 View source
               </a>
+              {timelineData && (
+                <ThemeToggle className="app-header-mobile-menu-theme" showLabel fullWidth />
+              )}
             </motion.div>
           )}
         </AnimatePresence>
@@ -4281,7 +4393,7 @@ export default function Home() {
                   <span />
                   <span />
                   <svg
-                    className="landing-helix-particles"
+                    className="landing-helix-particles landing-helix-particles-desktop"
                     viewBox="0 0 1248 448"
                     preserveAspectRatio="none"
                   >
@@ -4318,6 +4430,7 @@ export default function Home() {
                       <circle className="landing-helix-core" r="4.25" />
                     </g>
                   </svg>
+                  <MobileLandingHelixParticles />
                 </div>
 
                 <div className="landing-hero-content">
@@ -4611,6 +4724,7 @@ export default function Home() {
                 closePaperPanelSignal={closePaperPanelSignal}
                 graphId={graphId}
                 userId={userId}
+                saveState={saveState}
               />
             </motion.div>
           )}

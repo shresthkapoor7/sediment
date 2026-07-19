@@ -39,7 +39,8 @@ export function ThemeToggle({
         transition: "border-color 0.15s, color 0.15s",
       }}
       onMouseEnter={(e) => {
-        if (!fullWidth) e.currentTarget.style.borderColor = "var(--accent)";
+        if (fullWidth) return;
+        e.currentTarget.style.borderColor = "var(--accent)";
         e.currentTarget.style.color = "var(--accent)";
       }}
       onMouseLeave={(e) => {

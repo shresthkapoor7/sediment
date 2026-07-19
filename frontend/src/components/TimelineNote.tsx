@@ -182,23 +182,13 @@ export function TimelineNoteCard({
           background: colorStyle.background,
           boxShadow: isDragging
             ? "0 1.125rem 2.5rem rgba(0,0,0,0.24), 0 0 0 0.1875rem var(--accent-soft)"
-            : "0 0.75rem 2rem rgba(0,0,0,0.18), inset 0 0.0625rem 0 rgba(255,255,255,0.05)",
+            : "0 0.5rem 1.25rem rgba(0,0,0,0.18)",
           overflow: "visible",
           userSelect: isDragging ? "none" : "auto",
           display: "flex",
           flexDirection: "column",
         }}
       >
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            background:
-              "radial-gradient(circle at 16% 10%, rgba(255,255,255,0.08), transparent 34%), linear-gradient(135deg, rgba(255,255,255,0.035), transparent 42%)",
-            pointerEvents: "none",
-          }}
-        />
-
         <div
           style={{
             position: "relative",
@@ -212,7 +202,7 @@ export function TimelineNoteCard({
           {readOnly ? (
             <span
               style={{
-                fontSize: "0.5625rem",
+                fontSize: "0.625rem",
                 fontFamily: "'JetBrains Mono', monospace",
                 letterSpacing: "0.12em",
                 textTransform: "uppercase",
@@ -243,7 +233,7 @@ export function TimelineNoteCard({
                   background: "transparent",
                   color: colorStyle.accent,
                   cursor: "pointer",
-                  fontSize: "0.5625rem",
+                  fontSize: "0.625rem",
                   fontFamily: "'JetBrains Mono', monospace",
                   letterSpacing: "0.12em",
                   textTransform: "uppercase",
@@ -320,9 +310,9 @@ export function TimelineNoteCard({
           <span
             title={`${connectedNodeCount} connected node${connectedNodeCount === 1 ? "" : "s"}`}
             style={{
-              fontSize: "0.5625rem",
+              fontSize: "0.625rem",
               fontFamily: "'JetBrains Mono', monospace",
-              color: "var(--text-tertiary)",
+              color: "var(--text-secondary)",
               whiteSpace: "nowrap",
             }}
           >
@@ -349,10 +339,11 @@ export function TimelineNoteCard({
               outline: "none",
               background: "transparent",
               color: "var(--text-primary)",
-              fontFamily: "'Instrument Serif', Georgia, serif",
-              fontSize: "1.0625rem",
-              lineHeight: 1.32,
-              letterSpacing: "-0.01em",
+              fontFamily: "'DM Sans', sans-serif",
+              fontSize: "0.9375rem",
+              fontWeight: 500,
+              lineHeight: 1.5,
+              letterSpacing: 0,
               padding: "0.5rem 0.75rem",
               cursor: "text",
             }}
@@ -384,10 +375,11 @@ export function TimelineNoteCard({
             <MarkdownContent
               style={{
                 color: "var(--text-primary)",
-                fontFamily: "'Instrument Serif', Georgia, serif",
-                fontSize: "1.0625rem",
-                lineHeight: 1.32,
-                letterSpacing: "-0.01em",
+                fontFamily: "'DM Sans', sans-serif",
+                fontSize: "0.9375rem",
+                fontWeight: 500,
+                lineHeight: 1.5,
+                letterSpacing: 0,
                 overflowWrap: "break-word",
               }}
             >
