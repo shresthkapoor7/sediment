@@ -5,11 +5,20 @@ import unittest
 from unittest.mock import AsyncMock, patch
 
 from app.models import ChatRequest, GlobalChatRequest
-from app.routers.chat import chat, chat_global
+from app.routers.chat import _compact_tool_result_for_event, chat, chat_global
 from app.services.chat_memory import ChatContext
 
 
 class PersistentChatRouterTests(unittest.IsolatedAsyncioTestCase):
+    def test_compact_tool_event_reports_relationship_count(self) -> None:
+        result = _compact_tool_result_for_event({
+            "status": "completed",
+            "relationships": [{"parentPaperId": "W1", "childPaperId": "W2"}],
+        })
+
+        self.assertNotIn("relationships", result)
+        self.assertEqual(result["relationshipCount"], 1)
+
     async def test_global_lineage_tools_search_then_return_a_validated_change(self) -> None:
         memory = AsyncMock()
         memory.append.side_effect = [

@@ -316,6 +316,9 @@ def _compact_tool_result_for_event(result: dict[str, Any]) -> dict[str, Any]:
     edges = result.get("edges")
     if isinstance(edges, list):
         compact["edgeCount"] = len(edges)
+    relationships = result.get("relationships")
+    if isinstance(relationships, list):
+        compact["relationshipCount"] = len(relationships)
     notes = result.get("notes")
     if isinstance(notes, list):
         compact["noteCount"] = len(notes)
