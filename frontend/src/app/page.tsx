@@ -3223,7 +3223,7 @@ export default function Home() {
             )}
 
             <a
-              className="app-header-labeled-action"
+              className="app-header-labeled-action app-header-github-action"
               href={GITHUB_REPO_URL}
               target="_blank"
               rel="noopener noreferrer"

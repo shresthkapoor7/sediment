@@ -327,9 +327,9 @@ body {
     height: 2rem;
     box-sizing: border-box;
     padding: 0 0.625rem !important;
-    border: none !important;
-    background: transparent !important;
-    color: var(--text-secondary) !important;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
     font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
     font-size: 0.75rem !important;
     font-weight: 500 !important;
@@ -379,7 +379,7 @@ body {
     background: transparent;
   }
 
-  .app-header-graph a[aria-label="View on GitHub"] {
+  .app-header-graph .app-header-github-action {
     display: none !important;
   }
 
@@ -390,7 +390,7 @@ body {
     padding: 0 !important;
     justify-content: center !important;
     gap: 0 !important;
-    border: none !important;
+    border: none;
   }
 }
 

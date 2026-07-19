@@ -275,6 +275,9 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
     year: n.paper.year,
     summary: n.paper.summary,
   }));
+  const noteCount = Object.values(data.notes ?? {}).filter(
+    (note) => note.id && note.text.trim(),
+  ).length;
   const mentionOptions = papers
     .filter((paper) => !mentionedPaperIds.includes(paper.openalexId))
     .filter((paper) => {
@@ -613,6 +616,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
 
             {/* Header */}
             <div style={{
+              position: "relative",
               display: "flex",
               alignItems: "center",
               gap: "0.5rem",
@@ -620,10 +624,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
               borderBottom: "0.0625rem solid var(--border)",
               flexShrink: 0,
             }}>
-              <motion.div
-                initial={false}
-                animate={{ rotate: 180 }}
-                transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
+              <div
                 style={{
                   width: "1.25rem",
                   height: "1.25rem",
@@ -633,20 +634,18 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
                   flexShrink: 0,
                 }}
               >
-                <svg width="14" height="14" viewBox="0 0 20 20" fill="none">
-                  <rect x="2"  y="4"  width="16" height="3" rx="1.5" fill="var(--accent)" opacity="1" />
-                  <rect x="4"  y="9"  width="12" height="3" rx="1.5" fill="var(--accent)" opacity="0.7" />
-                  <rect x="6"  y="14" width="8"  height="3" rx="1.5" fill="var(--accent)" opacity="0.4" />
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="1.5" strokeLinecap="round" aria-hidden="true">
+                  <path d="M2 17l10 4 10-4" opacity="0.3" />
+                  <path d="M2 12l10 4 10-4" opacity="0.6" />
+                  <path d="M12 2L2 7l10 5 10-5L12 2z" />
                 </svg>
-              </motion.div>
-              <div style={{ flex: 1 }}>
+              </div>
+              <div style={{ position: "absolute", left: "50%", transform: "translateX(-50%)", maxWidth: "calc(100% - 7rem)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", pointerEvents: "none" }}>
                 <div style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--text-primary)", fontFamily: "'DM Sans', sans-serif" }}>
-                  Timeline chat
-                </div>
-                <div style={{ fontSize: "0.625rem", color: "var(--text-tertiary)", fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.03em" }}>
-                  Ask globally, or mention papers with @
+                  Sediment Agent
                 </div>
               </div>
+              <div style={{ flex: 1 }} />
               <button
                 onClick={handleClose}
                 aria-label="Close chat"
@@ -692,7 +691,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
                     fontFamily: "'JetBrains Mono', monospace",
                   }}
                 >
-                  {papers.length} paper{papers.length !== 1 ? "s" : ""}
+                  {papers.length} paper{papers.length !== 1 ? "s" : ""} · {noteCount} note{noteCount !== 1 ? "s" : ""}
                 </span>
               </div>
               <div style={{ display: "flex", flexWrap: "wrap", gap: "0.375rem" }}>
