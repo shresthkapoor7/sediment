@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import asyncio
 from types import SimpleNamespace
 import unittest
 from unittest.mock import AsyncMock, patch
 
-from app.services.llm import LLMClient
+from app.services.llm import LLMClient, _run_independent_tool_uses
 
 
 class FakeBlock(SimpleNamespace):
@@ -168,7 +169,40 @@ class PaperAgentChatTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn('"openalexId": "W1"', prompt)
         self.assertIn('"openalexId": "W2"', prompt)
         self.assertIn("do not ask the user to name the papers again", prompt)
+        self.assertIn("use that recommendation's exact title as the OpenAlex search query", prompt)
+        self.assertEqual(
+            client.client.messages.create.await_args.kwargs["cache_control"],
+            {"type": "ephemeral"},
+        )
+        self.assertEqual(
+            client.client.messages.create.await_args.kwargs["tools"][-1]["cache_control"],
+            {"type": "ephemeral"},
+        )
         self.assertEqual(result["highlightedPaperIds"], ["W1", "W2"])
+
+    async def test_independent_read_tools_run_concurrently_and_preserve_result_order(self) -> None:
+        tool_uses = [
+            SimpleNamespace(name="check_paper_access", id="toolu_access"),
+            SimpleNamespace(name="search_paper_content", id="toolu_search"),
+            SimpleNamespace(name="update_lineage", id="toolu_update"),
+        ]
+        parallel_reads_started = asyncio.Event()
+        started: list[str] = []
+
+        async def execute(tool_use):
+            started.append(tool_use.id)
+            if tool_use.name != "update_lineage":
+                if len(started) >= 2:
+                    parallel_reads_started.set()
+                await asyncio.wait_for(parallel_reads_started.wait(), timeout=0.1)
+            return {"tool_use_id": tool_use.id}
+
+        results = await _run_independent_tool_uses(tool_uses, execute)
+
+        self.assertEqual(started, ["toolu_access", "toolu_search", "toolu_update"])
+        self.assertEqual([result["tool_use_id"] for result in results], [
+            "toolu_access", "toolu_search", "toolu_update",
+        ])
 
     async def test_global_agent_returns_completed_lineage_changes(self) -> None:
         client = LLMClient(api_key="test-key", model="claude-test")
@@ -221,6 +255,46 @@ class PaperAgentChatTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(len(result["lineageChanges"]), 1)
         self.assertEqual(result["lineageChanges"][0]["addedPapers"][0]["openalexId"], "W3")
+
+    async def test_global_agent_highlights_papers_from_structural_graph_retrieval(self) -> None:
+        client = LLMClient(api_key="test-key", model="claude-test")
+        retrieval = SimpleNamespace(
+            content=[FakeBlock(
+                type="tool_use",
+                id="toolu_graph",
+                name="retrieve_graph_context",
+                input={"query": "How are these papers related?"},
+            )],
+            usage=SimpleNamespace(input_tokens=10, output_tokens=5),
+        )
+        final = SimpleNamespace(
+            content=[FakeBlock(type="text", text="The graph contains a direct lineage relationship.")],
+            usage=SimpleNamespace(input_tokens=12, output_tokens=6),
+        )
+        client.client.messages.create = AsyncMock(side_effect=[retrieval, final])
+
+        async def run_tool(name, _tool_input):
+            self.assertEqual(name, "retrieve_graph_context")
+            return {
+                "status": "completed",
+                "scope": "graph_structure",
+                "papers": [{"openalexId": "W1"}, {"openalexId": "W2"}],
+                "relationships": [{"parentPaperId": "W1", "childPaperId": "W2", "relation": "influenced"}],
+                "notes": [],
+            }
+
+        with patch("app.services.llm.limiter.record_usage", AsyncMock()):
+            result = await client.chat_about_timeline_agentic(
+                [
+                    {"openalexId": "W1", "title": "First Paper", "year": 2017, "summary": "First"},
+                    {"openalexId": "W2", "title": "Second Paper", "year": 2018, "summary": "Second"},
+                ],
+                "How are these papers related?",
+                tool_runner=run_tool,
+                ip="127.0.0.1",
+            )
+
+        self.assertEqual(result["highlightedPaperIds"], ["W1", "W2"])
 
     async def test_global_agent_returns_completed_note_changes(self) -> None:
         client = LLMClient(api_key="test-key", model="claude-test")

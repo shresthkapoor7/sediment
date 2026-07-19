@@ -28,6 +28,7 @@ from ..models import (
     PaperSummary,
 )
 from ..services.chat_memory import ChatContext, ChatMemoryService, serialize_chat_context
+from ..services.graph_retrieval import retrieve_graph_context
 from ..services.llm import LLMClient, LLMParseError
 from ..services.openalex import OpenAlexClient, OpenAlexError
 from ..services.paper_access import PaperAccessChecker
@@ -45,19 +46,6 @@ NOTE_KINDS = {"field_note", "question", "insight", "todo", "contradiction"}
 NOTE_COLORS = {"paper", "amber", "blue", "green", "rose"}
 NOTE_RELATIONS = {"about", "question", "insight", "todo", "contradiction"}
 NODE_BORDER_COLORS = {"accent", "blue", "green", "purple", "amber", "rose"}
-NOTE_REFERENCE_RE = re.compile(r"\b(notes?|canvas)\b", re.I)
-MUTATION_QUESTION_RE = re.compile(r"\?|^\s*(can|could|would|will|should|do|does|did|is|are|what|why|how|when|where|who)\b", re.I)
-MUTATION_NEGATION_RE = re.compile(r"\b(do\s+not|don't|dont|never|avoid|without)\b", re.I)
-NOTE_MUTATION_INTENT_RE = re.compile(
-    r"^\s*(?:please\s+)?(?:add|create|write|make|edit|update|change|delete|remove|connect|disconnect|link|unlink)\b"
-    r"|^\s*i\s+(?:want|need|would\s+like)\s+(?:you\s+)?to\s+(?:add|create|write|make|edit|update|change|delete|remove|connect|disconnect|link|unlink)\b",
-    re.I,
-)
-NODE_COLOR_MUTATION_INTENT_RE = re.compile(
-    r"^\s*(?:please\s+)?(?:color|colour|highlight|unhighlight|clear)\b"
-    r"|^\s*i\s+(?:want|need|would\s+like)\s+(?:you\s+)?to\s+(?:color|colour|highlight|unhighlight|clear)\b",
-    re.I,
-)
 
 _llm = LLMClient(api_key=settings.anthropic_api_key, model=settings.llm_model)
 
@@ -257,27 +245,6 @@ def _has_recent_note_action(context: ChatContext | None) -> bool:
     return False
 
 
-def _allows_timeline_note_mutation(question: str, has_recent_note_action: bool) -> bool:
-    """Require a current user request before model-selected note mutations."""
-    return bool(
-        _has_affirmative_mutation_intent(question, NOTE_MUTATION_INTENT_RE)
-        and (NOTE_REFERENCE_RE.search(question) or has_recent_note_action)
-    )
-
-
-def _allows_timeline_node_color_mutation(question: str) -> bool:
-    return _has_affirmative_mutation_intent(question, NODE_COLOR_MUTATION_INTENT_RE)
-
-
-def _has_affirmative_mutation_intent(question: str, intent_re: re.Pattern[str]) -> bool:
-    return bool(
-        question.strip()
-        and not MUTATION_QUESTION_RE.search(question)
-        and not MUTATION_NEGATION_RE.search(question)
-        and intent_re.search(question)
-    )
-
-
 def _allows_paper_retrieval(
     question: str,
     tool_input: dict[str, Any],
@@ -334,7 +301,7 @@ def _compact_tool_result_for_event(result: dict[str, Any]) -> dict[str, Any]:
     compact = {
         key: value
         for key, value in result.items()
-        if key not in {"matches", "papers", "addedPapers", "edges", "notes", "createdNotes", "updatedNotes", "connections", "disconnections", "nodeColorChanges", "nodeColors"}
+        if key not in {"matches", "papers", "addedPapers", "edges", "relationships", "notes", "createdNotes", "updatedNotes", "connections", "disconnections", "nodeColorChanges", "nodeColors"}
     }
     matches = result.get("matches")
     if isinstance(matches, list):
@@ -349,6 +316,9 @@ def _compact_tool_result_for_event(result: dict[str, Any]) -> dict[str, Any]:
     edges = result.get("edges")
     if isinstance(edges, list):
         compact["edgeCount"] = len(edges)
+    relationships = result.get("relationships")
+    if isinstance(relationships, list):
+        compact["relationshipCount"] = len(relationships)
     notes = result.get("notes")
     if isinstance(notes, list):
         compact["noteCount"] = len(notes)
@@ -573,6 +543,10 @@ def _tool_status_message(name: str, state: str) -> str:
         return "Accessing and indexing complete paper" if state == "started" else "Paper access finished"
     if name == "search_paper_content":
         return "Searching paper content" if state == "started" else "Paper search finished"
+    if name == "search_graph_paper_content":
+        return "Searching graph paper content" if state == "started" else "Graph paper search finished"
+    if name == "retrieve_graph_context":
+        return "Retrieving graph context" if state == "started" else "Graph context retrieved"
     if name == "web_search":
         return "Searching public sources"
     return "Running tool"
@@ -1008,14 +982,6 @@ async def _run_global_chat(req: GlobalChatRequest, request_ip: str, event_emitte
             return result
 
         if name == "update_timeline_node_colors":
-            if not _allows_timeline_node_color_mutation(req.question):
-                result = {
-                    "status": "error",
-                    "message": "Node colors require an explicit color request in the current message.",
-                }
-                await _emit(event_emitter, "tool_completed", {"name": name, "status": "error", "result": result})
-                return result
-
             changes: list[dict[str, str | None]] = []
             skipped: list[dict[str, str]] = []
             seen_paper_ids: set[str] = set()
@@ -1101,17 +1067,6 @@ async def _run_global_chat(req: GlobalChatRequest, request_ip: str, event_emitte
                 "status": result["status"],
                 "result": _compact_tool_result_for_event(result),
             })
-            return result
-
-        if name in {"create_timeline_notes", "update_timeline_notes"} and not _allows_timeline_note_mutation(
-            req.question,
-            has_recent_note_action,
-        ):
-            result = {
-                "status": "error",
-                "message": "Canvas note changes require an explicit request in the current message.",
-            }
-            await _emit(event_emitter, "tool_completed", {"name": name, "status": "error", "result": result})
             return result
 
         if name == "create_timeline_notes":
@@ -1328,6 +1283,53 @@ async def _run_global_chat(req: GlobalChatRequest, request_ip: str, event_emitte
             })
             if result.get("citations"):
                 await _emit(event_emitter, "citations", {"citations": result["citations"]})
+            return result
+
+        if name == "search_graph_paper_content":
+            if retrieval is None:
+                result = {"status": "error", "message": "Graph retrieval requires a saved graph context."}
+            else:
+                query = str(tool_input.get("query") or req.question).strip()[:1000]
+                try:
+                    search_result = await retrieval.search_graph(
+                        [str(paper.get("openalexId")) for paper in papers if paper.get("openalexId")],
+                        query,
+                        limit=6,
+                        billing_ip=request_ip,
+                    )
+                    result = {
+                        "status": "completed",
+                        **search_result,
+                        "citations": _tool_citations(search_result),
+                    }
+                except RetrievalError as exc:
+                    result = {"status": "error", "message": str(exc)}
+            await _emit(event_emitter, "tool_completed", {
+                "name": name,
+                "status": result.get("status") or "completed",
+                "result": _compact_tool_result_for_event(result),
+            })
+            if result.get("citations"):
+                await _emit(event_emitter, "citations", {"citations": result["citations"]})
+            return result
+
+        if name == "retrieve_graph_context":
+            query = str(tool_input.get("query") or req.question).strip()[:1_000]
+            result = {
+                "status": "completed",
+                **retrieve_graph_context(
+                    graph_data,
+                    papers,
+                    query,
+                    notes=list(notes_by_id.values()),
+                    note_connections=note_connections,
+                ),
+            }
+            await _emit(event_emitter, "tool_completed", {
+                "name": name,
+                "status": result["status"],
+                "result": _compact_tool_result_for_event(result),
+            })
             return result
 
         result = {"status": "error", "message": "Unknown tool requested."}

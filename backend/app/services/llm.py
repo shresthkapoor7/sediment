@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import asyncio
 from typing import Any, Awaitable, Callable, Optional
 
 from anthropic import AsyncAnthropic
@@ -382,6 +383,45 @@ GLOBAL_AGENT_TOOLS = [
         },
     },
     {
+        "name": "retrieve_graph_context",
+        "description": (
+            "Retrieve a deterministic evidence subgraph from the visible timeline: the most relevant papers, "
+            "their one-hop lineage relationships, and connected canvas notes. Use this first for questions about "
+            "relationships, influence, progression, contradictions, or comparisons across multiple papers. "
+            "It works even when paper full text has not been indexed."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "The relationship or cross-paper question to ground in graph structure.",
+                },
+            },
+            "required": ["query"],
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "search_graph_paper_content",
+        "description": (
+            "Search cached complete-text chunks across the current timeline and return the most relevant "
+            "evidence with citations. Use this for questions that compare, connect, or synthesize multiple "
+            "papers; it searches only papers currently visible in the timeline."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "A focused cross-paper research question to search across the timeline.",
+                },
+            },
+            "required": ["query"],
+            "additionalProperties": False,
+        },
+    },
+    {
         "type": "web_search_20250305",
         "name": "web_search",
         "max_uses": 2,
@@ -538,7 +578,7 @@ useful: color insights green or blue, open questions amber, and contradictions o
             tool_choice = (
                 {"type": "tool", "name": "finish_deep_trace", "disable_parallel_tool_use": True}
                 if iteration == DEEP_TRACE_MAX_ITERATIONS - 1
-                else {"type": "auto", "disable_parallel_tool_use": True}
+                else {"type": "auto"}
             )
             response = await self._message(
                 max_tokens=1_600,
@@ -812,6 +852,7 @@ Answer the question directly in 2-5 sentences. Do not propose timeline expansion
         response = await self.client.messages.create(
             model=self.model,
             max_tokens=1024,
+            cache_control={"type": "ephemeral"},
             messages=messages,
         )
         await self._record_response_usage(response, ip)
@@ -887,7 +928,7 @@ Rules:
                 max_tokens=1400,
                 messages=messages,
                 tools=PAPER_AGENT_TOOLS,
-                tool_choice={"type": "auto", "disable_parallel_tool_use": True},
+                tool_choice={"type": "auto"},
                 text_emitter=text_emitter,
             )
             await self._record_response_usage(response, ip)
@@ -905,8 +946,7 @@ Rules:
                 "role": "assistant",
                 "content": [block.model_dump(exclude_none=True) for block in response.content],
             })
-            tool_results = []
-            for tool_use in client_tool_uses:
+            async def execute_tool_use(tool_use: Any) -> dict[str, Any]:
                 tool_input = tool_use.input if isinstance(tool_use.input, dict) else {}
                 record = {
                     "name": tool_use.name,
@@ -918,8 +958,6 @@ Rules:
                     result = await tool_runner(tool_use.name, tool_input)
                     record["status"] = str(result.get("status") or "completed")
                     record["result"] = _compact_tool_result(result)
-                    if isinstance(result.get("citations"), list):
-                        citations.extend(result["citations"])
                 except Exception as exc:
                     logger.warning("Paper chat tool failed: %s", tool_use.name, exc_info=exc)
                     result = {
@@ -929,13 +967,18 @@ Rules:
                     record["status"] = "error"
                     record["error"] = "tool_failed"
 
-                tool_results.append({
+                return {
                     "type": "tool_result",
                     "tool_use_id": tool_use.id,
                     "content": json.dumps(result, ensure_ascii=False),
                     "is_error": result.get("status") == "error",
-                })
+                }
 
+            tool_results = await _run_independent_tool_uses(client_tool_uses, execute_tool_use)
+            for record in tool_records[-len(client_tool_uses):]:
+                result = record.get("result")
+                if isinstance(result, dict) and isinstance(result.get("citations"), list):
+                    citations.extend(result["citations"])
             messages.append({"role": "user", "content": tool_results})
 
         if needs_final_answer:
@@ -1030,14 +1073,18 @@ User question:
 
 Use the tools when they would materially improve factual grounding:
 - Search cached paper content when complete text is available or likely needed.
+- For a question about relationships, lineage, progression, contradictions, or multiple papers, retrieve_graph_context first. It returns deterministic graph structure and works without indexed full text.
+- Supplement graph context with search_graph_paper_content when you need cited claims from indexed paper text; do not treat missing indexed text as missing graph evidence.
 - Check paper access before offering to retrieve complete text.
 - Retrieve complete text only if the current user message explicitly confirms access, or if it confirms a pending full-paper access action.
 - Use web_search for reliable public sources when timeline metadata or cached paper text is insufficient.
 - If a paper tool reports status "processing", explain that indexing is still in progress; do not claim the paper was accessed or searched successfully.
+- Run independent read-only tool calls in parallel when they do not depend on one another; keep searches and edits ordered when an edit depends on a search result.
 
 Lineage-edit rules:
 - Only edit the lineage when the user explicitly asks to add, include, insert, remove, or delete papers. Do not edit it merely because a paper is relevant or recommended.
 - For every addition, search OpenAlex first in this turn, then add only an exact candidate returned by that search.
+- If the user says "this paper", "that one", or similar after a paper recommendation in the conversation, use that recommendation's exact title as the OpenAlex search query before asking for clarification.
 - Use update_lineage for the actual edit. To delete, use exact OpenAlex IDs from the current timeline.
 - Prefer adding a relationship edge when OpenAlex metadata shows a citation/reference relationship. If you infer a conceptual edge, say so plainly in the final response.
 - Never use update_lineage to create a connection requested for a canvas note; it only changes paper-to-paper lineage edges.
@@ -1079,7 +1126,7 @@ Rules:
                 max_tokens=1600,
                 messages=messages,
                 tools=GLOBAL_AGENT_TOOLS,
-                tool_choice={"type": "auto", "disable_parallel_tool_use": True},
+                tool_choice={"type": "auto"},
                 text_emitter=text_emitter,
             )
             await self._record_response_usage(response, ip)
@@ -1097,8 +1144,7 @@ Rules:
                 "role": "assistant",
                 "content": [block.model_dump(exclude_none=True) for block in response.content],
             })
-            tool_results = []
-            for tool_use in client_tool_uses:
+            async def execute_tool_use(tool_use: Any) -> dict[str, Any]:
                 tool_input = tool_use.input if isinstance(tool_use.input, dict) else {}
                 record = {
                     "name": tool_use.name,
@@ -1110,8 +1156,6 @@ Rules:
                     result = await tool_runner(tool_use.name, tool_input)
                     record["status"] = str(result.get("status") or "completed")
                     record["result"] = _compact_tool_result(result)
-                    if isinstance(result.get("citations"), list):
-                        citations.extend(result["citations"])
                 except Exception as exc:
                     logger.warning("Timeline chat tool failed: %s", tool_use.name, exc_info=exc)
                     result = {
@@ -1121,13 +1165,18 @@ Rules:
                     record["status"] = "error"
                     record["error"] = "tool_failed"
 
-                tool_results.append({
+                return {
                     "type": "tool_result",
                     "tool_use_id": tool_use.id,
                     "content": json.dumps(result, ensure_ascii=False),
                     "is_error": result.get("status") == "error",
-                })
+                }
 
+            tool_results = await _run_independent_tool_uses(client_tool_uses, execute_tool_use)
+            for record in tool_records[-len(client_tool_uses):]:
+                result = record.get("result")
+                if isinstance(result, dict) and isinstance(result.get("citations"), list):
+                    citations.extend(result["citations"])
             messages.append({"role": "user", "content": tool_results})
 
         if needs_final_answer:
@@ -1153,7 +1202,13 @@ Rules:
             if paper_id in valid_ids
         ]
         for record in tool_records:
-            if record.get("name") not in {"search_paper_content", "check_paper_access", "retrieve_paper_content"}:
+            if record.get("name") not in {
+                "search_paper_content",
+                "search_graph_paper_content",
+                "retrieve_graph_context",
+                "check_paper_access",
+                "retrieve_paper_content",
+            }:
                 continue
             tool_input = record.get("input")
             if isinstance(tool_input, dict) and tool_input.get("paperId") in valid_ids:
@@ -1162,6 +1217,14 @@ Rules:
             result = record.get("result")
             if isinstance(result, dict) and result.get("paperId") in valid_ids:
                 highlight_candidates.append(result["paperId"])
+            if record.get("name") == "search_graph_paper_content" and isinstance(result, dict):
+                for citation in result.get("citations", []):
+                    if isinstance(citation, dict) and citation.get("openalexId") in valid_ids:
+                        highlight_candidates.append(citation["openalexId"])
+            if record.get("name") == "retrieve_graph_context" and isinstance(result, dict):
+                for paper in result.get("papers", []):
+                    if isinstance(paper, dict) and paper.get("openalexId") in valid_ids:
+                        highlight_candidates.append(paper["openalexId"])
         highlighted = list(dict.fromkeys(highlight_candidates))[:5]
         lineage_changes = [
             record["result"]
@@ -1229,16 +1292,18 @@ Rules:
             return await self.client.messages.create(
                 model=self.model,
                 max_tokens=max_tokens,
+                cache_control={"type": "ephemeral"},
                 messages=messages,
-                tools=tools,
+                tools=_tools_with_cache_breakpoint(tools),
                 tool_choice=tool_choice,
             )
 
         async with self.client.messages.stream(
             model=self.model,
             max_tokens=max_tokens,
+            cache_control={"type": "ephemeral"},
             messages=messages,
-            tools=tools,
+            tools=_tools_with_cache_breakpoint(tools),
             tool_choice=tool_choice,
         ) as stream:
             async for text in stream.text_stream:
@@ -1500,6 +1565,7 @@ OR:
         resp = await self.client.messages.create(
             model=self.model,
             max_tokens=1024,
+            cache_control={"type": "ephemeral"},
             messages=_conversation_messages(history or [], prompt),
         )
         input_tokens = getattr(resp.usage, "input_tokens", 0)
@@ -1542,6 +1608,52 @@ def _conversation_messages(history: list[dict], current_prompt: str) -> list[dic
     ]
     messages.append({"role": "user", "content": current_prompt})
     return messages
+
+
+def _tools_with_cache_breakpoint(tools: list[dict]) -> list[dict]:
+    """Mark the static tool prefix for reuse across independent conversations."""
+    if not tools:
+        return []
+    return [
+        *tools[:-1],
+        {**tools[-1], "cache_control": {"type": "ephemeral"}},
+    ]
+
+
+_INDEPENDENT_TOOL_NAMES = frozenset({
+    "check_paper_access",
+    "search_paper_content",
+    "search_graph_paper_content",
+    "retrieve_graph_context",
+    "read_timeline_notes",
+    "read_timeline_node_colors",
+})
+
+
+async def _run_independent_tool_uses(
+    tool_uses: list[Any],
+    execute_tool_use: Callable[[Any], Awaitable[dict[str, Any]]],
+) -> list[dict[str, Any]]:
+    """Run contiguous read-only tool calls together while preserving tool-result order.
+
+    Mutations and OpenAlex searches stay ordered because later calls may depend on their results.
+    """
+    results: list[dict[str, Any]] = []
+    parallel_batch: list[Any] = []
+
+    async def flush_parallel_batch() -> None:
+        if parallel_batch:
+            results.extend(await asyncio.gather(*(execute_tool_use(tool_use) for tool_use in parallel_batch)))
+            parallel_batch.clear()
+
+    for tool_use in tool_uses:
+        if getattr(tool_use, "name", None) in _INDEPENDENT_TOOL_NAMES:
+            parallel_batch.append(tool_use)
+            continue
+        await flush_parallel_batch()
+        results.append(await execute_tool_use(tool_use))
+    await flush_parallel_batch()
+    return results
 
 
 def _message_text(response: Any) -> str:
