@@ -12,7 +12,7 @@ interface PaperReaderModalProps {
   loading: boolean;
   error: string | null;
   onClose: () => void;
-  onAskClaude: (excerpt: string) => void;
+  onAskSediment: (excerpt: string) => void;
 }
 
 interface SelectedQuote {
@@ -21,14 +21,25 @@ interface SelectedQuote {
   left: number;
 }
 
-export function PaperReaderModal({ open, content, loading, error, onClose, onAskClaude }: PaperReaderModalProps) {
+interface SelectionHighlightRect {
+  top: number;
+  left: number;
+  width: number;
+  height: number;
+}
+
+const PAPER_READER_SELECTION_HIGHLIGHT = "sediment-paper-reader-selection";
+
+export function PaperReaderModal({ open, content, loading, error, onClose, onAskSediment }: PaperReaderModalProps) {
   const readerRef = useRef<HTMLElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const previouslyFocusedRef = useRef<HTMLElement | null>(null);
+  const selectedRangeRef = useRef<Range | null>(null);
   const [mounted, setMounted] = useState(false);
   const [selectedQuote, setSelectedQuote] = useState<SelectedQuote | null>(null);
+  const [selectionHighlightRects, setSelectionHighlightRects] = useState<SelectionHighlightRect[]>([]);
   useEffect(() => setMounted(true), []);
 
   useEffect(() => {
@@ -70,12 +81,33 @@ export function PaperReaderModal({ open, content, loading, error, onClose, onAsk
   }, [mounted, open]);
 
   const markdown = content ? chunksToMarkdown(content) : "";
+  const clearSelectionHighlight = useCallback(() => {
+    selectedRangeRef.current = null;
+    setSelectionHighlightRects([]);
+    if (typeof CSS !== "undefined" && "highlights" in CSS) {
+      CSS.highlights.delete(PAPER_READER_SELECTION_HIGHLIGHT);
+    }
+  }, []);
+
+  useEffect(() => clearSelectionHighlight, [clearSelectionHighlight]);
+
+  const restoreSelectedRange = useCallback(() => {
+    const range = selectedRangeRef.current;
+    const readerContent = contentRef.current;
+    if (!range || !readerContent || !readerContent.contains(range.commonAncestorContainer)) return;
+    const selection = window.getSelection();
+    if (!selection) return;
+    selection.removeAllRanges();
+    selection.addRange(range);
+  }, []);
+
   const updateSelectedQuote = useCallback(() => {
     const selection = window.getSelection();
     const range = selection?.rangeCount ? selection.getRangeAt(0) : null;
     const reader = readerRef.current;
     const readerContent = contentRef.current;
     if (!selection || !range || selection.isCollapsed || !reader || !readerContent) {
+      clearSelectionHighlight();
       setSelectedQuote(null);
       return;
     }
@@ -84,6 +116,7 @@ export function PaperReaderModal({ open, content, loading, error, onClose, onAsk
       ? range.commonAncestorContainer.parentElement
       : range.commonAncestorContainer;
     if (!(commonAncestor instanceof Node) || !readerContent.contains(commonAncestor)) {
+      clearSelectionHighlight();
       setSelectedQuote(null);
       return;
     }
@@ -91,16 +124,32 @@ export function PaperReaderModal({ open, content, loading, error, onClose, onAsk
     const text = selection.toString().trim();
     const rect = range.getBoundingClientRect();
     if (!text || (!rect.width && !rect.height)) {
+      clearSelectionHighlight();
       setSelectedQuote(null);
       return;
     }
+    const selectedRange = range.cloneRange();
+    selectedRangeRef.current = selectedRange;
+    if (typeof CSS !== "undefined" && "highlights" in CSS && typeof Highlight !== "undefined") {
+      CSS.highlights.set(PAPER_READER_SELECTION_HIGHLIGHT, new Highlight(selectedRange));
+    }
     const readerRect = reader.getBoundingClientRect();
+    const contentRect = readerContent.getBoundingClientRect();
+    setSelectionHighlightRects(Array.from(range.getClientRects())
+      .filter((selectionRect) => selectionRect.width && selectionRect.height)
+      .map((selectionRect) => ({
+        top: selectionRect.top - contentRect.top + readerContent.scrollTop,
+        left: selectionRect.left - contentRect.left + readerContent.scrollLeft,
+        width: selectionRect.width,
+        height: selectionRect.height,
+      })));
     setSelectedQuote({
       text: text.slice(0, 6_000),
       top: Math.max(0.75 * 16, rect.top - readerRect.top - 0.5 * 16),
       left: Math.min(Math.max(0.75 * 16, rect.left - readerRect.left), readerRect.width - 8.5 * 16),
     });
-  }, []);
+    window.requestAnimationFrame(restoreSelectedRange);
+  }, [clearSelectionHighlight, restoreSelectedRange]);
 
   const trapFocus = useCallback((event: React.KeyboardEvent<HTMLElement>) => {
     if (event.key !== "Tab") return;
@@ -245,9 +294,13 @@ export function PaperReaderModal({ open, content, loading, error, onClose, onAsk
               ref={contentRef}
               onPointerUp={() => window.requestAnimationFrame(updateSelectedQuote)}
               onKeyUp={() => window.requestAnimationFrame(updateSelectedQuote)}
-              onScroll={() => setSelectedQuote(null)}
+              onScroll={() => {
+                clearSelectionHighlight();
+                setSelectedQuote(null);
+              }}
               style={{
                 flex: 1,
+                position: "relative",
                 overflowY: "auto",
                 padding: "1.5rem clamp(1.25rem, 5vw, 3.5rem) 3rem",
                 color: "var(--text-secondary)",
@@ -256,6 +309,23 @@ export function PaperReaderModal({ open, content, loading, error, onClose, onAsk
                 lineHeight: 1.78,
               }}
             >
+              {selectionHighlightRects.map((selectionRect, index) => (
+                <span
+                  aria-hidden="true"
+                  key={`${selectionRect.top}-${selectionRect.left}-${index}`}
+                  style={{
+                    position: "absolute",
+                    top: `${selectionRect.top}px`,
+                    left: `${selectionRect.left}px`,
+                    width: `${selectionRect.width}px`,
+                    height: `${selectionRect.height}px`,
+                    borderRadius: "0.125rem",
+                    background: "color-mix(in srgb, var(--accent) 32%, transparent)",
+                    pointerEvents: "none",
+                    zIndex: 0,
+                  }}
+                />
+              ))}
               {loading && <PaperReaderLoading />}
               {error && (
                 <div
@@ -274,7 +344,7 @@ export function PaperReaderModal({ open, content, loading, error, onClose, onAsk
                 </div>
               )}
               {!loading && !error && content && (
-                <article style={{ maxWidth: "43rem", margin: "0 auto" }}>
+                <article style={{ position: "relative", zIndex: 1, maxWidth: "43rem", margin: "0 auto" }}>
                   {content.sourceUrl && (
                     <a
                       href={content.sourceUrl}
@@ -315,7 +385,8 @@ export function PaperReaderModal({ open, content, loading, error, onClose, onAsk
                 type="button"
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={() => {
-                  onAskClaude(selectedQuote.text);
+                  onAskSediment(selectedQuote.text);
+                  clearSelectionHighlight();
                   setSelectedQuote(null);
                 }}
                 style={{
@@ -341,7 +412,7 @@ export function PaperReaderModal({ open, content, loading, error, onClose, onAsk
                 <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="var(--accent)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                   <path d="M2 5.5h8.5M7 2l3.5 3.5L7 9" />
                 </svg>
-                Ask Claude
+                Ask Sediment
               </button>
             )}
           </motion.section>

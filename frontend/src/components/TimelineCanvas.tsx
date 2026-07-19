@@ -758,7 +758,7 @@ export function TimelineCanvas({
     setPaperReaderOpen(false);
   }, []);
 
-  const askClaudeAboutSelectedExcerpt = useCallback((excerpt: string) => {
+  const askSedimentAboutSelectedExcerpt = useCallback((excerpt: string) => {
     if (activeNodeId === null) return;
     const selectedExcerpt = excerpt.trim().slice(0, 6_000);
     if (!selectedExcerpt) return;
@@ -2467,7 +2467,7 @@ export function TimelineCanvas({
                     type="text"
                     value={chatInput}
                     onChange={(e) => setChatInput(e.target.value)}
-                    placeholder={activeSelectedExcerpt ? "Ask Claude about this excerpt..." : "Ask about this paper..."}
+                    placeholder={activeSelectedExcerpt ? "Ask Sediment about this excerpt..." : "Ask about this paper..."}
                     disabled={isThinking}
                     style={{
                       flex: 1,
@@ -2515,7 +2515,7 @@ export function TimelineCanvas({
         loading={paperReaderLoading}
         error={paperReaderError}
         onClose={closePaperReader}
-        onAskClaude={askClaudeAboutSelectedExcerpt}
+        onAskSediment={askSedimentAboutSelectedExcerpt}
       />
 
       {!readOnly && (

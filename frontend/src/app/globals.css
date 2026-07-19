@@ -699,6 +699,11 @@ input:focus-visible {
   color: var(--text-primary);
 }
 
+::highlight(sediment-paper-reader-selection) {
+  background: color-mix(in srgb, var(--accent) 32%, transparent);
+  color: var(--text-primary);
+}
+
 /* ── Settings slider ── */
 .settings-slider {
   -webkit-appearance: none;
