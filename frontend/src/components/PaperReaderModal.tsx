@@ -231,26 +231,14 @@ export function PaperReaderModal({ open, content, loading, error, onClose, onAsk
               style={{
                 display: "flex",
                 alignItems: "flex-start",
-                gap: "0.875rem",
-                padding: "1rem 1.125rem",
+                gap: "0.625rem",
+                padding: "0.625rem 0.875rem",
                 borderBottom: "0.0625rem solid var(--border)",
                 background: "color-mix(in srgb, var(--bg-secondary) 80%, transparent)",
                 flexShrink: 0,
               }}
             >
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div
-                  style={{
-                    color: "var(--accent)",
-                    fontSize: "0.625rem",
-                    fontFamily: "'JetBrains Mono', monospace",
-                    letterSpacing: "0.07em",
-                    textTransform: "uppercase",
-                    marginBottom: "0.375rem",
-                  }}
-                >
-                  {content ? `${sourceLabel(content.sourceType)} · cached full text` : "Cached full text"}
-                </div>
                 <h1
                   style={{
                     margin: 0,
@@ -261,7 +249,23 @@ export function PaperReaderModal({ open, content, loading, error, onClose, onAsk
                     fontWeight: 650,
                   }}
                 >
-                  {content?.title ?? "Opening paper"}
+                  {content?.sourceUrl ? (
+                    <a
+                      href={content.sourceUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="Open source"
+                      style={{
+                        color: "inherit",
+                        textDecoration: "underline",
+                        textDecorationColor: "var(--accent)",
+                        textDecorationThickness: "0.1em",
+                        textUnderlineOffset: "0.18em",
+                      }}
+                    >
+                      {content.title}
+                    </a>
+                  ) : (content?.title ?? "Opening paper")}
                 </h1>
               </div>
               <button
@@ -273,8 +277,8 @@ export function PaperReaderModal({ open, content, loading, error, onClose, onAsk
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  width: "2rem",
-                  height: "2rem",
+                  width: "1.75rem",
+                  height: "1.75rem",
                   padding: 0,
                   flexShrink: 0,
                   border: "0.0625rem solid var(--border)",
@@ -345,25 +349,6 @@ export function PaperReaderModal({ open, content, loading, error, onClose, onAsk
               )}
               {!loading && !error && content && (
                 <article style={{ position: "relative", zIndex: 1, maxWidth: "43rem", margin: "0 auto" }}>
-                  {content.sourceUrl && (
-                    <a
-                      href={content.sourceUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: "0.375rem",
-                        marginBottom: "1.5rem",
-                        color: "var(--accent)",
-                        fontFamily: "'JetBrains Mono', monospace",
-                        fontSize: "0.6875rem",
-                        textDecoration: "none",
-                      }}
-                    >
-                      Source ↗
-                    </a>
-                  )}
                   <MarkdownContent>{markdown}</MarkdownContent>
                   {content.truncated && (
                     <p
@@ -456,10 +441,6 @@ function recoverFlattenedTable(text: string): string {
     .replace(/\|{3,}/g, "|\n|")
     .replace(/\|\s*(Table\s+\d+\s*:)/gi, "|\n\n$1");
   return `${beforeTable}\n\n${table}`;
-}
-
-function sourceLabel(sourceType: string): string {
-  return sourceType.replace(/_/g, " ");
 }
 
 function PaperReaderLoading() {
