@@ -2570,51 +2570,6 @@ export default function Home() {
                 {searchedQuery}
               </motion.span>
 
-              {timelineData && saveState !== "idle" && (
-                <motion.span
-                  initial={{ opacity: 0, y: -4 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -4 }}
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: "0.375rem",
-                    padding: "0.25rem 0.5rem",
-                    borderRadius: 999,
-                    border: "0.0625rem solid var(--border)",
-                    background: "var(--bg-secondary)",
-                    fontSize: "0.6875rem",
-                    color:
-                      saveState === "error"
-                        ? "#d16f5b"
-                        : saveState === "saved"
-                          ? "var(--accent)"
-                          : "var(--text-tertiary)",
-                    fontFamily: "'JetBrains Mono', monospace",
-                    letterSpacing: "0.03em",
-                  }}
-                >
-                  <span
-                    style={{
-                      width: "0.375rem",
-                      height: "0.375rem",
-                      borderRadius: 999,
-                      background:
-                        saveState === "error"
-                          ? "#d16f5b"
-                          : saveState === "saved"
-                            ? "var(--accent)"
-                            : "var(--text-tertiary)",
-                      opacity: saveState === "saving" ? 0.75 : 1,
-                    }}
-                  />
-                  {saveState === "saving"
-                    ? "Saving..."
-                    : saveState === "saved"
-                      ? "Saved"
-                      : "Save failed"}
-                </motion.span>
-              )}
             </div>
           )}
         </AnimatePresence>
@@ -3035,7 +2990,7 @@ export default function Home() {
                           </svg>
                           GitHub
                         </a>
-                        <ThemeToggle showLabel fullWidth />
+                        <ThemeToggle className="app-header-graph-session-theme" showLabel fullWidth />
                       </div>
                     )}
                     <p
@@ -3775,7 +3730,7 @@ export default function Home() {
                   gap: "0.625rem",
                   padding: "0.625rem 0.5rem",
                   borderRadius: "0.5rem",
-                  color: "var(--text-secondary)",
+                  color: "var(--text-primary)",
                   fontSize: "0.875rem",
                   fontFamily: "'DM Sans', sans-serif",
                   fontWeight: 500,
@@ -3792,6 +3747,9 @@ export default function Home() {
                 </svg>
                 View source
               </a>
+              {timelineData && (
+                <ThemeToggle className="app-header-mobile-menu-theme" showLabel fullWidth />
+              )}
             </motion.div>
           )}
         </AnimatePresence>
@@ -4667,6 +4625,7 @@ export default function Home() {
                 closePaperPanelSignal={closePaperPanelSignal}
                 graphId={graphId}
                 userId={userId}
+                saveState={saveState}
               />
             </motion.div>
           )}

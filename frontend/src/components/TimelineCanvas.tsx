@@ -54,6 +54,7 @@ interface TimelineCanvasProps {
   closePaperPanelSignal?: number;
   graphId?: string | null;
   userId?: string | null;
+  saveState?: "idle" | "saving" | "saved" | "error";
 }
 
 interface HoverPreviewState {
@@ -87,6 +88,7 @@ export function TimelineCanvas({
   closePaperPanelSignal = 0,
   graphId,
   userId,
+  saveState = "idle",
 }: TimelineCanvasProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -1277,6 +1279,59 @@ export function TimelineCanvas({
             </svg>
           </button>
         )}
+
+        <AnimatePresence>
+          {saveState !== "idle" && (
+            <motion.div
+              initial={{ opacity: 0, x: -4 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -4 }}
+              transition={{ duration: 0.16, ease: "easeOut" }}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "0.375rem",
+                height: "1.75rem",
+                boxSizing: "border-box",
+                marginLeft: "0.25rem",
+                padding: "0 0.5rem",
+                borderRadius: "0.375rem",
+                border: "0.0625rem solid var(--border)",
+                background: "var(--bg-secondary)",
+                color:
+                  saveState === "error"
+                    ? "#d16f5b"
+                    : saveState === "saved"
+                      ? "var(--accent)"
+                      : "var(--text-tertiary)",
+                fontFamily: "'JetBrains Mono', monospace",
+                fontSize: "0.6875rem",
+                letterSpacing: "0.03em",
+                userSelect: "none",
+              }}
+            >
+              <span
+                style={{
+                  width: "0.375rem",
+                  height: "0.375rem",
+                  borderRadius: "50%",
+                  background:
+                    saveState === "error"
+                      ? "#d16f5b"
+                      : saveState === "saved"
+                        ? "var(--accent)"
+                        : "var(--text-tertiary)",
+                  opacity: saveState === "saving" ? 0.75 : 1,
+                }}
+              />
+              {saveState === "saving"
+                ? "Saving..."
+                : saveState === "saved"
+                  ? "Saved"
+                  : "Save failed"}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       <svg

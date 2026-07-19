@@ -189,6 +189,97 @@ body {
 }
 
 @media (min-width: 40.0625rem) {
+  .app-header-shared {
+    position: absolute !important;
+    top: 0.75rem;
+    left: 50%;
+    transform: translateX(-50%) !important;
+    width: max-content !important;
+    max-width: calc(100vw - 2rem);
+    min-height: 0 !important;
+    padding: 0.3125rem 0.375rem !important;
+    border: 0.0625rem solid color-mix(in srgb, var(--border) 72%, transparent) !important;
+    border-radius: 0.875rem;
+    background: color-mix(in srgb, var(--bg-primary) 88%, transparent) !important;
+    box-shadow: 0 0.625rem 1.75rem rgba(0, 0, 0, 0.12) !important;
+    backdrop-filter: blur(16px);
+    justify-content: flex-start !important;
+  }
+
+  .app-header-shared .app-header-brand {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    height: 2rem;
+    padding: 0 0.625rem;
+  }
+
+  .app-header-shared .app-header-brand svg {
+    width: 1rem;
+    height: 1rem;
+  }
+
+  .app-header-shared .app-header-brand span {
+    color: var(--text-secondary);
+    font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
+    font-size: 0.75rem !important;
+    font-weight: 500 !important;
+    letter-spacing: -0.01em !important;
+  }
+
+  .app-header-shared .app-header-query {
+    position: static !important;
+    transform: none !important;
+    display: inline-block;
+    min-width: 0;
+    max-width: min(22vw, 20rem) !important;
+    padding-bottom: 0.0625rem;
+    overflow: hidden;
+    border-bottom: 0.0625rem solid color-mix(in srgb, var(--text-secondary) 48%, transparent);
+    color: var(--text-secondary);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem !important;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    pointer-events: none;
+  }
+
+  .app-header-shared .app-header-actions {
+    gap: 0.125rem !important;
+  }
+
+  .app-header-shared .desktop-only {
+    display: contents !important;
+  }
+
+  .app-header-shared .app-header-shared-action {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    min-width: 2rem;
+    height: 2rem;
+    box-sizing: border-box;
+    border: none !important;
+    background: transparent !important;
+    color: var(--text-secondary) !important;
+    text-decoration: none;
+  }
+
+  .app-header-shared .app-header-shared-action:hover {
+    background: var(--bg-tertiary) !important;
+    color: var(--text-primary) !important;
+  }
+
+  .app-header-shared .app-header-shared-icon-action,
+  .app-header-shared .app-header-shared-compact-toggle {
+    width: 2rem !important;
+    min-width: 2rem;
+    padding: 0 !important;
+    gap: 0 !important;
+  }
+
   .app-header-graph {
     position: absolute !important;
     inset: 0 0 auto !important;
@@ -301,6 +392,79 @@ body {
     gap: 0 !important;
     border: none !important;
   }
+}
+
+.app-header-shared.app-header-compact {
+  gap: 0.125rem !important;
+}
+
+.app-header-shared {
+  transition: padding 200ms ease, gap 200ms ease;
+}
+
+.app-header-shared .app-header-brand span {
+  display: inline-block;
+  max-width: 7rem;
+  overflow: hidden;
+  white-space: nowrap;
+  transition: max-width 200ms ease, opacity 150ms ease;
+}
+
+.app-header-shared .app-header-query {
+  transition: max-width 200ms ease, opacity 150ms ease, padding 200ms ease, border-color 150ms ease;
+}
+
+.app-header-shared.app-header-compact .app-header-actions {
+  padding: 0 !important;
+}
+
+.app-header-shared.app-header-compact .app-header-brand {
+  gap: 0;
+  padding-inline: 0.5rem;
+}
+
+.app-header-shared.app-header-compact .app-header-brand span {
+  max-width: 0;
+  overflow: hidden;
+  opacity: 0;
+}
+
+.app-header-shared.app-header-compact .app-header-query {
+  max-width: 0 !important;
+  padding-bottom: 0;
+  border-bottom-color: transparent;
+  opacity: 0;
+}
+
+.app-header-shared.app-header-compact .app-header-shared-session-theme .app-header-action-label {
+  max-width: 7rem;
+  opacity: 1;
+}
+
+.app-header-compact .app-header-graph-session-theme .app-header-action-label {
+  max-width: 7rem;
+  opacity: 1;
+}
+
+.app-header-compact .app-header-mobile-menu-theme .app-header-action-label {
+  max-width: 7rem;
+  opacity: 1;
+}
+
+.app-header-mobile-menu-theme {
+  box-sizing: border-box;
+  min-height: 2.5rem;
+  height: auto !important;
+  padding: 0.625rem 0.5rem !important;
+  color: var(--text-primary) !important;
+  font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
+  font-size: 0.875rem !important;
+  font-weight: 500 !important;
+}
+
+.app-header-mobile-menu-theme svg {
+  width: 0.9375rem !important;
+  height: 0.9375rem !important;
 }
 
 .app-header-credit-indicator {
@@ -1515,6 +1679,26 @@ input:focus-visible {
 }
 
 @media (max-width: 64rem) {
+  .trace-search-mode-control {
+    flex: 1 0 100%;
+    width: min(100%, 20rem);
+  }
+
+  .trace-search-mode {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .trace-search-mode-menu {
+    position: static !important;
+    width: 100% !important;
+    margin-top: 0.45rem;
+  }
+
+  .landing-hero-ledger {
+    display: none !important;
+  }
+
   .demo-scene,
   .demo-final-section {
     padding-left: 1rem;
@@ -1543,6 +1727,150 @@ input:focus-visible {
 }
 
 @media (max-width: 40rem) {
+  .app-header-shared {
+    position: absolute !important;
+    top: 0.75rem;
+    right: 1rem;
+    left: 1rem;
+    width: auto !important;
+    min-height: 0 !important;
+    padding: 0.3125rem 0.375rem !important;
+    border: 0.0625rem solid color-mix(in srgb, var(--border) 72%, transparent) !important;
+    border-radius: 0.875rem;
+    background: color-mix(in srgb, var(--bg-primary) 88%, transparent) !important;
+    box-shadow: 0 0.625rem 1.75rem rgba(0, 0, 0, 0.12) !important;
+    backdrop-filter: blur(16px);
+  }
+
+  .app-header-shared .app-header-brand {
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    height: 2rem;
+    padding: 0 0.625rem;
+  }
+
+  .app-header-shared .app-header-brand svg {
+    width: 1rem;
+    height: 1rem;
+  }
+
+  .app-header-shared .app-header-brand span {
+    color: var(--text-secondary);
+    font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
+    font-size: 0.75rem !important;
+    font-weight: 500 !important;
+    letter-spacing: -0.01em !important;
+  }
+
+  .app-header-shared .app-header-query {
+    position: absolute !important;
+    top: 50%;
+    left: 50%;
+    width: calc(100% - 12rem);
+    min-width: 0;
+    transform: translate(-50%, -50%);
+    justify-content: center;
+    pointer-events: none;
+  }
+
+  .app-header-shared .app-header-actions {
+    z-index: 1;
+    gap: 0.125rem !important;
+  }
+
+  .app-header-shared .app-header-shared-action {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    width: 2rem !important;
+    min-width: 2rem;
+    height: 2rem !important;
+    border: none !important;
+    background: transparent !important;
+    color: var(--text-secondary) !important;
+    cursor: pointer;
+  }
+
+  .app-header-shared .app-header-shared-compact-toggle {
+    display: none !important;
+  }
+
+  .app-header-shared.app-header-compact .app-header-query {
+    width: calc(100% - 8rem) !important;
+    max-width: calc(100% - 8rem) !important;
+    padding-bottom: 0.0625rem;
+    border-bottom-color: color-mix(in srgb, var(--text-secondary) 48%, transparent);
+    opacity: 1;
+  }
+
+  .app-header-graph {
+    position: absolute !important;
+    top: 0.75rem;
+    right: 1rem;
+    left: 1rem;
+    width: auto !important;
+    min-height: 0 !important;
+    padding: 0.3125rem 0.375rem !important;
+    border: 0.0625rem solid color-mix(in srgb, var(--border) 72%, transparent) !important;
+    border-radius: 0.875rem;
+    background: color-mix(in srgb, var(--bg-primary) 88%, transparent) !important;
+    box-shadow: 0 0.625rem 1.75rem rgba(0, 0, 0, 0.12) !important;
+    backdrop-filter: blur(16px);
+  }
+
+  .app-header-graph .app-header-brand {
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    height: 2rem;
+    padding: 0 0.625rem;
+  }
+
+  .app-header-graph .app-header-brand svg {
+    width: 1rem;
+    height: 1rem;
+  }
+
+  .app-header-graph .app-header-brand span {
+    color: var(--text-secondary);
+    font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
+    font-size: 0.75rem !important;
+    font-weight: 500 !important;
+    letter-spacing: -0.01em !important;
+  }
+
+  .app-header-graph .app-header-query {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: calc(100% - 12rem);
+    min-width: 0;
+    transform: translate(-50%, -50%);
+    justify-content: center;
+    pointer-events: none;
+  }
+
+  .app-header-graph .app-header-actions {
+    z-index: 1;
+    gap: 0.125rem !important;
+  }
+
+  .app-header-graph .app-header-graph-icon-action,
+  .app-header-graph button.show-mobile {
+    width: 2rem !important;
+    height: 2rem !important;
+    border: none !important;
+    background: transparent !important;
+  }
+
+  .app-header-graph .app-header-graph-icon-action[aria-pressed="true"] {
+    background: var(--accent-soft) !important;
+    color: var(--accent) !important;
+  }
+
   /* Keep the first action visible without crowding the scroll cue. */
   .landing-hero-shell {
     min-height: 100%;

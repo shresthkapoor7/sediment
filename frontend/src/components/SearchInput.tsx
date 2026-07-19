@@ -273,7 +273,7 @@ export function SearchInput({ onSearch, isSearching, traceMode, onTraceModeChang
             {example}
           </motion.button>
         ))}
-        <div style={{ position: "relative", zIndex: 3 }}>
+        <div className="trace-search-mode-control" style={{ position: "relative", zIndex: 3 }}>
           <button
             type="button"
             className="trace-search-mode"
@@ -333,6 +333,7 @@ export function SearchInput({ onSearch, isSearching, traceMode, onTraceModeChang
           <AnimatePresence>
             {modeOpen && (
               <motion.div
+                className="trace-search-mode-menu"
                 initial={{ opacity: 0, y: -5, scale: 0.98 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: -5, scale: 0.98 }}
