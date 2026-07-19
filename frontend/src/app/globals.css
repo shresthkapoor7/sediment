@@ -876,6 +876,10 @@ input:focus-visible {
   overflow: visible;
 }
 
+.landing-helix-particles-mobile {
+  display: none;
+}
+
 .landing-helix-particle-secondary {
   opacity: 0.7;
 }
@@ -1890,6 +1894,14 @@ input:focus-visible {
     width: 150vw;
     top: 48%;
     opacity: 0.7;
+  }
+
+  .landing-helix-particles-desktop {
+    display: none;
+  }
+
+  .landing-helix-particles-mobile {
+    display: block;
   }
 
   .landing-hero-title {

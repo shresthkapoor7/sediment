@@ -529,6 +529,102 @@ function DemoGraph({
   );
 }
 
+function buildMobileEllipsePath(
+  width: number,
+  top: number,
+  height: number,
+  scaleX: number,
+  rotationDegrees: number,
+  reverse = false,
+) {
+  const centerX = width / 2;
+  const centerY = top + height / 2;
+  const radiusX = width / 2;
+  const radiusY = height / 2;
+  const rotation = (rotationDegrees * Math.PI) / 180;
+  const steps = 180;
+  const points = Array.from({ length: steps + 1 }, (_, index) => {
+    const progress = index / steps;
+    const angle = (reverse ? -progress : progress) * Math.PI * 2;
+    const x = radiusX * Math.cos(angle) * scaleX;
+    const y = radiusY * Math.sin(angle);
+    return [
+      centerX + Math.cos(rotation) * x - Math.sin(rotation) * y,
+      centerY + Math.sin(rotation) * x + Math.cos(rotation) * y,
+    ];
+  });
+
+  return points
+    .map(([x, y], index) => `${index === 0 ? "M" : "L"}${x.toFixed(2)} ${y.toFixed(2)}`)
+    .join(" ");
+}
+
+function MobileLandingHelixParticles() {
+  const svgRef = useRef<SVGSVGElement | null>(null);
+  const [frame, setFrame] = useState({ width: 1, height: 1, paths: ["", ""] });
+
+  useEffect(() => {
+    const svg = svgRef.current;
+    const strata = svg?.parentElement;
+    if (!svg || !strata) return;
+
+    const updatePaths = () => {
+      const ellipseElements = Array.from(strata.querySelectorAll(":scope > span"));
+      const width = strata.clientWidth;
+      const height = strata.clientHeight;
+      if (!width || !height || ellipseElements.length < 3) return;
+
+      const primary = ellipseElements[0];
+      const secondary = ellipseElements[2];
+      setFrame({
+        width,
+        height,
+        paths: [
+          buildMobileEllipsePath(width, primary.offsetTop, primary.offsetHeight, 0.84, -5),
+          buildMobileEllipsePath(width, secondary.offsetTop, secondary.offsetHeight, 0.76, -3, true),
+        ],
+      });
+    };
+
+    updatePaths();
+    const observer = new ResizeObserver(updatePaths);
+    observer.observe(strata);
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <svg
+      ref={svgRef}
+      className="landing-helix-particles landing-helix-particles-mobile"
+      viewBox={`0 0 ${frame.width} ${frame.height}`}
+      preserveAspectRatio="none"
+    >
+      {frame.paths.map((path, index) => path && (
+        <g
+          key={index}
+          className={`landing-helix-particle${index === 1 ? " landing-helix-particle-secondary" : ""}`}
+        >
+          <animateMotion
+            dur="26s"
+            begin={index === 1 ? "-13s" : undefined}
+            repeatCount="indefinite"
+            path={path}
+          />
+          <animate
+            attributeName="opacity"
+            values={index === 1 ? "0;0.7;0.7;0" : "0;0.9;0.9;0"}
+            keyTimes="0;0.035;0.96;1"
+            dur="26s"
+            begin={index === 1 ? "-13s" : undefined}
+            repeatCount="indefinite"
+          />
+          <circle className="landing-helix-core" r="4.25" />
+        </g>
+      ))}
+    </svg>
+  );
+}
+
 function LandingScrollHint({
   containerRef,
 }: {
@@ -4295,7 +4391,7 @@ export default function Home() {
                   <span />
                   <span />
                   <svg
-                    className="landing-helix-particles"
+                    className="landing-helix-particles landing-helix-particles-desktop"
                     viewBox="0 0 1248 448"
                     preserveAspectRatio="none"
                   >
@@ -4332,6 +4428,7 @@ export default function Home() {
                       <circle className="landing-helix-core" r="4.25" />
                     </g>
                   </svg>
+                  <MobileLandingHelixParticles />
                 </div>
 
                 <div className="landing-hero-content">

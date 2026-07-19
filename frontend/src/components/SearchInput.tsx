@@ -7,6 +7,7 @@ const EXAMPLES = [
   "Transformer",
   "VLMs",
   "Feynman Path Integrals",
+  "CRISPR",
 ];
 
 interface SearchInputProps {
@@ -230,7 +231,7 @@ export function SearchInput({ onSearch, isSearching, traceMode, onTraceModeChang
         {EXAMPLES.map((example, i) => (
           <motion.button
             key={example}
-            className={`trace-search-suggestion${example === "Feynman Path Integrals" ? " hide-mobile" : ""}`}
+            className={`trace-search-suggestion${example === "Feynman Path Integrals" ? " hide-mobile" : ""}${example === "CRISPR" ? " show-mobile" : ""}`}
             type="button"
             disabled={isSearching}
             onClick={() => onSearch(example)}
