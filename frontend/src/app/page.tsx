@@ -569,7 +569,9 @@ function MobileLandingHelixParticles() {
     if (!svg || !strata) return;
 
     const updatePaths = () => {
-      const ellipseElements = Array.from(strata.querySelectorAll(":scope > span"));
+      const ellipseElements = Array.from(
+        strata.querySelectorAll<HTMLElement>(":scope > span"),
+      );
       const width = strata.clientWidth;
       const height = strata.clientHeight;
       if (!width || !height || ellipseElements.length < 3) return;

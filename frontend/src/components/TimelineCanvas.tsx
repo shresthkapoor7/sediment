@@ -1283,6 +1283,7 @@ export function TimelineCanvas({
         <AnimatePresence>
           {saveState !== "idle" && (
             <motion.div
+              key="timeline-save-status"
               initial={{ opacity: 0, x: -4 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -4 }}

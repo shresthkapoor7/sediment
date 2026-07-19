@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { TimelineCanvas } from "@/components/TimelineCanvas";
@@ -23,6 +23,7 @@ export default function SharedGraphPage() {
   const [error, setError] = useState("");
   const [sessionActionsOpen, setSessionActionsOpen] = useState(false);
   const [isHeaderCompact, setIsHeaderCompact] = useState(false);
+  const sessionActionsRef = useRef<HTMLDivElement>(null);
   const { hoverPreviewEnabled, onToggleHoverPreview } = useHoverPreviewToggle();
 
   useEffect(() => {
@@ -44,6 +45,30 @@ export default function SharedGraphPage() {
         setIsLoading(false);
       });
   }, [shareId]);
+
+  useEffect(() => {
+    if (!sessionActionsOpen) return;
+
+    const dismissIfOutside = (target: EventTarget | null) => {
+      if (target instanceof Node && !sessionActionsRef.current?.contains(target)) {
+        setSessionActionsOpen(false);
+      }
+    };
+    const onPointerDown = (event: PointerEvent) => dismissIfOutside(event.target);
+    const onFocusIn = (event: FocusEvent) => dismissIfOutside(event.target);
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setSessionActionsOpen(false);
+    };
+
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("focusin", onFocusIn);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("focusin", onFocusIn);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [sessionActionsOpen]);
 
   return (
     <div
@@ -154,7 +179,7 @@ export default function SharedGraphPage() {
         {/* Right side */}
         <div className="app-header-actions" style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexShrink: 0 }}>
 
-          <div style={{ position: "relative" }}>
+          <div ref={sessionActionsRef} style={{ position: "relative" }}>
             <button
               type="button"
               className="app-header-shared-action app-header-shared-icon-action"
