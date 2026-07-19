@@ -22,7 +22,11 @@ export function buildTimelineFromGraph(response: LineageGraphResponse): Timeline
     response.traceNotes ?? [],
     canonical,
   );
-  return response.traceSummary ? { ...timeline, traceSummary: response.traceSummary } : timeline;
+  return {
+    ...timeline,
+    ...(response.traceSummary ? { traceSummary: response.traceSummary } : {}),
+    ...(response.traceEvidence ? { traceEvidence: response.traceEvidence } : {}),
+  };
 }
 
 export function mergeTimelineWithGraph(
