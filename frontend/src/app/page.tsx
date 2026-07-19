@@ -1870,6 +1870,7 @@ export default function Home() {
   const savedGraphIdsRef = useRef<Set<string>>(new Set());
   const { compact, mobile } = useLandingViewport();
   const [isLandingHeaderCompact, setIsLandingHeaderCompact] = useState(false);
+  const [isGraphHeaderCompact, setIsGraphHeaderCompact] = useState(false);
 
   useEffect(() => {
     document.title = searchedQuery
@@ -2478,7 +2479,7 @@ export default function Home() {
     >
       {/* Top bar */}
       <motion.header
-        className={`app-header${!timelineData ? " app-header-landing" : ""}${!timelineData && isLandingHeaderCompact ? " app-header-compact" : ""}`}
+        className={`app-header${!timelineData ? " app-header-landing" : ""}${timelineData ? " app-header-graph" : ""}${(!timelineData && isLandingHeaderCompact) || (timelineData && isGraphHeaderCompact) ? " app-header-compact" : ""}`}
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
@@ -2540,6 +2541,7 @@ export default function Home() {
         <AnimatePresence>
           {searchedQuery && (
             <div
+              className="app-header-query"
               style={{
                 display: "flex",
                 alignItems: "center",
@@ -2632,6 +2634,38 @@ export default function Home() {
             className="desktop-only"
             style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}
           >
+            {timelineData && (
+              <button
+                type="button"
+                className="app-header-labeled-action"
+                onClick={handleReset}
+                aria-label="Return to Sediment home"
+                title="Return to Sediment home"
+              >
+                <svg
+                  className="app-header-sediment-icon"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                >
+                  <path d="M2 17l10 4 10-4" opacity="0.3" />
+                  <path d="M2 12l10 4 10-4" opacity="0.6" />
+                  <path d="M12 2L2 7l10 5 10-5L12 2z" />
+                </svg>
+                <span className="app-header-action-label">Sediment</span>
+              </button>
+            )}
+
+            {timelineData && searchedQuery && (
+              <span className="app-header-graph-query" title={searchedQuery}>
+                {searchedQuery}
+              </span>
+            )}
+
             {!timelineData && (
               <motion.button
                 type="button"
@@ -2850,7 +2884,7 @@ export default function Home() {
             {/* Settings / graph session actions */}
             <div style={{ position: "relative" }}>
               <button
-                className="app-header-labeled-action"
+                className={`app-header-labeled-action${timelineData ? " app-header-graph-icon-action" : ""}`}
                 onClick={() => {
                   if (timelineData) {
                     setSessionActionsOpen((open) => !open);
@@ -3116,6 +3150,27 @@ export default function Home() {
               </AnimatePresence>
             </div>
 
+            {timelineData && (
+              <button
+                type="button"
+                className="app-header-labeled-action app-header-graph-compact-toggle"
+                onClick={() => setIsGraphHeaderCompact((compact) => !compact)}
+                aria-label={isGraphHeaderCompact ? "Expand graph dock" : "Collapse graph dock"}
+                aria-pressed={isGraphHeaderCompact}
+                title={isGraphHeaderCompact ? "Expand dock" : "Collapse dock"}
+              >
+                {isGraphHeaderCompact ? (
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M6 2H2v4M10 2h4v4M2 10v4h4M14 10v4h-4" />
+                  </svg>
+                ) : (
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden="true">
+                    <path d="M2 4h12M4 8h8M6 12h4" />
+                  </svg>
+                )}
+              </button>
+            )}
+
             <a
               className="app-header-labeled-action"
               href={GITHUB_REPO_URL}
@@ -3198,6 +3253,7 @@ export default function Home() {
 
             {timelineData && (
               <button
+                className="app-header-graph-icon-action"
                 onClick={handleToggleGlobalChat}
                 aria-label={globalChatOpen ? "Close timeline sidebar" : "Open timeline sidebar"}
                 aria-pressed={globalChatOpen}
