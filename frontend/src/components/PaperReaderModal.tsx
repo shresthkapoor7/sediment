@@ -29,6 +29,26 @@ interface SelectionHighlightRect {
 }
 
 const PAPER_READER_SELECTION_HIGHLIGHT = "sediment-paper-reader-selection";
+const PAPER_READER_SELECTION_HIGHLIGHT_STYLE = "sediment-paper-reader-selection-style";
+
+function ensurePaperReaderSelectionHighlightStyle() {
+  if (
+    typeof CSS === "undefined" ||
+    !("highlights" in CSS) ||
+    typeof Highlight === "undefined" ||
+    document.getElementById(PAPER_READER_SELECTION_HIGHLIGHT_STYLE)
+  ) {
+    return;
+  }
+
+  const style = document.createElement("style");
+  style.id = PAPER_READER_SELECTION_HIGHLIGHT_STYLE;
+  style.textContent = `::highlight(${PAPER_READER_SELECTION_HIGHLIGHT}) {
+    background: color-mix(in srgb, var(--accent) 32%, transparent);
+    color: var(--text-primary);
+  }`;
+  document.head.append(style);
+}
 
 export function PaperReaderModal({ open, content, loading, error, onClose, onAskSediment }: PaperReaderModalProps) {
   const readerRef = useRef<HTMLElement>(null);
@@ -41,6 +61,10 @@ export function PaperReaderModal({ open, content, loading, error, onClose, onAsk
   const [selectedQuote, setSelectedQuote] = useState<SelectedQuote | null>(null);
   const [selectionHighlightRects, setSelectionHighlightRects] = useState<SelectionHighlightRect[]>([]);
   useEffect(() => setMounted(true), []);
+
+  useEffect(() => {
+    ensurePaperReaderSelectionHighlightStyle();
+  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -121,20 +145,21 @@ export function PaperReaderModal({ open, content, loading, error, onClose, onAsk
       return;
     }
 
-    const text = selection.toString().trim();
-    const rect = range.getBoundingClientRect();
+    const selectedRange = range.cloneRange();
+    const text = selectedRange.toString().trim();
+    const rect = selectedRange.getBoundingClientRect();
     if (!text || (!rect.width && !rect.height)) {
       clearSelectionHighlight();
       setSelectedQuote(null);
       return;
     }
-    const selectedRange = range.cloneRange();
     selectedRangeRef.current = selectedRange;
     if (typeof CSS !== "undefined" && "highlights" in CSS && typeof Highlight !== "undefined") {
+      ensurePaperReaderSelectionHighlightStyle();
       CSS.highlights.set(PAPER_READER_SELECTION_HIGHLIGHT, new Highlight(selectedRange));
     } else {
       const contentRect = readerContent.getBoundingClientRect();
-      setSelectionHighlightRects(Array.from(range.getClientRects())
+      setSelectionHighlightRects(Array.from(selectedRange.getClientRects())
         .filter((selectionRect) => selectionRect.width && selectionRect.height)
         .map((selectionRect) => ({
           top: selectionRect.top - contentRect.top + readerContent.scrollTop,
@@ -297,8 +322,8 @@ export function PaperReaderModal({ open, content, loading, error, onClose, onAsk
 
             <div
               ref={contentRef}
-              onPointerUp={() => window.requestAnimationFrame(updateSelectedQuote)}
-              onKeyUp={() => window.requestAnimationFrame(updateSelectedQuote)}
+              onPointerUp={updateSelectedQuote}
+              onKeyUp={updateSelectedQuote}
               onScroll={() => {
                 clearSelectionHighlight();
                 setSelectedQuote(null);
