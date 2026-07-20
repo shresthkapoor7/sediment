@@ -81,13 +81,16 @@ async def _trace_lineage_standard(
         return _empty_response(concept)
 
     resolved = _resolve_settings(settings)
+    trace_evidence = _new_trace_evidence()
     search_concept = concept
     search_results = await openalex.search_papers(search_concept, limit=SEARCH_LIMIT)
+    _record_trace_search(trace_evidence, search_concept, search_results)
     if not search_results:
         fallback_query = _focused_fallback_query(concept)
         if fallback_query:
             logger.info("No OpenAlex results for verbose query=%r; retrying focused query=%r", concept, fallback_query)
             search_results = await openalex.search_papers(fallback_query, limit=SEARCH_LIMIT)
+            _record_trace_search(trace_evidence, fallback_query, search_results)
             if search_results:
                 search_concept = fallback_query
     if not search_results:
@@ -144,6 +147,7 @@ async def _trace_lineage_standard(
         search_concept,
         openalex,
         resolved["reference_limit"],
+        trace_evidence,
     )
     if not chosen_seed:
         return _empty_response(concept)
@@ -162,10 +166,14 @@ async def _trace_lineage_standard(
         if depth >= resolved["depth"]:
             continue
 
-        refs = prefetched_refs if prefetched_refs is not None else await openalex.fetch_references(
-            current_paper["openalexId"],
-            limit=resolved["reference_limit"],
-        )
+        if prefetched_refs is not None:
+            refs = prefetched_refs
+        else:
+            refs = await openalex.fetch_references(
+                current_paper["openalexId"],
+                limit=resolved["reference_limit"],
+            )
+            _record_reference_lookup(trace_evidence, current_paper, refs)
         if not refs:
             continue
 
@@ -225,6 +233,7 @@ async def _trace_lineage_standard(
             "cacheHit": False,
         },
         "disambiguation": None,
+        "traceEvidence": trace_evidence,
         "_traceSelectionReason": selection_reason,
     }
 
@@ -248,6 +257,7 @@ async def _trace_lineage_deep(
     search_count = 0
     reference_count = 0
     activity: list[str] = []
+    trace_evidence = _new_trace_evidence()
 
     def register_papers(papers: list[dict]) -> None:
         for paper in papers:
@@ -285,6 +295,7 @@ async def _trace_lineage_deep(
             limit = limit if isinstance(limit, int) else 6
             papers = await openalex.search_papers(query, limit=max(1, min(limit, 8)))
             register_papers(papers)
+            _record_trace_search(trace_evidence, query, papers)
             search_count += 1
             activity.append(f'Searched OpenAlex for “{query}” and reviewed {len(papers)} candidates.')
             return {
@@ -312,6 +323,11 @@ async def _trace_lineage_deep(
             )
             reference_count += 1
             title = str(known_papers.get(child_id, {}).get("title") or paper_id)
+            _record_reference_lookup(
+                trace_evidence,
+                {"openalexId": paper_id, "title": title},
+                references,
+            )
             activity.append(f'Inspected {len(references)} references from “{title}”.')
             return {
                 "status": "completed",
@@ -345,6 +361,7 @@ async def _trace_lineage_deep(
         logger.info("Deep trace did not return a validated final proposal; falling back to the standard trace for query=%r", concept)
         return None
     proposal.setdefault("meta", {})["query"] = concept
+    proposal["traceEvidence"] = trace_evidence
     papers = proposal.get("papers") if isinstance(proposal.get("papers"), list) else []
     seed_id = _normalize_openalex_id(proposal.get("seedPaperId"))
     seed = next((paper for paper in papers if _normalize_openalex_id(paper.get("openalexId")) == seed_id), None)
@@ -768,6 +785,52 @@ def _empty_response(query: str) -> dict:
     }
 
 
+def _new_trace_evidence() -> dict[str, list[dict]]:
+    return {"searches": [], "referenceLookups": []}
+
+
+def _trace_source_paper(paper: dict) -> dict | None:
+    paper_id = str(paper.get("openalexId") or "").strip()
+    title = str(paper.get("title") or "").strip()
+    if not paper_id or not title:
+        return None
+    raw_authors = paper.get("authors")
+    authors = raw_authors if isinstance(raw_authors, list) else []
+    return {
+        "openalexId": paper_id,
+        "title": title[:500],
+        "year": paper.get("year") if isinstance(paper.get("year"), int) else None,
+        "authors": [str(author)[:200] for author in authors if isinstance(author, str) and author.strip()][:3],
+    }
+
+
+def _record_trace_search(trace_evidence: dict[str, list[dict]], query: str, papers: list[dict]) -> None:
+    if not query.strip() or len(trace_evidence["searches"]) >= 8:
+        return
+    snapshots = [snapshot for paper in papers[:10] if (snapshot := _trace_source_paper(paper))]
+    trace_evidence["searches"].append({"query": query.strip()[:300], "papers": snapshots})
+
+
+def _record_reference_lookup(
+    trace_evidence: dict[str, list[dict]],
+    source_paper: dict,
+    papers: list[dict],
+    *,
+    kind: str = "references",
+) -> None:
+    source_id = str(source_paper.get("openalexId") or "").strip()
+    source_title = str(source_paper.get("title") or source_id).strip()
+    if not source_id or not source_title or len(trace_evidence["referenceLookups"]) >= 8:
+        return
+    snapshots = [snapshot for paper in papers[:12] if (snapshot := _trace_source_paper(paper))]
+    trace_evidence["referenceLookups"].append({
+        "paperId": source_id,
+        "paperTitle": source_title[:500],
+        "kind": "related" if kind == "related" else "references",
+        "papers": snapshots,
+    })
+
+
 def _focused_fallback_query(query: str) -> str | None:
     """Retry the leading concept when a user combines several concepts in one OpenAlex query."""
     compact = " ".join(query.split())
@@ -807,8 +870,10 @@ async def _resolve_viable_seed(
     concept: str,
     openalex: OpenAlexClient,
     reference_limit: int,
+    trace_evidence: dict[str, list[dict]],
 ) -> tuple[dict | None, list[dict], bool]:
     refs = await openalex.fetch_references(chosen_seed["openalexId"], limit=reference_limit)
+    _record_reference_lookup(trace_evidence, chosen_seed, refs)
     if len(refs) >= 3:
         return chosen_seed, refs, False
 
@@ -822,6 +887,7 @@ async def _resolve_viable_seed(
         concept,
         limit=reference_limit,
     )
+    _record_reference_lookup(trace_evidence, chosen_seed, fallback_refs, kind="related")
     if fallback_refs:
         return chosen_seed, fallback_refs, True
 

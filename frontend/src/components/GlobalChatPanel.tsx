@@ -14,6 +14,7 @@ import {
   TimelineNoteChange,
   TimelineNoteContext,
   TimelineNoteRelation,
+  TraceEvidence,
 } from "@/lib/types";
 
 interface ToolEvent {
@@ -31,6 +32,7 @@ interface Message {
   toolEvents?: ToolEvent[];
   statusEvents?: string[];
   citations?: Record<string, unknown>[];
+  traceEvidence?: TraceEvidence;
   pending?: boolean;
 }
 
@@ -77,6 +79,65 @@ function traceSummaryMessage(summary: NonNullable<TimelineData["traceSummary"]>)
     .map((step) => `- ${step}`)
     .join("\n");
   return `${summary.rationale}${steps ? `\n\n${steps}` : ""}`;
+}
+
+function openAlexUrl(openalexId: string): string {
+  const workId = openalexId.split("/").filter(Boolean).at(-1) ?? openalexId;
+  return `https://openalex.org/${encodeURIComponent(workId)}`;
+}
+
+function TraceEvidencePanel({ evidence }: { evidence: TraceEvidence }) {
+  const events = [
+    ...evidence.searches.map((search, index) => ({
+      key: `search:${index}:${search.query}`,
+      label: `Searched OpenAlex for “${search.query}”`,
+      papers: search.papers,
+    })),
+    ...evidence.referenceLookups.map((lookup, index) => ({
+      key: `${lookup.kind}:${index}:${lookup.paperId}`,
+      label: lookup.kind === "related"
+        ? `Found related earlier work for “${lookup.paperTitle}”`
+        : `Read references from “${lookup.paperTitle}”`,
+      papers: lookup.papers,
+    })),
+  ];
+  if (!events.length) return null;
+
+  return (
+    <section style={{ marginTop: "0.75rem", paddingTop: "0.625rem", borderTop: "0.0625rem solid var(--border)" }}>
+      <div style={{ marginBottom: "0.25rem", color: "var(--text-tertiary)", fontSize: "0.625rem", fontWeight: 700, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.06em", textTransform: "uppercase" }}>
+        Research trail · {events.length} OpenAlex {events.length === 1 ? "step" : "steps"}
+      </div>
+      <div style={{ display: "flex", flexDirection: "column" }}>
+        {events.map((event) => (
+          <details key={event.key} style={{ padding: "0.1875rem 0" }}>
+            <summary style={{ padding: "0.25rem 0", color: "var(--text-secondary)", fontSize: "0.6875rem", lineHeight: 1.4, cursor: "pointer" }}>
+              {event.label} · {event.papers.length} {event.papers.length === 1 ? "paper" : "papers"}
+            </summary>
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.125rem", margin: "0.125rem 0 0.5rem 1rem" }}>
+              {event.papers.map((paper) => (
+                <a
+                  key={paper.openalexId}
+                  href={openAlexUrl(paper.openalexId)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ display: "flex", flexDirection: "column", gap: "0.0625rem", padding: "0.25rem 0", color: "inherit", textDecoration: "none" }}
+                >
+                  <span style={{ color: "var(--text-primary)", fontSize: "0.6875rem", fontWeight: 600, lineHeight: 1.35 }}>{paper.title}</span>
+                  <span style={{ color: "var(--text-tertiary)", fontSize: "0.59375rem", fontFamily: "'JetBrains Mono', monospace" }}>
+                    {[paper.year, ...paper.authors].filter(Boolean).join(" · ") || paper.openalexId}
+                  </span>
+                </a>
+              ))}
+              {event.papers.length === 0 && (
+                <span style={{ padding: "0.25rem 0", color: "var(--text-tertiary)", fontSize: "0.625rem" }}>No eligible papers returned.</span>
+              )}
+            </div>
+          </details>
+        ))}
+      </div>
+    </section>
+  );
 }
 
 function mergeMessagesById(current: Message[], restored: Message[]): Message[] {
@@ -131,7 +192,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
   }, [graphId, userId]);
 
   const traceSummaryKey = data.traceSummary
-    ? `${data.traceSummary.traceMode}:${data.traceSummary.rationale}:${data.traceSummary.steps.join("|")}`
+    ? `${data.traceSummary.traceMode}:${data.traceSummary.rationale}:${data.traceSummary.steps.join("|")}:${JSON.stringify(data.traceEvidence ?? {})}`
     : "";
 
   useEffect(() => {
@@ -144,6 +205,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
           id,
           role: "assistant",
           text: traceSummaryMessage(data.traceSummary!),
+          traceEvidence: data.traceEvidence,
         }, ...current]
     ));
   }, [data.traceSummary, graphId, traceSummaryKey]);
@@ -896,7 +958,10 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
                     fontFamily: "'DM Sans', sans-serif",
                   }}>
                     {msg.role === "assistant" ? (
-                      <MarkdownContent>{msg.text}</MarkdownContent>
+                      <>
+                        <MarkdownContent>{msg.text}</MarkdownContent>
+                        {msg.traceEvidence && <TraceEvidencePanel evidence={msg.traceEvidence} />}
+                      </>
                     ) : (
                       <span>{renderUserMessage(msg.text, msg.mentionedPaperIds, papers)}</span>
                     )}

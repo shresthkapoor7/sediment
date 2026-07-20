@@ -228,6 +228,30 @@ class TraceSummary(BaseModel):
     steps: list[str] = Field(default_factory=list, max_length=8)
 
 
+class TraceSourcePaper(BaseModel):
+    openalexId: str = Field(min_length=1, max_length=MAX_OPENALEX_ID_LENGTH)
+    title: str = Field(min_length=1, max_length=MAX_TITLE_LENGTH)
+    year: Optional[int] = None
+    authors: list[str] = Field(default_factory=list, max_length=3)
+
+
+class TraceSearchEvidence(BaseModel):
+    query: str = Field(min_length=1, max_length=MAX_QUERY_LENGTH)
+    papers: list[TraceSourcePaper] = Field(default_factory=list, max_length=10)
+
+
+class TraceReferenceEvidence(BaseModel):
+    paperId: str = Field(min_length=1, max_length=MAX_OPENALEX_ID_LENGTH)
+    paperTitle: str = Field(min_length=1, max_length=MAX_TITLE_LENGTH)
+    kind: Literal["references", "related"] = "references"
+    papers: list[TraceSourcePaper] = Field(default_factory=list, max_length=12)
+
+
+class TraceEvidence(BaseModel):
+    searches: list[TraceSearchEvidence] = Field(default_factory=list, max_length=8)
+    referenceLookups: list[TraceReferenceEvidence] = Field(default_factory=list, max_length=8)
+
+
 class LineageGraphResponse(BaseModel):
     seedPaperId: Optional[str] = None
     papers: list[GraphPaper] = Field(default_factory=list)
@@ -237,6 +261,7 @@ class LineageGraphResponse(BaseModel):
     disambiguation: Optional[list[SeedCandidate]] = None
     traceNotes: list[TraceNote] = Field(default_factory=list, max_length=5)
     traceSummary: Optional[TraceSummary] = None
+    traceEvidence: Optional[TraceEvidence] = None
 
 
 class TimelineNoteContext(StrictRequestModel):

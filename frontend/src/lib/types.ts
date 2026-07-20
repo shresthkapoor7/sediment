@@ -76,6 +76,30 @@ export interface TraceSummary {
   steps: string[];
 }
 
+export interface TraceSourcePaper {
+  openalexId: string;
+  title: string;
+  year?: number | null;
+  authors: string[];
+}
+
+export interface TraceSearchEvidence {
+  query: string;
+  papers: TraceSourcePaper[];
+}
+
+export interface TraceReferenceEvidence {
+  paperId: string;
+  paperTitle: string;
+  kind: "references" | "related";
+  papers: TraceSourcePaper[];
+}
+
+export interface TraceEvidence {
+  searches: TraceSearchEvidence[];
+  referenceLookups: TraceReferenceEvidence[];
+}
+
 export interface TimelineNoteDisconnection {
   noteId: string;
   paperId: string;
@@ -237,6 +261,7 @@ export interface LineageGraphResponse {
   disambiguation?: SeedCandidate[] | null;
   traceNotes?: TraceNote[];
   traceSummary?: TraceSummary | null;
+  traceEvidence?: TraceEvidence | null;
 }
 
 export interface Paper {
@@ -284,6 +309,7 @@ export interface TimelineData {
   rootId: number;
   expansions: Expansion[];
   traceSummary?: TraceSummary;
+  traceEvidence?: TraceEvidence;
 }
 
 export interface PaperAccessResponse {

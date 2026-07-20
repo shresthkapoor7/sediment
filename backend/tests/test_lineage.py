@@ -69,6 +69,11 @@ class DeepTraceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(openalex.fetched_work_ids, ["W2"])
         self.assertEqual(graph["seedPaperId"], "W2")
         self.assertEqual({paper["openalexId"] for paper in graph["papers"]}, {"W1", "W2"})
+        self.assertEqual(graph["traceEvidence"]["searches"][0]["query"], "selected seed")
+        self.assertEqual(
+            [paper["openalexId"] for paper in graph["traceEvidence"]["referenceLookups"][0]["papers"]],
+            ["W1"],
+        )
 
     async def test_deep_trace_rejects_disconnected_paper_selections(self) -> None:
         proposal, reason = _validate_deep_trace_proposal(
@@ -200,6 +205,16 @@ class DeepTraceTests(unittest.IsolatedAsyncioTestCase):
             {"W1", "W2"},
         )
         self.assertIn("Lineage evidence", graph["traceNotes"][0]["text"])
+        self.assertEqual(graph["traceEvidence"]["searches"], [{
+            "query": "Seed Paper",
+            "papers": [{"openalexId": "W2", "title": "Seed Paper", "year": 2017, "authors": []}],
+        }])
+        self.assertEqual(graph["traceEvidence"]["referenceLookups"][0], {
+            "paperId": "W2",
+            "paperTitle": "Seed Paper",
+            "kind": "references",
+            "papers": [{"openalexId": "W1", "title": "Foundation Paper", "year": 2012, "authors": []}],
+        })
         LineageGraphResponse(**graph)
 
     async def test_trace_note_planner_receives_the_whole_graph_and_can_link_a_lineage_arc(self) -> None:

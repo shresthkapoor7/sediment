@@ -17,14 +17,20 @@ export async function generateMetadata({
 
   try {
     const res = await fetch(`${API_BASE}/api/share/${encodeURIComponent(share_id)}`, {
-      next: { revalidate: 3600 },
+      cache: "no-store",
       signal: controller.signal,
     });
     clearTimeout(timeout);
 
     if (res.ok) {
       const graph = await res.json();
-      const title = graph.query as string | undefined;
+      const metadata = graph.metadata as { title?: unknown } | undefined;
+      const metadataTitle = typeof metadata?.title === "string"
+        ? metadata.title.trim()
+        : "";
+      const title = metadataTitle
+        ? metadataTitle
+        : graph.query as string | undefined;
 
       if (title) {
         return {

@@ -1930,6 +1930,10 @@ export default function Home() {
   const { hoverPreviewEnabled, onToggleHoverPreview } = useHoverPreviewToggle();
   const [userId, setUserId] = useState<string | null>(null);
   const [graphId, setGraphId] = useState<string | null>(null);
+  const [graphOwnerId, setGraphOwnerId] = useState<string | null>(null);
+  const [graphTitle, setGraphTitle] = useState("");
+  const [graphTitleDraft, setGraphTitleDraft] = useState("");
+  const [isEditingGraphTitle, setIsEditingGraphTitle] = useState(false);
   const [selectedSeedOpenalexId, setSelectedSeedOpenalexId] = useState<
     string | null
   >(null);
@@ -1963,6 +1967,10 @@ export default function Home() {
   const shareStateTimeoutRef = useRef<number | null>(null);
   const saveTimeoutRef = useRef<number | null>(null);
   const saveStateTimeoutRef = useRef<number | null>(null);
+  const graphTitleInputRef = useRef<HTMLInputElement | null>(null);
+  const graphTitleRef = useRef("");
+  const graphTitleEditCanceledRef = useRef(false);
+  const isSavingGraphTitleRef = useRef(false);
   const landingScrollRef = useRef<HTMLDivElement | null>(null);
   const landingSearchRef = useRef<HTMLDivElement | null>(null);
   const savedGraphIdsRef = useRef<Set<string>>(new Set());
@@ -1971,14 +1979,19 @@ export default function Home() {
   const [isGraphHeaderCompact, setIsGraphHeaderCompact] = useState(false);
 
   useEffect(() => {
-    document.title = searchedQuery
-      ? `${searchedQuery} — Sediment`
+    const title = graphTitle || searchedQuery;
+    document.title = title
+      ? `${title} — Sediment`
       : "Sediment — Knowledge, layered.";
-  }, [searchedQuery]);
+  }, [graphTitle, searchedQuery]);
+
+  useEffect(() => {
+    graphTitleRef.current = graphTitle;
+  }, [graphTitle]);
 
   const buildMetadata = useCallback(
-    (query: string, data: TimelineData) => ({
-      title: query,
+    (query: string, data: TimelineData, title = query) => ({
+      title,
       nodeCount: Object.keys(data.nodes).length,
       lastOpenedAt: new Date().toISOString(),
       appVersion: APP_VERSION,
@@ -2025,6 +2038,8 @@ export default function Home() {
         setTimelineData(upgradeLegacyTimelineNoteLayout(graph.data));
         setSearchedQuery(graph.query);
         setGraphId(graph.id);
+        setGraphOwnerId(graph.userId);
+        setGraphTitle(graph.metadata.title || graph.query);
         setSelectedSeedOpenalexId(graph.seedPaperId ?? null);
       })
       .catch((error) => {
@@ -2119,7 +2134,7 @@ export default function Home() {
           query: nextQuery,
           data: nextData,
           seedPaperId: selectedSeedOpenalexId ?? nextData.nodes[nextData.rootId]?.paper.openalexId ?? null,
-          metadata: buildMetadata(nextQuery, nextData),
+          metadata: buildMetadata(nextQuery, nextData, graphTitleRef.current || nextQuery),
         })
           .then(() => {
             setSaveState("saved");
@@ -2134,6 +2149,87 @@ export default function Home() {
     },
     [buildMetadata, graphId, selectedSeedOpenalexId, userId],
   );
+
+  const canEditGraphTitle = Boolean(
+    timelineData && graphId && userId && graphOwnerId === userId,
+  );
+
+  const startGraphTitleEdit = useCallback(() => {
+    if (!canEditGraphTitle) return;
+    graphTitleEditCanceledRef.current = false;
+    setGraphTitleDraft(graphTitle || searchedQuery);
+    setIsEditingGraphTitle(true);
+    window.requestAnimationFrame(() => {
+      graphTitleInputRef.current?.focus();
+      graphTitleInputRef.current?.select();
+    });
+  }, [canEditGraphTitle, graphTitle, searchedQuery]);
+
+  const cancelGraphTitleEdit = useCallback(() => {
+    graphTitleEditCanceledRef.current = true;
+    setGraphTitleDraft(graphTitle || searchedQuery);
+    setIsEditingGraphTitle(false);
+  }, [graphTitle, searchedQuery]);
+
+  const saveGraphTitle = useCallback(() => {
+    if (graphTitleEditCanceledRef.current) {
+      graphTitleEditCanceledRef.current = false;
+      return;
+    }
+    if (
+      isSavingGraphTitleRef.current ||
+      !canEditGraphTitle ||
+      !graphId ||
+      !userId ||
+      !timelineData
+    ) {
+      return;
+    }
+
+    const nextTitle = graphTitleDraft.trim();
+    if (!nextTitle) {
+      cancelGraphTitleEdit();
+      return;
+    }
+
+    setIsEditingGraphTitle(false);
+    if (nextTitle === graphTitle) return;
+
+    const previousTitle = graphTitle;
+    graphTitleRef.current = nextTitle;
+    setGraphTitle(nextTitle);
+    setSaveState("saving");
+    isSavingGraphTitleRef.current = true;
+
+    void updateSavedGraph(graphId, {
+      userId,
+      metadata: buildMetadata(searchedQuery, timelineData, nextTitle),
+    })
+      .then(() => {
+        setSaveState("saved");
+        saveStateTimeoutRef.current = window.setTimeout(() => {
+          setSaveState("idle");
+        }, 1800);
+      })
+      .catch(() => {
+        graphTitleRef.current = previousTitle;
+        setGraphTitle(previousTitle);
+        setSaveState("error");
+      })
+      .finally(() => {
+        isSavingGraphTitleRef.current = false;
+      });
+  }, [
+    buildMetadata,
+    canEditGraphTitle,
+    cancelGraphTitleEdit,
+    graphId,
+    graphTitle,
+    graphTitleDraft,
+    searchedQuery,
+    timelineData,
+    userId,
+  ]);
 
   const runSearch = useCallback(
     async (
@@ -2154,6 +2250,10 @@ export default function Home() {
       setSearchError("");
       setDisambiguation([]);
       setSearchedQuery(query);
+      setGraphTitle(query);
+      setGraphTitleDraft("");
+      setIsEditingGraphTitle(false);
+      setGraphOwnerId(null);
 
       try {
         let response = await searchLineage(
@@ -2174,6 +2274,7 @@ export default function Home() {
         if (response.meta.mode === "needs_disambiguation") {
           setTimelineData(null);
           setGraphId(null);
+          setGraphOwnerId(null);
           setSelectedSeedOpenalexId(null);
           setSaveState("idle");
           persistLastGraphId(null);
@@ -2183,6 +2284,7 @@ export default function Home() {
         if (response.meta.mode === "no_results" || response.papers.length === 0) {
           setTimelineData(null);
           setGraphId(null);
+          setGraphOwnerId(null);
           setSelectedSeedOpenalexId(null);
           setGlobalChatOpen(false);
           setSaveState("idle");
@@ -2211,6 +2313,8 @@ export default function Home() {
               metadata: buildMetadata(query, nextTimelineData),
             });
             setGraphId(savedGraph.id);
+            setGraphOwnerId(savedGraph.userId);
+            setGraphTitle(savedGraph.metadata.title || query);
             setSaveState("saved");
             persistLastGraphId(savedGraph.id);
             saveStateTimeoutRef.current = window.setTimeout(() => {
@@ -2218,6 +2322,7 @@ export default function Home() {
             }, 1800);
           } catch {
             setGraphId(null);
+            setGraphOwnerId(null);
             setSaveState("error");
             persistLastGraphId(null);
           }
@@ -2225,6 +2330,7 @@ export default function Home() {
       } catch (error) {
         setTimelineData(null);
         setGraphId(null);
+        setGraphOwnerId(null);
         setSelectedSeedOpenalexId(null);
         setSaveState("idle");
         setSearchError(
@@ -2320,6 +2426,10 @@ export default function Home() {
     }
     setTimelineData(null);
     setGraphId(null);
+    setGraphOwnerId(null);
+    setGraphTitle("");
+    setGraphTitleDraft("");
+    setIsEditingGraphTitle(false);
     setSelectedSeedOpenalexId(null);
     setSaveState("idle");
     setSearchedQuery("");
@@ -2488,6 +2598,8 @@ export default function Home() {
           setTimelineData(upgradeLegacyTimelineNoteLayout(graph.data));
           setSearchedQuery(graph.query);
           setGraphId(graph.id);
+          setGraphOwnerId(graph.userId);
+          setGraphTitle(graph.metadata.title || graph.query);
           setSelectedSeedOpenalexId(graph.seedPaperId ?? null);
           setSaveState("idle");
           persistLastGraphId(graph.id);
@@ -2637,7 +2749,7 @@ export default function Home() {
         )}
 
         <AnimatePresence>
-          {searchedQuery && (
+          {(graphTitle || searchedQuery) && (
             <div
               className="app-header-query"
               style={{
@@ -2665,7 +2777,7 @@ export default function Home() {
                   minWidth: 0,
                 }}
               >
-                {searchedQuery}
+                {graphTitle || searchedQuery}
               </motion.span>
 
             </div>
@@ -2713,10 +2825,46 @@ export default function Home() {
               </button>
             )}
 
-            {timelineData && searchedQuery && (
-              <span className="app-header-graph-query" title={searchedQuery}>
-                {searchedQuery}
-              </span>
+            {timelineData && (graphTitle || searchedQuery) && (
+              isEditingGraphTitle ? (
+                <form
+                  className="app-header-graph-title-form"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    saveGraphTitle();
+                  }}
+                >
+                  <input
+                    ref={graphTitleInputRef}
+                    className="app-header-graph-title-input"
+                    value={graphTitleDraft}
+                    onChange={(event) => setGraphTitleDraft(event.target.value)}
+                    onBlur={saveGraphTitle}
+                    onKeyDown={(event) => {
+                      if (event.key === "Escape") {
+                        event.preventDefault();
+                        cancelGraphTitleEdit();
+                      }
+                    }}
+                    maxLength={200}
+                    aria-label="Timeline title"
+                  />
+                </form>
+              ) : canEditGraphTitle ? (
+                <button
+                  type="button"
+                  className="app-header-graph-query app-header-graph-title-button"
+                  onClick={startGraphTitleEdit}
+                  title="Rename timeline"
+                  aria-label={`Rename timeline: ${graphTitle || searchedQuery}`}
+                >
+                  {graphTitle || searchedQuery}
+                </button>
+              ) : (
+                <span className="app-header-graph-query" title={graphTitle || searchedQuery}>
+                  {graphTitle || searchedQuery}
+                </span>
+              )
             )}
 
             {!timelineData && (
@@ -3700,6 +3848,84 @@ export default function Home() {
                     margin: "0.25rem 0",
                   }}
                 />
+              )}
+
+              {timelineData && canEditGraphTitle && !isEditingGraphTitle && (
+                <button
+                  type="button"
+                  onClick={startGraphTitleEdit}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.625rem",
+                    width: "100%",
+                    padding: "0.625rem 0.5rem",
+                    background: "none",
+                    border: "none",
+                    borderRadius: "0.5rem",
+                    color: "var(--text-primary)",
+                    fontSize: "0.875rem",
+                    fontFamily: "'DM Sans', sans-serif",
+                    fontWeight: 500,
+                    cursor: "pointer",
+                    textAlign: "left",
+                  }}
+                >
+                  <svg
+                    width="15"
+                    height="15"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="var(--text-tertiary)"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="m3 11.75 1.1-3.3L11.7.85l3.45 3.45-7.6 7.6L3 12.75z" />
+                    <path d="m9.8 2.75 3.45 3.45" />
+                  </svg>
+                  Rename timeline
+                </button>
+              )}
+
+              {timelineData && canEditGraphTitle && isEditingGraphTitle && (
+                <form
+                  className="show-mobile"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    saveGraphTitle();
+                  }}
+                  style={{ display: "flex", gap: "0.5rem", padding: "0.375rem 0.5rem" }}
+                >
+                  <input
+                    ref={graphTitleInputRef}
+                    value={graphTitleDraft}
+                    onChange={(event) => setGraphTitleDraft(event.target.value)}
+                    onBlur={saveGraphTitle}
+                    onKeyDown={(event) => {
+                      if (event.key === "Escape") {
+                        event.preventDefault();
+                        cancelGraphTitleEdit();
+                      }
+                    }}
+                    maxLength={200}
+                    aria-label="Timeline title"
+                    style={{
+                      flex: 1,
+                      minWidth: 0,
+                      height: "2.25rem",
+                      padding: "0 0.625rem",
+                      border: "0.0625rem solid var(--accent)",
+                      borderRadius: "0.5rem",
+                      outline: "none",
+                      background: "var(--bg-secondary)",
+                      color: "var(--text-primary)",
+                      fontFamily: "'DM Sans', sans-serif",
+                      fontSize: "0.875rem",
+                    }}
+                  />
+                </form>
               )}
 
               {/* Export */}

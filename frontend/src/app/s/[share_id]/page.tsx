@@ -19,6 +19,7 @@ export default function SharedGraphPage() {
 
   const [timelineData, setTimelineData] = useState<TimelineData | null>(null);
   const [query, setQuery] = useState("");
+  const [graphTitle, setGraphTitle] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [sessionActionsOpen, setSessionActionsOpen] = useState(false);
@@ -36,7 +37,9 @@ export default function SharedGraphPage() {
       .then((graph) => {
         setTimelineData(upgradeLegacyTimelineNoteLayout(graph.data));
         setQuery(graph.query);
-        document.title = `${graph.query} — Sediment`;
+        const title = graph.metadata.title || graph.query;
+        setGraphTitle(title);
+        document.title = `${title} — Sediment`;
       })
       .catch(() => {
         setError("This shared timeline could not be found.");
@@ -129,7 +132,7 @@ export default function SharedGraphPage() {
         </a>
 
         {/* Centered query label — desktop only */}
-        {query && (
+        {graphTitle && (
           <span
             className="hide-mobile app-header-query app-header-shared-query"
             style={{
@@ -148,12 +151,12 @@ export default function SharedGraphPage() {
               pointerEvents: "none",
             }}
           >
-            {query}
+            {graphTitle}
           </span>
         )}
 
         {/* Mobile: query label truncates between logo and buttons */}
-        {query && (
+        {graphTitle && (
           <div
             className="show-mobile app-header-query app-header-shared-query"
             style={{ flex: 1, minWidth: 0, overflow: "hidden" }}
@@ -171,7 +174,7 @@ export default function SharedGraphPage() {
                 letterSpacing: "0.02em",
               }}
             >
-              {query}
+              {graphTitle}
             </span>
           </div>
         )}
@@ -221,11 +224,11 @@ export default function SharedGraphPage() {
                   <p style={{ marginBottom: "0.375rem", fontSize: "0.625rem", color: "var(--text-tertiary)", fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.06em", textTransform: "uppercase" }}>
                     Session actions
                   </p>
-                  {timelineData && query && (
+                  {timelineData && graphTitle && (
                     <button
                       type="button"
                       onClick={() => {
-                        exportObsidianZip(timelineData, query).catch(() => alert("Export failed."));
+                        exportObsidianZip(timelineData, graphTitle).catch(() => alert("Export failed."));
                         setSessionActionsOpen(false);
                       }}
                       style={{ display: "flex", alignItems: "center", gap: "0.625rem", width: "100%", height: "2rem", padding: "0 0.5rem", border: "none", borderRadius: "0.375rem", background: "none", color: "var(--text-primary)", cursor: "pointer", fontFamily: "'DM Sans', sans-serif", fontSize: "0.75rem", fontWeight: 500, textAlign: "left" }}
