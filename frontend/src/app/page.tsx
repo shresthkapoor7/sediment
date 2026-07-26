@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { useState, useCallback, useEffect, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { ClarificationModal } from "@/components/ClarificationModal";
 import { SearchInput } from "@/components/SearchInput";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { LoadingLogoMark, LogoMark } from "@/components/LogoMark";
 import { TimelineCanvas } from "@/components/TimelineCanvas";
 import {
   APIError,
@@ -1547,7 +1548,8 @@ function DemoFinalSection({
 
   return (
     <section
-      style={{ padding: compact ? "4rem 1rem 2.5rem" : "10rem 2rem 4rem" }}
+      className="demo-final-section"
+      style={{ padding: compact ? "4rem 1rem 2.5rem" : "5rem 2rem 4rem" }}
     >
       <div
         style={{ maxWidth: "61.25rem", margin: "0 auto", textAlign: "center" }}
@@ -1686,14 +1688,23 @@ function DemoFinalSection({
 
 function DemoFooter({ compact }: { compact: boolean }) {
   const footerLinkStyle = {
-    color: "var(--text-tertiary)",
+    color: "#FFFFFF",
     textDecoration: "none",
     transition: "color 0.15s ease",
   } as const;
 
   return (
     <footer
-      style={{ padding: compact ? "0.5rem 1rem 2.5rem" : "0.5rem 0 3rem" }}
+      className="landing-page-lift-footer"
+      style={{
+        marginTop: 0,
+        padding: compact ? "1.5rem 1rem 2.5rem" : "2rem 0 3rem",
+        background: "var(--accent)",
+        color: "#FFFFFF",
+        position: "sticky",
+        bottom: 0,
+        zIndex: 0,
+      }}
     >
       <div
         style={{
@@ -1704,21 +1715,11 @@ function DemoFooter({ compact }: { compact: boolean }) {
       >
         <div
           style={{
-            height: "0.0625rem",
-            background: "var(--border)",
-            opacity: 0.4,
-            marginBottom: compact ? "1rem" : "1.25rem",
-          }}
-        />
-
-        <div
-          style={{
             display: "grid",
             gridTemplateColumns: compact ? "1fr" : "1fr auto 1fr",
             gap: compact ? "1.25rem" : "1.5rem",
             alignItems: "center",
-            color:
-              "color-mix(in srgb, var(--text-secondary) 82%, var(--bg-primary))",
+            color: "#FFFFFF",
             fontFamily: compact
               ? "'Inter', sans-serif"
               : "'Geist Mono', monospace",
@@ -1735,47 +1736,18 @@ function DemoFooter({ compact }: { compact: boolean }) {
               gap: "1rem",
             }}
           >
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: "0.1875rem",
-                opacity: 0.45,
-              }}
-            >
-              <div
-                style={{
-                  width: "3.5rem",
-                  height: "0.125rem",
-                  background:
-                    "color-mix(in srgb, var(--border-hover) 72%, var(--bg-primary))",
-                }}
-              />
-              <div
-                style={{
-                  width: "2rem",
-                  height: "0.125rem",
-                  background:
-                    "color-mix(in srgb, var(--border-hover) 72%, var(--bg-primary))",
-                }}
-              />
-              <div
-                style={{
-                  width: "1.25rem",
-                  height: "0.125rem",
-                  background:
-                    "color-mix(in srgb, var(--border-hover) 72%, var(--bg-primary))",
-                }}
-              />
-            </div>
+            <LogoMark
+              width="32"
+              height="32"
+              style={{ color: "#FFFFFF", flexShrink: 0 }}
+            />
             <span
               style={{
                 fontFamily: "'Inter', sans-serif",
                 fontSize: "2rem",
                 fontWeight: 600,
                 letterSpacing: "-0.02em",
-                color:
-                  "color-mix(in srgb, var(--text-primary) 82%, var(--bg-primary))",
+                color: "#FFFFFF",
               }}
             >
               Sediment
@@ -1817,6 +1789,7 @@ function DemoFooter({ compact }: { compact: boolean }) {
 }
 
 export default function Home() {
+  const reduceMotion = useReducedMotion();
   const [timelineData, setTimelineData] = useState<TimelineData | null>(null);
   const [isSearching, setIsSearching] = useState(false);
   const [isExpanding, setIsExpanding] = useState(false);
@@ -1884,7 +1857,7 @@ export default function Home() {
   useEffect(() => {
     const title = graphTitle || searchedQuery;
     document.title = title
-      ? `${title} — Sediment`
+      ? `Sediment | ${title}`
       : "Sediment | Knowledge, layered.";
   }, [graphTitle, searchedQuery]);
 
@@ -2582,7 +2555,7 @@ export default function Home() {
 
   return (
     <div
-      className="grain app-shell"
+      className={`grain app-shell${timelineData ? " canvas-shell" : " landing-shell"}${isSearching || isRestoring || isClarifying ? " graph-loading-shell" : ""}`}
       style={{
         height: "100vh",
         display: "flex",
@@ -2624,25 +2597,16 @@ export default function Home() {
               color: "var(--text-primary)",
             }}
           >
-            {/* Strata icon */}
-            <svg
+            <LogoMark
               width="22"
               height="22"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="var(--accent)"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-            >
-              <path d="M2 17l10 4 10-4" opacity="0.3" />
-              <path d="M2 12l10 4 10-4" opacity="0.6" />
-              <path d="M12 2L2 7l10 5 10-5L12 2z" />
-            </svg>
+              style={{ color: "var(--text-primary)" }}
+            />
             <span
               style={{
                 fontFamily: "'Inter', sans-serif",
                 fontSize: "1.125rem",
-                fontWeight: 600,
+                fontWeight: 700,
                 letterSpacing: "-0.01em",
               }}
             >
@@ -2710,21 +2674,12 @@ export default function Home() {
                 aria-label="Return to Sediment home"
                 title="Return to Sediment home"
               >
-                <svg
+                <LogoMark
                   className="app-header-sediment-icon"
                   width="16"
                   height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                >
-                  <path d="M2 17l10 4 10-4" opacity="0.3" />
-                  <path d="M2 12l10 4 10-4" opacity="0.6" />
-                  <path d="M12 2L2 7l10 5 10-5L12 2z" />
-                </svg>
-                <span className="app-header-action-label">Sediment</span>
+                />
+                <span className="app-header-action-label app-header-sediment-label">Sediment</span>
               </button>
             )}
 
@@ -2780,21 +2735,12 @@ export default function Home() {
                 onClick={handleReset}
                 aria-label="Sediment home"
               >
-                <svg
+                <LogoMark
                   className="app-header-sediment-icon"
                   width="16"
                   height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                >
-                  <path d="M2 17l10 4 10-4" opacity="0.3" />
-                  <path d="M2 12l10 4 10-4" opacity="0.6" />
-                  <path d="M12 2L2 7l10 5 10-5L12 2z" />
-                </svg>
-                <span className="app-header-action-label">Sediment</span>
+                />
+                <span className="app-header-action-label app-header-sediment-label">Sediment</span>
               </motion.button>
             )}
 
@@ -2896,7 +2842,7 @@ export default function Home() {
                     position: "absolute",
                     top: "calc(100% + 0.5rem)",
                     right: 0,
-                    width: "11.5rem",
+                    width: "8rem",
                     padding: "0.5rem 0.625rem",
                     borderRadius: "0.5rem",
                     border: "0.0625rem solid var(--border-hover)",
@@ -2910,7 +2856,7 @@ export default function Home() {
                     pointerEvents: "none",
                   }}
                 >
-                  Daily usage credits. Resets every day.
+                  Daily usage credits
                 </div>
               )}
               <div className="app-header-credit-indicator">
@@ -3331,21 +3277,12 @@ export default function Home() {
                 onClick={handleReset}
                 aria-label="Sediment home"
               >
-                <svg
+                <LogoMark
                   className="app-header-sediment-icon"
                   width="16"
                   height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                >
-                  <path d="M2 17l10 4 10-4" opacity="0.3" />
-                  <path d="M2 12l10 4 10-4" opacity="0.6" />
-                  <path d="M12 2L2 7l10 5 10-5L12 2z" />
-                </svg>
-                <span className="app-header-action-label">Sediment</span>
+                />
+                <span className="app-header-action-label app-header-sediment-label">Sediment</span>
               </button>
             )}
             {!timelineData && (
@@ -3475,7 +3412,7 @@ export default function Home() {
             >
               {/* Credits row */}
               <div
-                title="Daily usage credits. Resets every day."
+                title="Daily usage credits"
                 style={{
                   display: "flex",
                   alignItems: "center",
@@ -4640,7 +4577,7 @@ export default function Home() {
                     <rect className="landing-hero-graph-note-line" x="12" y="35" width="56" height="3" rx="1.5" />
                   </g>
                   <g transform="translate(1010 110)">
-                    <rect className="landing-hero-graph-note" x="0" y="0" width="78" height="50" rx="3" />
+                    <rect className="landing-hero-graph-note" x="0" y="0" width="100" height="50" rx="3" />
                     <rect className="landing-hero-graph-note-bar is-green" x="0" y="0" width="3" height="50" rx="1.5" />
                     <text className="landing-hero-graph-note-tag" x="12" y="17">FIELD NOTE</text>
                     <rect className="landing-hero-graph-note-line" x="12" y="26" width="54" height="3" rx="1.5" />
@@ -4796,7 +4733,14 @@ export default function Home() {
                 </motion.div>
               </section>
 
-              <div style={{ position: "relative" }}>
+              <div
+                style={{
+                  position: "relative",
+                  zIndex: 1,
+                  background: "var(--bg-primary)",
+                  boxShadow: "0 1.25rem 2.5rem rgba(0, 0, 0, 0.18)",
+                }}
+              >
                 <DemoTypeScene
                   containerRef={landingScrollRef}
                   compact={compact}
@@ -4813,10 +4757,21 @@ export default function Home() {
                   containerRef={landingScrollRef}
                   compact={compact}
                 />
-                <DemoFinalSection
-                  onScrollToSearch={handleScrollToSearch}
-                  compact={compact}
-                />
+              </div>
+              <div style={{ position: "relative", overflow: "clip" }}>
+                <div
+                  style={{
+                    position: "relative",
+                    zIndex: 1,
+                    background: "var(--bg-primary)",
+                    boxShadow: "0 1.25rem 2.5rem rgba(0, 0, 0, 0.18)",
+                  }}
+                >
+                  <DemoFinalSection
+                    onScrollToSearch={handleScrollToSearch}
+                    compact={compact}
+                  />
+                </div>
                 <DemoFooter compact={compact} />
               </div>
             </motion.div>
@@ -4836,37 +4791,23 @@ export default function Home() {
                 gap: "1.25rem",
               }}
             >
-              {/* Strata loading animation */}
-              <div
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.3, ease: "easeOut" }}
                 style={{
                   display: "flex",
-                  flexDirection: "column",
-                  gap: "0.25rem",
                   alignItems: "center",
+                  justifyContent: "center",
+                  color: "var(--accent)",
                 }}
               >
-                {[0, 1, 2, 3].map((i) => (
-                  <motion.div
-                    key={i}
-                    initial={{ width: 0, opacity: 0 }}
-                    animate={{
-                      width: [0, 40 + i * 12, 20 + i * 8],
-                      opacity: [0, 0.8, 0.4],
-                    }}
-                    transition={{
-                      duration: 1.5,
-                      delay: i * 0.15,
-                      repeat: Infinity,
-                      ease: [0.16, 1, 0.3, 1],
-                    }}
-                    style={{
-                      height: "0.125rem",
-                      borderRadius: "0.0625rem",
-                      background: "var(--accent)",
-                    }}
-                  />
-                ))}
-              </div>
+                <LoadingLogoMark
+                  width="64"
+                  height="64"
+                  reducedMotion={reduceMotion ?? false}
+                />
+              </motion.div>
               <motion.p
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}

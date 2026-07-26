@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
+import { LogoMark } from "@/components/LogoMark";
 
 type ChangelogEntry = {
   id: string;
@@ -323,7 +324,7 @@ export default function ChangelogPage() {
   const [isHeaderCompact, setIsHeaderCompact] = useState(false);
 
   useEffect(() => {
-    document.title = "Changelog — Sediment";
+    document.title = "Sediment | Changelog";
     document.body.style.overflow = "auto";
 
     const controller = new AbortController();
@@ -388,6 +389,7 @@ export default function ChangelogPage() {
 
   return (
     <div
+      className="changelog-page"
       style={{
         minHeight: "100vh",
         background: "var(--bg-primary)",
@@ -441,12 +443,8 @@ export default function ChangelogPage() {
               fontWeight: 500,
             }}
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M2 7l10-5 10 5-10 5L2 7z" />
-              <path d="M2 12l10 5 10-5" opacity="0.65" />
-              <path d="M2 17l10 5 10-5" opacity="0.35" />
-            </svg>
-            <span className="changelog-dock-label">Sediment</span>
+            <LogoMark className="changelog-dock-sediment-icon" width="16" height="16" />
+            <span className="changelog-dock-label changelog-dock-sediment-label">Sediment</span>
           </Link>
 
           <span className="changelog-dock-divider" style={{ width: "0.0625rem", height: "1.25rem", background: "var(--border)", margin: "0 0.125rem" }} />

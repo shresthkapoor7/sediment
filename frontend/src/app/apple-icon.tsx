@@ -20,16 +20,16 @@ export default function AppleIcon() {
         <svg
           width="100"
           height="100"
-          viewBox="0 0 64 64"
+          viewBox="0 0 216 192"
           fill="none"
-          stroke="#7A8CFF"
+          stroke="#FFFFFF"
           strokeLinecap="round"
           strokeLinejoin="round"
-          strokeWidth="2.75"
+          strokeWidth="12"
         >
-          <path d="M14 42l18 7 18-7" opacity="0.35" />
-          <path d="M14 33l18 7 18-7" opacity="0.65" />
-          <path d="M32 15L14 24l18 9 18-9-18-9z" />
+          <path d="M93 36C67 39 53 57 53 82v27c0 30-11 49-36 55" />
+          <path d="M136 36c-26 3-40 21-40 46v27c0 30-11 49-36 55" />
+          <path d="M179 36c-26 3-40 21-40 46v27c0 30-11 49-36 55" />
         </svg>
       </div>
     ),

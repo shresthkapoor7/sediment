@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { TimelineCanvas } from "@/components/TimelineCanvas";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { LogoMark } from "@/components/LogoMark";
 import { fetchSharedGraph } from "@/lib/api";
 import { useHoverPreviewToggle } from "@/lib/hover-preview";
 import { upgradeLegacyTimelineNoteLayout } from "@/lib/note-layout";
@@ -39,7 +40,7 @@ export default function SharedGraphPage() {
         setQuery(graph.query);
         const title = graph.metadata.title || graph.query;
         setGraphTitle(title);
-        document.title = `${title} — Sediment`;
+        document.title = `Sediment | ${title}`;
       })
       .catch(() => {
         setError("This shared timeline could not be found.");
@@ -114,16 +115,12 @@ export default function SharedGraphPage() {
             flexShrink: 0,
           }}
         >
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="1.5" strokeLinecap="round">
-            <path d="M2 17l10 4 10-4" opacity="0.3" />
-            <path d="M2 12l10 4 10-4" opacity="0.6" />
-            <path d="M12 2L2 7l10 5 10-5L12 2z" />
-          </svg>
+          <LogoMark width="22" height="22" style={{ color: "var(--text-primary)" }} />
           <span
             style={{
               fontFamily: "'Inter', sans-serif",
               fontSize: "1.125rem",
-              fontWeight: 600,
+              fontWeight: 700,
               letterSpacing: "-0.01em",
             }}
           >

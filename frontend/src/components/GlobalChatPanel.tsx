@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useId, useCallback, type ReactNode } from 
 import { motion, AnimatePresence } from "framer-motion";
 import { MarkdownContent } from "./MarkdownContent";
 import { ConversationNavigator } from "./ConversationNavigator";
+import { LogoMark } from "./LogoMark";
 import { openChatSession, streamChatAboutTimeline, suggestTimelineQuestions } from "@/lib/api";
 import { DETAIL_PANEL_DEFAULT_WIDTH, DETAIL_PANEL_MAX_WIDTH, DETAIL_PANEL_MIN_WIDTH, DETAIL_PANEL_WIDTH_KEY } from "@/lib/detail-panel";
 import {
@@ -696,11 +697,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
                   flexShrink: 0,
                 }}
               >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="1.5" strokeLinecap="round" aria-hidden="true">
-                  <path d="M2 17l10 4 10-4" opacity="0.3" />
-                  <path d="M2 12l10 4 10-4" opacity="0.6" />
-                  <path d="M12 2L2 7l10 5 10-5L12 2z" />
-                </svg>
+                <LogoMark width="18" height="18" style={{ color: "var(--text-primary)" }} />
               </div>
               <div style={{ position: "absolute", left: "50%", transform: "translateX(-50%)", maxWidth: "calc(100% - 7rem)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", pointerEvents: "none" }}>
                 <div style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--text-primary)", fontFamily: "'Inter', sans-serif" }}>

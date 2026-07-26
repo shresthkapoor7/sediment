@@ -34,16 +34,16 @@ export async function generateMetadata({
 
       if (title) {
         return {
-          title: `${title} — Sediment`,
+          title: `Sediment | ${title}`,
           description: `Explore the research lineage of "${title}" — trace the papers and ideas that shaped this concept over time.`,
           openGraph: {
-            title: `${title} — Sediment`,
+            title: `Sediment | ${title}`,
             description: `Explore the research lineage of "${title}" — trace the papers and ideas that shaped this concept over time.`,
             siteName: "Sediment",
           },
           twitter: {
             card: "summary",
-            title: `${title} — Sediment`,
+            title: `Sediment | ${title}`,
             description: `Explore the research lineage of "${title}" — trace the papers and ideas that shaped this concept over time.`,
           },
         };
@@ -56,7 +56,7 @@ export async function generateMetadata({
   }
 
   return {
-    title: "Shared lineage — Sediment",
+    title: "Sediment | Shared lineage",
     description: "Explore a shared research lineage on Sediment.",
   };
 }

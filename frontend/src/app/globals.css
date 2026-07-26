@@ -200,8 +200,27 @@ body {
   flex: 0 0 auto;
 }
 
-.app-header-landing .app-header-sediment-icon {
+.app-header-landing .app-header-sediment-icon,
+.app-header-graph .app-header-sediment-icon,
+.changelog-dock-sediment-icon {
   color: var(--accent);
+}
+
+.app-header-landing .app-header-labeled-action > .app-header-sediment-icon,
+.app-header-graph .app-header-labeled-action > .app-header-sediment-icon,
+.changelog-dock-sediment-icon {
+  width: 1.75rem !important;
+  height: 1.75rem !important;
+  flex: 0 0 auto;
+}
+
+.app-header-sediment-label,
+.changelog-dock-sediment-label {
+  color: var(--text-primary) !important;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
+  font-size: 0.875rem !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.025em;
 }
 
 @media (min-width: 40.0625rem) {
@@ -822,6 +841,84 @@ input:focus-visible {
   padding: 4rem 1.5rem 7rem;
   position: relative;
   overflow: hidden;
+}
+
+html[data-theme="dark"] .landing-shell,
+html[data-theme="dark"] .canvas-shell,
+html[data-theme="dark"] .graph-loading-shell {
+  --accent: #4B8BF4;
+  --accent-hover: #6BA2F7;
+  --accent-soft: rgba(75, 139, 244, 0.14);
+  --accent-glow: rgba(75, 139, 244, 0.18);
+  --edge-color-active: #4B8BF4;
+}
+
+html[data-theme="dark"] .canvas-shell,
+html[data-theme="dark"] .graph-loading-shell {
+  --bg-primary: #0A0D10;
+  --bg-canvas: #0A0D10;
+  --canvas-dot: #1B2330;
+}
+
+html[data-theme="dark"] .landing-hero-shell {
+  background-color: #0A0D10;
+}
+
+html[data-theme="dark"] .landing-shell .demo-final-section {
+  background-color: #0A0D10;
+}
+
+html[data-theme="dark"] .landing-shell .trace-search-field {
+  background: #101419 !important;
+  border-color: #252D36 !important;
+}
+
+html[data-theme="dark"] .landing-shell .trace-search-field:focus-within {
+  border-color: #43505F !important;
+  box-shadow: none !important;
+}
+
+html[data-theme="dark"] .landing-shell .trace-search-suggestion,
+html[data-theme="dark"] .landing-shell .trace-search-mode {
+  background: #11161C !important;
+  border-color: #252D36 !important;
+}
+
+html[data-theme="dark"] .landing-shell .trace-search-suggestion:hover,
+html[data-theme="dark"] .landing-shell .trace-search-mode:hover {
+  background: #151B22 !important;
+  border-color: #34404D !important;
+}
+
+html[data-theme="dark"] .landing-page-lift-footer {
+  background: #356EC8 !important;
+  isolation: isolate;
+  overflow: hidden;
+}
+
+html[data-theme="dark"] .landing-page-lift-footer::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.32;
+  mix-blend-mode: soft-light;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.82' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='.9'/%3E%3C/svg%3E");
+  background-size: 7rem 7rem;
+}
+
+html[data-theme="dark"] .landing-page-lift-footer > div {
+  position: relative;
+  z-index: 1;
+}
+
+html[data-theme="dark"] .changelog-page {
+  --bg-primary: #0A0D10;
+  --accent: #4B8BF4;
+  --accent-hover: #6BA2F7;
+  --accent-soft: rgba(75, 139, 244, 0.14);
+  --accent-glow: rgba(75, 139, 244, 0.18);
 }
 
 .landing-hero-content {
