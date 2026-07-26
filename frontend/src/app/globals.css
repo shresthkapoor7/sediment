@@ -37,8 +37,6 @@
   --cat-amber: #B87A1E;
   --cat-rose: #C94F63;
   --cat-gray: #8A8A82;
-
-  --grain-opacity: 0;
 }
 
 [data-theme="dark"] {
@@ -76,8 +74,6 @@
   --cat-amber: #D9A24A;
   --cat-rose: #E58295;
   --cat-gray: #737370;
-
-  --grain-opacity: 0;
 }
 
 /* ── Base ── */

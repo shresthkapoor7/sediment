@@ -19,6 +19,10 @@ frontend/out/
 frontend/build/
 frontend/.next/dev/
 
+# TypeScript incremental build cache
+*.tsbuildinfo
+frontend/tsconfig.tsbuildinfo
+
 # Python
 __pycache__/
 *.py[cod]
