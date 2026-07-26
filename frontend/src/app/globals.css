@@ -18,6 +18,7 @@
   --accent-hover: #1E36BE;
   --accent-soft: rgba(41, 70, 228, 0.08);
   --accent-glow: rgba(41, 70, 228, 0.14);
+  --on-accent: #ffffff;
 
   --node-bg: #FFFFFF;
   --node-border: #E3E3DE;
@@ -57,6 +58,7 @@
   --accent-hover: #96A4FF;
   --accent-soft: rgba(122, 140, 255, 0.12);
   --accent-glow: rgba(122, 140, 255, 0.16);
+  --on-accent: #14141a;
 
   --node-bg: #1A1A1C;
   --node-border: #2A2A2D;
@@ -720,6 +722,39 @@ input:focus-visible {
 /* ── Typography ── */
 .font-mono {
   font-family: 'Geist Mono', 'SF Mono', 'Fira Code', monospace;
+}
+
+/* ── Chat research-trail disclosure ── */
+.chat-trace-summary {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  list-style: none;
+  user-select: none;
+  -webkit-user-select: none;
+  transition: color 120ms ease;
+}
+.chat-trace-summary::-webkit-details-marker {
+  display: none;
+}
+.chat-trace-summary::before {
+  content: "";
+  flex-shrink: 0;
+  width: 0.4375rem;
+  height: 0.4375rem;
+  border-right: 0.09375rem solid var(--text-tertiary);
+  border-bottom: 0.09375rem solid var(--text-tertiary);
+  transform: translateY(-0.0625rem) rotate(-45deg);
+  transition: transform 150ms ease, border-color 120ms ease;
+}
+.chat-trace-summary:hover {
+  color: var(--text-primary);
+}
+.chat-trace-summary:hover::before {
+  border-color: var(--accent);
+}
+details[open] > .chat-trace-summary::before {
+  transform: translateY(-0.125rem) rotate(45deg);
 }
 
 /* ── Scrollbar ── */

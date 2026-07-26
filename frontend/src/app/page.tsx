@@ -3951,10 +3951,11 @@ export default function Home() {
                 style={{
                   position: "absolute",
                   inset: 0,
-                  background: "rgba(16, 12, 8, 0.22)",
+                  background: "rgba(10, 10, 12, 0.45)",
                   border: "none",
                   zIndex: 20,
                   cursor: "pointer",
+                  backdropFilter: "blur(0.125rem)",
                 }}
                 aria-label="Close history"
               />
@@ -3971,12 +3972,12 @@ export default function Home() {
                   bottom: "0.875rem",
                   width: "21.25rem",
                   maxWidth: "calc(100vw - 1.75rem)",
-                  borderRadius: "1.25rem",
-                  border: "0.0625rem solid var(--border-hover)",
+                  borderRadius: "0.5rem",
+                  border: "0.0625rem solid var(--border)",
                   background:
-                    "color-mix(in srgb, var(--bg-primary) 86%, #1e1510 14%)",
-                  boxShadow: "0 1.125rem 3rem rgba(0,0,0,0.22)",
-                  backdropFilter: "blur(1.125rem)",
+                    "color-mix(in srgb, var(--bg-primary) 92%, transparent)",
+                  boxShadow: "0 0.75rem 2rem rgba(0,0,0,0.16)",
+                  backdropFilter: "blur(0.75rem)",
                   zIndex: 30,
                   display: "flex",
                   flexDirection: "column",
@@ -4014,7 +4015,7 @@ export default function Home() {
                       justifyContent: "center",
                       width: "2rem",
                       height: "2rem",
-                      borderRadius: "0.5rem",
+                      borderRadius: "0.25rem",
                       border: "0.0625rem solid var(--border)",
                       background: "var(--bg-primary)",
                     }}
@@ -4072,7 +4073,7 @@ export default function Home() {
                     <div
                       style={{
                         padding: "1.125rem 1rem",
-                        borderRadius: "1rem",
+                        borderRadius: "0.375rem",
                         border: "0.0625rem solid var(--border)",
                         background: "var(--bg-secondary)",
                         color: "var(--text-tertiary)",
@@ -4085,7 +4086,7 @@ export default function Home() {
                     <div
                       style={{
                         padding: "1.125rem 1rem",
-                        borderRadius: "1rem",
+                        borderRadius: "0.375rem",
                         border: "0.0625rem solid var(--border)",
                         background: "var(--bg-secondary)",
                         color: "var(--text-secondary)",
@@ -4104,19 +4105,19 @@ export default function Home() {
                         style={{
                           textAlign: "left",
                           padding: "0.875rem 0.875rem 0.8125rem",
-                          borderRadius: "1rem",
+                          borderRadius: "0.375rem",
                           border: "0.0625rem solid var(--border)",
                           background: "var(--bg-secondary)",
                           color: "var(--text-primary)",
-                          transition: "border-color 0.15s, transform 0.15s",
+                          transition: "border-color 0.12s, background 0.12s",
                         }}
                         onMouseEnter={(e) => {
-                          e.currentTarget.style.borderColor = "var(--accent)";
-                          e.currentTarget.style.transform = "translateX(-2px)";
+                          e.currentTarget.style.borderColor = "var(--border-hover)";
+                          e.currentTarget.style.background = "var(--bg-tertiary)";
                         }}
                         onMouseLeave={(e) => {
                           e.currentTarget.style.borderColor = "var(--border)";
-                          e.currentTarget.style.transform = "translateX(0)";
+                          e.currentTarget.style.background = "var(--bg-secondary)";
                         }}
                       >
                         <div
@@ -4162,7 +4163,7 @@ export default function Home() {
                               style={{
                                 flexShrink: 0,
                                 padding: "3px 7px",
-                                borderRadius: 999,
+                                borderRadius: 2,
                                 background: "var(--accent-soft)",
                                 color: "var(--accent)",
                                 fontSize: 10,
@@ -4182,22 +4183,20 @@ export default function Home() {
                                 justifyContent: "center",
                                 height: 22,
                                 padding: "0 7px",
-                                borderRadius: 999,
+                                borderRadius: 4,
                                 border: "none",
-                                background: deletingGraphId === graph.id ? "var(--bg-tertiary)" : "var(--accent-soft)",
-                                color: deletingGraphId === graph.id ? "var(--text-tertiary)" : "var(--accent)",
+                                background: deletingGraphId === graph.id ? "var(--bg-tertiary)" : "color-mix(in srgb, var(--cat-rose) 12%, transparent)",
+                                color: deletingGraphId === graph.id ? "var(--text-tertiary)" : "var(--cat-rose)",
                                 cursor: deletingGraphId ? "default" : "pointer",
                                 flexShrink: 0,
-                                transition: "background 0.15s, color 0.15s, transform 0.15s",
+                                transition: "background 0.12s, color 0.12s",
                               }}
                               onMouseEnter={(e) => {
                                 if (deletingGraphId) return;
-                                e.currentTarget.style.background = "color-mix(in srgb, var(--accent-soft) 72%, var(--accent) 28%)";
-                                e.currentTarget.style.transform = "translateY(-1px)";
+                                e.currentTarget.style.background = "color-mix(in srgb, var(--cat-rose) 22%, transparent)";
                               }}
                               onMouseLeave={(e) => {
-                                e.currentTarget.style.background = deletingGraphId === graph.id ? "var(--bg-tertiary)" : "var(--accent-soft)";
-                                e.currentTarget.style.transform = "translateY(0)";
+                                e.currentTarget.style.background = deletingGraphId === graph.id ? "var(--bg-tertiary)" : "color-mix(in srgb, var(--cat-rose) 12%, transparent)";
                               }}
                             >
                               {deletingGraphId === graph.id ? (
@@ -4264,7 +4263,7 @@ export default function Home() {
                         style={{
                           width: "100%",
                           padding: "0.75rem 0.875rem",
-                          borderRadius: "0.875rem",
+                          borderRadius: "0.25rem",
                           border: "0.0625rem solid var(--border)",
                           background: "var(--bg-secondary)",
                           color: isHistoryLoadingMore ? "var(--text-tertiary)" : "var(--accent)",
@@ -4296,10 +4295,11 @@ export default function Home() {
                 style={{
                   position: "fixed",
                   inset: 0,
-                  background: "rgba(16, 12, 8, 0.38)",
+                  background: "rgba(10, 10, 12, 0.55)",
                   border: "none",
                   zIndex: 40,
                   cursor: "pointer",
+                  backdropFilter: "blur(0.125rem)",
                 }}
                 aria-label="Close delete confirmation"
               />
@@ -4320,10 +4320,10 @@ export default function Home() {
                   maxHeight: "calc(100dvh - 2rem)",
                   margin: "auto",
                   padding: 20,
-                  borderRadius: 18,
-                  border: "1px solid var(--border-hover)",
-                  background: "color-mix(in srgb, var(--bg-primary) 92%, #1e1510 8%)",
-                  boxShadow: "0 22px 60px rgba(0,0,0,0.28)",
+                  borderRadius: 8,
+                  border: "1px solid var(--border)",
+                  background: "var(--bg-primary)",
+                  boxShadow: "0 1rem 2.5rem rgba(0,0,0,0.16)",
                   zIndex: 50,
                   display: "flex",
                   flexDirection: "column",
@@ -4393,7 +4393,7 @@ export default function Home() {
                     style={{
                       height: 34,
                       padding: "0 12px",
-                      borderRadius: 8,
+                      borderRadius: 6,
                       border: "1px solid var(--border)",
                       background: "none",
                       color: "var(--text-secondary)",
@@ -4410,10 +4410,10 @@ export default function Home() {
                     style={{
                       height: 34,
                       padding: "0 12px",
-                      borderRadius: 8,
-                      border: "1px solid var(--accent)",
-                      background: "var(--accent-soft)",
-                      color: "var(--accent)",
+                      borderRadius: 6,
+                      border: "1px solid color-mix(in srgb, var(--cat-rose) 55%, var(--border))",
+                      background: "color-mix(in srgb, var(--cat-rose) 12%, transparent)",
+                      color: "var(--cat-rose)",
                       cursor: "pointer",
                       fontSize: 12,
                       fontFamily: "'Inter', sans-serif",

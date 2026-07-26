@@ -125,7 +125,7 @@ export function SearchInput({ onSearch, isSearching, traceMode, onTraceModeChang
               background: "var(--accent)",
               border: "none",
               borderRadius: "0.25rem",
-              color: "white",
+              color: "var(--on-accent)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -135,7 +135,7 @@ export function SearchInput({ onSearch, isSearching, traceMode, onTraceModeChang
               pointerEvents: !isSearching && query.trim() ? "auto" : "none",
             }}
           >
-            <svg width="11" height="11" viewBox="0 0 10 10" fill="none" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="11" height="11" viewBox="0 0 10 10" fill="none" stroke="var(--on-accent)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M2 8L8 2M8 2H3.5M8 2V6.5" />
             </svg>
           </button>

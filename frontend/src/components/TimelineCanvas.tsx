@@ -2140,7 +2140,7 @@ export function TimelineCanvas({
               <div
                 style={{
                   background: "var(--bg-secondary)",
-                  borderRadius: "0.625rem",
+                  borderRadius: "0.375rem",
                   padding: "0.875rem 1rem",
                   marginBottom: "1.25rem",
                   display: "flex",
@@ -2457,9 +2457,8 @@ export function TimelineCanvas({
                     gap: "0.5rem",
                     background: "var(--bg-secondary)",
                     border: "0.0625rem solid var(--border)",
-                    borderRadius: "0.625rem",
+                    borderRadius: "0.25rem",
                     padding: "0.5625rem 0.75rem",
-                    transition: "border-color 0.15s",
                   }}
                 >
                   <input
@@ -2498,7 +2497,7 @@ export function TimelineCanvas({
                       pointerEvents: chatInput.trim() ? "auto" : "none",
                     }}
                   >
-                    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="var(--on-accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M14 8H2M8 2l6 6-6 6" />
                     </svg>
                   </button>
