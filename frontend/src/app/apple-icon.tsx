@@ -10,7 +10,7 @@ export default function AppleIcon() {
         style={{
           width: size.width,
           height: size.height,
-          background: "#1a1108",
+          background: "#131314",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -22,7 +22,7 @@ export default function AppleIcon() {
           height="100"
           viewBox="0 0 64 64"
           fill="none"
-          stroke="#e0894d"
+          stroke="#7A8CFF"
           strokeLinecap="round"
           strokeLinejoin="round"
           strokeWidth="2.75"

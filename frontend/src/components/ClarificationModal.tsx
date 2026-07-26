@@ -67,10 +67,10 @@ export function ClarificationModal({ question, options, onSelect, onDismiss }: P
         style={{
           width: "100%",
           maxWidth: "30rem",
-          background: "var(--bg-secondary)",
-          border: "0.0625rem solid var(--border-hover)",
-          borderRadius: "1.25rem",
-          boxShadow: "0 1.5rem 4rem rgba(0,0,0,0.28), 0 0.5rem 1rem rgba(0,0,0,0.12)",
+          background: "var(--bg-primary)",
+          border: "0.0625rem solid var(--border)",
+          borderRadius: "0.5rem",
+          boxShadow: "0 1rem 2.5rem rgba(0,0,0,0.16)",
           padding: "1.5rem",
           display: "flex",
           flexDirection: "column",
@@ -84,7 +84,7 @@ export function ClarificationModal({ question, options, onSelect, onDismiss }: P
                 style={{
                   fontSize: "0.625rem",
                   color: "var(--accent)",
-                  fontFamily: "'JetBrains Mono', monospace",
+                  fontFamily: "'Geist Mono', monospace",
                   letterSpacing: "0.1em",
                   textTransform: "uppercase",
                   marginBottom: "0.5rem",
@@ -97,7 +97,7 @@ export function ClarificationModal({ question, options, onSelect, onDismiss }: P
                 style={{
                   fontSize: "1rem",
                   color: "var(--text-primary)",
-                  fontFamily: "'DM Sans', sans-serif",
+                  fontFamily: "'Inter', sans-serif",
                   fontWeight: 500,
                   lineHeight: 1.4,
                 }}
@@ -138,12 +138,12 @@ export function ClarificationModal({ question, options, onSelect, onDismiss }: P
                   style={{
                     textAlign: "left",
                     padding: "0.6875rem 0.875rem",
-                    borderRadius: "0.75rem",
+                    borderRadius: "0.25rem",
                     border: "0.0625rem solid var(--border)",
-                    background: "var(--bg-primary)",
+                    background: "var(--bg-secondary)",
                     color: "var(--text-primary)",
                     fontSize: "0.875rem",
-                    fontFamily: "'DM Sans', sans-serif",
+                    fontFamily: "'Inter', sans-serif",
                     fontWeight: 500,
                     cursor: "pointer",
                     transition: "border-color 0.12s, background 0.12s, color 0.12s",
@@ -174,7 +174,7 @@ export function ClarificationModal({ question, options, onSelect, onDismiss }: P
           {/* Divider */}
           <div style={{ display: "flex", alignItems: "center", gap: "0.625rem" }}>
             <div style={{ flex: 1, height: "0.0625rem", background: "var(--border)" }} />
-            <span style={{ fontSize: "0.6875rem", color: "var(--text-tertiary)", fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.04em" }}>
+            <span style={{ fontSize: "0.6875rem", color: "var(--text-tertiary)", fontFamily: "'Geist Mono', monospace", letterSpacing: "0.04em" }}>
               or type your own
             </span>
             <div style={{ flex: 1, height: "0.0625rem", background: "var(--border)" }} />
@@ -197,7 +197,7 @@ export function ClarificationModal({ question, options, onSelect, onDismiss }: P
                 background: "var(--bg-primary)",
                 color: "var(--text-primary)",
                 fontSize: "0.875rem",
-                fontFamily: "'DM Sans', sans-serif",
+                fontFamily: "'Inter', sans-serif",
                 outline: "none",
                 transition: "border-color 0.12s",
               }}
@@ -215,7 +215,7 @@ export function ClarificationModal({ question, options, onSelect, onDismiss }: P
                 background: "var(--accent-soft)",
                 color: "var(--accent)",
                 fontSize: "0.8125rem",
-                fontFamily: "'DM Sans', sans-serif",
+                fontFamily: "'Inter', sans-serif",
                 fontWeight: 600,
                 cursor: customValue.trim() ? "pointer" : "default",
                 opacity: customValue.trim() ? 1 : 0.45,

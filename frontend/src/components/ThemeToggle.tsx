@@ -32,7 +32,7 @@ export function ThemeToggle({
         padding: fullWidth ? "0 0.5rem" : showLabel ? "0 0.625rem" : 0,
         cursor: "pointer",
         color: fullWidth ? "var(--text-primary)" : "var(--text-secondary)",
-        fontFamily: "'DM Sans', sans-serif",
+        fontFamily: "'Inter', sans-serif",
         fontSize: "0.75rem",
         fontWeight: 500,
         textAlign: "left",

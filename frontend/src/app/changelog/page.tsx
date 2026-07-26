@@ -28,20 +28,20 @@ const TAG_COLORS = {
     text: "var(--accent)",
   },
   green: {
-    bg: "rgba(34, 197, 94, 0.12)",
-    text: "rgb(34, 197, 94)",
+    bg: "color-mix(in srgb, var(--cat-green) 12%, transparent)",
+    text: "var(--cat-green)",
   },
   blue: {
-    bg: "rgba(59, 130, 246, 0.12)",
-    text: "rgb(59, 130, 246)",
+    bg: "color-mix(in srgb, var(--cat-blue) 12%, transparent)",
+    text: "var(--cat-blue)",
   },
   purple: {
-    bg: "rgba(168, 85, 247, 0.12)",
-    text: "rgb(168, 85, 247)",
+    bg: "color-mix(in srgb, var(--cat-purple) 12%, transparent)",
+    text: "var(--cat-purple)",
   },
   gray: {
-    bg: "rgba(156, 163, 175, 0.12)",
-    text: "rgb(156, 163, 175)",
+    bg: "color-mix(in srgb, var(--cat-gray) 14%, transparent)",
+    text: "var(--cat-gray)",
   },
 };
 
@@ -129,7 +129,7 @@ function ChangelogCard({ entry }: { entry: ChangelogEntry }) {
             height: "0.75rem",
             borderRadius: "50%",
             background: dotColor.text,
-            boxShadow: `0 0 0.5rem ${dotColor.text}40`,
+            boxShadow: `0 0 0.5rem color-mix(in srgb, ${dotColor.text} 25%, transparent)`,
             flexShrink: 0,
           }}
         />
@@ -155,7 +155,7 @@ function ChangelogCard({ entry }: { entry: ChangelogEntry }) {
         >
           <span
             style={{
-              fontFamily: "'JetBrains Mono', monospace",
+              fontFamily: "'Geist Mono', monospace",
               fontSize: "0.75rem",
               color: "var(--text-tertiary)",
               letterSpacing: "0.02em",
@@ -169,10 +169,10 @@ function ChangelogCard({ entry }: { entry: ChangelogEntry }) {
             rel="noopener noreferrer"
             style={{
               padding: "0.25rem 0.5rem",
-              borderRadius: "0.25rem",
+              borderRadius: "0.125rem",
               background: TAG_COLORS.accent.bg,
               color: TAG_COLORS.accent.text,
-              fontFamily: "'JetBrains Mono', monospace",
+              fontFamily: "'Geist Mono', monospace",
               fontSize: "0.6875rem",
               fontWeight: 500,
               letterSpacing: "0.02em",
@@ -188,10 +188,10 @@ function ChangelogCard({ entry }: { entry: ChangelogEntry }) {
                 key={cat.label}
                 style={{
                   padding: "0.25rem 0.5rem",
-                  borderRadius: "0.25rem",
+                  borderRadius: "0.125rem",
                   background: catColors.bg,
                   color: catColors.text,
-                  fontFamily: "'JetBrains Mono', monospace",
+                  fontFamily: "'Geist Mono', monospace",
                   fontSize: "0.6875rem",
                   fontWeight: 500,
                   letterSpacing: "0.02em",
@@ -207,7 +207,7 @@ function ChangelogCard({ entry }: { entry: ChangelogEntry }) {
           style={{
             background: "var(--node-bg)",
             border: "0.0625rem solid var(--border)",
-            borderRadius: "0.75rem",
+            borderRadius: "0.375rem",
             padding: "1.25rem 1.5rem",
             boxShadow: "var(--node-shadow)",
           }}
@@ -294,7 +294,7 @@ function ChangelogCard({ entry }: { entry: ChangelogEntry }) {
                         padding: "0.125rem 0.375rem",
                         borderRadius: "0.25rem",
                         fontSize: "0.875em",
-                        fontFamily: "'JetBrains Mono', monospace",
+                        fontFamily: "'Geist Mono', monospace",
                       }}
                     >
                       {children}
@@ -417,9 +417,9 @@ export default function ChangelogPage() {
             alignItems: "center",
             gap: "0.125rem",
             border: "0.0625rem solid color-mix(in srgb, var(--border) 72%, transparent)",
-            borderRadius: "0.875rem",
+            borderRadius: "0.5rem",
             background: "color-mix(in srgb, var(--bg-primary) 82%, transparent)",
-            boxShadow: "0 0.625rem 1.75rem rgba(0, 0, 0, 0.12)",
+            boxShadow: "0 0.5rem 1.5rem rgba(0, 0, 0, 0.10)",
             backdropFilter: "blur(16px)",
             pointerEvents: "auto",
           }}
@@ -436,7 +436,7 @@ export default function ChangelogPage() {
               borderRadius: "0.5rem",
               textDecoration: "none",
               color: "var(--text-secondary)",
-              fontFamily: "'DM Sans', sans-serif",
+              fontFamily: "'Inter', sans-serif",
               fontSize: "0.75rem",
               fontWeight: 500,
             }}
@@ -462,7 +462,7 @@ export default function ChangelogPage() {
               borderRadius: "0.5rem",
               background: "color-mix(in srgb, var(--accent) 9%, transparent)",
               color: "var(--text-primary)",
-              fontFamily: "'DM Sans', sans-serif",
+              fontFamily: "'Inter', sans-serif",
               fontSize: "0.75rem",
               fontWeight: 500,
             }}
@@ -497,7 +497,7 @@ export default function ChangelogPage() {
               padding: "0 0.625rem",
               borderRadius: "0.5rem",
               color: "var(--text-secondary)",
-              fontFamily: "'DM Sans', sans-serif",
+              fontFamily: "'Inter', sans-serif",
               fontSize: "0.75rem",
               fontWeight: 500,
               textDecoration: "none",
@@ -582,12 +582,12 @@ export default function ChangelogPage() {
                   disabled={loadingMore}
                   style={{
                     padding: "0.75rem 1.125rem",
-                    borderRadius: "0.625rem",
+                    borderRadius: "0.25rem",
                     border: "0.0625rem solid var(--border-hover)",
                     background: "var(--bg-secondary)",
                     color: loadingMore ? "var(--text-tertiary)" : "var(--accent)",
                     cursor: loadingMore ? "default" : "pointer",
-                    fontFamily: "'JetBrains Mono', monospace",
+                    fontFamily: "'Geist Mono', monospace",
                     fontSize: "0.75rem",
                     letterSpacing: "0.04em",
                   }}
@@ -623,7 +623,7 @@ export default function ChangelogPage() {
             style={{
               fontSize: "0.875rem",
               color: "var(--text-tertiary)",
-              fontFamily: "'JetBrains Mono', monospace",
+              fontFamily: "'Geist Mono', monospace",
             }}
           >
             More updates coming soon.

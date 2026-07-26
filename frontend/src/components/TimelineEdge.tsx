@@ -55,26 +55,6 @@ export function TimelineEdgeLine({
 
   return (
     <g>
-      {/* Glow layer for active edges */}
-      {isActive && (
-        <motion.path
-          d={path}
-          fill="none"
-          stroke="var(--accent)"
-          strokeWidth={6}
-          strokeLinecap="round"
-          initial={{ pathLength: 0, opacity: 0 }}
-          animate={{ pathLength: 1, opacity: 0.15 }}
-          transition={{
-            pathLength: {
-              duration: 0.6,
-              delay: index * 0.08 + 0.2,
-              ease: [0.16, 1, 0.3, 1],
-            },
-            opacity: { duration: 0.3, delay: index * 0.08 + 0.1 },
-          }}
-        />
-      )}
       <motion.path
         d={path}
         fill="none"
