@@ -247,10 +247,10 @@ export function PaperReaderModal({ open, content, loading, error, onClose, onAsk
               display: "flex",
               flexDirection: "column",
               overflow: "hidden",
-              borderRadius: "1rem",
-              border: "0.0625rem solid var(--border-hover)",
+              borderRadius: "0.5rem",
+              border: "0.0625rem solid var(--border)",
               background: "var(--bg-primary)",
-              boxShadow: "0 1.5rem 5rem rgba(0,0,0,0.48)",
+              boxShadow: "0 1rem 2.5rem rgba(0,0,0,0.16)",
             }}
           >
             <header
@@ -269,7 +269,7 @@ export function PaperReaderModal({ open, content, loading, error, onClose, onAsk
                   style={{
                     margin: 0,
                     color: "var(--text-primary)",
-                    fontFamily: "'DM Sans', sans-serif",
+                    fontFamily: "'Inter', sans-serif",
                     fontSize: "1rem",
                     lineHeight: 1.35,
                     fontWeight: 650,
@@ -334,7 +334,7 @@ export function PaperReaderModal({ open, content, loading, error, onClose, onAsk
                 overflowY: "auto",
                 padding: "1.5rem clamp(1.25rem, 5vw, 3.5rem) 3rem",
                 color: "var(--text-secondary)",
-                fontFamily: "'DM Sans', sans-serif",
+                fontFamily: "'Inter', sans-serif",
                 fontSize: "0.9375rem",
                 lineHeight: 1.78,
               }}
@@ -364,7 +364,7 @@ export function PaperReaderModal({ open, content, loading, error, onClose, onAsk
                     maxWidth: "35rem",
                     margin: "3rem auto",
                     padding: "1rem 1.125rem",
-                    borderRadius: "0.75rem",
+                    borderRadius: "0.375rem",
                     border: "0.0625rem solid var(--border)",
                     background: "var(--bg-secondary)",
                     color: "var(--text-secondary)",
@@ -414,7 +414,7 @@ export function PaperReaderModal({ open, content, loading, error, onClose, onAsk
                   background: "var(--bg-primary)",
                   color: "var(--text-primary)",
                   boxShadow: "0 0.5rem 1.5rem rgba(0,0,0,0.32)",
-                  fontFamily: "'DM Sans', sans-serif",
+                  fontFamily: "'Inter', sans-serif",
                   fontSize: "0.75rem",
                   fontWeight: 600,
                   cursor: "pointer",

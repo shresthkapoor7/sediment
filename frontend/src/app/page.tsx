@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { useState, useCallback, useEffect, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { ClarificationModal } from "@/components/ClarificationModal";
 import { SearchInput } from "@/components/SearchInput";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { LoadingLogoMark, LogoMark } from "@/components/LogoMark";
 import { TimelineCanvas } from "@/components/TimelineCanvas";
 import {
   APIError,
@@ -67,13 +68,13 @@ function SettingsSlider({
           alignItems: "baseline",
           fontSize: "0.71875rem",
           color: "var(--text-secondary)",
-          fontFamily: "'DM Sans', sans-serif",
+          fontFamily: "'Inter', sans-serif",
         }}
       >
         <span style={{ fontWeight: 500 }}>{item.label}</span>
         <span
           style={{
-            fontFamily: "'JetBrains Mono', monospace",
+            fontFamily: "'Geist Mono', monospace",
             fontSize: "0.6875rem",
             color: "var(--accent)",
           }}
@@ -379,7 +380,7 @@ function DemoPaperCard({
             color: "var(--bg-primary)",
             borderRadius: "0.25rem",
             padding: "0.1875rem 0.375rem",
-            fontFamily: "'JetBrains Mono', monospace",
+            fontFamily: "'Geist Mono', monospace",
             fontSize: "0.5625rem",
             letterSpacing: "0.1em",
           }}
@@ -395,7 +396,7 @@ function DemoPaperCard({
           borderRadius: "0.25rem",
           background: "var(--accent-soft)",
           color: "var(--accent)",
-          fontFamily: "'JetBrains Mono', monospace",
+          fontFamily: "'Geist Mono', monospace",
           fontSize: "0.625rem",
           letterSpacing: "0.04em",
           marginBottom: "0.5rem",
@@ -529,104 +530,6 @@ function DemoGraph({
   );
 }
 
-function buildMobileEllipsePath(
-  width: number,
-  top: number,
-  height: number,
-  scaleX: number,
-  rotationDegrees: number,
-  reverse = false,
-) {
-  const centerX = width / 2;
-  const centerY = top + height / 2;
-  const radiusX = width / 2;
-  const radiusY = height / 2;
-  const rotation = (rotationDegrees * Math.PI) / 180;
-  const steps = 180;
-  const points = Array.from({ length: steps + 1 }, (_, index) => {
-    const progress = index / steps;
-    const angle = (reverse ? -progress : progress) * Math.PI * 2;
-    const x = radiusX * Math.cos(angle) * scaleX;
-    const y = radiusY * Math.sin(angle);
-    return [
-      centerX + Math.cos(rotation) * x - Math.sin(rotation) * y,
-      centerY + Math.sin(rotation) * x + Math.cos(rotation) * y,
-    ];
-  });
-
-  return points
-    .map(([x, y], index) => `${index === 0 ? "M" : "L"}${x.toFixed(2)} ${y.toFixed(2)}`)
-    .join(" ");
-}
-
-function MobileLandingHelixParticles() {
-  const svgRef = useRef<SVGSVGElement | null>(null);
-  const [frame, setFrame] = useState({ width: 1, height: 1, paths: ["", ""] });
-
-  useEffect(() => {
-    const svg = svgRef.current;
-    const strata = svg?.parentElement;
-    if (!svg || !strata) return;
-
-    const updatePaths = () => {
-      const ellipseElements = Array.from(
-        strata.querySelectorAll<HTMLElement>(":scope > span"),
-      );
-      const width = strata.clientWidth;
-      const height = strata.clientHeight;
-      if (!width || !height || ellipseElements.length < 3) return;
-
-      const primary = ellipseElements[0];
-      const secondary = ellipseElements[2];
-      setFrame({
-        width,
-        height,
-        paths: [
-          buildMobileEllipsePath(width, primary.offsetTop, primary.offsetHeight, 0.84, -5),
-          buildMobileEllipsePath(width, secondary.offsetTop, secondary.offsetHeight, 0.76, -3, true),
-        ],
-      });
-    };
-
-    updatePaths();
-    const observer = new ResizeObserver(updatePaths);
-    observer.observe(strata);
-    return () => observer.disconnect();
-  }, []);
-
-  return (
-    <svg
-      ref={svgRef}
-      className="landing-helix-particles landing-helix-particles-mobile"
-      viewBox={`0 0 ${frame.width} ${frame.height}`}
-      preserveAspectRatio="none"
-    >
-      {frame.paths.map((path, index) => path && (
-        <g
-          key={index}
-          className={`landing-helix-particle${index === 1 ? " landing-helix-particle-secondary" : ""}`}
-        >
-          <animateMotion
-            dur="26s"
-            begin={index === 1 ? "-13s" : undefined}
-            repeatCount="indefinite"
-            path={path}
-          />
-          <animate
-            attributeName="opacity"
-            values={index === 1 ? "0;0.7;0.7;0" : "0;0.9;0.9;0"}
-            keyTimes="0;0.035;0.96;1"
-            dur="26s"
-            begin={index === 1 ? "-13s" : undefined}
-            repeatCount="indefinite"
-          />
-          <circle className="landing-helix-core" r="4.25" />
-        </g>
-      ))}
-    </svg>
-  );
-}
-
 function LandingScrollHint({
   containerRef,
 }: {
@@ -717,7 +620,7 @@ function DemoTypeScene({
               alignItems: "center",
               gap: "0.625rem",
               color: "var(--text-tertiary)",
-              fontFamily: "'JetBrains Mono', monospace",
+              fontFamily: "'Geist Mono', monospace",
               fontSize: "0.6875rem",
               letterSpacing: "0.16em",
               textTransform: "uppercase",
@@ -735,8 +638,8 @@ function DemoTypeScene({
           </div>
           <h2
             style={{
-              fontFamily: "'Instrument Serif', Georgia, serif",
-              fontWeight: 400,
+              fontFamily: "'Inter', sans-serif",
+              fontWeight: 600,
               fontSize: compact ? "2.5rem" : "clamp(2.5rem, 5vw, 4rem)",
               lineHeight: 1.02,
               letterSpacing: "-0.02em",
@@ -884,7 +787,7 @@ function DemoTypeScene({
                 display: "flex",
                 alignItems: "center",
                 gap: "0.5rem",
-                fontFamily: "'JetBrains Mono', monospace",
+                fontFamily: "'Geist Mono', monospace",
                 fontSize: "0.65625rem",
                 letterSpacing: "0.14em",
                 textTransform: "uppercase",
@@ -928,7 +831,7 @@ function DemoTypeScene({
                   style={{
                     marginTop: "1rem",
                     textAlign: "center",
-                    fontFamily: "'JetBrains Mono', monospace",
+                    fontFamily: "'Geist Mono', monospace",
                     fontSize: "0.65625rem",
                     letterSpacing: "0.14em",
                     textTransform: "uppercase",
@@ -995,7 +898,7 @@ function DemoLineageScene({
               alignItems: "center",
               gap: "0.625rem",
               color: "var(--text-tertiary)",
-              fontFamily: "'JetBrains Mono', monospace",
+              fontFamily: "'Geist Mono', monospace",
               fontSize: "0.6875rem",
               letterSpacing: "0.16em",
               textTransform: "uppercase",
@@ -1013,8 +916,8 @@ function DemoLineageScene({
           </div>
           <h2
             style={{
-              fontFamily: "'Instrument Serif', Georgia, serif",
-              fontWeight: 400,
+              fontFamily: "'Inter', sans-serif",
+              fontWeight: 600,
               fontSize: compact ? "2.5rem" : "clamp(2.5rem, 5vw, 4rem)",
               lineHeight: 1.02,
               letterSpacing: "-0.02em",
@@ -1040,7 +943,7 @@ function DemoLineageScene({
           </p>
           <div
             style={{
-              fontFamily: "'JetBrains Mono', monospace",
+              fontFamily: "'Geist Mono', monospace",
               fontSize: "0.6875rem",
               letterSpacing: "0.06em",
               color: "var(--text-tertiary)",
@@ -1136,7 +1039,7 @@ function DemoDetailScene({
               alignItems: "center",
               gap: "0.625rem",
               color: "var(--text-tertiary)",
-              fontFamily: "'JetBrains Mono', monospace",
+              fontFamily: "'Geist Mono', monospace",
               fontSize: "0.6875rem",
               letterSpacing: "0.16em",
               textTransform: "uppercase",
@@ -1154,8 +1057,8 @@ function DemoDetailScene({
           </div>
           <h2
             style={{
-              fontFamily: "'Instrument Serif', Georgia, serif",
-              fontWeight: 400,
+              fontFamily: "'Inter', sans-serif",
+              fontWeight: 600,
               fontSize: compact ? "2.5rem" : "clamp(2.5rem, 5vw, 4rem)",
               lineHeight: 1.02,
               letterSpacing: "-0.02em",
@@ -1256,7 +1159,7 @@ function DemoDetailScene({
                 borderRadius: "0.25rem",
                 background: "var(--accent-soft)",
                 color: "var(--accent)",
-                fontFamily: "'JetBrains Mono', monospace",
+                fontFamily: "'Geist Mono', monospace",
                 fontSize: "0.625rem",
                 letterSpacing: "0.04em",
                 marginBottom: "0.5rem",
@@ -1266,9 +1169,9 @@ function DemoDetailScene({
             </div>
             <h4
               style={{
-                fontFamily: "'Instrument Serif', Georgia, serif",
+                fontFamily: "'Inter', sans-serif",
                 fontSize: "1.375rem",
-                fontWeight: 400,
+                fontWeight: 600,
                 lineHeight: 1.2,
                 color: "var(--text-primary)",
                 marginBottom: "0.375rem",
@@ -1300,7 +1203,7 @@ function DemoDetailScene({
                   display: "flex",
                   flexDirection: "column",
                   gap: "0.1875rem",
-                  fontFamily: "'JetBrains Mono', monospace",
+                  fontFamily: "'Geist Mono', monospace",
                   fontSize: "0.6875rem",
                   color: "var(--text-secondary)",
                 }}
@@ -1321,7 +1224,7 @@ function DemoDetailScene({
                   display: "flex",
                   flexDirection: "column",
                   gap: "0.1875rem",
-                  fontFamily: "'JetBrains Mono', monospace",
+                  fontFamily: "'Geist Mono', monospace",
                   fontSize: "0.6875rem",
                   color: "var(--text-secondary)",
                 }}
@@ -1342,7 +1245,7 @@ function DemoDetailScene({
                   display: "flex",
                   flexDirection: "column",
                   gap: "0.1875rem",
-                  fontFamily: "'JetBrains Mono', monospace",
+                  fontFamily: "'Geist Mono', monospace",
                   fontSize: "0.6875rem",
                   color: "var(--text-secondary)",
                 }}
@@ -1439,7 +1342,7 @@ function DemoChatScene({
               alignItems: "center",
               gap: "0.625rem",
               color: "var(--text-tertiary)",
-              fontFamily: "'JetBrains Mono', monospace",
+              fontFamily: "'Geist Mono', monospace",
               fontSize: "0.6875rem",
               letterSpacing: "0.16em",
               textTransform: "uppercase",
@@ -1457,8 +1360,8 @@ function DemoChatScene({
           </div>
           <h2
             style={{
-              fontFamily: "'Instrument Serif', Georgia, serif",
-              fontWeight: 400,
+              fontFamily: "'Inter', sans-serif",
+              fontWeight: 600,
               fontSize: compact ? "2.5rem" : "clamp(2.5rem, 5vw, 4rem)",
               lineHeight: 1.02,
               letterSpacing: "-0.02em",
@@ -1515,7 +1418,7 @@ function DemoChatScene({
                 paddingBottom: "0.75rem",
                 borderBottom: "0.0625rem solid var(--border)",
                 color: "var(--text-secondary)",
-                fontFamily: "'JetBrains Mono', monospace",
+                fontFamily: "'Geist Mono', monospace",
                 fontSize: "0.75rem",
                 letterSpacing: "0.06em",
               }}
@@ -1590,7 +1493,7 @@ function DemoChatScene({
                           borderRadius: "0.25rem",
                           background: "var(--accent-soft)",
                           color: "var(--accent)",
-                          fontFamily: "'JetBrains Mono', monospace",
+                          fontFamily: "'Geist Mono', monospace",
                           fontSize: "0.625rem",
                           letterSpacing: "0.04em",
                         }}
@@ -1645,14 +1548,15 @@ function DemoFinalSection({
 
   return (
     <section
-      style={{ padding: compact ? "4rem 1rem 2.5rem" : "10rem 2rem 4rem" }}
+      className="demo-final-section"
+      style={{ padding: compact ? "4rem 1rem 2.5rem" : "5rem 2rem 4rem" }}
     >
       <div
         style={{ maxWidth: "61.25rem", margin: "0 auto", textAlign: "center" }}
       >
         <div
           style={{
-            fontFamily: "'JetBrains Mono', monospace",
+            fontFamily: "'Geist Mono', monospace",
             fontSize: "0.6875rem",
             letterSpacing: "0.16em",
             textTransform: "uppercase",
@@ -1664,9 +1568,9 @@ function DemoFinalSection({
         <h2
           style={{
             margin: "0.75rem 0 1rem",
-            fontFamily: "'Instrument Serif', Georgia, serif",
+            fontFamily: "'Inter', sans-serif",
             fontSize: compact ? "2.75rem" : "clamp(2.75rem, 6vw, 5rem)",
-            fontWeight: 400,
+            fontWeight: 600,
             lineHeight: 1,
             letterSpacing: "-0.02em",
             color: "var(--text-primary)",
@@ -1749,7 +1653,7 @@ function DemoFinalSection({
               border: "0.0625rem solid var(--accent)",
               background: "var(--accent)",
               color: "#fff",
-              font: "500 0.875rem/1 'DM Sans', sans-serif",
+              font: "500 0.875rem/1 'Inter', sans-serif",
               cursor: "pointer",
             }}
           >
@@ -1769,7 +1673,7 @@ function DemoFinalSection({
               border: "0.0625rem solid var(--border-hover)",
               background: "transparent",
               color: "var(--text-primary)",
-              font: "500 0.875rem/1 'DM Sans', sans-serif",
+              font: "500 0.875rem/1 'Inter', sans-serif",
               textDecoration: "none",
               cursor: "pointer",
             }}
@@ -1784,14 +1688,23 @@ function DemoFinalSection({
 
 function DemoFooter({ compact }: { compact: boolean }) {
   const footerLinkStyle = {
-    color: "var(--text-tertiary)",
+    color: "#FFFFFF",
     textDecoration: "none",
     transition: "color 0.15s ease",
   } as const;
 
   return (
     <footer
-      style={{ padding: compact ? "0.5rem 1rem 2.5rem" : "0.5rem 0 3rem" }}
+      className="landing-page-lift-footer"
+      style={{
+        marginTop: 0,
+        padding: compact ? "1.5rem 1rem 2.5rem" : "2rem 0 3rem",
+        background: "var(--accent)",
+        color: "#FFFFFF",
+        position: "sticky",
+        bottom: 0,
+        zIndex: 0,
+      }}
     >
       <div
         style={{
@@ -1802,24 +1715,14 @@ function DemoFooter({ compact }: { compact: boolean }) {
       >
         <div
           style={{
-            height: "0.0625rem",
-            background: "var(--border)",
-            opacity: 0.4,
-            marginBottom: compact ? "1rem" : "1.25rem",
-          }}
-        />
-
-        <div
-          style={{
             display: "grid",
             gridTemplateColumns: compact ? "1fr" : "1fr auto 1fr",
             gap: compact ? "1.25rem" : "1.5rem",
             alignItems: "center",
-            color:
-              "color-mix(in srgb, var(--text-secondary) 82%, var(--bg-primary))",
+            color: "#FFFFFF",
             fontFamily: compact
-              ? "'DM Sans', sans-serif"
-              : "'JetBrains Mono', monospace",
+              ? "'Inter', sans-serif"
+              : "'Geist Mono', monospace",
             fontSize: compact ? "0.9375rem" : "0.75rem",
             letterSpacing: compact ? "0.01em" : "0.08em",
             textAlign: compact ? "center" : "left",
@@ -1833,46 +1736,18 @@ function DemoFooter({ compact }: { compact: boolean }) {
               gap: "1rem",
             }}
           >
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: "0.1875rem",
-                opacity: 0.45,
-              }}
-            >
-              <div
-                style={{
-                  width: "3.5rem",
-                  height: "0.125rem",
-                  background:
-                    "color-mix(in srgb, var(--border-hover) 72%, var(--bg-primary))",
-                }}
-              />
-              <div
-                style={{
-                  width: "2rem",
-                  height: "0.125rem",
-                  background:
-                    "color-mix(in srgb, var(--border-hover) 72%, var(--bg-primary))",
-                }}
-              />
-              <div
-                style={{
-                  width: "1.25rem",
-                  height: "0.125rem",
-                  background:
-                    "color-mix(in srgb, var(--border-hover) 72%, var(--bg-primary))",
-                }}
-              />
-            </div>
+            <LogoMark
+              width="32"
+              height="32"
+              style={{ color: "#FFFFFF", flexShrink: 0 }}
+            />
             <span
               style={{
-                fontFamily: "'Instrument Serif', Georgia, serif",
+                fontFamily: "'Inter', sans-serif",
                 fontSize: "2rem",
+                fontWeight: 600,
                 letterSpacing: "-0.02em",
-                color:
-                  "color-mix(in srgb, var(--text-primary) 82%, var(--bg-primary))",
+                color: "#FFFFFF",
               }}
             >
               Sediment
@@ -1914,6 +1789,7 @@ function DemoFooter({ compact }: { compact: boolean }) {
 }
 
 export default function Home() {
+  const reduceMotion = useReducedMotion();
   const [timelineData, setTimelineData] = useState<TimelineData | null>(null);
   const [isSearching, setIsSearching] = useState(false);
   const [isExpanding, setIsExpanding] = useState(false);
@@ -1981,8 +1857,8 @@ export default function Home() {
   useEffect(() => {
     const title = graphTitle || searchedQuery;
     document.title = title
-      ? `${title} — Sediment`
-      : "Sediment — Knowledge, layered.";
+      ? `Sediment | ${title}`
+      : "Sediment | Knowledge, layered.";
   }, [graphTitle, searchedQuery]);
 
   useEffect(() => {
@@ -2679,7 +2555,7 @@ export default function Home() {
 
   return (
     <div
-      className="grain app-shell"
+      className={`grain app-shell${timelineData ? " canvas-shell" : " landing-shell"}${isSearching || isRestoring || isClarifying ? " graph-loading-shell" : ""}`}
       style={{
         height: "100vh",
         display: "flex",
@@ -2721,25 +2597,16 @@ export default function Home() {
               color: "var(--text-primary)",
             }}
           >
-            {/* Strata icon */}
-            <svg
+            <LogoMark
               width="22"
               height="22"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="var(--accent)"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-            >
-              <path d="M2 17l10 4 10-4" opacity="0.3" />
-              <path d="M2 12l10 4 10-4" opacity="0.6" />
-              <path d="M12 2L2 7l10 5 10-5L12 2z" />
-            </svg>
+              style={{ color: "var(--text-primary)" }}
+            />
             <span
               style={{
-                fontFamily: "'Instrument Serif', Georgia, serif",
+                fontFamily: "'Inter', sans-serif",
                 fontSize: "1.125rem",
-                fontWeight: 400,
+                fontWeight: 700,
                 letterSpacing: "-0.01em",
               }}
             >
@@ -2768,7 +2635,7 @@ export default function Home() {
                 style={{
                   fontSize: "0.875rem",
                   color: "var(--text-secondary)",
-                  fontFamily: "'JetBrains Mono', monospace",
+                  fontFamily: "'Geist Mono', monospace",
                   fontWeight: 500,
                   letterSpacing: "0.02em",
                   overflow: "hidden",
@@ -2807,21 +2674,12 @@ export default function Home() {
                 aria-label="Return to Sediment home"
                 title="Return to Sediment home"
               >
-                <svg
+                <LogoMark
                   className="app-header-sediment-icon"
                   width="16"
                   height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                >
-                  <path d="M2 17l10 4 10-4" opacity="0.3" />
-                  <path d="M2 12l10 4 10-4" opacity="0.6" />
-                  <path d="M12 2L2 7l10 5 10-5L12 2z" />
-                </svg>
-                <span className="app-header-action-label">Sediment</span>
+                />
+                <span className="app-header-action-label app-header-sediment-label">Sediment</span>
               </button>
             )}
 
@@ -2877,21 +2735,12 @@ export default function Home() {
                 onClick={handleReset}
                 aria-label="Sediment home"
               >
-                <svg
+                <LogoMark
                   className="app-header-sediment-icon"
                   width="16"
                   height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                >
-                  <path d="M2 17l10 4 10-4" opacity="0.3" />
-                  <path d="M2 12l10 4 10-4" opacity="0.6" />
-                  <path d="M12 2L2 7l10 5 10-5L12 2z" />
-                </svg>
-                <span className="app-header-action-label">Sediment</span>
+                />
+                <span className="app-header-action-label app-header-sediment-label">Sediment</span>
               </motion.button>
             )}
 
@@ -2916,7 +2765,7 @@ export default function Home() {
                     ? "var(--accent)"
                     : "var(--text-secondary)",
                   fontSize: "0.75rem",
-                  fontFamily: "'DM Sans', sans-serif",
+                  fontFamily: "'Inter', sans-serif",
                   fontWeight: 500,
                   cursor: "pointer",
                   transition:
@@ -2956,7 +2805,7 @@ export default function Home() {
                   borderRadius: "0.4375rem",
                   color: "var(--text-secondary)",
                   fontSize: "0.75rem",
-                  fontFamily: "'DM Sans', sans-serif",
+                  fontFamily: "'Inter', sans-serif",
                   fontWeight: 500,
                   textDecoration: "none",
                   transitionProperty: "border-color, color, background",
@@ -2993,7 +2842,7 @@ export default function Home() {
                     position: "absolute",
                     top: "calc(100% + 0.5rem)",
                     right: 0,
-                    width: "11.5rem",
+                    width: "8rem",
                     padding: "0.5rem 0.625rem",
                     borderRadius: "0.5rem",
                     border: "0.0625rem solid var(--border-hover)",
@@ -3007,7 +2856,7 @@ export default function Home() {
                     pointerEvents: "none",
                   }}
                 >
-                  Daily usage credits. Resets every day.
+                  Daily usage credits
                 </div>
               )}
               <div className="app-header-credit-indicator">
@@ -3020,9 +2869,9 @@ export default function Home() {
                       const filled = i < credits;
                       const segColor =
                         credits <= 3
-                          ? "#ef4444"
+                          ? "var(--cat-rose)"
                           : credits <= 6
-                            ? "#f59e0b"
+                            ? "var(--cat-amber)"
                             : "var(--accent)";
                       return (
                       <div
@@ -3069,11 +2918,11 @@ export default function Home() {
                     fontSize: "0.6875rem",
                     color:
                       credits <= 3
-                        ? "#ef4444"
+                        ? "var(--cat-rose)"
                         : credits <= 6
-                          ? "#f59e0b"
+                          ? "var(--cat-amber)"
                           : "var(--text-tertiary)",
-                    fontFamily: "'JetBrains Mono', monospace",
+                    fontFamily: "'Geist Mono', monospace",
                     letterSpacing: "0.02em",
                   }}
                 >
@@ -3115,7 +2964,7 @@ export default function Home() {
                   borderRadius: "0.4375rem",
                   color: "var(--text-secondary)",
                   fontSize: "0.75rem",
-                  fontFamily: "'DM Sans', sans-serif",
+                  fontFamily: "'Inter', sans-serif",
                   fontWeight: 500,
                   cursor: "pointer",
                   transition: "border-color 0.15s, color 0.15s",
@@ -3185,7 +3034,7 @@ export default function Home() {
                         style={{
                           fontSize: "0.625rem",
                           color: "var(--text-tertiary)",
-                          fontFamily: "'JetBrains Mono', monospace",
+                          fontFamily: "'Geist Mono', monospace",
                           letterSpacing: "0.06em",
                           textTransform: "uppercase",
                         }}
@@ -3209,7 +3058,7 @@ export default function Home() {
                             setSessionActionsOpen(false);
                           }}
                           style={{
-                            display: "flex", alignItems: "center", gap: "0.625rem", width: "100%", height: "2rem", padding: "0 0.5rem", border: "none", borderRadius: "0.375rem", background: "none", color: "var(--text-primary)", cursor: "pointer", fontFamily: "'DM Sans', sans-serif", fontSize: "0.75rem", fontWeight: 500, textAlign: "left",
+                            display: "flex", alignItems: "center", gap: "0.625rem", width: "100%", height: "2rem", padding: "0 0.5rem", border: "none", borderRadius: "0.375rem", background: "none", color: "var(--text-primary)", cursor: "pointer", fontFamily: "'Inter', sans-serif", fontSize: "0.75rem", fontWeight: 500, textAlign: "left",
                           }}
                         >
                           <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="var(--text-tertiary)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M8 2v9M4 7l4 4 4-4" /><path d="M2 13h12" /></svg>
@@ -3219,7 +3068,7 @@ export default function Home() {
                           onClick={() => void handleShare()}
                           disabled={shareState === "sharing"}
                           style={{
-                            display: "flex", alignItems: "center", gap: "0.625rem", width: "100%", height: "2rem", padding: "0 0.5rem", border: "none", borderRadius: "0.375rem", background: "none", color: shareState === "copied" ? "var(--accent)" : "var(--text-primary)", cursor: shareState === "sharing" ? "default" : "pointer", fontFamily: "'DM Sans', sans-serif", fontSize: "0.75rem", fontWeight: 500, textAlign: "left",
+                            display: "flex", alignItems: "center", gap: "0.625rem", width: "100%", height: "2rem", padding: "0 0.5rem", border: "none", borderRadius: "0.375rem", background: "none", color: shareState === "copied" ? "var(--accent)" : "var(--text-primary)", cursor: shareState === "sharing" ? "default" : "pointer", fontFamily: "'Inter', sans-serif", fontSize: "0.75rem", fontWeight: 500, textAlign: "left",
                           }}
                         >
                           <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke={shareState === "copied" ? "var(--accent)" : "var(--text-tertiary)"} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M11 3a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM5 8a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM11 9a2 2 0 1 1 0 4 2 2 0 0 1 0-4z" /><path d="M9 4.5l-4 3M9 11.5l-4-3" /></svg>
@@ -3229,7 +3078,7 @@ export default function Home() {
                           href={GITHUB_REPO_URL}
                           target="_blank"
                           rel="noopener noreferrer"
-                          style={{ display: "flex", alignItems: "center", gap: "0.625rem", width: "100%", height: "2rem", padding: "0 0.5rem", borderRadius: "0.375rem", color: "var(--text-primary)", fontFamily: "'DM Sans', sans-serif", fontSize: "0.75rem", fontWeight: 500, textDecoration: "none" }}
+                          style={{ display: "flex", alignItems: "center", gap: "0.625rem", width: "100%", height: "2rem", padding: "0 0.5rem", borderRadius: "0.375rem", color: "var(--text-primary)", fontFamily: "'Inter', sans-serif", fontSize: "0.75rem", fontWeight: 500, textDecoration: "none" }}
                         >
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style={{ color: "var(--text-tertiary)" }} aria-hidden="true">
                             <path d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.7c-2.78.6-3.36-1.34-3.36-1.34-.45-1.15-1.1-1.46-1.1-1.46-.9-.62.07-.61.07-.61 1 .07 1.53 1.03 1.53 1.03.89 1.53 2.34 1.09 2.91.83.09-.65.35-1.09.63-1.34-2.22-.25-4.55-1.11-4.55-4.94 0-1.09.39-1.98 1.03-2.68-.1-.25-.45-1.27.1-2.65 0 0 .84-.27 2.75 1.02A9.5 9.5 0 0 1 12 6.84c.85 0 1.71.11 2.5.34 1.91-1.29 2.75-1.02 2.75-1.02.55 1.38.2 2.4.1 2.65.64.7 1.03 1.59 1.03 2.68 0 3.84-2.34 4.69-4.57 4.94.36.31.68.92.68 1.85v2.74c0 .27.18.58.69.48A10 10 0 0 0 12 2z" />
@@ -3243,7 +3092,7 @@ export default function Home() {
                       style={{
                         fontSize: "0.625rem",
                         color: "var(--text-tertiary)",
-                        fontFamily: "'JetBrains Mono', monospace",
+                        fontFamily: "'Geist Mono', monospace",
                         letterSpacing: "0.06em",
                         textTransform: "uppercase",
                       }}
@@ -3307,7 +3156,7 @@ export default function Home() {
                           color: "var(--text-tertiary)",
                           cursor: "pointer",
                           fontSize: "0.6875rem",
-                          fontFamily: "'DM Sans', sans-serif",
+                          fontFamily: "'Inter', sans-serif",
                           fontWeight: 500,
                           letterSpacing: "0.01em",
                         }}
@@ -3338,7 +3187,7 @@ export default function Home() {
                           color: "var(--accent)",
                           cursor: isExpanding ? "default" : "pointer",
                           fontSize: "0.6875rem",
-                          fontFamily: "'DM Sans', sans-serif",
+                          fontFamily: "'Inter', sans-serif",
                           fontWeight: 600,
                           letterSpacing: "0.01em",
                         }}
@@ -3428,21 +3277,12 @@ export default function Home() {
                 onClick={handleReset}
                 aria-label="Sediment home"
               >
-                <svg
+                <LogoMark
                   className="app-header-sediment-icon"
                   width="16"
                   height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                >
-                  <path d="M2 17l10 4 10-4" opacity="0.3" />
-                  <path d="M2 12l10 4 10-4" opacity="0.6" />
-                  <path d="M12 2L2 7l10 5 10-5L12 2z" />
-                </svg>
-                <span className="app-header-action-label">Sediment</span>
+                />
+                <span className="app-header-action-label app-header-sediment-label">Sediment</span>
               </button>
             )}
             {!timelineData && (
@@ -3572,7 +3412,7 @@ export default function Home() {
             >
               {/* Credits row */}
               <div
-                title="Daily usage credits. Resets every day."
+                title="Daily usage credits"
                 style={{
                   display: "flex",
                   alignItems: "center",
@@ -3586,7 +3426,7 @@ export default function Home() {
                   style={{
                     fontSize: "0.6875rem",
                     color: "var(--text-tertiary)",
-                    fontFamily: "'JetBrains Mono', monospace",
+                    fontFamily: "'Geist Mono', monospace",
                     letterSpacing: "0.04em",
                   }}
                 >
@@ -3616,9 +3456,9 @@ export default function Home() {
                           background:
                             i < credits
                               ? credits <= 3
-                                ? "#ef4444"
+                                ? "var(--cat-rose)"
                                 : credits <= 6
-                                  ? "#f59e0b"
+                                  ? "var(--cat-amber)"
                                   : "var(--accent)"
                               : "var(--border)",
                           opacity: i < credits ? 1 - i * 0.05 : 1,
@@ -3631,11 +3471,11 @@ export default function Home() {
                       fontSize: "0.6875rem",
                       color:
                         credits <= 3
-                          ? "#ef4444"
+                          ? "var(--cat-rose)"
                           : credits <= 6
-                            ? "#f59e0b"
+                            ? "var(--cat-amber)"
                             : "var(--accent)",
-                      fontFamily: "'JetBrains Mono', monospace",
+                      fontFamily: "'Geist Mono', monospace",
                     }}
                   >
                     {credits}
@@ -3661,7 +3501,7 @@ export default function Home() {
                     borderRadius: "0.5rem",
                     color: "var(--text-primary)",
                     fontSize: "0.875rem",
-                    fontFamily: "'DM Sans', sans-serif",
+                    fontFamily: "'Inter', sans-serif",
                     fontWeight: 500,
                     cursor: "pointer",
                     textAlign: "left",
@@ -3707,7 +3547,7 @@ export default function Home() {
                     borderRadius: "0.5rem",
                     color: "var(--text-primary)",
                     fontSize: "0.875rem",
-                    fontFamily: "'DM Sans', sans-serif",
+                    fontFamily: "'Inter', sans-serif",
                     fontWeight: 500,
                     textDecoration: "none",
                   }}
@@ -3735,7 +3575,7 @@ export default function Home() {
                   style={{
                     fontSize: "0.625rem",
                     color: "var(--text-tertiary)",
-                    fontFamily: "'JetBrains Mono', monospace",
+                    fontFamily: "'Geist Mono', monospace",
                     letterSpacing: "0.06em",
                     textTransform: "uppercase",
                     marginBottom: "0.625rem",
@@ -3802,7 +3642,7 @@ export default function Home() {
                       color: "var(--text-secondary)",
                       cursor: "pointer",
                       fontSize: "0.8125rem",
-                      fontFamily: "'DM Sans', sans-serif",
+                      fontFamily: "'Inter', sans-serif",
                       fontWeight: 500,
                     }}
                   >
@@ -3830,7 +3670,7 @@ export default function Home() {
                       color: "#fff",
                       cursor: isExpanding ? "default" : "pointer",
                       fontSize: "0.8125rem",
-                      fontFamily: "'DM Sans', sans-serif",
+                      fontFamily: "'Inter', sans-serif",
                       fontWeight: 600,
                     }}
                   >
@@ -3865,7 +3705,7 @@ export default function Home() {
                     borderRadius: "0.5rem",
                     color: "var(--text-primary)",
                     fontSize: "0.875rem",
-                    fontFamily: "'DM Sans', sans-serif",
+                    fontFamily: "'Inter', sans-serif",
                     fontWeight: 500,
                     cursor: "pointer",
                     textAlign: "left",
@@ -3921,7 +3761,7 @@ export default function Home() {
                       outline: "none",
                       background: "var(--bg-secondary)",
                       color: "var(--text-primary)",
-                      fontFamily: "'DM Sans', sans-serif",
+                      fontFamily: "'Inter', sans-serif",
                       fontSize: "0.875rem",
                     }}
                   />
@@ -3946,7 +3786,7 @@ export default function Home() {
                     borderRadius: "0.5rem",
                     color: "var(--text-primary)",
                     fontSize: "0.875rem",
-                    fontFamily: "'DM Sans', sans-serif",
+                    fontFamily: "'Inter', sans-serif",
                     fontWeight: 500,
                     cursor: "pointer",
                     textAlign: "left",
@@ -4000,7 +3840,7 @@ export default function Home() {
                         ? "var(--accent)"
                         : "var(--text-primary)",
                     fontSize: "0.875rem",
-                    fontFamily: "'DM Sans', sans-serif",
+                    fontFamily: "'Inter', sans-serif",
                     fontWeight: 500,
                     cursor: shareState === "sharing" ? "default" : "pointer",
                     textAlign: "left",
@@ -4056,7 +3896,7 @@ export default function Home() {
                   borderRadius: "0.5rem",
                   color: "var(--text-primary)",
                   fontSize: "0.875rem",
-                  fontFamily: "'DM Sans', sans-serif",
+                  fontFamily: "'Inter', sans-serif",
                   fontWeight: 500,
                   textDecoration: "none",
                 }}
@@ -4111,10 +3951,11 @@ export default function Home() {
                 style={{
                   position: "absolute",
                   inset: 0,
-                  background: "rgba(16, 12, 8, 0.22)",
+                  background: "rgba(10, 10, 12, 0.45)",
                   border: "none",
                   zIndex: 20,
                   cursor: "pointer",
+                  backdropFilter: "blur(0.125rem)",
                 }}
                 aria-label="Close history"
               />
@@ -4131,12 +3972,12 @@ export default function Home() {
                   bottom: "0.875rem",
                   width: "21.25rem",
                   maxWidth: "calc(100vw - 1.75rem)",
-                  borderRadius: "1.25rem",
-                  border: "0.0625rem solid var(--border-hover)",
+                  borderRadius: "0.5rem",
+                  border: "0.0625rem solid var(--border)",
                   background:
-                    "color-mix(in srgb, var(--bg-primary) 86%, #1e1510 14%)",
-                  boxShadow: "0 1.125rem 3rem rgba(0,0,0,0.22)",
-                  backdropFilter: "blur(1.125rem)",
+                    "color-mix(in srgb, var(--bg-primary) 92%, transparent)",
+                  boxShadow: "0 0.75rem 2rem rgba(0,0,0,0.16)",
+                  backdropFilter: "blur(0.75rem)",
                   zIndex: 30,
                   display: "flex",
                   flexDirection: "column",
@@ -4174,7 +4015,7 @@ export default function Home() {
                       justifyContent: "center",
                       width: "2rem",
                       height: "2rem",
-                      borderRadius: "0.5rem",
+                      borderRadius: "0.25rem",
                       border: "0.0625rem solid var(--border)",
                       background: "var(--bg-primary)",
                     }}
@@ -4196,7 +4037,7 @@ export default function Home() {
                       style={{
                         fontSize: "0.6875rem",
                         color: "var(--accent)",
-                        fontFamily: "'JetBrains Mono', monospace",
+                        fontFamily: "'Geist Mono', monospace",
                         letterSpacing: "0.08em",
                         textTransform: "uppercase",
                         marginBottom: "0.375rem",
@@ -4209,8 +4050,8 @@ export default function Home() {
                         fontSize: "1.375rem",
                         lineHeight: 1.1,
                         color: "var(--text-primary)",
-                        fontFamily: "'Instrument Serif', Georgia, serif",
-                        fontWeight: 400,
+                        fontFamily: "'Inter', sans-serif",
+                        fontWeight: 600,
                       }}
                     >
                       Return to prior traces
@@ -4232,7 +4073,7 @@ export default function Home() {
                     <div
                       style={{
                         padding: "1.125rem 1rem",
-                        borderRadius: "1rem",
+                        borderRadius: "0.375rem",
                         border: "0.0625rem solid var(--border)",
                         background: "var(--bg-secondary)",
                         color: "var(--text-tertiary)",
@@ -4245,7 +4086,7 @@ export default function Home() {
                     <div
                       style={{
                         padding: "1.125rem 1rem",
-                        borderRadius: "1rem",
+                        borderRadius: "0.375rem",
                         border: "0.0625rem solid var(--border)",
                         background: "var(--bg-secondary)",
                         color: "var(--text-secondary)",
@@ -4264,19 +4105,19 @@ export default function Home() {
                         style={{
                           textAlign: "left",
                           padding: "0.875rem 0.875rem 0.8125rem",
-                          borderRadius: "1rem",
+                          borderRadius: "0.375rem",
                           border: "0.0625rem solid var(--border)",
                           background: "var(--bg-secondary)",
                           color: "var(--text-primary)",
-                          transition: "border-color 0.15s, transform 0.15s",
+                          transition: "border-color 0.12s, background 0.12s",
                         }}
                         onMouseEnter={(e) => {
-                          e.currentTarget.style.borderColor = "var(--accent)";
-                          e.currentTarget.style.transform = "translateX(-2px)";
+                          e.currentTarget.style.borderColor = "var(--border-hover)";
+                          e.currentTarget.style.background = "var(--bg-tertiary)";
                         }}
                         onMouseLeave={(e) => {
                           e.currentTarget.style.borderColor = "var(--border)";
-                          e.currentTarget.style.transform = "translateX(0)";
+                          e.currentTarget.style.background = "var(--bg-secondary)";
                         }}
                       >
                         <div
@@ -4322,11 +4163,11 @@ export default function Home() {
                               style={{
                                 flexShrink: 0,
                                 padding: "3px 7px",
-                                borderRadius: 999,
+                                borderRadius: 2,
                                 background: "var(--accent-soft)",
                                 color: "var(--accent)",
                                 fontSize: 10,
-                                fontFamily: "'JetBrains Mono', monospace",
+                                fontFamily: "'Geist Mono', monospace",
                                 letterSpacing: "0.04em",
                               }}
                             >
@@ -4342,29 +4183,27 @@ export default function Home() {
                                 justifyContent: "center",
                                 height: 22,
                                 padding: "0 7px",
-                                borderRadius: 999,
+                                borderRadius: 4,
                                 border: "none",
-                                background: deletingGraphId === graph.id ? "var(--bg-tertiary)" : "var(--accent-soft)",
-                                color: deletingGraphId === graph.id ? "var(--text-tertiary)" : "var(--accent)",
+                                background: deletingGraphId === graph.id ? "var(--bg-tertiary)" : "color-mix(in srgb, var(--cat-rose) 12%, transparent)",
+                                color: deletingGraphId === graph.id ? "var(--text-tertiary)" : "var(--cat-rose)",
                                 cursor: deletingGraphId ? "default" : "pointer",
                                 flexShrink: 0,
-                                transition: "background 0.15s, color 0.15s, transform 0.15s",
+                                transition: "background 0.12s, color 0.12s",
                               }}
                               onMouseEnter={(e) => {
                                 if (deletingGraphId) return;
-                                e.currentTarget.style.background = "color-mix(in srgb, var(--accent-soft) 72%, var(--accent) 28%)";
-                                e.currentTarget.style.transform = "translateY(-1px)";
+                                e.currentTarget.style.background = "color-mix(in srgb, var(--cat-rose) 22%, transparent)";
                               }}
                               onMouseLeave={(e) => {
-                                e.currentTarget.style.background = deletingGraphId === graph.id ? "var(--bg-tertiary)" : "var(--accent-soft)";
-                                e.currentTarget.style.transform = "translateY(0)";
+                                e.currentTarget.style.background = deletingGraphId === graph.id ? "var(--bg-tertiary)" : "color-mix(in srgb, var(--cat-rose) 12%, transparent)";
                               }}
                             >
                               {deletingGraphId === graph.id ? (
                                 <span
                                   style={{
                                     fontSize: 10,
-                                    fontFamily: "'JetBrains Mono', monospace",
+                                    fontFamily: "'Geist Mono', monospace",
                                     letterSpacing: "0.04em",
                                   }}
                                 >
@@ -4408,7 +4247,7 @@ export default function Home() {
                               flexShrink: 0,
                               fontSize: "0.6875rem",
                               color: "var(--text-tertiary)",
-                              fontFamily: "'JetBrains Mono', monospace",
+                              fontFamily: "'Geist Mono', monospace",
                               letterSpacing: "0.02em",
                             }}
                           >
@@ -4424,13 +4263,13 @@ export default function Home() {
                         style={{
                           width: "100%",
                           padding: "0.75rem 0.875rem",
-                          borderRadius: "0.875rem",
+                          borderRadius: "0.25rem",
                           border: "0.0625rem solid var(--border)",
                           background: "var(--bg-secondary)",
                           color: isHistoryLoadingMore ? "var(--text-tertiary)" : "var(--accent)",
                           cursor: isHistoryLoadingMore ? "default" : "pointer",
                           fontSize: "0.75rem",
-                          fontFamily: "'JetBrains Mono', monospace",
+                          fontFamily: "'Geist Mono', monospace",
                           letterSpacing: "0.04em",
                         }}
                       >
@@ -4456,10 +4295,11 @@ export default function Home() {
                 style={{
                   position: "fixed",
                   inset: 0,
-                  background: "rgba(16, 12, 8, 0.38)",
+                  background: "rgba(10, 10, 12, 0.55)",
                   border: "none",
                   zIndex: 40,
                   cursor: "pointer",
+                  backdropFilter: "blur(0.125rem)",
                 }}
                 aria-label="Close delete confirmation"
               />
@@ -4480,10 +4320,10 @@ export default function Home() {
                   maxHeight: "calc(100dvh - 2rem)",
                   margin: "auto",
                   padding: 20,
-                  borderRadius: 18,
-                  border: "1px solid var(--border-hover)",
-                  background: "color-mix(in srgb, var(--bg-primary) 92%, #1e1510 8%)",
-                  boxShadow: "0 22px 60px rgba(0,0,0,0.28)",
+                  borderRadius: 8,
+                  border: "1px solid var(--border)",
+                  background: "var(--bg-primary)",
+                  boxShadow: "0 1rem 2.5rem rgba(0,0,0,0.16)",
                   zIndex: 50,
                   display: "flex",
                   flexDirection: "column",
@@ -4496,7 +4336,7 @@ export default function Home() {
                     style={{
                       fontSize: 11,
                       color: "var(--accent)",
-                      fontFamily: "'JetBrains Mono', monospace",
+                      fontFamily: "'Geist Mono', monospace",
                       letterSpacing: "0.08em",
                       textTransform: "uppercase",
                     }}
@@ -4509,8 +4349,8 @@ export default function Home() {
                       fontSize: 24,
                       lineHeight: 1.1,
                       color: "var(--text-primary)",
-                      fontFamily: "'Instrument Serif', Georgia, serif",
-                      fontWeight: 400,
+                      fontFamily: "'Inter', sans-serif",
+                      fontWeight: 600,
                     }}
                   >
                     Delete this saved graph?
@@ -4553,13 +4393,13 @@ export default function Home() {
                     style={{
                       height: 34,
                       padding: "0 12px",
-                      borderRadius: 8,
+                      borderRadius: 6,
                       border: "1px solid var(--border)",
                       background: "none",
                       color: "var(--text-secondary)",
                       cursor: "pointer",
                       fontSize: 12,
-                      fontFamily: "'DM Sans', sans-serif",
+                      fontFamily: "'Inter', sans-serif",
                       fontWeight: 500,
                     }}
                   >
@@ -4570,13 +4410,13 @@ export default function Home() {
                     style={{
                       height: 34,
                       padding: "0 12px",
-                      borderRadius: 8,
-                      border: "1px solid var(--accent)",
-                      background: "var(--accent-soft)",
-                      color: "var(--accent)",
+                      borderRadius: 6,
+                      border: "1px solid color-mix(in srgb, var(--cat-rose) 55%, var(--border))",
+                      background: "color-mix(in srgb, var(--cat-rose) 12%, transparent)",
+                      color: "var(--cat-rose)",
                       cursor: "pointer",
                       fontSize: 12,
-                      fontFamily: "'DM Sans', sans-serif",
+                      fontFamily: "'Inter', sans-serif",
                       fontWeight: 600,
                     }}
                   >
@@ -4613,51 +4453,151 @@ export default function Home() {
             >
               <section className="landing-hero-shell">
                 <div className="landing-hero-grid" aria-hidden="true" />
-                <div className="landing-hero-strata" aria-hidden="true">
-                  <span />
-                  <span />
-                  <span />
-                  <span />
-                  <svg
-                    className="landing-helix-particles landing-helix-particles-desktop"
-                    viewBox="0 0 1248 448"
-                    preserveAspectRatio="none"
-                  >
-                    <g className="landing-helix-particle">
-                      <animateMotion
-                        dur="26s"
-                        repeatCount="indefinite"
-                        path="M202.6 102.37 A524.16 64 -5 1 1 886.9 136.85 A586.56 64 4 1 0 1065.12 248.63 A474.24 64 -3 1 0 909.29 284.48 A561.6 64 4 1 1 175.2 250.63 A474.24 64 -3 0 1 335.98 211.95 A586.56 64 4 1 0 202.6 102.37"
-                      />
-                      <animate
-                        attributeName="opacity"
-                        values="0;0.9;0.9;0"
-                        keyTimes="0;0.035;0.96;1"
-                        dur="26s"
-                        repeatCount="indefinite"
-                      />
-                      <circle className="landing-helix-core" r="4.25" />
-                    </g>
-                    <g className="landing-helix-particle landing-helix-particle-secondary">
-                      <animateMotion
-                        dur="26s"
-                        begin="-13s"
-                        repeatCount="indefinite"
-                        path="M202.6 102.37 A586.56 64 4 1 1 335.98 211.95 A474.24 64 -3 0 0 175.2 250.63 A561.6 64 4 1 0 909.29 284.48 A474.24 64 -3 1 1 1065.12 248.63 A586.56 64 4 1 1 886.9 136.85 A524.16 64 -5 1 0 202.6 102.37"
-                      />
-                      <animate
-                        attributeName="opacity"
-                        values="0;0.7;0.7;0"
-                        keyTimes="0;0.035;0.96;1"
-                        dur="26s"
-                        begin="-13s"
-                        repeatCount="indefinite"
-                      />
-                      <circle className="landing-helix-core" r="4.25" />
-                    </g>
-                  </svg>
-                  <MobileLandingHelixParticles />
-                </div>
+
+                <svg
+                  className="landing-hero-graph"
+                  viewBox="0 0 1440 820"
+                  preserveAspectRatio="xMidYMid slice"
+                  aria-hidden="true"
+                >
+                  {/* citation edges — left lineage */}
+                  <path className="landing-hero-graph-edge" d="M70 250 C160 250,160 340,250 340" />
+                  <path className="landing-hero-graph-edge" d="M60 430 C155 430,155 340,250 340" />
+                  <path className="landing-hero-graph-edge" d="M60 430 C165 430,165 520,270 520" />
+                  <path className="landing-hero-graph-edge" d="M110 600 C190 600,190 520,270 520" />
+                  <path className="landing-hero-graph-edge" d="M250 340 C340 340,340 250,430 250" />
+                  <path className="landing-hero-graph-edge" d="M250 340 C330 340,330 470,410 470" />
+                  <path className="landing-hero-graph-edge" d="M270 520 C340 520,340 470,410 470" />
+                  <path className="landing-hero-graph-edge" d="M430 250 C420 360,420 360,410 470" />
+                  <path className="landing-hero-graph-edge is-accent" d="M410 470 C560 470,560 660,720 660" />
+                  {/* citation edges — right lineage */}
+                  <path className="landing-hero-graph-edge" d="M1370 250 C1280 250,1280 340,1190 340" />
+                  <path className="landing-hero-graph-edge" d="M1380 430 C1285 430,1285 340,1190 340" />
+                  <path className="landing-hero-graph-edge" d="M1380 430 C1275 430,1275 520,1170 520" />
+                  <path className="landing-hero-graph-edge" d="M1330 600 C1250 600,1250 520,1170 520" />
+                  <path className="landing-hero-graph-edge" d="M1190 340 C1100 340,1100 250,1010 250" />
+                  <path className="landing-hero-graph-edge" d="M1190 340 C1110 340,1110 470,1030 470" />
+                  <path className="landing-hero-graph-edge" d="M1170 520 C1100 520,1100 470,1030 470" />
+                  <path className="landing-hero-graph-edge" d="M1010 250 C1020 360,1020 360,1030 470" />
+                  <path className="landing-hero-graph-edge is-accent" d="M1030 470 C880 470,880 660,720 660" />
+
+                  {/* paper cards */}
+                  <rect className="landing-hero-graph-card" x="239" y="333" width="22" height="14" rx="2" />
+                  <rect className="landing-hero-graph-card is-accent" x="399" y="463" width="22" height="14" rx="2" />
+                  <rect className="landing-hero-graph-card" x="1179" y="333" width="22" height="14" rx="2" />
+                  <rect className="landing-hero-graph-card is-accent" x="1019" y="463" width="22" height="14" rx="2" />
+
+                  {/* nodes */}
+                  <circle className="landing-hero-graph-node" cx="70" cy="250" r="3.5" />
+                  <circle className="landing-hero-graph-node" cx="60" cy="430" r="3.5" />
+                  <circle className="landing-hero-graph-node" cx="110" cy="600" r="3.5" />
+                  <circle className="landing-hero-graph-node" cx="270" cy="520" r="3.5" />
+                  <circle className="landing-hero-graph-node" cx="430" cy="250" r="3.5" />
+                  <circle className="landing-hero-graph-node" cx="1370" cy="250" r="3.5" />
+                  <circle className="landing-hero-graph-node" cx="1380" cy="430" r="3.5" />
+                  <circle className="landing-hero-graph-node" cx="1330" cy="600" r="3.5" />
+                  <circle className="landing-hero-graph-node" cx="1170" cy="520" r="3.5" />
+                  <circle className="landing-hero-graph-node" cx="1010" cy="250" r="3.5" />
+
+                  {/* field diagrams — chemistry, ai, physics, biology */}
+                  {/* benzene ring */}
+                  <g transform="translate(350 215)">
+                    <polygon className="landing-hero-graph-glyph" points="0,-24 20.8,-12 20.8,12 0,24 -20.8,12 -20.8,-12" />
+                    <circle className="landing-hero-graph-glyph" cx="0" cy="0" r="12.5" />
+                  </g>
+                  {/* neural network */}
+                  <g transform="translate(1200 655)">
+                    <line className="landing-hero-graph-glyph" x1="-24" y1="-12" x2="0" y2="-18" />
+                    <line className="landing-hero-graph-glyph" x1="-24" y1="-12" x2="0" y2="0" />
+                    <line className="landing-hero-graph-glyph" x1="-24" y1="-12" x2="0" y2="18" />
+                    <line className="landing-hero-graph-glyph" x1="-24" y1="12" x2="0" y2="-18" />
+                    <line className="landing-hero-graph-glyph" x1="-24" y1="12" x2="0" y2="0" />
+                    <line className="landing-hero-graph-glyph" x1="-24" y1="12" x2="0" y2="18" />
+                    <line className="landing-hero-graph-glyph" x1="0" y1="-18" x2="24" y2="-12" />
+                    <line className="landing-hero-graph-glyph" x1="0" y1="-18" x2="24" y2="12" />
+                    <line className="landing-hero-graph-glyph" x1="0" y1="0" x2="24" y2="-12" />
+                    <line className="landing-hero-graph-glyph" x1="0" y1="0" x2="24" y2="12" />
+                    <line className="landing-hero-graph-glyph" x1="0" y1="18" x2="24" y2="-12" />
+                    <line className="landing-hero-graph-glyph" x1="0" y1="18" x2="24" y2="12" />
+                    <circle className="landing-hero-graph-glyph-dot" cx="-24" cy="-12" r="2.6" />
+                    <circle className="landing-hero-graph-glyph-dot" cx="-24" cy="12" r="2.6" />
+                    <circle className="landing-hero-graph-glyph-dot" cx="0" cy="-18" r="2.6" />
+                    <circle className="landing-hero-graph-glyph-dot" cx="0" cy="0" r="2.6" />
+                    <circle className="landing-hero-graph-glyph-dot" cx="0" cy="18" r="2.6" />
+                    <circle className="landing-hero-graph-glyph-dot is-accent" cx="24" cy="-12" r="2.6" />
+                    <circle className="landing-hero-graph-glyph-dot" cx="24" cy="12" r="2.6" />
+                  </g>
+                  {/* atom */}
+                  <g transform="translate(300 690)">
+                    <ellipse className="landing-hero-graph-glyph" rx="30" ry="11" />
+                    <ellipse className="landing-hero-graph-glyph" rx="30" ry="11" transform="rotate(60)" />
+                    <ellipse className="landing-hero-graph-glyph" rx="30" ry="11" transform="rotate(120)" />
+                    <circle className="landing-hero-graph-glyph-dot is-accent" cx="0" cy="0" r="3.2" />
+                  </g>
+                  {/* dna double helix */}
+                  <g transform="translate(1220 205)">
+                    <path className="landing-hero-graph-glyph" d="M -8 -42 C 8 -34 8 -22 -8 -14 C -24 -6 -24 6 -8 14 C 8 22 8 34 -8 42" />
+                    <path className="landing-hero-graph-glyph" d="M 8 -42 C -8 -34 -8 -22 8 -14 C 24 -6 24 6 8 14 C -8 22 -8 34 8 42" />
+                    <line className="landing-hero-graph-glyph" x1="-8" y1="-42" x2="8" y2="-42" />
+                    <line className="landing-hero-graph-glyph" x1="-8" y1="-14" x2="8" y2="-14" />
+                    <line className="landing-hero-graph-glyph" x1="-8" y1="14" x2="8" y2="14" />
+                    <line className="landing-hero-graph-glyph" x1="-8" y1="42" x2="8" y2="42" />
+                  </g>
+
+                  {/* year ticks — old on the left, recent on the right */}
+                  <text className="landing-hero-graph-year" x="70" y="230" textAnchor="middle">1949</text>
+                  <text className="landing-hero-graph-year" x="110" y="626" textAnchor="middle">1974</text>
+                  <text className="landing-hero-graph-year" x="1370" y="230" textAnchor="middle">2013</text>
+                  <text className="landing-hero-graph-year" x="1330" y="626" textAnchor="middle">2024</text>
+
+                  {/* field-note remarks in the margins */}
+                  <text className="landing-hero-graph-remark is-accent" x="410" y="452" textAnchor="middle">seed</text>
+                  <text className="landing-hero-graph-remark" x="214" y="566" textAnchor="middle">cited 1,204</text>
+                  <text className="landing-hero-graph-remark is-accent" x="1030" y="452" textAnchor="middle">→ attention</text>
+                  <text className="landing-hero-graph-remark" x="1214" y="566" textAnchor="middle">why here?</text>
+
+                  {/* equations — physics · ai · math */}
+                  <text className="landing-hero-graph-eq" x="150" y="130" textAnchor="middle" transform="rotate(-2 150 130)">
+                    E = mc<tspan dy="-9" fontSize="17">2</tspan>
+                  </text>
+                  <text className="landing-hero-graph-eq is-accent" x="1300" y="130" textAnchor="middle" transform="rotate(2 1300 130)">
+                    θ ← θ − η∇L(θ)
+                  </text>
+                  <text className="landing-hero-graph-eq" x="1150" y="740" textAnchor="middle" transform="rotate(1 1150 740)">
+                    e<tspan dy="-9" fontSize="17">iπ</tspan>
+                    <tspan dy="9" fontSize="26"> + 1 = 0</tspan>
+                  </text>
+
+                  {/* pinned field notes */}
+                  <g transform="translate(300 110)">
+                    <rect className="landing-hero-graph-note" x="0" y="0" width="78" height="50" rx="3" />
+                    <rect className="landing-hero-graph-note-bar is-amber" x="0" y="0" width="3" height="50" rx="1.5" />
+                    <text className="landing-hero-graph-note-tag" x="12" y="17">QUESTION</text>
+                    <rect className="landing-hero-graph-note-line" x="12" y="26" width="46" height="3" rx="1.5" />
+                    <rect className="landing-hero-graph-note-line" x="12" y="35" width="56" height="3" rx="1.5" />
+                  </g>
+                  <g transform="translate(1010 110)">
+                    <rect className="landing-hero-graph-note" x="0" y="0" width="100" height="50" rx="3" />
+                    <rect className="landing-hero-graph-note-bar is-green" x="0" y="0" width="3" height="50" rx="1.5" />
+                    <text className="landing-hero-graph-note-tag" x="12" y="17">FIELD NOTE</text>
+                    <rect className="landing-hero-graph-note-line" x="12" y="26" width="54" height="3" rx="1.5" />
+                    <rect className="landing-hero-graph-note-line" x="12" y="35" width="42" height="3" rx="1.5" />
+                  </g>
+                  <g transform="translate(430 690)">
+                    <rect className="landing-hero-graph-note" x="0" y="0" width="78" height="50" rx="3" />
+                    <rect className="landing-hero-graph-note-bar" x="0" y="0" width="3" height="50" rx="1.5" />
+                    <text className="landing-hero-graph-note-tag" x="12" y="17">INSIGHT</text>
+                    <rect className="landing-hero-graph-note-line" x="12" y="26" width="52" height="3" rx="1.5" />
+                    <rect className="landing-hero-graph-note-line" x="12" y="35" width="40" height="3" rx="1.5" />
+                  </g>
+                  <g transform="translate(960 700)">
+                    <rect className="landing-hero-graph-note" x="0" y="0" width="78" height="50" rx="3" />
+                    <rect className="landing-hero-graph-note-bar is-rose" x="0" y="0" width="3" height="50" rx="1.5" />
+                    <text className="landing-hero-graph-note-tag" x="12" y="17">TODO</text>
+                    <rect className="landing-hero-graph-note-line" x="12" y="26" width="48" height="3" rx="1.5" />
+                    <rect className="landing-hero-graph-note-line" x="12" y="35" width="58" height="3" rx="1.5" />
+                  </g>
+                </svg>
 
                 <div className="landing-hero-content">
                   <motion.div
@@ -4744,7 +4684,7 @@ export default function Home() {
                         style={{
                           fontSize: "0.75rem",
                           color: "var(--text-tertiary)",
-                          fontFamily: "'JetBrains Mono', monospace",
+                          fontFamily: "'Geist Mono', monospace",
                           letterSpacing: "0.03em",
                         }}
                       >
@@ -4784,56 +4724,23 @@ export default function Home() {
                   )}
                 </div>
 
-                <dl className="landing-hero-ledger" aria-label="How Sediment works">
-                  <div>
-                    <dt>01</dt>
-                    <dd>Begin with a question</dd>
-                  </div>
-                  <div>
-                    <dt>02</dt>
-                    <dd>Resolve the anchor paper</dd>
-                  </div>
-                  <div>
-                    <dt>03</dt>
-                    <dd>Trace its foundations</dd>
-                  </div>
-                </dl>
-
                 <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   transition={{ delay: 0.6, duration: 1 }}
                   className="hide-mobile landing-hero-footer"
                 >
-                  <a
-                    href={GITHUB_REPO_URL}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="landing-open-source"
-                    onMouseEnter={(e) => {
-                      (e.currentTarget as HTMLAnchorElement).style.color =
-                        "var(--accent)";
-                    }}
-                    onMouseLeave={(e) => {
-                      (e.currentTarget as HTMLAnchorElement).style.color =
-                        "var(--text-tertiary)";
-                    }}
-                  >
-                    <svg
-                      width="12"
-                      height="12"
-                      viewBox="0 0 24 24"
-                      fill="currentColor"
-                    >
-                      <path d="M12 2C6.477 2 2 6.477 2 12c0 4.418 2.865 8.166 6.839 9.489.5.092.682-.217.682-.482 0-.237-.009-.868-.013-1.703-2.782.604-3.369-1.342-3.369-1.342-.454-1.155-1.11-1.463-1.11-1.463-.908-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.831.092-.646.35-1.086.636-1.336-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.029-2.683-.103-.253-.446-1.27.098-2.647 0 0 .84-.269 2.75 1.025A9.578 9.578 0 0 1 12 6.836a9.59 9.59 0 0 1 2.504.337c1.909-1.294 2.747-1.025 2.747-1.025.546 1.377.203 2.394.1 2.647.64.699 1.028 1.592 1.028 2.683 0 3.842-2.339 4.687-4.566 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.741 0 .267.18.578.688.48C19.138 20.163 22 16.418 22 12c0-5.523-4.477-10-10-10z" />
-                    </svg>
-                    open source
-                  </a>
-                  <LandingScrollHint containerRef={landingScrollRef} />
                 </motion.div>
               </section>
 
-              <div style={{ position: "relative" }}>
+              <div
+                style={{
+                  position: "relative",
+                  zIndex: 1,
+                  background: "var(--bg-primary)",
+                  boxShadow: "0 1.25rem 2.5rem rgba(0, 0, 0, 0.18)",
+                }}
+              >
                 <DemoTypeScene
                   containerRef={landingScrollRef}
                   compact={compact}
@@ -4850,10 +4757,21 @@ export default function Home() {
                   containerRef={landingScrollRef}
                   compact={compact}
                 />
-                <DemoFinalSection
-                  onScrollToSearch={handleScrollToSearch}
-                  compact={compact}
-                />
+              </div>
+              <div style={{ position: "relative", overflow: "clip" }}>
+                <div
+                  style={{
+                    position: "relative",
+                    zIndex: 1,
+                    background: "var(--bg-primary)",
+                    boxShadow: "0 1.25rem 2.5rem rgba(0, 0, 0, 0.18)",
+                  }}
+                >
+                  <DemoFinalSection
+                    onScrollToSearch={handleScrollToSearch}
+                    compact={compact}
+                  />
+                </div>
                 <DemoFooter compact={compact} />
               </div>
             </motion.div>
@@ -4873,37 +4791,23 @@ export default function Home() {
                 gap: "1.25rem",
               }}
             >
-              {/* Strata loading animation */}
-              <div
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.3, ease: "easeOut" }}
                 style={{
                   display: "flex",
-                  flexDirection: "column",
-                  gap: "0.25rem",
                   alignItems: "center",
+                  justifyContent: "center",
+                  color: "var(--accent)",
                 }}
               >
-                {[0, 1, 2, 3].map((i) => (
-                  <motion.div
-                    key={i}
-                    initial={{ width: 0, opacity: 0 }}
-                    animate={{
-                      width: [0, 40 + i * 12, 20 + i * 8],
-                      opacity: [0, 0.8, 0.4],
-                    }}
-                    transition={{
-                      duration: 1.5,
-                      delay: i * 0.15,
-                      repeat: Infinity,
-                      ease: [0.16, 1, 0.3, 1],
-                    }}
-                    style={{
-                      height: "0.125rem",
-                      borderRadius: "0.0625rem",
-                      background: "var(--accent)",
-                    }}
-                  />
-                ))}
-              </div>
+                <LoadingLogoMark
+                  width="64"
+                  height="64"
+                  reducedMotion={reduceMotion ?? false}
+                />
+              </motion.div>
               <motion.p
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -4911,7 +4815,7 @@ export default function Home() {
                 style={{
                   fontSize: "0.8125rem",
                   color: "var(--text-tertiary)",
-                  fontFamily: "'JetBrains Mono', monospace",
+                  fontFamily: "'Geist Mono', monospace",
                   letterSpacing: "0.02em",
                 }}
               >

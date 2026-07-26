@@ -5,7 +5,7 @@ import "./globals.css";
 import "katex/dist/katex.min.css";
 
 export const metadata: Metadata = {
-  title: "Sediment — Knowledge, layered.",
+  title: "Sediment | Knowledge, layered",
   description: "Trace any research concept back through time.",
   appleWebApp: {
     capable: true,
@@ -28,7 +28,7 @@ export default function RootLayout({
           crossOrigin="anonymous"
         />
         <link
-          href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap"
+          href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,400..700;1,14..32,400..700&family=Geist+Mono:wght@400;500&family=Source+Serif+4:ital,opsz@0,8..60;1,8..60&display=swap"
           rel="stylesheet"
         />
         {/* Prevent flash of wrong theme */}

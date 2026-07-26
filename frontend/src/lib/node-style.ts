@@ -2,11 +2,11 @@ import { NodeBorderColor } from "./types";
 
 const NODE_BORDER_COLOR_MAP: Record<NodeBorderColor, { css: string; label: string }> = {
   accent: { css: "var(--accent)", label: "Accent" },
-  blue: { css: "#60a5fa", label: "Blue" },
-  green: { css: "#34d399", label: "Green" },
-  purple: { css: "#a78bfa", label: "Purple" },
-  amber: { css: "#f59e0b", label: "Amber" },
-  rose: { css: "#fb7185", label: "Rose" },
+  blue: { css: "var(--cat-blue)", label: "Blue" },
+  green: { css: "var(--cat-green)", label: "Green" },
+  purple: { css: "var(--cat-purple)", label: "Purple" },
+  amber: { css: "var(--cat-amber)", label: "Amber" },
+  rose: { css: "var(--cat-rose)", label: "Rose" },
 };
 
 export const NODE_BORDER_COLOR_OPTIONS: Array<{ key: NodeBorderColor; css: string; label: string }> =

@@ -110,7 +110,7 @@ export function TimelineNodeCard({
           margin: 4,
           background: "var(--node-bg)",
           border: `0.09375rem solid ${borderColor}`,
-          borderRadius: "0.75rem",
+          borderRadius: "0.375rem",
           padding: "0.75rem 0.875rem",
           display: "flex",
           flexDirection: "column",
@@ -123,8 +123,8 @@ export function TimelineNodeCard({
         }}
         onMouseEnter={(e) => {
           e.currentTarget.style.boxShadow = getHoverBoxShadow();
-          e.currentTarget.style.transform = "translateY(-0.125rem)";
-          e.currentTarget.style.borderColor = "var(--accent)";
+          e.currentTarget.style.transform = "translateY(-0.0625rem)";
+          e.currentTarget.style.borderColor = "var(--border-hover)";
         }}
         onMouseLeave={(e) => {
           e.currentTarget.style.boxShadow = getBoxShadow(isActive, isHighlighted, isMentioned);
@@ -133,17 +133,15 @@ export function TimelineNodeCard({
         }}
       >
         {isMentioned && (
-          <motion.div
+          <div
             aria-hidden="true"
-            initial={{ opacity: 0.25 }}
-            animate={{ opacity: [0.28, 0.75, 0.28] }}
-            transition={{ duration: 1.45, repeat: Infinity, ease: "easeInOut" }}
             style={{
               position: "absolute",
               inset: "-0.0625rem",
-              borderRadius: "0.75rem",
-              border: "0.09375rem solid var(--accent)",
-              boxShadow: "0 0 1.25rem var(--accent-glow)",
+              borderRadius: "0.375rem",
+              border: "0.125rem solid var(--accent)",
+              boxShadow: "0 0 0 0.1875rem var(--accent-soft)",
+              opacity: 0.85,
               pointerEvents: "none",
             }}
           />
@@ -173,9 +171,9 @@ export function TimelineNodeCard({
             color: "var(--accent)",
             fontSize: "0.6875rem",
             fontWeight: 500,
-            fontFamily: "'JetBrains Mono', monospace",
+            fontFamily: "'Geist Mono', monospace",
             padding: "0.125rem 0.4375rem",
-            borderRadius: "0.25rem",
+            borderRadius: "0.125rem",
             lineHeight: "1rem",
             letterSpacing: "0.02em",
           }}
@@ -194,7 +192,7 @@ export function TimelineNodeCard({
             overflow: "hidden",
             textOverflow: "ellipsis",
             whiteSpace: "nowrap",
-            fontFamily: "'DM Sans', sans-serif",
+            fontFamily: "'Inter', sans-serif",
           }}
         >
           {node.paper.title}
@@ -209,7 +207,7 @@ export function TimelineNodeCard({
             overflow: "hidden",
             textOverflow: "ellipsis",
             whiteSpace: "nowrap",
-            fontFamily: "'DM Sans', sans-serif",
+            fontFamily: "'Inter', sans-serif",
           }}
         >
           {node.paper.summary}
@@ -271,11 +269,11 @@ export function TimelineNodeCard({
               zIndex: 20,
               width: "10.75rem",
               padding: "0.625rem",
-              borderRadius: "1rem",
+              borderRadius: "0.375rem",
               border: "0.0625rem solid var(--border)",
-              background: "color-mix(in srgb, var(--bg-primary) 92%, transparent)",
-              boxShadow: "0 1rem 2.5rem rgba(0,0,0,0.28)",
-              backdropFilter: "blur(18px)",
+              background: "color-mix(in srgb, var(--bg-primary) 98%, transparent)",
+              boxShadow: "0 0.5rem 1.5rem rgba(0,0,0,0.10)",
+              backdropFilter: "blur(12px)",
               cursor: "default",
             }}
           >
@@ -336,7 +334,7 @@ export function TimelineNodeCard({
                 title={isLocked ? "Seed paper cannot be removed" : "Remove node"}
                 style={{
                   ...menuButtonStyle(deleteDisabled),
-                  color: deleteDisabled ? "var(--text-tertiary)" : "#f28b7c",
+                  color: deleteDisabled ? "var(--text-tertiary)" : "var(--cat-rose)",
                 }}
               >
                 Delete node
@@ -352,15 +350,14 @@ export function TimelineNodeCard({
 function menuButtonStyle(disabled: boolean): CSSProperties {
   return {
     height: "1.9rem",
-    borderRadius: "0.625rem",
+    borderRadius: "0.25rem",
     border: "0.0625rem solid var(--border)",
     background: "var(--bg-secondary)",
     color: disabled ? "var(--text-tertiary)" : "var(--text-secondary)",
     cursor: disabled ? "default" : "pointer",
-    fontSize: "0.625rem",
-    fontWeight: 600,
-    letterSpacing: "0.08em",
-    textTransform: "uppercase",
-    fontFamily: "'JetBrains Mono', monospace",
+    fontSize: "0.8125rem",
+    fontWeight: 500,
+    letterSpacing: "-0.006em",
+    fontFamily: "'Inter', sans-serif",
   };
 }

@@ -139,10 +139,10 @@ export function ConversationNavigator({
             maxHeight: "min(30rem, calc(100vh - 5rem))",
             overflowY: "auto",
             padding: "0.5rem",
-            borderRadius: "1rem",
+            borderRadius: "0.5rem",
             border: "0.0625rem solid var(--border)",
-            background: "var(--bg-secondary)",
-            boxShadow: "0 1rem 2.5rem rgba(0,0,0,0.28)",
+            background: "var(--bg-primary)",
+            boxShadow: "0 0.5rem 1.5rem rgba(0,0,0,0.10)",
           }}
         >
           {visibleItems.map((item) => (
@@ -162,10 +162,10 @@ export function ConversationNavigator({
                 width: "100%",
                 padding: "0.625rem 0.75rem",
                 border: "none",
-                borderRadius: "0.75rem",
+                borderRadius: "0.25rem",
                 background: item.id === activeId ? "var(--bg-tertiary)" : "transparent",
                 color: "var(--text-primary)",
-                fontFamily: "'DM Sans', sans-serif",
+                fontFamily: "'Inter', sans-serif",
                 fontSize: "0.8125rem",
                 lineHeight: 1.35,
                 textAlign: "left",

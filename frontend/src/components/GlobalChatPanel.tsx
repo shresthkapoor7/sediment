@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useId, useCallback, type ReactNode } from 
 import { motion, AnimatePresence } from "framer-motion";
 import { MarkdownContent } from "./MarkdownContent";
 import { ConversationNavigator } from "./ConversationNavigator";
+import { LogoMark } from "./LogoMark";
 import { openChatSession, streamChatAboutTimeline, suggestTimelineQuestions } from "@/lib/api";
 import { DETAIL_PANEL_DEFAULT_WIDTH, DETAIL_PANEL_MAX_WIDTH, DETAIL_PANEL_MIN_WIDTH, DETAIL_PANEL_WIDTH_KEY } from "@/lib/detail-panel";
 import {
@@ -87,6 +88,7 @@ function openAlexUrl(openalexId: string): string {
 }
 
 function TraceEvidencePanel({ evidence }: { evidence: TraceEvidence }) {
+  const [collapsed, setCollapsed] = useState(true);
   const events = [
     ...evidence.searches.map((search, index) => ({
       key: `search:${index}:${search.query}`,
@@ -105,13 +107,39 @@ function TraceEvidencePanel({ evidence }: { evidence: TraceEvidence }) {
 
   return (
     <section style={{ marginTop: "0.75rem", paddingTop: "0.625rem", borderTop: "0.0625rem solid var(--border)" }}>
-      <div style={{ marginBottom: "0.25rem", color: "var(--text-tertiary)", fontSize: "0.625rem", fontWeight: 700, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.06em", textTransform: "uppercase" }}>
-        Research trail · {events.length} OpenAlex {events.length === 1 ? "step" : "steps"}
-      </div>
+      <button
+        type="button"
+        onClick={() => setCollapsed((value) => !value)}
+        aria-expanded={!collapsed}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "0.4375rem",
+          width: "100%",
+          marginBottom: collapsed ? 0 : "0.25rem",
+          padding: "0.125rem 0",
+          background: "none",
+          border: "none",
+          cursor: "pointer",
+          color: "var(--text-tertiary)",
+          fontSize: "0.625rem",
+          fontWeight: 700,
+          fontFamily: "'Geist Mono', monospace",
+          letterSpacing: "0.06em",
+          textTransform: "uppercase",
+          userSelect: "none",
+        }}
+      >
+        <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" style={{ transform: collapsed ? "rotate(-90deg)" : "none", transition: "transform 0.15s ease", flexShrink: 0 }}>
+          <path d="M2.5 4.5l3.5 3 3.5-3" />
+        </svg>
+        <span>Research trail · {events.length} OpenAlex {events.length === 1 ? "step" : "steps"}</span>
+      </button>
+      {!collapsed && (
       <div style={{ display: "flex", flexDirection: "column" }}>
         {events.map((event) => (
           <details key={event.key} style={{ padding: "0.1875rem 0" }}>
-            <summary style={{ padding: "0.25rem 0", color: "var(--text-secondary)", fontSize: "0.6875rem", lineHeight: 1.4, cursor: "pointer" }}>
+            <summary className="chat-trace-summary" style={{ padding: "0.25rem 0", color: "var(--text-secondary)", fontSize: "0.6875rem", lineHeight: 1.4, cursor: "pointer" }}>
               {event.label} · {event.papers.length} {event.papers.length === 1 ? "paper" : "papers"}
             </summary>
             <div style={{ display: "flex", flexDirection: "column", gap: "0.125rem", margin: "0.125rem 0 0.5rem 1rem" }}>
@@ -124,7 +152,7 @@ function TraceEvidencePanel({ evidence }: { evidence: TraceEvidence }) {
                   style={{ display: "flex", flexDirection: "column", gap: "0.0625rem", padding: "0.25rem 0", color: "inherit", textDecoration: "none" }}
                 >
                   <span style={{ color: "var(--text-primary)", fontSize: "0.6875rem", fontWeight: 600, lineHeight: 1.35 }}>{paper.title}</span>
-                  <span style={{ color: "var(--text-tertiary)", fontSize: "0.59375rem", fontFamily: "'JetBrains Mono', monospace" }}>
+                  <span style={{ color: "var(--text-tertiary)", fontSize: "0.59375rem", fontFamily: "'Geist Mono', monospace" }}>
                     {[paper.year, ...paper.authors].filter(Boolean).join(" · ") || paper.openalexId}
                   </span>
                 </a>
@@ -136,6 +164,7 @@ function TraceEvidencePanel({ evidence }: { evidence: TraceEvidence }) {
           </details>
         ))}
       </div>
+      )}
     </section>
   );
 }
@@ -696,14 +725,10 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
                   flexShrink: 0,
                 }}
               >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="1.5" strokeLinecap="round" aria-hidden="true">
-                  <path d="M2 17l10 4 10-4" opacity="0.3" />
-                  <path d="M2 12l10 4 10-4" opacity="0.6" />
-                  <path d="M12 2L2 7l10 5 10-5L12 2z" />
-                </svg>
+                <LogoMark width="18" height="18" style={{ color: "var(--text-primary)" }} />
               </div>
               <div style={{ position: "absolute", left: "50%", transform: "translateX(-50%)", maxWidth: "calc(100% - 7rem)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", pointerEvents: "none" }}>
-                <div style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--text-primary)", fontFamily: "'DM Sans', sans-serif" }}>
+                <div style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--text-primary)", fontFamily: "'Inter', sans-serif" }}>
                   Sediment Agent
                 </div>
               </div>
@@ -739,7 +764,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
                   style={{
                     fontSize: "0.625rem",
                     color: "var(--text-tertiary)",
-                    fontFamily: "'JetBrains Mono', monospace",
+                    fontFamily: "'Geist Mono', monospace",
                     letterSpacing: "0.06em",
                     textTransform: "uppercase",
                   }}
@@ -750,30 +775,13 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
                   style={{
                     fontSize: "0.625rem",
                     color: "var(--text-tertiary)",
-                    fontFamily: "'JetBrains Mono', monospace",
+                    fontFamily: "'Geist Mono', monospace",
                   }}
                 >
                   {papers.length} paper{papers.length !== 1 ? "s" : ""} · {noteCount} note{noteCount !== 1 ? "s" : ""}
                 </span>
               </div>
               <div style={{ display: "flex", flexWrap: "wrap", gap: "0.375rem" }}>
-                <span
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: "0.375rem",
-                    borderRadius: "999px",
-                    border: "0.0625rem solid var(--accent)",
-                    background: "var(--accent-soft)",
-                    color: "var(--accent)",
-                    padding: "0.25rem 0.55rem",
-                    fontSize: "0.6875rem",
-                    fontFamily: "'DM Sans', sans-serif",
-                    fontWeight: 600,
-                  }}
-                >
-                  All timeline
-                </span>
                 <button
                   type="button"
                   onClick={startPaperMention}
@@ -781,25 +789,26 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
                   style={{
                     display: "inline-flex",
                     alignItems: "center",
-                    borderRadius: "999px",
-                    border: "0.0625rem dashed var(--border-hover)",
+                    borderRadius: "0.25rem",
+                    border: "0.0625rem solid var(--border)",
                     background: "transparent",
                     color: "var(--text-tertiary)",
                     padding: "0.25rem 0.55rem",
                     fontSize: "0.6875rem",
-                    fontFamily: "'JetBrains Mono', monospace",
+                    fontFamily: "'Inter', sans-serif",
+                    fontWeight: 500,
                     cursor: isThinking ? "default" : "pointer",
                     opacity: isThinking ? 0.55 : 1,
                     transition: "border-color 0.15s, color 0.15s, background 0.15s",
                   }}
                   onMouseEnter={(event) => {
                     if (isThinking) return;
-                    event.currentTarget.style.borderColor = "var(--accent)";
-                    event.currentTarget.style.color = "var(--accent)";
-                    event.currentTarget.style.background = "var(--accent-soft)";
+                    event.currentTarget.style.borderColor = "var(--border-hover)";
+                    event.currentTarget.style.color = "var(--text-primary)";
+                    event.currentTarget.style.background = "var(--bg-tertiary)";
                   }}
                   onMouseLeave={(event) => {
-                    event.currentTarget.style.borderColor = "var(--border-hover)";
+                    event.currentTarget.style.borderColor = "var(--border)";
                     event.currentTarget.style.color = "var(--text-tertiary)";
                     event.currentTarget.style.background = "transparent";
                   }}
@@ -813,25 +822,26 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
                   style={{
                     display: "inline-flex",
                     alignItems: "center",
-                    borderRadius: "999px",
-                    border: "0.0625rem dashed var(--border-hover)",
+                    borderRadius: "0.25rem",
+                    border: "0.0625rem solid var(--border)",
                     background: "transparent",
                     color: "var(--text-tertiary)",
                     padding: "0.25rem 0.55rem",
                     fontSize: "0.6875rem",
-                    fontFamily: "'JetBrains Mono', monospace",
+                    fontFamily: "'Inter', sans-serif",
+                    fontWeight: 500,
                     cursor: isThinking ? "default" : "pointer",
                     opacity: isThinking ? 0.55 : 1,
                     transition: "border-color 0.15s, color 0.15s, background 0.15s",
                   }}
                   onMouseEnter={(event) => {
                     if (isThinking) return;
-                    event.currentTarget.style.borderColor = "var(--accent)";
-                    event.currentTarget.style.color = "var(--accent)";
-                    event.currentTarget.style.background = "var(--accent-soft)";
+                    event.currentTarget.style.borderColor = "var(--border-hover)";
+                    event.currentTarget.style.color = "var(--text-primary)";
+                    event.currentTarget.style.background = "var(--bg-tertiary)";
                   }}
                   onMouseLeave={(event) => {
-                    event.currentTarget.style.borderColor = "var(--border-hover)";
+                    event.currentTarget.style.borderColor = "var(--border)";
                     event.currentTarget.style.color = "var(--text-tertiary)";
                     event.currentTarget.style.background = "transparent";
                   }}
@@ -845,25 +855,26 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
                   style={{
                     display: "inline-flex",
                     alignItems: "center",
-                    borderRadius: "999px",
-                    border: "0.0625rem dashed var(--border-hover)",
+                    borderRadius: "0.25rem",
+                    border: "0.0625rem solid var(--border)",
                     background: "transparent",
                     color: "var(--text-tertiary)",
                     padding: "0.25rem 0.55rem",
                     fontSize: "0.6875rem",
-                    fontFamily: "'JetBrains Mono', monospace",
+                    fontFamily: "'Inter', sans-serif",
+                    fontWeight: 500,
                     cursor: isThinking ? "default" : "pointer",
                     opacity: isThinking ? 0.55 : 1,
                     transition: "border-color 0.15s, color 0.15s, background 0.15s",
                   }}
                   onMouseEnter={(event) => {
                     if (isThinking) return;
-                    event.currentTarget.style.borderColor = "var(--accent)";
-                    event.currentTarget.style.color = "var(--accent)";
-                    event.currentTarget.style.background = "var(--accent-soft)";
+                    event.currentTarget.style.borderColor = "var(--border-hover)";
+                    event.currentTarget.style.color = "var(--text-primary)";
+                    event.currentTarget.style.background = "var(--bg-tertiary)";
                   }}
                   onMouseLeave={(event) => {
-                    event.currentTarget.style.borderColor = "var(--border-hover)";
+                    event.currentTarget.style.borderColor = "var(--border)";
                     event.currentTarget.style.color = "var(--text-tertiary)";
                     event.currentTarget.style.background = "transparent";
                   }}
@@ -877,25 +888,26 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
                   style={{
                     display: "inline-flex",
                     alignItems: "center",
-                    borderRadius: "999px",
-                    border: "0.0625rem dashed var(--border-hover)",
+                    borderRadius: "0.25rem",
+                    border: "0.0625rem solid var(--border)",
                     background: "transparent",
                     color: "var(--text-tertiary)",
                     padding: "0.25rem 0.55rem",
                     fontSize: "0.6875rem",
-                    fontFamily: "'JetBrains Mono', monospace",
+                    fontFamily: "'Inter', sans-serif",
+                    fontWeight: 500,
                     cursor: isThinking ? "default" : "pointer",
                     opacity: isThinking ? 0.55 : 1,
                     transition: "border-color 0.15s, color 0.15s, background 0.15s",
                   }}
                   onMouseEnter={(event) => {
                     if (isThinking) return;
-                    event.currentTarget.style.borderColor = "var(--accent)";
-                    event.currentTarget.style.color = "var(--accent)";
-                    event.currentTarget.style.background = "var(--accent-soft)";
+                    event.currentTarget.style.borderColor = "var(--border-hover)";
+                    event.currentTarget.style.color = "var(--text-primary)";
+                    event.currentTarget.style.background = "var(--bg-tertiary)";
                   }}
                   onMouseLeave={(event) => {
-                    event.currentTarget.style.borderColor = "var(--border-hover)";
+                    event.currentTarget.style.borderColor = "var(--border)";
                     event.currentTarget.style.color = "var(--text-tertiary)";
                     event.currentTarget.style.background = "transparent";
                   }}
@@ -932,12 +944,12 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
                         padding: "0.4375rem 0.625rem",
                         fontSize: "0.71875rem",
                         color: "var(--text-secondary)",
-                        fontFamily: "'DM Sans', sans-serif",
+                        fontFamily: "'Inter', sans-serif",
                         cursor: "pointer",
                         transition: "border-color 0.15s, color 0.15s",
                       }}
-                      onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--accent)"; e.currentTarget.style.color = "var(--accent)"; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.color = "var(--text-secondary)"; }}
+                      onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--border-hover)"; e.currentTarget.style.color = "var(--text-primary)"; e.currentTarget.style.background = "var(--bg-tertiary)"; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.color = "var(--text-secondary)"; e.currentTarget.style.background = "var(--bg-secondary)"; }}
                     >
                       {hint}
                     </button>
@@ -952,10 +964,10 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
                     padding: "0.4375rem 0.625rem",
                     borderRadius: msg.role === "user" ? "0.625rem 0.625rem 0.1875rem 0.625rem" : "0.625rem 0.625rem 0.625rem 0.1875rem",
                     background: msg.role === "user" ? "var(--accent)" : "var(--bg-secondary)",
-                    color: msg.role === "user" ? "white" : "var(--text-primary)",
+                    color: msg.role === "user" ? "var(--on-accent)" : "var(--text-primary)",
                     fontSize: "0.78125rem",
                     lineHeight: 1.5,
-                    fontFamily: "'DM Sans', sans-serif",
+                    fontFamily: "'Inter', sans-serif",
                   }}>
                     {msg.role === "assistant" ? (
                       <>
@@ -978,13 +990,13 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
                       }}
                     >
                       {(msg.statusEvents ?? []).slice(-2).map((status, index) => (
-                        <div key={`${msg.id}-status-${index}`} style={{ display: "flex", alignItems: "center", gap: "0.375rem", color: "var(--text-tertiary)", fontSize: "0.65625rem", fontFamily: "'JetBrains Mono', monospace" }}>
+                        <div key={`${msg.id}-status-${index}`} style={{ display: "flex", alignItems: "center", gap: "0.375rem", color: "var(--text-tertiary)", fontSize: "0.65625rem", fontFamily: "'Geist Mono', monospace" }}>
                           <span style={{ width: "0.35rem", height: "0.35rem", borderRadius: "50%", background: msg.pending ? "var(--accent)" : "var(--text-tertiary)", display: "inline-block" }} />
                           {status}
                         </div>
                       ))}
                       {(msg.toolEvents ?? []).map((tool) => (
-                        <div key={`${msg.id}-${tool.name}`} style={{ display: "flex", alignItems: "center", gap: "0.375rem", color: "var(--text-secondary)", fontSize: "0.6875rem", fontFamily: "'DM Sans', sans-serif" }}>
+                        <div key={`${msg.id}-${tool.name}`} style={{ display: "flex", alignItems: "center", gap: "0.375rem", color: "var(--text-secondary)", fontSize: "0.6875rem", fontFamily: "'Inter', sans-serif" }}>
                           <span style={{ color: tool.status === "started" || tool.status === "processing" ? "var(--accent)" : tool.status === "error" ? "var(--danger, #b45309)" : "var(--text-tertiary)" }}>
                             {tool.status === "started" || tool.status === "processing" ? "↻" : tool.status === "error" ? "!" : "✓"}
                           </span>
@@ -1040,10 +1052,10 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
                       right: "1rem",
                       bottom: `calc(${inputHeight}px + 2.75rem)`,
                       zIndex: 4,
-                      borderRadius: "0.875rem",
+                      borderRadius: "0.375rem",
                       border: "0.0625rem solid var(--border)",
                       background: "var(--bg-primary)",
-                      boxShadow: "0 1rem 2.5rem rgba(0,0,0,0.18)",
+                      boxShadow: "0 0.5rem 1.5rem rgba(0,0,0,0.10)",
                       overflow: "hidden",
                     }}
                   >
@@ -1080,7 +1092,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
                             flexShrink: 0,
                             minWidth: "2.5rem",
                             color: "var(--accent)",
-                            fontFamily: "'JetBrains Mono', monospace",
+                            fontFamily: "'Geist Mono', monospace",
                             fontSize: "0.6875rem",
                           }}
                         >
@@ -1092,7 +1104,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
                               overflow: "hidden",
                               textOverflow: "ellipsis",
                               whiteSpace: "nowrap",
-                              fontFamily: "'DM Sans', sans-serif",
+                              fontFamily: "'Inter', sans-serif",
                               fontSize: "0.78125rem",
                               fontWeight: 600,
                             }}
@@ -1105,7 +1117,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
                               textOverflow: "ellipsis",
                               whiteSpace: "nowrap",
                               color: "var(--text-tertiary)",
-                              fontFamily: "'JetBrains Mono', monospace",
+                              fontFamily: "'Geist Mono', monospace",
                               fontSize: "0.625rem",
                             }}
                           >
@@ -1131,9 +1143,8 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
                     flexWrap: "nowrap",
                     background: "var(--bg-secondary)",
                     border: "0.0625rem solid var(--border)",
-                    borderRadius: "0.625rem",
+                    borderRadius: "0.25rem",
                     padding: "0.5625rem 0.75rem",
-                    transition: "border-color 0.15s",
                   }}
                 >
                   <textarea
@@ -1171,7 +1182,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
                       outline: "none",
                       color: "var(--text-primary)",
                       fontSize: "0.8125rem",
-                      fontFamily: "'DM Sans', sans-serif",
+                      fontFamily: "'Inter', sans-serif",
                       lineHeight: 1.5,
                       resize: "none",
                       overflowY: "hidden",
@@ -1198,7 +1209,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
                       pointerEvents: input.trim() || mentionedPaperIds.length > 0 ? "auto" : "none",
                     }}
                   >
-                    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="var(--on-accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M14 8H2M8 2l6 6-6 6" />
                     </svg>
                   </button>
