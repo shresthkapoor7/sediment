@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import Script from "next/script";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import "./globals.css";
-import "katex/dist/katex.min.css";
 
 export const metadata: Metadata = {
   title: "Sediment | Knowledge, layered",

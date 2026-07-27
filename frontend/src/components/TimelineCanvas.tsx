@@ -9,7 +9,7 @@ import { TIMELINE_MOBILE_BREAKPOINT_PX } from "@/lib/hover-preview";
 import { TimelineData, ChatSuggestion, PaperAccessResponse, PaperContentResponse, TimelineNode, PaperChatStreamEvent, TimelineGraphAction, NodeBorderColor, TimelineNote, LineageChange, TimelineNodeColorChange, TimelineNoteChange } from "@/lib/types";
 import { NODE_BORDER_COLOR_OPTIONS } from "@/lib/node-style";
 import { TIMELINE_NOTE_DEFAULT_WIDTH, TIMELINE_NOTE_MIN_HEIGHT } from "@/lib/note-style";
-import { NODE_DIMENSIONS } from "@/lib/dummy-data";
+import { NODE_DIMENSIONS } from "@/lib/layout-constants";
 import { TimelineNodeCard } from "./TimelineNode";
 import { TimelineEdgeLine } from "./TimelineEdge";
 import { TimelineNoteCard } from "./TimelineNote";

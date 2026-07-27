@@ -2,7 +2,7 @@
 
 import { motion } from "framer-motion";
 import { TimelineNode, TimelineNote, TimelineNoteEdge } from "@/lib/types";
-import { NODE_DIMENSIONS } from "@/lib/dummy-data";
+import { NODE_DIMENSIONS } from "@/lib/layout-constants";
 import { TIMELINE_NOTE_DEFAULT_WIDTH, TIMELINE_NOTE_MIN_HEIGHT, noteColorStyle } from "@/lib/note-style";
 
 interface TimelineNoteEdgeLineProps {

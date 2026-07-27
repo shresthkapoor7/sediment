@@ -2,7 +2,7 @@
 
 import { motion } from "framer-motion";
 import { NodeBorderColor, TimelineNode } from "@/lib/types";
-import { NODE_DIMENSIONS } from "@/lib/dummy-data";
+import { NODE_DIMENSIONS } from "@/lib/layout-constants";
 import { nodeBorderColorCss } from "@/lib/node-style";
 
 interface TimelineEdgeProps {

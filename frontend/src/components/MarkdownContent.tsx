@@ -5,6 +5,8 @@ import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import remarkBreaks from "remark-breaks";
 import rehypeKatex from "rehype-katex";
+// KaTeX styles are only needed where markdown/math renders, not app-wide.
+import "katex/dist/katex.min.css";
 
 interface MarkdownContentProps {
   children: string;

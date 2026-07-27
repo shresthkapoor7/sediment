@@ -1,13 +1,23 @@
 "use client";
 
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { useState, useCallback, useEffect, useRef } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
-import { ClarificationModal } from "@/components/ClarificationModal";
 import { SearchInput } from "@/components/SearchInput";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { LoadingLogoMark, LogoMark } from "@/components/LogoMark";
-import { TimelineCanvas } from "@/components/TimelineCanvas";
+
+// Graph view + clarification modal are never shown on the landing page — load their
+// chunks (which pull in the chat panel, paper reader, react-markdown and KaTeX) on demand.
+const TimelineCanvas = dynamic(
+  () => import("@/components/TimelineCanvas").then((m) => m.TimelineCanvas),
+  { ssr: false },
+);
+const ClarificationModal = dynamic(
+  () => import("@/components/ClarificationModal").then((m) => m.ClarificationModal),
+  { ssr: false },
+);
 import {
   APIError,
   APP_VERSION,
@@ -271,32 +281,36 @@ function useSectionProgress(
   const [progress, setProgress] = useState(0);
 
   useEffect(() => {
-    let raf = 0;
+    const container = containerRef.current;
+    if (!container) return;
     let last = -1;
 
-    const tick = () => {
+    const compute = () => {
       const section = sectionRef.current;
-      const container = containerRef.current;
+      if (!section) return;
 
-      if (section && container) {
-        const sectionRect = section.getBoundingClientRect();
-        const containerRect = container.getBoundingClientRect();
-        const total = sectionRect.height - container.clientHeight;
-        const scrolled = containerRect.top - sectionRect.top;
-        const next =
-          total <= 0 ? (scrolled > 0 ? 1 : 0) : clamp(scrolled / total, 0, 1);
+      const sectionRect = section.getBoundingClientRect();
+      const containerRect = container.getBoundingClientRect();
+      const total = sectionRect.height - container.clientHeight;
+      const scrolled = containerRect.top - sectionRect.top;
+      const next =
+        total <= 0 ? (scrolled > 0 ? 1 : 0) : clamp(scrolled / total, 0, 1);
 
-        if (Math.abs(next - last) > 0.002) {
-          last = next;
-          setProgress(next);
-        }
+      if (Math.abs(next - last) > 0.002) {
+        last = next;
+        setProgress(next);
       }
-
-      raf = window.requestAnimationFrame(tick);
     };
 
-    raf = window.requestAnimationFrame(tick);
-    return () => window.cancelAnimationFrame(raf);
+    // Compute once on mount, then only when the container actually scrolls or resizes —
+    // no perpetual rAF, so the tab is idle when the user isn't scrolling.
+    compute();
+    container.addEventListener("scroll", compute, { passive: true });
+    window.addEventListener("resize", compute);
+    return () => {
+      container.removeEventListener("scroll", compute);
+      window.removeEventListener("resize", compute);
+    };
   }, [containerRef, sectionRef]);
 
   return progress;
@@ -538,18 +552,13 @@ function LandingScrollHint({
   const [hidden, setHidden] = useState(false);
 
   useEffect(() => {
-    let raf = 0;
+    const container = containerRef.current;
+    if (!container) return;
 
-    const tick = () => {
-      const container = containerRef.current;
-      if (container) {
-        setHidden(container.scrollTop > 48);
-      }
-      raf = window.requestAnimationFrame(tick);
-    };
-
-    raf = window.requestAnimationFrame(tick);
-    return () => window.cancelAnimationFrame(raf);
+    const onScroll = () => setHidden(container.scrollTop > 48);
+    onScroll();
+    container.addEventListener("scroll", onScroll, { passive: true });
+    return () => container.removeEventListener("scroll", onScroll);
   }, [containerRef]);
 
   return (
@@ -2555,7 +2564,7 @@ export default function Home() {
 
   return (
     <div
-      className={`grain app-shell${timelineData ? " canvas-shell" : " landing-shell"}${isSearching || isRestoring || isClarifying ? " graph-loading-shell" : ""}`}
+      className={`app-shell${timelineData ? " canvas-shell" : " landing-shell"}${isSearching || isRestoring || isClarifying ? " graph-loading-shell" : ""}`}
       style={{
         height: "100vh",
         display: "flex",

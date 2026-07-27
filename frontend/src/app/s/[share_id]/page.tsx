@@ -76,7 +76,7 @@ export default function SharedGraphPage() {
 
   return (
     <div
-      className="grain app-shell"
+      className="app-shell"
       style={{
         height: "100vh",
         display: "flex",

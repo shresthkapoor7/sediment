@@ -5,7 +5,7 @@ import type { CSSProperties } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { TimelineNode as TNode, NodeBorderColor } from "@/lib/types";
 import { NODE_BORDER_COLOR_OPTIONS, nodeBorderColorCss } from "@/lib/node-style";
-import { NODE_DIMENSIONS } from "@/lib/dummy-data";
+import { NODE_DIMENSIONS } from "@/lib/layout-constants";
 
 interface TimelineNodeProps {
   node: TNode;
