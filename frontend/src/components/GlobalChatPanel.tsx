@@ -1,8 +1,11 @@
 "use client";
 
 import { useState, useRef, useEffect, useId, useCallback, type ReactNode } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { MarkdownContent } from "./MarkdownContent";
+import { m, AnimatePresence } from "framer-motion";
+import dynamic from "next/dynamic";
+// react-markdown + KaTeX are heavy; load them only when a message actually
+// renders markdown, not when the (already code-split) chat panel first mounts.
+const MarkdownContent = dynamic(() => import("./MarkdownContent").then((mod) => mod.MarkdownContent), { ssr: false });
 import { ConversationNavigator } from "./ConversationNavigator";
 import { LogoMark } from "./LogoMark";
 import { openChatSession, streamChatAboutTimeline, suggestTimelineQuestions } from "@/lib/api";
@@ -673,7 +676,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
     >
       <AnimatePresence>
         {open && (
-          <motion.div
+          <m.div
             id={panelId}
             initial={{ x: "100%" }}
             animate={{ x: 0 }}
@@ -1031,11 +1034,10 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
               {isThinking && (
                 <div style={{ display: "flex", gap: "0.25rem", padding: "0.375rem 0.125rem", alignItems: "center" }}>
                   {[0, 1, 2].map((i) => (
-                    <motion.div
+                    <div
                       key={i}
-                      animate={{ opacity: [0.3, 1, 0.3] }}
-                      transition={{ duration: 1.2, repeat: Infinity, delay: i * 0.2 }}
-                      style={{ width: "0.3125rem", height: "0.3125rem", borderRadius: "50%", background: "var(--accent)" }}
+                      className="sediment-typing-dot"
+                      style={{ width: "0.3125rem", height: "0.3125rem", borderRadius: "50%", background: "var(--accent)", animationDelay: `${i * 0.2}s` }}
                     />
                   ))}
                 </div>
@@ -1061,7 +1063,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
             <div style={{ position: "relative", padding: "0.75rem 1rem", borderTop: "0.0625rem solid var(--border)", flexShrink: 0 }}>
               <AnimatePresence>
                 {mentionOpen && mentionOptions.length > 0 && (
-                  <motion.div
+                  <m.div
                     initial={{ opacity: 0, y: 8, scale: 0.98 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 8, scale: 0.98 }}
@@ -1146,7 +1148,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
                         </span>
                       </button>
                     ))}
-                  </motion.div>
+                  </m.div>
                 )}
               </AnimatePresence>
               <form
@@ -1236,7 +1238,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
                 </div>
               </form>
             </div>
-          </motion.div>
+          </m.div>
         )}
       </AnimatePresence>
 

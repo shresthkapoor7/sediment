@@ -3,7 +3,7 @@
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useState, useCallback, useEffect, useRef } from "react";
-import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
+import { m, AnimatePresence, useReducedMotion } from "framer-motion";
 import { SearchInput } from "@/components/SearchInput";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { LoadingLogoMark, LogoMark } from "@/components/LogoMark";
@@ -12,11 +12,11 @@ import { AppHeader } from "@/components/AppHeader";
 // Graph view + clarification modal are never shown on the landing page — load their
 // chunks (which pull in the chat panel, paper reader, react-markdown and KaTeX) on demand.
 const TimelineCanvas = dynamic(
-  () => import("@/components/TimelineCanvas").then((m) => m.TimelineCanvas),
+  () => import("@/components/TimelineCanvas").then((mod) => mod.TimelineCanvas),
   { ssr: false },
 );
 const ClarificationModal = dynamic(
-  () => import("@/components/ClarificationModal").then((m) => m.ClarificationModal),
+  () => import("@/components/ClarificationModal").then((mod) => mod.ClarificationModal),
   { ssr: false },
 );
 // Landing scrollytelling demos are below the fold — code-split them out of the
@@ -919,7 +919,7 @@ export default function Home() {
         <AnimatePresence>
           {!timelineData && historyOpen && (
             <>
-              <motion.button
+              <m.button
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
@@ -931,12 +931,11 @@ export default function Home() {
                   border: "none",
                   zIndex: 20,
                   cursor: "pointer",
-                  backdropFilter: "blur(0.125rem)",
                 }}
                 aria-label="Close history"
               />
 
-              <motion.aside
+              <m.aside
                 initial={{ opacity: 0, x: 24 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: 24 }}
@@ -951,9 +950,8 @@ export default function Home() {
                   borderRadius: "0.5rem",
                   border: "0.0625rem solid var(--border)",
                   background:
-                    "color-mix(in srgb, var(--bg-primary) 92%, transparent)",
+                    "color-mix(in srgb, var(--bg-primary) 98%, transparent)",
                   boxShadow: "0 0.75rem 2rem rgba(0,0,0,0.16)",
-                  backdropFilter: "blur(0.75rem)",
                   zIndex: 30,
                   display: "flex",
                   flexDirection: "column",
@@ -1255,7 +1253,7 @@ export default function Home() {
                     </>
                   )}
                 </div>
-              </motion.aside>
+              </m.aside>
             </>
           )}
         </AnimatePresence>
@@ -1263,7 +1261,7 @@ export default function Home() {
         <AnimatePresence>
           {pendingDeleteGraph && (
             <>
-              <motion.button
+              <m.button
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
@@ -1275,12 +1273,11 @@ export default function Home() {
                   border: "none",
                   zIndex: 40,
                   cursor: "pointer",
-                  backdropFilter: "blur(0.125rem)",
                 }}
                 aria-label="Close delete confirmation"
               />
 
-              <motion.div
+              <m.div
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="delete-graph-dialog-title"
@@ -1399,7 +1396,7 @@ export default function Home() {
                     Delete graph
                   </button>
                 </div>
-              </motion.div>
+              </m.div>
             </>
           )}
         </AnimatePresence>
@@ -1407,7 +1404,7 @@ export default function Home() {
         <AnimatePresence mode="wait">
           {!timelineData && !isSearching && !isRestoring ? (
             /* Landing state */
-            <motion.div
+            <m.div
               key="landing"
               className="landing-scroll-root"
               initial={{ opacity: 0 }}
@@ -1573,7 +1570,7 @@ export default function Home() {
                 </svg>
 
                 <div className="landing-hero-content">
-                  <motion.div
+                  <m.div
                     initial={{ opacity: 0, y: 16 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{
@@ -1582,7 +1579,7 @@ export default function Home() {
                     }}
                     className="landing-hero-copy"
                   >
-                    <motion.p
+                    <m.p
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       transition={{ delay: 0.1, duration: 0.5 }}
@@ -1591,7 +1588,7 @@ export default function Home() {
                       <span aria-hidden="true" />
                       Research lineage explorer
                       <span aria-hidden="true" />
-                    </motion.p>
+                    </m.p>
                     <h1 className="landing-hero-title">
                       Follow the work
                       <br />
@@ -1601,7 +1598,7 @@ export default function Home() {
                       Start with a concept or paper. Sediment maps the ideas,
                       citations, and breakthroughs that made it possible.
                     </p>
-                  </motion.div>
+                  </m.div>
 
                   <div
                     ref={landingSearchRef}
@@ -1616,7 +1613,7 @@ export default function Home() {
                   </div>
 
                   {!!searchError && (
-                    <motion.div
+                    <m.div
                       initial={{ opacity: 0, y: 6 }}
                       animate={{ opacity: 1, y: 0 }}
                       style={{
@@ -1633,11 +1630,11 @@ export default function Home() {
                       }}
                     >
                       {searchError}
-                    </motion.div>
+                    </m.div>
                   )}
 
                   {disambiguation.length > 0 && (
-                    <motion.div
+                    <m.div
                       initial={{ opacity: 0, y: 6 }}
                       animate={{ opacity: 1, y: 0 }}
                       style={{
@@ -1693,17 +1690,17 @@ export default function Home() {
                           </div>
                         </button>
                       ))}
-                    </motion.div>
+                    </m.div>
                   )}
                 </div>
 
-                <motion.div
+                <m.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   transition={{ delay: 0.6, duration: 1 }}
                   className="hide-mobile landing-hero-footer"
                 >
-                </motion.div>
+                </m.div>
               </section>
 
               <LandingDemos
@@ -1711,10 +1708,10 @@ export default function Home() {
                 compact={compact}
                 onScrollToSearch={handleScrollToSearch}
               />
-            </motion.div>
+            </m.div>
           ) : isSearching || isRestoring || isClarifying ? (
             /* Loading state */
-            <motion.div
+            <m.div
               key="loading"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -1728,7 +1725,7 @@ export default function Home() {
                 gap: "1.25rem",
               }}
             >
-              <motion.div
+              <m.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ duration: 0.3, ease: "easeOut" }}
@@ -1744,8 +1741,8 @@ export default function Home() {
                   height="64"
                   reducedMotion={reduceMotion ?? false}
                 />
-              </motion.div>
-              <motion.p
+              </m.div>
+              <m.p
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.3 }}
@@ -1763,11 +1760,11 @@ export default function Home() {
                     : traceMode === "deep"
                       ? `researching a deep trace for "${searchedQuery}"`
                       : `tracing lineage for "${searchedQuery}"`}
-              </motion.p>
-            </motion.div>
+              </m.p>
+            </m.div>
           ) : (
             /* Timeline state */
-            <motion.div
+            <m.div
               key="timeline"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -1793,7 +1790,7 @@ export default function Home() {
                 userId={userId}
                 saveState={saveState}
               />
-            </motion.div>
+            </m.div>
           )}
         </AnimatePresence>
       </div>

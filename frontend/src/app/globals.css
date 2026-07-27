@@ -1,5 +1,3 @@
-@import "tailwindcss";
-
 /* ── Color tokens — ink on paper ── */
 :root {
   --bg-primary: #FAFAF8;
@@ -76,11 +74,85 @@
   --cat-gray: #737370;
 }
 
-/* ── Base ── */
-* {
+/* ── Base reset ──
+   Explicit reset replacing Tailwind's preflight (Tailwind's utilities were never
+   used — only preflight was in play). Mirrors the preflight rules this app relied
+   on so behavior is unchanged after dropping the dependency. */
+*,
+::before,
+::after {
   box-sizing: border-box;
+  border-width: 0;
+  border-style: solid;
+  border-color: currentColor;
+}
+
+* {
   margin: 0;
   padding: 0;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-size: inherit;
+  font-weight: inherit;
+}
+
+ul,
+ol,
+menu {
+  list-style: none;
+}
+
+a {
+  color: inherit;
+  text-decoration: inherit;
+}
+
+button,
+input,
+optgroup,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+  letter-spacing: inherit;
+  background: transparent;
+}
+
+button,
+[type="button"],
+[type="reset"],
+[type="submit"] {
+  -webkit-appearance: button;
+  appearance: button;
+  cursor: pointer;
+}
+
+img,
+svg,
+video,
+canvas,
+audio,
+iframe,
+embed,
+object {
+  display: block;
+  vertical-align: middle;
+}
+
+img,
+video {
+  max-width: 100%;
+  height: auto;
+}
+
+table {
+  border-collapse: collapse;
 }
 
 html[data-theme="light"] {
@@ -1279,6 +1351,10 @@ html[data-theme="dark"] .changelog-page {
 .demo-scene {
   min-height: 200vh;
   padding: 0 2rem;
+  /* Skip layout/paint for these tall scrollytelling scenes while offscreen.
+     The intrinsic-size hint keeps the scrollbar stable. */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 200vh;
 }
 
 .demo-scene.is-alt .demo-scene-stage {
@@ -1426,6 +1502,69 @@ html[data-theme="dark"] .changelog-page {
 @keyframes demo-blink {
   50% {
     opacity: 0;
+  }
+}
+
+/* Compositor-driven replacements for framer's repeat:Infinity loops — these pause
+   when offscreen and allocate no JS rAF. */
+@keyframes sediment-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes sediment-typing-pulse {
+  0%,
+  100% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes sediment-logo-pulse {
+  0%,
+  100% {
+    opacity: 0.18;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes sediment-concept-marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.sediment-spinner {
+  animation: sediment-spin 1s linear infinite;
+}
+
+.sediment-typing-dot {
+  animation: sediment-typing-pulse 1.2s ease-in-out infinite;
+}
+
+.sediment-logo-pulse-path {
+  opacity: 0.18;
+  animation: sediment-logo-pulse 1.2s ease-in-out infinite;
+}
+
+.sediment-concept-marquee {
+  animation: sediment-concept-marquee 12s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sediment-spinner,
+  .sediment-typing-dot,
+  .sediment-logo-pulse-path,
+  .sediment-concept-marquee {
+    animation: none;
   }
 }
 
@@ -1780,6 +1919,8 @@ html[data-theme="dark"] .changelog-page {
 
 .demo-final-section {
   padding: 10rem 2rem 8rem;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 60rem;
 }
 
 .demo-final-inner {

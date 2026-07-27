@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { m, AnimatePresence } from "framer-motion";
 import { LogoMark } from "@/components/LogoMark";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { TimelineData, TraversalSettings } from "@/lib/types";
@@ -233,7 +233,7 @@ export function AppHeader({
   }, [timelineData, landingScrollEl]);
 
   return (
-      <motion.header
+      <m.header
         className={`app-header${!timelineData ? " app-header-landing" : ""}${timelineData ? " app-header-graph" : ""}${(!timelineData && isLandingHeaderCompact) || (timelineData && isGraphHeaderCompact) ? " app-header-compact" : ""}`}
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
@@ -297,7 +297,7 @@ export function AppHeader({
                 flexShrink: 1,
               }}
             >
-              <motion.span
+              <m.span
                 initial={{ opacity: 0, y: -4 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -4 }}
@@ -314,7 +314,7 @@ export function AppHeader({
                 }}
               >
                 {graphTitle || searchedQuery}
-              </motion.span>
+              </m.span>
 
             </div>
           )}
@@ -395,7 +395,7 @@ export function AppHeader({
             )}
 
             {!timelineData && (
-              <motion.button
+              <m.button
                 type="button"
                 className="app-header-labeled-action"
                 initial={{ opacity: 0, y: -4 }}
@@ -415,11 +415,11 @@ export function AppHeader({
                   height="16"
                 />
                 <span className="app-header-action-label app-header-sediment-label">Sediment</span>
-              </motion.button>
+              </m.button>
             )}
 
             {!timelineData && (
-              <motion.button
+              <m.button
                 className="app-header-labeled-action"
                 initial={{ opacity: 0, y: -4 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -460,7 +460,7 @@ export function AppHeader({
                   <path d="M4.5 3.5v9" opacity="0.35" />
                 </svg>
                 <span className="app-header-action-label">History</span>
-              </motion.button>
+              </m.button>
             )}
 
             {!timelineData && (
@@ -679,7 +679,7 @@ export function AppHeader({
 
               <AnimatePresence>
                 {(settingsOpen || sessionActionsOpen) && (
-                  <motion.div
+                  <m.div
                     initial={{ opacity: 0, y: -6, scale: 0.98 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: -6, scale: 0.98 }}
@@ -855,7 +855,7 @@ export function AppHeader({
                         Apply
                       </button>
                     </div>
-                  </motion.div>
+                  </m.div>
                 )}
               </AnimatePresence>
             </div>
@@ -1052,7 +1052,7 @@ export function AppHeader({
         {/* ── Mobile dropdown menu ── */}
         <AnimatePresence>
           {mobileMenuOpen && (
-            <motion.div
+            <m.div
               initial={{ opacity: 0, y: -8 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -8 }}
@@ -1570,9 +1570,9 @@ export function AppHeader({
               {timelineData && (
                 <ThemeToggle className="app-header-mobile-menu-theme" showLabel fullWidth />
               )}
-            </motion.div>
+            </m.div>
           )}
         </AnimatePresence>
-      </motion.header>
+      </m.header>
   );
 }

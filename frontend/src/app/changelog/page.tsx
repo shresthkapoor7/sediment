@@ -420,9 +420,8 @@ export default function ChangelogPage() {
             gap: "0.125rem",
             border: "0.0625rem solid color-mix(in srgb, var(--border) 72%, transparent)",
             borderRadius: "0.5rem",
-            background: "color-mix(in srgb, var(--bg-primary) 82%, transparent)",
+            background: "color-mix(in srgb, var(--bg-primary) 96%, transparent)",
             boxShadow: "0 0.5rem 1.5rem rgba(0, 0, 0, 0.10)",
-            backdropFilter: "blur(16px)",
             pointerEvents: "auto",
           }}
         >

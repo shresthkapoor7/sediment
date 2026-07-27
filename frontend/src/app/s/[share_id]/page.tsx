@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
+import { m, AnimatePresence } from "framer-motion";
 import { TimelineCanvas } from "@/components/TimelineCanvas";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { LogoMark } from "@/components/LogoMark";
@@ -84,7 +84,7 @@ export default function SharedGraphPage() {
         overflow: "hidden",
       }}
     >
-      <motion.header
+      <m.header
         className={`app-header app-header-shared${isHeaderCompact ? " app-header-compact" : ""}`}
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
@@ -197,7 +197,7 @@ export default function SharedGraphPage() {
 
             <AnimatePresence>
               {sessionActionsOpen && (
-                <motion.div
+                <m.div
                   initial={{ opacity: 0, y: -6, scale: 0.98 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: -6, scale: 0.98 }}
@@ -245,7 +245,7 @@ export default function SharedGraphPage() {
                     GitHub
                   </a>
                   <ThemeToggle className="app-header-shared-session-theme" showLabel fullWidth />
-                </motion.div>
+                </m.div>
               )}
             </AnimatePresence>
           </div>
@@ -265,7 +265,7 @@ export default function SharedGraphPage() {
             )}
           </button>
         </div>
-      </motion.header>
+      </m.header>
 
       <div style={{ flex: 1, overflow: "hidden", position: "relative" }}>
         {isLoading && (

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, m } from "framer-motion";
 
 const EXAMPLES = [
   "Transformer",
@@ -31,7 +31,7 @@ export function SearchInput({ onSearch, isSearching, traceMode, onTraceModeChang
   const modeLabel = traceMode === "deep" ? "Deep trace" : "Quick trace";
 
   return (
-    <motion.form
+    <m.form
       className="trace-search"
       onSubmit={handleSubmit}
       aria-label="Search the research lineage"
@@ -104,9 +104,8 @@ export function SearchInput({ onSearch, isSearching, traceMode, onTraceModeChang
               pointerEvents: "none",
             }}
           >
-            <motion.div
-              animate={{ rotate: 360 }}
-              transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+            <div
+              className="sediment-spinner"
               style={{
                 width: "1.125rem", height: "1.125rem",
                 border: "0.125rem solid var(--border)",
@@ -143,7 +142,7 @@ export function SearchInput({ onSearch, isSearching, traceMode, onTraceModeChang
       </div>
 
       {/* Examples */}
-      <motion.div
+      <m.div
         className="trace-search-examples"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
@@ -157,7 +156,7 @@ export function SearchInput({ onSearch, isSearching, traceMode, onTraceModeChang
         }}
       >
         {EXAMPLES.map((example, i) => (
-          <motion.button
+          <m.button
             key={example}
             className={`trace-search-suggestion${example === "Feynman Path Integrals" ? " hide-mobile" : ""}${example === "CRISPR" ? " show-mobile" : ""}`}
             type="button"
@@ -200,7 +199,7 @@ export function SearchInput({ onSearch, isSearching, traceMode, onTraceModeChang
               <path d="M2 8L8 2M8 2H3.5M8 2V6.5" />
             </svg>
             {example}
-          </motion.button>
+          </m.button>
         ))}
         <div className="trace-search-mode-control" style={{ position: "relative", zIndex: 3 }}>
           <button
@@ -261,7 +260,7 @@ export function SearchInput({ onSearch, isSearching, traceMode, onTraceModeChang
 
           <AnimatePresence>
             {modeOpen && (
-              <motion.div
+              <m.div
                 className="trace-search-mode-menu"
                 initial={{ opacity: 0, y: -5, scale: 0.98 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -277,7 +276,6 @@ export function SearchInput({ onSearch, isSearching, traceMode, onTraceModeChang
                   borderRadius: "0.375rem",
                   border: "0.0625rem solid var(--border)",
                   background: "color-mix(in srgb, var(--bg-primary) 98%, transparent)",
-                  backdropFilter: "blur(12px)",
                   boxShadow: "0 0.5rem 1.5rem rgba(0,0,0,0.10)",
                 }}
               >
@@ -333,11 +331,11 @@ export function SearchInput({ onSearch, isSearching, traceMode, onTraceModeChang
                     </button>
                   );
                 })}
-              </motion.div>
+              </m.div>
             )}
           </AnimatePresence>
         </div>
-      </motion.div>
-    </motion.form>
+      </m.div>
+    </m.form>
   );
 }

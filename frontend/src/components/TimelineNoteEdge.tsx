@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import { TimelineNode, TimelineNote, TimelineNoteEdge } from "@/lib/types";
 import { NODE_DIMENSIONS } from "@/lib/layout-constants";
 import { TIMELINE_NOTE_DEFAULT_WIDTH, TIMELINE_NOTE_MIN_HEIGHT, noteColorStyle } from "@/lib/note-style";
@@ -28,7 +28,7 @@ export function TimelineNoteEdgeLine({ note, node, edge, index }: TimelineNoteEd
 
   return (
     <g>
-      <motion.path
+      <m.path
         d={path}
         fill="none"
         stroke={colorStyle.accent}

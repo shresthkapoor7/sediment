@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import { TimelineNote } from "@/lib/types";
 import { NOTE_COLOR_OPTIONS, NOTE_KIND_OPTIONS, TIMELINE_NOTE_DEFAULT_WIDTH, TIMELINE_NOTE_MIN_HEIGHT, noteColorStyle, noteKindLabel } from "@/lib/note-style";
 import { MarkdownContent } from "./MarkdownContent";
@@ -149,7 +149,7 @@ export function TimelineNoteCard({
   }, []);
 
   return (
-    <motion.div
+    <m.div
       ref={cardRef}
       data-canvas-ui="true"
       initial={{ opacity: 0, scale: 0.96, y: 8 }}
@@ -260,7 +260,6 @@ export function TimelineNoteCard({
                     borderRadius: "0.375rem",
                     border: "0.0625rem solid var(--border)",
                     background: "color-mix(in srgb, var(--bg-primary) 98%, transparent)",
-                    backdropFilter: "blur(12px)",
                     boxShadow: "0 0.5rem 1.5rem rgba(0,0,0,0.10)",
                     zIndex: 30,
                   }}
@@ -501,6 +500,6 @@ export function TimelineNoteCard({
           </button>
         )}
       </div>
-    </motion.div>
+    </m.div>
   );
 }

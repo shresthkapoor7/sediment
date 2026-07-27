@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 
 interface Props {
   question: string;
@@ -38,7 +38,7 @@ export function ClarificationModal({ question, options, onSelect, onDismiss }: P
   }
 
   return (
-    <motion.div
+    <m.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
@@ -47,7 +47,6 @@ export function ClarificationModal({ question, options, onSelect, onDismiss }: P
         position: "fixed",
         inset: 0,
         background: "rgba(10, 8, 5, 0.55)",
-        backdropFilter: "blur(0.25rem)",
         zIndex: 200,
         display: "flex",
         alignItems: "center",
@@ -55,7 +54,7 @@ export function ClarificationModal({ question, options, onSelect, onDismiss }: P
         padding: "1.5rem",
       }}
     >
-      <motion.div
+      <m.div
         initial={{ opacity: 0, y: 16, scale: 0.97 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: 16, scale: 0.97 }}
@@ -225,7 +224,7 @@ export function ClarificationModal({ question, options, onSelect, onDismiss }: P
               Trace
             </button>
           </form>
-      </motion.div>
-    </motion.div>
+      </m.div>
+    </m.div>
   );
 }

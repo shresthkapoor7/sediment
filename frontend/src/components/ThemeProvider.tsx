@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState, useCallback } from "react";
+import { LazyMotion, domAnimation } from "framer-motion";
 
 type Theme = "light" | "dark";
 
@@ -45,9 +46,13 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <ThemeContext.Provider value={{ theme, toggle }}>
-      <div style={{ visibility: mounted ? "visible" : "hidden" }}>
-        {children}
-      </div>
+      {/* Lazy-load only DOM animation features (no layout/drag used) so the full
+          framer-motion feature bundle stays out of the initial JS. */}
+      <LazyMotion features={domAnimation}>
+        <div style={{ visibility: mounted ? "visible" : "hidden" }}>
+          {children}
+        </div>
+      </LazyMotion>
     </ThemeContext.Provider>
   );
 }

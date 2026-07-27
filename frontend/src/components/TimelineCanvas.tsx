@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { m, AnimatePresence } from "framer-motion";
 import { MarkdownContent } from "./MarkdownContent";
 import { fetchCachedPaperContent, fetchPaperAccess, openChatSession, streamChatAboutPaper } from "@/lib/api";
 import { DETAIL_PANEL_DEFAULT_WIDTH, DETAIL_PANEL_MAX_WIDTH, DETAIL_PANEL_MIN_WIDTH, DETAIL_PANEL_WIDTH_KEY } from "@/lib/detail-panel";
@@ -1094,7 +1094,7 @@ export function TimelineCanvas({
     : `${getClampedDetailPanelWidth(detailPanelWidth)}px`;
 
   return (
-    <motion.div
+    <m.div
       ref={containerRef}
       className="canvas-grid"
       initial={{ opacity: 0 }}
@@ -1292,7 +1292,7 @@ export function TimelineCanvas({
 
         <AnimatePresence>
           {saveState !== "idle" && (
-            <motion.div
+            <m.div
               key="timeline-save-status"
               initial={{ opacity: 0, x: -4 }}
               animate={{ opacity: 1, x: 0 }}
@@ -1340,7 +1340,7 @@ export function TimelineCanvas({
                 : saveState === "saved"
                   ? "Saved"
                   : "Save failed"}
-            </motion.div>
+            </m.div>
           )}
         </AnimatePresence>
       </div>
@@ -1478,7 +1478,7 @@ export function TimelineCanvas({
 
       <AnimatePresence>
         {hoverPreviewEnabled && activeNodeId === null && hoveredNode && hoveredTimelineNode && hoverPreviewLayout && (
-          <motion.div
+          <m.div
             data-canvas-ui="true"
             key={`hover-${hoveredNode.nodeId}`}
             initial={{ opacity: 0, y: 10, scale: 0.98 }}
@@ -1502,8 +1502,7 @@ export function TimelineCanvas({
               padding: "0.875rem",
               borderRadius: "0.5rem",
               border: "0.0625rem solid color-mix(in srgb, var(--border) 65%, transparent)",
-              background: "color-mix(in srgb, var(--bg-primary) 82%, transparent)",
-              backdropFilter: "blur(22px) saturate(1.15)",
+              background: "color-mix(in srgb, var(--bg-primary) 98%, transparent)",
               boxShadow: "0 1.25rem 3.5rem rgba(28, 25, 23, 0.16), 0 0.125rem 0.375rem rgba(28, 25, 23, 0.08)",
               overflow: "hidden",
             }}
@@ -1786,27 +1785,26 @@ export function TimelineCanvas({
                       topics
                     </span>
                     <div style={{ overflow: "hidden", position: "relative" }}>
-                      <motion.span
+                      <span
                         key={hoveredTimelineNode.paper.openalexId}
+                        className="sediment-concept-marquee"
                         style={{ fontSize: "0.75rem", fontFamily: "var(--font-sans), sans-serif", color: "var(--text-secondary)", lineHeight: 1.3, whiteSpace: "nowrap", display: "inline-block" }}
-                        animate={{ x: ["0%", "-50%"] }}
-                        transition={{ duration: 12, ease: "linear", repeat: Infinity }}
                       >
                         {`${hoveredTimelineNode.paper.concepts.join(" · ")}     ${hoveredTimelineNode.paper.concepts.join(" · ")}     `}
-                      </motion.span>
+                      </span>
                     </div>
                   </div>
                 )}
               </div>
             )}
-          </motion.div>
+          </m.div>
         )}
       </AnimatePresence>
 
       {/* Side panel backdrop */}
       <AnimatePresence>
         {activeNodeId !== null && activeNode && (
-          <motion.div
+          <m.div
             data-canvas-ui="true"
             key="backdrop"
             initial={{ opacity: 0 }}
@@ -1827,7 +1825,7 @@ export function TimelineCanvas({
       {/* Conversational side panel */}
       <AnimatePresence>
         {activeNodeId !== null && activeNode && (
-          <motion.div
+          <m.div
             data-canvas-ui="true"
             key={activeNodeId}
             initial={{ x: "100%" }}
@@ -2029,7 +2027,7 @@ export function TimelineCanvas({
                       </button>
                   <AnimatePresence>
                     {editingNodeId === activeNodeId && (
-                      <motion.div
+                      <m.div
                         data-canvas-ui="true"
                         initial={{ opacity: 0, scale: 0.96, y: -4 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -2046,7 +2044,6 @@ export function TimelineCanvas({
                           border: "0.0625rem solid var(--border)",
                           background: "color-mix(in srgb, var(--bg-primary) 98%, transparent)",
                           boxShadow: "0 1rem 2.5rem rgba(0,0,0,0.28)",
-                          backdropFilter: "blur(18px)",
                         }}
                       >
                         <div
@@ -2110,7 +2107,7 @@ export function TimelineCanvas({
                             Delete node
                           </button>
                         </div>
-                      </motion.div>
+                      </m.div>
                     )}
                   </AnimatePresence>
                     </div>
@@ -2227,7 +2224,7 @@ export function TimelineCanvas({
 
               {/* Chat messages */}
               {(chatHistories[activeNodeId] ?? []).map((msg) => (
-                <motion.div
+                <m.div
                   id={`paper-chat-${activeNodeId}-${msg.id}`}
                   key={msg.id}
                   initial={{ opacity: 0, y: 8 }}
@@ -2360,27 +2357,26 @@ export function TimelineCanvas({
                       )}
                     </div>
                   )}
-                </motion.div>
+                </m.div>
               ))}
 
               {/* Thinking indicator */}
               <AnimatePresence>
                 {isThinking && (
-                  <motion.div
+                  <m.div
                     initial={{ opacity: 0, y: 6 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0 }}
                     style={{ display: "flex", gap: "0.25rem", alignItems: "center", paddingBottom: "0.75rem" }}
                   >
                     {[0, 1, 2].map((i) => (
-                      <motion.div
+                      <div
                         key={i}
-                        animate={{ opacity: [0.3, 1, 0.3] }}
-                        transition={{ duration: 1, repeat: Infinity, delay: i * 0.2 }}
-                        style={{ width: "0.375rem", height: "0.375rem", borderRadius: "0.1875rem", background: "var(--text-tertiary)" }}
+                        className="sediment-typing-dot"
+                        style={{ width: "0.375rem", height: "0.375rem", borderRadius: "0.1875rem", background: "var(--text-tertiary)", animationDelay: `${i * 0.2}s` }}
                       />
                     ))}
-                  </motion.div>
+                  </m.div>
                 )}
               </AnimatePresence>
 
@@ -2514,7 +2510,7 @@ export function TimelineCanvas({
                 </div>
               </form>
             </div>}
-          </motion.div>
+          </m.div>
         )}
       </AnimatePresence>
 
@@ -2542,7 +2538,7 @@ export function TimelineCanvas({
           userId={userId}
         />
       )}
-    </motion.div>
+    </m.div>
   );
 }
 

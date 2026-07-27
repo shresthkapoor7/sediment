@@ -1,5 +1,4 @@
 import type { SVGProps } from "react";
-import { motion } from "framer-motion";
 
 const LOGO_PATHS = [
   "M93 36C67 39 53 57 53 82v27c0 30-11 49-36 55",
@@ -53,17 +52,11 @@ export function LoadingLogoMark({
       ))}
       {!reducedMotion &&
         LOGO_PATHS.map((path, index) => (
-          <motion.path
+          <path
             key={`current-${path}`}
             d={path}
-            initial={{ opacity: 0.18 }}
-            animate={{ opacity: [0.18, 1, 0.18] }}
-            transition={{
-              duration: 1.2,
-              delay: index * 0.12,
-              repeat: Infinity,
-              ease: "easeInOut",
-            }}
+            className="sediment-logo-pulse-path"
+            style={{ animationDelay: `${index * 0.12}s` }}
           />
         ))}
       {reducedMotion &&
