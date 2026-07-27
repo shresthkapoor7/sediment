@@ -88,7 +88,7 @@ export function SearchInput({ onSearch, isSearching, traceMode, onTraceModeChang
             outline: "none",
             color: "var(--text-primary)",
             fontSize: "0.875rem",
-            fontFamily: "'Inter', sans-serif",
+            fontFamily: "var(--font-sans), sans-serif",
             letterSpacing: "-0.006em",
           }}
         />
@@ -177,7 +177,7 @@ export function SearchInput({ onSearch, isSearching, traceMode, onTraceModeChang
               padding: "0.375rem 0.75rem",
               fontSize: "0.75rem",
               color: "var(--text-secondary)",
-              fontFamily: "'Inter', sans-serif",
+              fontFamily: "var(--font-sans), sans-serif",
               fontWeight: 500,
               cursor: isSearching ? "default" : "pointer",
               transition: "border-color 0.12s, color 0.12s, background 0.12s",
@@ -222,7 +222,7 @@ export function SearchInput({ onSearch, isSearching, traceMode, onTraceModeChang
                 : "0.0625rem solid var(--border)",
               background: traceMode === "deep" ? "var(--accent-soft)" : "var(--bg-secondary)",
               color: traceMode === "deep" ? "var(--accent)" : "var(--text-secondary)",
-              fontFamily: "'Inter', sans-serif",
+              fontFamily: "var(--font-sans), sans-serif",
               fontSize: "0.75rem",
               fontWeight: 500,
               cursor: isSearching ? "default" : "pointer",
@@ -309,7 +309,7 @@ export function SearchInput({ onSearch, isSearching, traceMode, onTraceModeChang
                         color: "var(--text-primary)",
                         textAlign: "left",
                         cursor: "pointer",
-                        fontFamily: "'Inter', sans-serif",
+                        fontFamily: "var(--font-sans), sans-serif",
                       }}
                     >
                       <span style={{ color: selected ? "var(--accent)" : "var(--text-tertiary)", display: "flex", alignItems: "center", justifyContent: "center", marginTop: "0.1rem" }}>
@@ -326,7 +326,7 @@ export function SearchInput({ onSearch, isSearching, traceMode, onTraceModeChang
                       <span>
                         <span style={{ display: "flex", alignItems: "center", gap: "0.4rem", fontSize: "0.9rem", fontWeight: 600 }}>
                           {label}
-                          {mode === "deep" && <span style={{ padding: "0.1rem 0.35rem", borderRadius: "0.125rem", background: "var(--accent-soft)", color: "var(--accent)", fontSize: "0.625rem", fontFamily: "'Geist Mono', monospace", letterSpacing: "0.04em" }}>NEW</span>}
+                          {mode === "deep" && <span style={{ padding: "0.1rem 0.35rem", borderRadius: "0.125rem", background: "var(--accent-soft)", color: "var(--accent)", fontSize: "0.625rem", fontFamily: "var(--font-mono), monospace", letterSpacing: "0.04em" }}>NEW</span>}
                         </span>
                         <span style={{ display: "block", marginTop: "0.2rem", color: "var(--text-tertiary)", fontSize: "0.73rem", lineHeight: 1.35 }}>{description}</span>
                       </span>

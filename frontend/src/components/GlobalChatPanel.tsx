@@ -124,7 +124,7 @@ function TraceEvidencePanel({ evidence }: { evidence: TraceEvidence }) {
           color: "var(--text-tertiary)",
           fontSize: "0.625rem",
           fontWeight: 700,
-          fontFamily: "'Geist Mono', monospace",
+          fontFamily: "var(--font-mono), monospace",
           letterSpacing: "0.06em",
           textTransform: "uppercase",
           userSelect: "none",
@@ -152,7 +152,7 @@ function TraceEvidencePanel({ evidence }: { evidence: TraceEvidence }) {
                   style={{ display: "flex", flexDirection: "column", gap: "0.0625rem", padding: "0.25rem 0", color: "inherit", textDecoration: "none" }}
                 >
                   <span style={{ color: "var(--text-primary)", fontSize: "0.6875rem", fontWeight: 600, lineHeight: 1.35 }}>{paper.title}</span>
-                  <span style={{ color: "var(--text-tertiary)", fontSize: "0.59375rem", fontFamily: "'Geist Mono', monospace" }}>
+                  <span style={{ color: "var(--text-tertiary)", fontSize: "0.59375rem", fontFamily: "var(--font-mono), monospace" }}>
                     {[paper.year, ...paper.authors].filter(Boolean).join(" · ") || paper.openalexId}
                   </span>
                 </a>
@@ -178,6 +178,26 @@ function mergeMessagesById(current: Message[], restored: Message[]): Message[] {
     return true;
   });
   return missing.length ? [...current, ...missing] : current;
+}
+
+// Cap retained chat history so long sessions don't grow the heap without bound.
+// Sessions restore from the server, so trimming client memory is lossless.
+const MAX_RETAINED_MESSAGES = 100;
+const TRACE_EVIDENCE_RETAIN = 6;
+
+function capMessages(messages: Message[]): Message[] {
+  const capped = messages.length > MAX_RETAINED_MESSAGES
+    ? messages.slice(messages.length - MAX_RETAINED_MESSAGES)
+    : messages;
+  // Drop the heavy traceEvidence (full OpenAlex paper arrays) from all but the
+  // most recent messages; older ones keep their identity when already stripped.
+  const dropBefore = capped.length - TRACE_EVIDENCE_RETAIN;
+  if (dropBefore <= 0) return capped;
+  return capped.map((message, index) => (
+    index < dropBefore && message.traceEvidence
+      ? { ...message, traceEvidence: undefined }
+      : message
+  ));
 }
 
 export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMentionedPaperIdsChange, onLineageChanges, onNoteChanges, onNodeColorChanges, onUsageChanged, graphId, userId }: GlobalChatPanelProps) {
@@ -503,7 +523,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
     };
     const assistantId = `local-${++msgIdRef.current}`;
     const assistantMsg: Message = { id: assistantId, role: "assistant", text: "", pending: true };
-    setMessages((prev) => [...prev, userMsg, assistantMsg]);
+    setMessages((prev) => capMessages([...prev, userMsg, assistantMsg]));
     setIsThinking(true);
     onHighlight([]);
 
@@ -728,7 +748,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
                 <LogoMark width="18" height="18" style={{ color: "var(--text-primary)" }} />
               </div>
               <div style={{ position: "absolute", left: "50%", transform: "translateX(-50%)", maxWidth: "calc(100% - 7rem)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", pointerEvents: "none" }}>
-                <div style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--text-primary)", fontFamily: "'Inter', sans-serif" }}>
+                <div style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--text-primary)", fontFamily: "var(--font-sans), sans-serif" }}>
                   Sediment Agent
                 </div>
               </div>
@@ -764,7 +784,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
                   style={{
                     fontSize: "0.625rem",
                     color: "var(--text-tertiary)",
-                    fontFamily: "'Geist Mono', monospace",
+                    fontFamily: "var(--font-mono), monospace",
                     letterSpacing: "0.06em",
                     textTransform: "uppercase",
                   }}
@@ -775,7 +795,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
                   style={{
                     fontSize: "0.625rem",
                     color: "var(--text-tertiary)",
-                    fontFamily: "'Geist Mono', monospace",
+                    fontFamily: "var(--font-mono), monospace",
                   }}
                 >
                   {papers.length} paper{papers.length !== 1 ? "s" : ""} · {noteCount} note{noteCount !== 1 ? "s" : ""}
@@ -795,7 +815,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
                     color: "var(--text-tertiary)",
                     padding: "0.25rem 0.55rem",
                     fontSize: "0.6875rem",
-                    fontFamily: "'Inter', sans-serif",
+                    fontFamily: "var(--font-sans), sans-serif",
                     fontWeight: 500,
                     cursor: isThinking ? "default" : "pointer",
                     opacity: isThinking ? 0.55 : 1,
@@ -828,7 +848,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
                     color: "var(--text-tertiary)",
                     padding: "0.25rem 0.55rem",
                     fontSize: "0.6875rem",
-                    fontFamily: "'Inter', sans-serif",
+                    fontFamily: "var(--font-sans), sans-serif",
                     fontWeight: 500,
                     cursor: isThinking ? "default" : "pointer",
                     opacity: isThinking ? 0.55 : 1,
@@ -861,7 +881,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
                     color: "var(--text-tertiary)",
                     padding: "0.25rem 0.55rem",
                     fontSize: "0.6875rem",
-                    fontFamily: "'Inter', sans-serif",
+                    fontFamily: "var(--font-sans), sans-serif",
                     fontWeight: 500,
                     cursor: isThinking ? "default" : "pointer",
                     opacity: isThinking ? 0.55 : 1,
@@ -894,7 +914,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
                     color: "var(--text-tertiary)",
                     padding: "0.25rem 0.55rem",
                     fontSize: "0.6875rem",
-                    fontFamily: "'Inter', sans-serif",
+                    fontFamily: "var(--font-sans), sans-serif",
                     fontWeight: 500,
                     cursor: isThinking ? "default" : "pointer",
                     opacity: isThinking ? 0.55 : 1,
@@ -944,7 +964,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
                         padding: "0.4375rem 0.625rem",
                         fontSize: "0.71875rem",
                         color: "var(--text-secondary)",
-                        fontFamily: "'Inter', sans-serif",
+                        fontFamily: "var(--font-sans), sans-serif",
                         cursor: "pointer",
                         transition: "border-color 0.15s, color 0.15s",
                       }}
@@ -967,7 +987,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
                     color: msg.role === "user" ? "var(--on-accent)" : "var(--text-primary)",
                     fontSize: "0.78125rem",
                     lineHeight: 1.5,
-                    fontFamily: "'Inter', sans-serif",
+                    fontFamily: "var(--font-sans), sans-serif",
                   }}>
                     {msg.role === "assistant" ? (
                       <>
@@ -990,13 +1010,13 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
                       }}
                     >
                       {(msg.statusEvents ?? []).slice(-2).map((status, index) => (
-                        <div key={`${msg.id}-status-${index}`} style={{ display: "flex", alignItems: "center", gap: "0.375rem", color: "var(--text-tertiary)", fontSize: "0.65625rem", fontFamily: "'Geist Mono', monospace" }}>
+                        <div key={`${msg.id}-status-${index}`} style={{ display: "flex", alignItems: "center", gap: "0.375rem", color: "var(--text-tertiary)", fontSize: "0.65625rem", fontFamily: "var(--font-mono), monospace" }}>
                           <span style={{ width: "0.35rem", height: "0.35rem", borderRadius: "50%", background: msg.pending ? "var(--accent)" : "var(--text-tertiary)", display: "inline-block" }} />
                           {status}
                         </div>
                       ))}
                       {(msg.toolEvents ?? []).map((tool) => (
-                        <div key={`${msg.id}-${tool.name}`} style={{ display: "flex", alignItems: "center", gap: "0.375rem", color: "var(--text-secondary)", fontSize: "0.6875rem", fontFamily: "'Inter', sans-serif" }}>
+                        <div key={`${msg.id}-${tool.name}`} style={{ display: "flex", alignItems: "center", gap: "0.375rem", color: "var(--text-secondary)", fontSize: "0.6875rem", fontFamily: "var(--font-sans), sans-serif" }}>
                           <span style={{ color: tool.status === "started" || tool.status === "processing" ? "var(--accent)" : tool.status === "error" ? "var(--danger, #b45309)" : "var(--text-tertiary)" }}>
                             {tool.status === "started" || tool.status === "processing" ? "↻" : tool.status === "error" ? "!" : "✓"}
                           </span>
@@ -1092,7 +1112,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
                             flexShrink: 0,
                             minWidth: "2.5rem",
                             color: "var(--accent)",
-                            fontFamily: "'Geist Mono', monospace",
+                            fontFamily: "var(--font-mono), monospace",
                             fontSize: "0.6875rem",
                           }}
                         >
@@ -1104,7 +1124,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
                               overflow: "hidden",
                               textOverflow: "ellipsis",
                               whiteSpace: "nowrap",
-                              fontFamily: "'Inter', sans-serif",
+                              fontFamily: "var(--font-sans), sans-serif",
                               fontSize: "0.78125rem",
                               fontWeight: 600,
                             }}
@@ -1117,7 +1137,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
                               textOverflow: "ellipsis",
                               whiteSpace: "nowrap",
                               color: "var(--text-tertiary)",
-                              fontFamily: "'Geist Mono', monospace",
+                              fontFamily: "var(--font-mono), monospace",
                               fontSize: "0.625rem",
                             }}
                           >
@@ -1182,7 +1202,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
                       outline: "none",
                       color: "var(--text-primary)",
                       fontSize: "0.8125rem",
-                      fontFamily: "'Inter', sans-serif",
+                      fontFamily: "var(--font-sans), sans-serif",
                       lineHeight: 1.5,
                       resize: "none",
                       overflowY: "hidden",

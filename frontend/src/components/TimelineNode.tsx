@@ -171,7 +171,7 @@ export function TimelineNodeCard({
             color: "var(--accent)",
             fontSize: "0.6875rem",
             fontWeight: 500,
-            fontFamily: "'Geist Mono', monospace",
+            fontFamily: "var(--font-mono), monospace",
             padding: "0.125rem 0.4375rem",
             borderRadius: "0.125rem",
             lineHeight: "1rem",
@@ -192,7 +192,7 @@ export function TimelineNodeCard({
             overflow: "hidden",
             textOverflow: "ellipsis",
             whiteSpace: "nowrap",
-            fontFamily: "'Inter', sans-serif",
+            fontFamily: "var(--font-sans), sans-serif",
           }}
         >
           {node.paper.title}
@@ -207,7 +207,7 @@ export function TimelineNodeCard({
             overflow: "hidden",
             textOverflow: "ellipsis",
             whiteSpace: "nowrap",
-            fontFamily: "'Inter', sans-serif",
+            fontFamily: "var(--font-sans), sans-serif",
           }}
         >
           {node.paper.summary}
@@ -358,6 +358,6 @@ function menuButtonStyle(disabled: boolean): CSSProperties {
     fontSize: "0.8125rem",
     fontWeight: 500,
     letterSpacing: "-0.006em",
-    fontFamily: "'Inter', sans-serif",
+    fontFamily: "var(--font-sans), sans-serif",
   };
 }

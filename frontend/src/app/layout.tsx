@@ -1,7 +1,31 @@
 import type { Metadata } from "next";
 import Script from "next/script";
+import { Inter, Geist_Mono, Source_Serif_4 } from "next/font/google";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import "./globals.css";
+
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-sans",
+  display: "swap",
+  style: ["normal", "italic"],
+  axes: ["opsz"],
+});
+
+const geistMono = Geist_Mono({
+  subsets: ["latin"],
+  variable: "--font-mono",
+  display: "swap",
+  weight: ["400", "500"],
+});
+
+// Source Serif is only used for the hero equations — italic axis alone.
+const sourceSerif = Source_Serif_4({
+  subsets: ["latin"],
+  variable: "--font-serif",
+  display: "swap",
+  style: "italic",
+});
 
 export const metadata: Metadata = {
   title: "Sediment | Knowledge, layered",
@@ -18,18 +42,13 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" data-theme="dark" suppressHydrationWarning>
+    <html
+      lang="en"
+      data-theme="dark"
+      className={`${inter.variable} ${geistMono.variable} ${sourceSerif.variable}`}
+      suppressHydrationWarning
+    >
       <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link
-          rel="preconnect"
-          href="https://fonts.gstatic.com"
-          crossOrigin="anonymous"
-        />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,400..700;1,14..32,400..700&family=Geist+Mono:wght@400;500&family=Source+Serif+4:ital,opsz@0,8..60;1,8..60&display=swap"
-          rel="stylesheet"
-        />
         {/* Prevent flash of wrong theme */}
         <Script
           id="theme-preference"

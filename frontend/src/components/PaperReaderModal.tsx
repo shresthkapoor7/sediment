@@ -269,7 +269,7 @@ export function PaperReaderModal({ open, content, loading, error, onClose, onAsk
                   style={{
                     margin: 0,
                     color: "var(--text-primary)",
-                    fontFamily: "'Inter', sans-serif",
+                    fontFamily: "var(--font-sans), sans-serif",
                     fontSize: "1rem",
                     lineHeight: 1.35,
                     fontWeight: 650,
@@ -334,7 +334,7 @@ export function PaperReaderModal({ open, content, loading, error, onClose, onAsk
                 overflowY: "auto",
                 padding: "1.5rem clamp(1.25rem, 5vw, 3.5rem) 3rem",
                 color: "var(--text-secondary)",
-                fontFamily: "'Inter', sans-serif",
+                fontFamily: "var(--font-sans), sans-serif",
                 fontSize: "0.9375rem",
                 lineHeight: 1.78,
               }}
@@ -414,7 +414,7 @@ export function PaperReaderModal({ open, content, loading, error, onClose, onAsk
                   background: "var(--bg-primary)",
                   color: "var(--text-primary)",
                   boxShadow: "0 0.5rem 1.5rem rgba(0,0,0,0.32)",
-                  fontFamily: "'Inter', sans-serif",
+                  fontFamily: "var(--font-sans), sans-serif",
                   fontSize: "0.75rem",
                   fontWeight: 600,
                   cursor: "pointer",
