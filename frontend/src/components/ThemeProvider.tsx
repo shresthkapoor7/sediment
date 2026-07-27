@@ -48,7 +48,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     <ThemeContext.Provider value={{ theme, toggle }}>
       {/* Lazy-load only DOM animation features (no layout/drag used) so the full
           framer-motion feature bundle stays out of the initial JS. */}
-      <LazyMotion features={domAnimation}>
+      <LazyMotion features={domAnimation} strict>
         <div style={{ visibility: mounted ? "visible" : "hidden" }}>
           {children}
         </div>
