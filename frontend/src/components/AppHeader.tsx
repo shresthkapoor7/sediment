@@ -232,6 +232,13 @@ export function AppHeader({
     return () => landingScrollEl.removeEventListener("scroll", onScroll);
   }, [timelineData, landingScrollEl]);
 
+  // Apply is a no-op unless the draft differs from the active settings.
+  const settingsChanged =
+    draftSettings.depth !== settings.depth ||
+    draftSettings.breadth !== settings.breadth ||
+    draftSettings.referenceLimit !== settings.referenceLimit ||
+    draftSettings.topN !== settings.topN;
+
   return (
       <m.header
         className={`app-header${!timelineData ? " app-header-landing" : ""}${timelineData ? " app-header-graph" : ""}${(!timelineData && isLandingHeaderCompact) || (timelineData && isGraphHeaderCompact) ? " app-header-compact" : ""}`}
@@ -821,7 +828,7 @@ export function AppHeader({
                           letterSpacing: "0.01em",
                         }}
                       >
-                        reset
+                        Reset
                       </button>
                       <div style={{ flex: 1 }} />
                       <button
@@ -837,7 +844,7 @@ export function AppHeader({
                           setSettingsOpen(false);
                           setSessionActionsOpen(false);
                         }}
-                        disabled={isExpanding}
+                        disabled={isExpanding || !settingsChanged}
                         style={{
                           height: "1.625rem",
                           padding: "0 0.625rem",
@@ -845,7 +852,8 @@ export function AppHeader({
                           border: "0.0625rem solid var(--accent)",
                           background: "var(--accent-soft)",
                           color: "var(--accent)",
-                          cursor: isExpanding ? "default" : "pointer",
+                          cursor: isExpanding || !settingsChanged ? "default" : "pointer",
+                          opacity: settingsChanged ? 1 : 0.45,
                           fontSize: "0.6875rem",
                           fontFamily: "var(--font-sans), sans-serif",
                           fontWeight: 600,
@@ -1316,7 +1324,7 @@ export function AppHeader({
                         );
                       setMobileMenuOpen(false);
                     }}
-                    disabled={isExpanding}
+                    disabled={isExpanding || !settingsChanged}
                     style={{
                       flex: 1,
                       height: "2.25rem",
@@ -1324,7 +1332,8 @@ export function AppHeader({
                       border: "0.0625rem solid var(--accent)",
                       background: "var(--accent)",
                       color: "#fff",
-                      cursor: isExpanding ? "default" : "pointer",
+                      cursor: isExpanding || !settingsChanged ? "default" : "pointer",
+                      opacity: settingsChanged ? 1 : 0.45,
                       fontSize: "0.8125rem",
                       fontFamily: "var(--font-sans), sans-serif",
                       fontWeight: 600,
