@@ -1,5 +1,5 @@
 import { GraphEdge, GraphPaper, LineageChange, NodeBorderColor, TimelineData, TimelineGraphAction, TimelineNode, TimelineNodeColorChange, TimelineNote, TimelineNoteChange } from "./types";
-import { GAP_X, LANE_HEIGHT, NODE_DIMENSIONS, PADDING_X, PADDING_Y } from "./dummy-data";
+import { GAP_X, LANE_HEIGHT, NODE_DIMENSIONS, PADDING_X, PADDING_Y } from "./layout-constants";
 import { estimateTimelineNoteDimensions, layoutTimelineNotes } from "./note-layout";
 
 interface TimelineGraphActionOptions {

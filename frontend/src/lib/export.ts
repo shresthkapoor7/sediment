@@ -1,4 +1,3 @@
-import JSZip from "jszip";
 import { TimelineData } from "./types";
 
 function slugify(text: string): string {
@@ -82,6 +81,8 @@ export async function exportObsidianZip(
   timelineData: TimelineData,
   lineageName: string,
 ): Promise<void> {
+  // Loaded on demand — keeps ~27KB of JSZip out of the initial bundle.
+  const { default: JSZip } = await import("jszip");
   const zip = new JSZip();
   const folderName = slugify(lineageName) || "sediment-export";
   const folder = zip.folder(folderName)!;

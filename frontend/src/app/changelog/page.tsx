@@ -156,7 +156,7 @@ function ChangelogCard({ entry }: { entry: ChangelogEntry }) {
         >
           <span
             style={{
-              fontFamily: "'Geist Mono', monospace",
+              fontFamily: "var(--font-mono), monospace",
               fontSize: "0.75rem",
               color: "var(--text-tertiary)",
               letterSpacing: "0.02em",
@@ -173,7 +173,7 @@ function ChangelogCard({ entry }: { entry: ChangelogEntry }) {
               borderRadius: "0.125rem",
               background: TAG_COLORS.accent.bg,
               color: TAG_COLORS.accent.text,
-              fontFamily: "'Geist Mono', monospace",
+              fontFamily: "var(--font-mono), monospace",
               fontSize: "0.6875rem",
               fontWeight: 500,
               letterSpacing: "0.02em",
@@ -192,7 +192,7 @@ function ChangelogCard({ entry }: { entry: ChangelogEntry }) {
                   borderRadius: "0.125rem",
                   background: catColors.bg,
                   color: catColors.text,
-                  fontFamily: "'Geist Mono', monospace",
+                  fontFamily: "var(--font-mono), monospace",
                   fontSize: "0.6875rem",
                   fontWeight: 500,
                   letterSpacing: "0.02em",
@@ -295,7 +295,7 @@ function ChangelogCard({ entry }: { entry: ChangelogEntry }) {
                         padding: "0.125rem 0.375rem",
                         borderRadius: "0.25rem",
                         fontSize: "0.875em",
-                        fontFamily: "'Geist Mono', monospace",
+                        fontFamily: "var(--font-mono), monospace",
                       }}
                     >
                       {children}
@@ -420,9 +420,8 @@ export default function ChangelogPage() {
             gap: "0.125rem",
             border: "0.0625rem solid color-mix(in srgb, var(--border) 72%, transparent)",
             borderRadius: "0.5rem",
-            background: "color-mix(in srgb, var(--bg-primary) 82%, transparent)",
+            background: "color-mix(in srgb, var(--bg-primary) 96%, transparent)",
             boxShadow: "0 0.5rem 1.5rem rgba(0, 0, 0, 0.10)",
-            backdropFilter: "blur(16px)",
             pointerEvents: "auto",
           }}
         >
@@ -438,7 +437,7 @@ export default function ChangelogPage() {
               borderRadius: "0.5rem",
               textDecoration: "none",
               color: "var(--text-secondary)",
-              fontFamily: "'Inter', sans-serif",
+              fontFamily: "var(--font-sans), sans-serif",
               fontSize: "0.75rem",
               fontWeight: 500,
             }}
@@ -460,7 +459,7 @@ export default function ChangelogPage() {
               borderRadius: "0.5rem",
               background: "color-mix(in srgb, var(--accent) 9%, transparent)",
               color: "var(--text-primary)",
-              fontFamily: "'Inter', sans-serif",
+              fontFamily: "var(--font-sans), sans-serif",
               fontSize: "0.75rem",
               fontWeight: 500,
             }}
@@ -495,7 +494,7 @@ export default function ChangelogPage() {
               padding: "0 0.625rem",
               borderRadius: "0.5rem",
               color: "var(--text-secondary)",
-              fontFamily: "'Inter', sans-serif",
+              fontFamily: "var(--font-sans), sans-serif",
               fontSize: "0.75rem",
               fontWeight: 500,
               textDecoration: "none",
@@ -585,7 +584,7 @@ export default function ChangelogPage() {
                     background: "var(--bg-secondary)",
                     color: loadingMore ? "var(--text-tertiary)" : "var(--accent)",
                     cursor: loadingMore ? "default" : "pointer",
-                    fontFamily: "'Geist Mono', monospace",
+                    fontFamily: "var(--font-mono), monospace",
                     fontSize: "0.75rem",
                     letterSpacing: "0.04em",
                   }}
@@ -621,7 +620,7 @@ export default function ChangelogPage() {
             style={{
               fontSize: "0.875rem",
               color: "var(--text-tertiary)",
-              fontFamily: "'Geist Mono', monospace",
+              fontFamily: "var(--font-mono), monospace",
             }}
           >
             More updates coming soon.

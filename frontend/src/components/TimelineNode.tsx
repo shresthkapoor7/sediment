@@ -2,10 +2,10 @@
 
 import { useState } from "react";
 import type { CSSProperties } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, m } from "framer-motion";
 import { TimelineNode as TNode, NodeBorderColor } from "@/lib/types";
 import { NODE_BORDER_COLOR_OPTIONS, nodeBorderColorCss } from "@/lib/node-style";
-import { NODE_DIMENSIONS } from "@/lib/dummy-data";
+import { NODE_DIMENSIONS } from "@/lib/layout-constants";
 
 interface TimelineNodeProps {
   node: TNode;
@@ -72,7 +72,7 @@ export function TimelineNodeCard({
   const boxShadow = getBoxShadow(isActive, isHighlighted, isMentioned);
 
   return (
-    <motion.div
+    <m.div
       initial={shouldAnimate ? { opacity: 0, y: 12 } : false}
       animate={{ opacity: 1, y: 0 }}
       transition={
@@ -171,7 +171,7 @@ export function TimelineNodeCard({
             color: "var(--accent)",
             fontSize: "0.6875rem",
             fontWeight: 500,
-            fontFamily: "'Geist Mono', monospace",
+            fontFamily: "var(--font-mono), monospace",
             padding: "0.125rem 0.4375rem",
             borderRadius: "0.125rem",
             lineHeight: "1rem",
@@ -192,7 +192,7 @@ export function TimelineNodeCard({
             overflow: "hidden",
             textOverflow: "ellipsis",
             whiteSpace: "nowrap",
-            fontFamily: "'Inter', sans-serif",
+            fontFamily: "var(--font-sans), sans-serif",
           }}
         >
           {node.paper.title}
@@ -207,7 +207,7 @@ export function TimelineNodeCard({
             overflow: "hidden",
             textOverflow: "ellipsis",
             whiteSpace: "nowrap",
-            fontFamily: "'Inter', sans-serif",
+            fontFamily: "var(--font-sans), sans-serif",
           }}
         >
           {node.paper.summary}
@@ -215,7 +215,7 @@ export function TimelineNodeCard({
       </div>
 
       {canEdit && (
-        <motion.button
+        <m.button
           type="button"
           aria-label="Edit node"
           title="Edit node"
@@ -235,10 +235,9 @@ export function TimelineNodeCard({
             height: "1.625rem",
             borderRadius: "999px",
             border: `0.0625rem solid ${isEditMenuOpen ? "var(--accent)" : "var(--border)"}`,
-            background: isEditMenuOpen ? "var(--accent-soft)" : "color-mix(in srgb, var(--bg-primary) 84%, transparent)",
+            background: isEditMenuOpen ? "var(--accent-soft)" : "color-mix(in srgb, var(--bg-primary) 98%, transparent)",
             color: isEditMenuOpen ? "var(--accent)" : "var(--text-secondary)",
             boxShadow: "0 0.5rem 1rem rgba(0,0,0,0.24)",
-            backdropFilter: "blur(10px)",
             cursor: "pointer",
             pointerEvents: showEditButton ? "auto" : "none",
             display: "flex",
@@ -250,12 +249,12 @@ export function TimelineNodeCard({
             <path d="M10.8 2.2 13.8 5.2 6.1 12.9l-3.4.7.7-3.4 7.4-8Z" />
             <path d="M9.8 3.2l3 3" />
           </svg>
-        </motion.button>
+        </m.button>
       )}
 
       <AnimatePresence>
         {canEdit && isEditMenuOpen && (
-          <motion.div
+          <m.div
             data-canvas-ui="true"
             initial={{ opacity: 0, scale: 0.94, y: 4 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -273,7 +272,6 @@ export function TimelineNodeCard({
               border: "0.0625rem solid var(--border)",
               background: "color-mix(in srgb, var(--bg-primary) 98%, transparent)",
               boxShadow: "0 0.5rem 1.5rem rgba(0,0,0,0.10)",
-              backdropFilter: "blur(12px)",
               cursor: "default",
             }}
           >
@@ -340,10 +338,10 @@ export function TimelineNodeCard({
                 Delete node
               </button>
             </div>
-          </motion.div>
+          </m.div>
         )}
       </AnimatePresence>
-    </motion.div>
+    </m.div>
   );
 }
 
@@ -358,6 +356,6 @@ function menuButtonStyle(disabled: boolean): CSSProperties {
     fontSize: "0.8125rem",
     fontWeight: 500,
     letterSpacing: "-0.006em",
-    fontFamily: "'Inter', sans-serif",
+    fontFamily: "var(--font-sans), sans-serif",
   };
 }

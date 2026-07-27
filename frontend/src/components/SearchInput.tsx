@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, m } from "framer-motion";
 
 const EXAMPLES = [
   "Transformer",
@@ -31,7 +31,7 @@ export function SearchInput({ onSearch, isSearching, traceMode, onTraceModeChang
   const modeLabel = traceMode === "deep" ? "Deep trace" : "Quick trace";
 
   return (
-    <motion.form
+    <m.form
       className="trace-search"
       onSubmit={handleSubmit}
       aria-label="Search the research lineage"
@@ -88,7 +88,7 @@ export function SearchInput({ onSearch, isSearching, traceMode, onTraceModeChang
             outline: "none",
             color: "var(--text-primary)",
             fontSize: "0.875rem",
-            fontFamily: "'Inter', sans-serif",
+            fontFamily: "var(--font-sans), sans-serif",
             letterSpacing: "-0.006em",
           }}
         />
@@ -104,9 +104,8 @@ export function SearchInput({ onSearch, isSearching, traceMode, onTraceModeChang
               pointerEvents: "none",
             }}
           >
-            <motion.div
-              animate={{ rotate: 360 }}
-              transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+            <div
+              className="sediment-spinner"
               style={{
                 width: "1.125rem", height: "1.125rem",
                 border: "0.125rem solid var(--border)",
@@ -143,7 +142,7 @@ export function SearchInput({ onSearch, isSearching, traceMode, onTraceModeChang
       </div>
 
       {/* Examples */}
-      <motion.div
+      <m.div
         className="trace-search-examples"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
@@ -157,7 +156,7 @@ export function SearchInput({ onSearch, isSearching, traceMode, onTraceModeChang
         }}
       >
         {EXAMPLES.map((example, i) => (
-          <motion.button
+          <m.button
             key={example}
             className={`trace-search-suggestion${example === "Feynman Path Integrals" ? " hide-mobile" : ""}${example === "CRISPR" ? " show-mobile" : ""}`}
             type="button"
@@ -177,7 +176,7 @@ export function SearchInput({ onSearch, isSearching, traceMode, onTraceModeChang
               padding: "0.375rem 0.75rem",
               fontSize: "0.75rem",
               color: "var(--text-secondary)",
-              fontFamily: "'Inter', sans-serif",
+              fontFamily: "var(--font-sans), sans-serif",
               fontWeight: 500,
               cursor: isSearching ? "default" : "pointer",
               transition: "border-color 0.12s, color 0.12s, background 0.12s",
@@ -200,7 +199,7 @@ export function SearchInput({ onSearch, isSearching, traceMode, onTraceModeChang
               <path d="M2 8L8 2M8 2H3.5M8 2V6.5" />
             </svg>
             {example}
-          </motion.button>
+          </m.button>
         ))}
         <div className="trace-search-mode-control" style={{ position: "relative", zIndex: 3 }}>
           <button
@@ -222,7 +221,7 @@ export function SearchInput({ onSearch, isSearching, traceMode, onTraceModeChang
                 : "0.0625rem solid var(--border)",
               background: traceMode === "deep" ? "var(--accent-soft)" : "var(--bg-secondary)",
               color: traceMode === "deep" ? "var(--accent)" : "var(--text-secondary)",
-              fontFamily: "'Inter', sans-serif",
+              fontFamily: "var(--font-sans), sans-serif",
               fontSize: "0.75rem",
               fontWeight: 500,
               cursor: isSearching ? "default" : "pointer",
@@ -261,7 +260,7 @@ export function SearchInput({ onSearch, isSearching, traceMode, onTraceModeChang
 
           <AnimatePresence>
             {modeOpen && (
-              <motion.div
+              <m.div
                 className="trace-search-mode-menu"
                 initial={{ opacity: 0, y: -5, scale: 0.98 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -277,7 +276,6 @@ export function SearchInput({ onSearch, isSearching, traceMode, onTraceModeChang
                   borderRadius: "0.375rem",
                   border: "0.0625rem solid var(--border)",
                   background: "color-mix(in srgb, var(--bg-primary) 98%, transparent)",
-                  backdropFilter: "blur(12px)",
                   boxShadow: "0 0.5rem 1.5rem rgba(0,0,0,0.10)",
                 }}
               >
@@ -309,7 +307,7 @@ export function SearchInput({ onSearch, isSearching, traceMode, onTraceModeChang
                         color: "var(--text-primary)",
                         textAlign: "left",
                         cursor: "pointer",
-                        fontFamily: "'Inter', sans-serif",
+                        fontFamily: "var(--font-sans), sans-serif",
                       }}
                     >
                       <span style={{ color: selected ? "var(--accent)" : "var(--text-tertiary)", display: "flex", alignItems: "center", justifyContent: "center", marginTop: "0.1rem" }}>
@@ -326,18 +324,18 @@ export function SearchInput({ onSearch, isSearching, traceMode, onTraceModeChang
                       <span>
                         <span style={{ display: "flex", alignItems: "center", gap: "0.4rem", fontSize: "0.9rem", fontWeight: 600 }}>
                           {label}
-                          {mode === "deep" && <span style={{ padding: "0.1rem 0.35rem", borderRadius: "0.125rem", background: "var(--accent-soft)", color: "var(--accent)", fontSize: "0.625rem", fontFamily: "'Geist Mono', monospace", letterSpacing: "0.04em" }}>NEW</span>}
+                          {mode === "deep" && <span style={{ padding: "0.1rem 0.35rem", borderRadius: "0.125rem", background: "var(--accent-soft)", color: "var(--accent)", fontSize: "0.625rem", fontFamily: "var(--font-mono), monospace", letterSpacing: "0.04em" }}>NEW</span>}
                         </span>
                         <span style={{ display: "block", marginTop: "0.2rem", color: "var(--text-tertiary)", fontSize: "0.73rem", lineHeight: 1.35 }}>{description}</span>
                       </span>
                     </button>
                   );
                 })}
-              </motion.div>
+              </m.div>
             )}
           </AnimatePresence>
         </div>
-      </motion.div>
-    </motion.form>
+      </m.div>
+    </m.form>
   );
 }

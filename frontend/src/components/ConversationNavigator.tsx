@@ -165,7 +165,7 @@ export function ConversationNavigator({
                 borderRadius: "0.25rem",
                 background: item.id === activeId ? "var(--bg-tertiary)" : "transparent",
                 color: "var(--text-primary)",
-                fontFamily: "'Inter', sans-serif",
+                fontFamily: "var(--font-sans), sans-serif",
                 fontSize: "0.8125rem",
                 lineHeight: 1.35,
                 textAlign: "left",

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import { TimelineNote } from "@/lib/types";
 import { NOTE_COLOR_OPTIONS, NOTE_KIND_OPTIONS, TIMELINE_NOTE_DEFAULT_WIDTH, TIMELINE_NOTE_MIN_HEIGHT, noteColorStyle, noteKindLabel } from "@/lib/note-style";
 import { MarkdownContent } from "./MarkdownContent";
@@ -149,7 +149,7 @@ export function TimelineNoteCard({
   }, []);
 
   return (
-    <motion.div
+    <m.div
       ref={cardRef}
       data-canvas-ui="true"
       initial={{ opacity: 0, scale: 0.96, y: 8 }}
@@ -203,7 +203,7 @@ export function TimelineNoteCard({
             <span
               style={{
                 fontSize: "0.625rem",
-                fontFamily: "'Geist Mono', monospace",
+                fontFamily: "var(--font-mono), monospace",
                 letterSpacing: "0.12em",
                 textTransform: "uppercase",
                 color: colorStyle.accent,
@@ -234,7 +234,7 @@ export function TimelineNoteCard({
                   color: colorStyle.accent,
                   cursor: "pointer",
                   fontSize: "0.625rem",
-                  fontFamily: "'Geist Mono', monospace",
+                  fontFamily: "var(--font-mono), monospace",
                   letterSpacing: "0.12em",
                   textTransform: "uppercase",
                   padding: 0,
@@ -260,7 +260,6 @@ export function TimelineNoteCard({
                     borderRadius: "0.375rem",
                     border: "0.0625rem solid var(--border)",
                     background: "color-mix(in srgb, var(--bg-primary) 98%, transparent)",
-                    backdropFilter: "blur(12px)",
                     boxShadow: "0 0.5rem 1.5rem rgba(0,0,0,0.10)",
                     zIndex: 30,
                   }}
@@ -289,7 +288,7 @@ export function TimelineNoteCard({
                           color: selected ? "var(--accent)" : "var(--text-secondary)",
                           cursor: "pointer",
                           fontSize: "0.625rem",
-                          fontFamily: "'Geist Mono', monospace",
+                          fontFamily: "var(--font-mono), monospace",
                           letterSpacing: "0.08em",
                           textTransform: "uppercase",
                           textAlign: "left",
@@ -312,7 +311,7 @@ export function TimelineNoteCard({
             title={`${connectedNodeCount} connected node${connectedNodeCount === 1 ? "" : "s"}`}
             style={{
               fontSize: "0.625rem",
-              fontFamily: "'Geist Mono', monospace",
+              fontFamily: "var(--font-mono), monospace",
               color: "var(--text-secondary)",
               whiteSpace: "nowrap",
             }}
@@ -340,7 +339,7 @@ export function TimelineNoteCard({
               outline: "none",
               background: "transparent",
               color: "var(--text-primary)",
-              fontFamily: "'Inter', sans-serif",
+              fontFamily: "var(--font-sans), sans-serif",
               fontSize: "0.9375rem",
               fontWeight: 500,
               lineHeight: 1.5,
@@ -376,7 +375,7 @@ export function TimelineNoteCard({
             <MarkdownContent
               style={{
                 color: "var(--text-primary)",
-                fontFamily: "'Inter', sans-serif",
+                fontFamily: "var(--font-sans), sans-serif",
                 fontSize: "0.9375rem",
                 fontWeight: 500,
                 lineHeight: 1.5,
@@ -435,7 +434,7 @@ export function TimelineNoteCard({
                 color: "var(--text-tertiary)",
                 cursor: "pointer",
                 fontSize: "0.625rem",
-                fontFamily: "'Geist Mono', monospace",
+                fontFamily: "var(--font-mono), monospace",
                 letterSpacing: "0.04em",
                 padding: "0.125rem",
               }}
@@ -461,7 +460,7 @@ export function TimelineNoteCard({
               color: isConnectedToActiveNode ? "var(--accent)" : "var(--text-secondary)",
               cursor: "pointer",
               fontSize: "0.625rem",
-              fontFamily: "'Geist Mono', monospace",
+              fontFamily: "var(--font-mono), monospace",
               letterSpacing: "0.04em",
               padding: "0.375rem 0.5rem",
               textTransform: "uppercase",
@@ -501,6 +500,6 @@ export function TimelineNoteCard({
           </button>
         )}
       </div>
-    </motion.div>
+    </m.div>
   );
 }

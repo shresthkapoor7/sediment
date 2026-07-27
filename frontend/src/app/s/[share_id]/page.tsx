@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
+import { m, AnimatePresence } from "framer-motion";
 import { TimelineCanvas } from "@/components/TimelineCanvas";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { LogoMark } from "@/components/LogoMark";
@@ -76,7 +76,7 @@ export default function SharedGraphPage() {
 
   return (
     <div
-      className="grain app-shell"
+      className="app-shell"
       style={{
         height: "100vh",
         display: "flex",
@@ -84,7 +84,7 @@ export default function SharedGraphPage() {
         overflow: "hidden",
       }}
     >
-      <motion.header
+      <m.header
         className={`app-header app-header-shared${isHeaderCompact ? " app-header-compact" : ""}`}
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
@@ -118,7 +118,7 @@ export default function SharedGraphPage() {
           <LogoMark width="22" height="22" style={{ color: "var(--text-primary)" }} />
           <span
             style={{
-              fontFamily: "'Inter', sans-serif",
+              fontFamily: "var(--font-sans), sans-serif",
               fontSize: "1.125rem",
               fontWeight: 700,
               letterSpacing: "-0.01em",
@@ -138,7 +138,7 @@ export default function SharedGraphPage() {
               transform: "translateX(-50%)",
               fontSize: "0.875rem",
               color: "var(--text-secondary)",
-              fontFamily: "'Geist Mono', monospace",
+              fontFamily: "var(--font-mono), monospace",
               fontWeight: 500,
               letterSpacing: "0.02em",
               whiteSpace: "nowrap",
@@ -166,7 +166,7 @@ export default function SharedGraphPage() {
                 whiteSpace: "nowrap",
                 fontSize: "0.875rem",
                 color: "var(--text-secondary)",
-                fontFamily: "'Geist Mono', monospace",
+                fontFamily: "var(--font-mono), monospace",
                 fontWeight: 500,
                 letterSpacing: "0.02em",
               }}
@@ -197,7 +197,7 @@ export default function SharedGraphPage() {
 
             <AnimatePresence>
               {sessionActionsOpen && (
-                <motion.div
+                <m.div
                   initial={{ opacity: 0, y: -6, scale: 0.98 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: -6, scale: 0.98 }}
@@ -218,7 +218,7 @@ export default function SharedGraphPage() {
                     gap: "0.125rem",
                   }}
                 >
-                  <p style={{ marginBottom: "0.375rem", fontSize: "0.625rem", color: "var(--text-tertiary)", fontFamily: "'Geist Mono', monospace", letterSpacing: "0.06em", textTransform: "uppercase" }}>
+                  <p style={{ marginBottom: "0.375rem", fontSize: "0.625rem", color: "var(--text-tertiary)", fontFamily: "var(--font-mono), monospace", letterSpacing: "0.06em", textTransform: "uppercase" }}>
                     Session actions
                   </p>
                   {timelineData && graphTitle && (
@@ -228,7 +228,7 @@ export default function SharedGraphPage() {
                         exportObsidianZip(timelineData, graphTitle).catch(() => alert("Export failed."));
                         setSessionActionsOpen(false);
                       }}
-                      style={{ display: "flex", alignItems: "center", gap: "0.625rem", width: "100%", height: "2rem", padding: "0 0.5rem", border: "none", borderRadius: "0.375rem", background: "none", color: "var(--text-primary)", cursor: "pointer", fontFamily: "'Inter', sans-serif", fontSize: "0.75rem", fontWeight: 500, textAlign: "left" }}
+                      style={{ display: "flex", alignItems: "center", gap: "0.625rem", width: "100%", height: "2rem", padding: "0 0.5rem", border: "none", borderRadius: "0.375rem", background: "none", color: "var(--text-primary)", cursor: "pointer", fontFamily: "var(--font-sans), sans-serif", fontSize: "0.75rem", fontWeight: 500, textAlign: "left" }}
                     >
                       <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="var(--text-tertiary)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M8 2v9M4 7l4 4 4-4" /><path d="M2 13h12" /></svg>
                       Export
@@ -239,13 +239,13 @@ export default function SharedGraphPage() {
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={() => setSessionActionsOpen(false)}
-                    style={{ display: "flex", alignItems: "center", gap: "0.625rem", width: "100%", height: "2rem", padding: "0 0.5rem", borderRadius: "0.375rem", color: "var(--text-primary)", fontFamily: "'Inter', sans-serif", fontSize: "0.75rem", fontWeight: 500, textDecoration: "none" }}
+                    style={{ display: "flex", alignItems: "center", gap: "0.625rem", width: "100%", height: "2rem", padding: "0 0.5rem", borderRadius: "0.375rem", color: "var(--text-primary)", fontFamily: "var(--font-sans), sans-serif", fontSize: "0.75rem", fontWeight: 500, textDecoration: "none" }}
                   >
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style={{ color: "var(--text-tertiary)" }} aria-hidden="true"><path d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.7c-2.78.6-3.36-1.34-3.36-1.34-.45-1.15-1.1-1.46-1.1-1.46-.9-.62.07-.61.07-.61 1 .07 1.53 1.03 1.53 1.03.89 1.53 2.34 1.09 2.91.83.09-.65.35-1.09.63-1.34-2.22-.25-4.55-1.11-4.55-4.94 0-1.09.39-1.98 1.03-2.68-.1-.25-.45-1.27.1-2.65 0 0 .84-.27 2.75 1.02A9.5 9.5 0 0 1 12 6.84c.85 0 1.71.11 2.5.34 1.91-1.29 2.75-1.02 2.75-1.02.55 1.38.2 2.4.1 2.65.64.7 1.03 1.59 1.03 2.68 0 3.84-2.34 4.69-4.57 4.94.36.31.68.92.68 1.85v2.74c0 .27.18.58.69.48A10 10 0 0 0 12 2z" /></svg>
                     GitHub
                   </a>
                   <ThemeToggle className="app-header-shared-session-theme" showLabel fullWidth />
-                </motion.div>
+                </m.div>
               )}
             </AnimatePresence>
           </div>
@@ -265,7 +265,7 @@ export default function SharedGraphPage() {
             )}
           </button>
         </div>
-      </motion.header>
+      </m.header>
 
       <div style={{ flex: 1, overflow: "hidden", position: "relative" }}>
         {isLoading && (
@@ -277,7 +277,7 @@ export default function SharedGraphPage() {
               alignItems: "center",
               justifyContent: "center",
               color: "var(--text-tertiary)",
-              fontFamily: "'Geist Mono', monospace",
+              fontFamily: "var(--font-mono), monospace",
               fontSize: "0.8125rem",
             }}
           >
@@ -294,7 +294,7 @@ export default function SharedGraphPage() {
               alignItems: "center",
               justifyContent: "center",
               color: "var(--text-tertiary)",
-              fontFamily: "'Inter', sans-serif",
+              fontFamily: "var(--font-sans), sans-serif",
               fontSize: "0.875rem",
             }}
           >

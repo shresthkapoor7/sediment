@@ -1,8 +1,8 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import { NodeBorderColor, TimelineNode } from "@/lib/types";
-import { NODE_DIMENSIONS } from "@/lib/dummy-data";
+import { NODE_DIMENSIONS } from "@/lib/layout-constants";
 import { nodeBorderColorCss } from "@/lib/node-style";
 
 interface TimelineEdgeProps {
@@ -55,7 +55,7 @@ export function TimelineEdgeLine({
 
   return (
     <g>
-      <motion.path
+      <m.path
         d={path}
         fill="none"
         stroke={stroke}

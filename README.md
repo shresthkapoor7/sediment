@@ -7,14 +7,12 @@
         <img src="./home.jpg" alt="Sediment dark theme" width="460" />
       </a>
       <br />
-      <sub>Dark theme</sub>
     </td>
     <td align="center">
       <a href="https://sediment-seven.vercel.app/">
         <img src="./home-light.jpg" alt="Sediment light theme" width="460" />
       </a>
       <br />
-      <sub>Light theme</sub>
     </td>
   </tr>
 </table>

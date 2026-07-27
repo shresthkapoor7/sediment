@@ -2,8 +2,11 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { AnimatePresence, motion } from "framer-motion";
-import { MarkdownContent } from "./MarkdownContent";
+import { AnimatePresence, m } from "framer-motion";
+import dynamic from "next/dynamic";
+// react-markdown + KaTeX are heavy; load them only when the reader actually
+// renders paper content, not when this (already code-split) modal mounts.
+const MarkdownContent = dynamic(() => import("./MarkdownContent").then((mod) => mod.MarkdownContent), { ssr: false });
 import { PaperContentResponse } from "@/lib/types";
 
 interface PaperReaderModalProps {
@@ -205,7 +208,7 @@ export function PaperReaderModal({ open, content, loading, error, onClose, onAsk
   return createPortal(
     <AnimatePresence>
       {open && (
-        <motion.div
+        <m.div
           ref={overlayRef}
           data-canvas-ui="true"
           role="presentation"
@@ -224,11 +227,9 @@ export function PaperReaderModal({ open, content, loading, error, onClose, onAsk
             justifyContent: "center",
             padding: "1.5rem",
             background: "rgba(8, 7, 5, 0.62)",
-            backdropFilter: "blur(0.75rem)",
-            WebkitBackdropFilter: "blur(0.75rem)",
           }}
         >
-          <motion.section
+          <m.section
             ref={readerRef}
             role="dialog"
             aria-modal="true"
@@ -269,7 +270,7 @@ export function PaperReaderModal({ open, content, loading, error, onClose, onAsk
                   style={{
                     margin: 0,
                     color: "var(--text-primary)",
-                    fontFamily: "'Inter', sans-serif",
+                    fontFamily: "var(--font-sans), sans-serif",
                     fontSize: "1rem",
                     lineHeight: 1.35,
                     fontWeight: 650,
@@ -334,7 +335,7 @@ export function PaperReaderModal({ open, content, loading, error, onClose, onAsk
                 overflowY: "auto",
                 padding: "1.5rem clamp(1.25rem, 5vw, 3.5rem) 3rem",
                 color: "var(--text-secondary)",
-                fontFamily: "'Inter', sans-serif",
+                fontFamily: "var(--font-sans), sans-serif",
                 fontSize: "0.9375rem",
                 lineHeight: 1.78,
               }}
@@ -414,7 +415,7 @@ export function PaperReaderModal({ open, content, loading, error, onClose, onAsk
                   background: "var(--bg-primary)",
                   color: "var(--text-primary)",
                   boxShadow: "0 0.5rem 1.5rem rgba(0,0,0,0.32)",
-                  fontFamily: "'Inter', sans-serif",
+                  fontFamily: "var(--font-sans), sans-serif",
                   fontSize: "0.75rem",
                   fontWeight: 600,
                   cursor: "pointer",
@@ -426,8 +427,8 @@ export function PaperReaderModal({ open, content, loading, error, onClose, onAsk
                 Ask Sediment
               </button>
             )}
-          </motion.section>
-        </motion.div>
+          </m.section>
+        </m.div>
       )}
     </AnimatePresence>,
     document.body,

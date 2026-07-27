@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { m, AnimatePresence } from "framer-motion";
 import { MarkdownContent } from "./MarkdownContent";
 import { fetchCachedPaperContent, fetchPaperAccess, openChatSession, streamChatAboutPaper } from "@/lib/api";
 import { DETAIL_PANEL_DEFAULT_WIDTH, DETAIL_PANEL_MAX_WIDTH, DETAIL_PANEL_MIN_WIDTH, DETAIL_PANEL_WIDTH_KEY } from "@/lib/detail-panel";
@@ -9,7 +9,7 @@ import { TIMELINE_MOBILE_BREAKPOINT_PX } from "@/lib/hover-preview";
 import { TimelineData, ChatSuggestion, PaperAccessResponse, PaperContentResponse, TimelineNode, PaperChatStreamEvent, TimelineGraphAction, NodeBorderColor, TimelineNote, LineageChange, TimelineNodeColorChange, TimelineNoteChange } from "@/lib/types";
 import { NODE_BORDER_COLOR_OPTIONS } from "@/lib/node-style";
 import { TIMELINE_NOTE_DEFAULT_WIDTH, TIMELINE_NOTE_MIN_HEIGHT } from "@/lib/note-style";
-import { NODE_DIMENSIONS } from "@/lib/dummy-data";
+import { NODE_DIMENSIONS } from "@/lib/layout-constants";
 import { TimelineNodeCard } from "./TimelineNode";
 import { TimelineEdgeLine } from "./TimelineEdge";
 import { TimelineNoteCard } from "./TimelineNote";
@@ -34,6 +34,16 @@ interface ToolEvent {
   name: string;
   status: "started" | "completed" | "error" | "needs_confirmation" | string;
   label: string;
+}
+
+// Cap per-node chat history so long sessions don't grow the heap without bound.
+// Sessions restore from the server, so trimming client memory is lossless.
+const MAX_RETAINED_NODE_MESSAGES = 100;
+
+function capNodeMessages(messages: ChatMessage[]): ChatMessage[] {
+  return messages.length > MAX_RETAINED_NODE_MESSAGES
+    ? messages.slice(messages.length - MAX_RETAINED_NODE_MESSAGES)
+    : messages;
 }
 
 interface TimelineCanvasProps {
@@ -217,7 +227,7 @@ export function TimelineCanvas({
         setChatHistories((current) => (
           current[targetNodeId]?.length
             ? current
-            : { ...current, [targetNodeId]: restored }
+            : { ...current, [targetNodeId]: capNodeMessages(restored) }
         ));
       })
       .catch(() => {
@@ -822,11 +832,11 @@ export function TimelineCanvas({
 
       setChatHistories((prev) => ({
         ...prev,
-        [targetNodeId]: [
+        [targetNodeId]: capNodeMessages([
           ...(prev[targetNodeId] ?? []),
           userMsg,
           { id: assistantId, role: "assistant", content: "", pending: true, statusEvents: ["Starting chat"] },
-        ],
+        ]),
       }));
 
       const updateAssistant = (patch: Partial<ChatMessage>) => {
@@ -1084,7 +1094,7 @@ export function TimelineCanvas({
     : `${getClampedDetailPanelWidth(detailPanelWidth)}px`;
 
   return (
-    <motion.div
+    <m.div
       ref={containerRef}
       className="canvas-grid"
       initial={{ opacity: 0 }}
@@ -1234,7 +1244,7 @@ export function TimelineCanvas({
         </button>
         <div style={{
           fontSize: "0.6875rem",
-          fontFamily: "'Geist Mono', monospace",
+          fontFamily: "var(--font-mono), monospace",
           color: "var(--text-tertiary)",
           background: "var(--bg-secondary)",
           border: "0.0625rem solid var(--border)",
@@ -1265,7 +1275,7 @@ export function TimelineCanvas({
               color: hoverPreviewEnabled ? "var(--accent)" : "var(--text-tertiary)",
               cursor: "pointer",
               fontSize: "0.625rem",
-              fontFamily: "'Geist Mono', monospace",
+              fontFamily: "var(--font-mono), monospace",
               letterSpacing: "0.04em",
               transition: "all 0.15s",
               marginLeft: "0.25rem",
@@ -1282,7 +1292,7 @@ export function TimelineCanvas({
 
         <AnimatePresence>
           {saveState !== "idle" && (
-            <motion.div
+            <m.div
               key="timeline-save-status"
               initial={{ opacity: 0, x: -4 }}
               animate={{ opacity: 1, x: 0 }}
@@ -1305,7 +1315,7 @@ export function TimelineCanvas({
                     : saveState === "saved"
                       ? "var(--accent)"
                       : "var(--text-tertiary)",
-                fontFamily: "'Geist Mono', monospace",
+                fontFamily: "var(--font-mono), monospace",
                 fontSize: "0.6875rem",
                 letterSpacing: "0.03em",
                 userSelect: "none",
@@ -1330,7 +1340,7 @@ export function TimelineCanvas({
                 : saveState === "saved"
                   ? "Saved"
                   : "Save failed"}
-            </motion.div>
+            </m.div>
           )}
         </AnimatePresence>
       </div>
@@ -1468,7 +1478,7 @@ export function TimelineCanvas({
 
       <AnimatePresence>
         {hoverPreviewEnabled && activeNodeId === null && hoveredNode && hoveredTimelineNode && hoverPreviewLayout && (
-          <motion.div
+          <m.div
             data-canvas-ui="true"
             key={`hover-${hoveredNode.nodeId}`}
             initial={{ opacity: 0, y: 10, scale: 0.98 }}
@@ -1492,8 +1502,7 @@ export function TimelineCanvas({
               padding: "0.875rem",
               borderRadius: "0.5rem",
               border: "0.0625rem solid color-mix(in srgb, var(--border) 65%, transparent)",
-              background: "color-mix(in srgb, var(--bg-primary) 82%, transparent)",
-              backdropFilter: "blur(22px) saturate(1.15)",
+              background: "color-mix(in srgb, var(--bg-primary) 98%, transparent)",
               boxShadow: "0 1.25rem 3.5rem rgba(28, 25, 23, 0.16), 0 0.125rem 0.375rem rgba(28, 25, 23, 0.08)",
               overflow: "hidden",
             }}
@@ -1527,7 +1536,7 @@ export function TimelineCanvas({
                   style={{
                     alignSelf: "flex-start",
                     fontSize: "0.625rem",
-                    fontFamily: "'Geist Mono', monospace",
+                    fontFamily: "var(--font-mono), monospace",
                     letterSpacing: "0.08em",
                     textTransform: "uppercase",
                     color: "var(--accent)",
@@ -1548,7 +1557,7 @@ export function TimelineCanvas({
                       lineHeight: 1.25,
                       fontWeight: 600,
                       color: "var(--text-primary)",
-                      fontFamily: "'Inter', sans-serif",
+                      fontFamily: "var(--font-sans), sans-serif",
                     }}
                   >
                     {hoveredTimelineNode.paper.title}
@@ -1559,7 +1568,7 @@ export function TimelineCanvas({
                       flexWrap: "wrap",
                       gap: "0.45rem",
                       fontSize: "0.6875rem",
-                      fontFamily: "'Geist Mono', monospace",
+                      fontFamily: "var(--font-mono), monospace",
                       color: "var(--text-secondary)",
                     }}
                   >
@@ -1575,7 +1584,7 @@ export function TimelineCanvas({
                       fontSize: "0.75rem",
                       lineHeight: 1.5,
                       color: "var(--text-secondary)",
-                      fontFamily: "'Inter', sans-serif",
+                      fontFamily: "var(--font-sans), sans-serif",
                     }}
                   >
                     {hoveredTimelineNode.paper.authors.slice(0, 4).join(", ")}
@@ -1599,7 +1608,7 @@ export function TimelineCanvas({
                       fontSize: "0.75rem",
                       fontWeight: 600,
                       color: "var(--text-primary)",
-                      fontFamily: "'Inter', sans-serif",
+                      fontFamily: "var(--font-sans), sans-serif",
                       background: "var(--bg-secondary)",
                       border: "0.0625rem solid var(--border)",
                       borderRadius: "0.8rem",
@@ -1631,7 +1640,7 @@ export function TimelineCanvas({
                     fontSize: "0.625rem",
                     lineHeight: 1.55,
                     color: "color-mix(in srgb, var(--text-secondary) 88%, transparent)",
-                    fontFamily: "'Geist Mono', monospace",
+                    fontFamily: "var(--font-mono), monospace",
                     wordBreak: "break-word",
                   }}
                 >
@@ -1664,7 +1673,7 @@ export function TimelineCanvas({
                   style={{
                     fontSize: "0.6875rem",
                     color: "var(--text-tertiary)",
-                    fontFamily: "'Geist Mono', monospace",
+                    fontFamily: "var(--font-mono), monospace",
                     letterSpacing: "0.08em",
                     textTransform: "uppercase",
                   }}
@@ -1678,7 +1687,7 @@ export function TimelineCanvas({
                   style={{
                     fontSize: "0.625rem",
                     color: "var(--text-tertiary)",
-                    fontFamily: "'Geist Mono', monospace",
+                    fontFamily: "var(--font-mono), monospace",
                     letterSpacing: "0.06em",
                     textTransform: "uppercase",
                     marginBottom: "0.4rem",
@@ -1691,7 +1700,7 @@ export function TimelineCanvas({
                     fontSize: "0.875rem",
                     color: "var(--text-primary)",
                     lineHeight: 1.65,
-                    fontFamily: "'Inter', sans-serif",
+                    fontFamily: "var(--font-sans), sans-serif",
                     fontStyle: "italic",
                     overflowWrap: "break-word",
                   }}
@@ -1711,7 +1720,7 @@ export function TimelineCanvas({
                     style={{
                       fontSize: "0.625rem",
                       color: "var(--text-tertiary)",
-                      fontFamily: "'Geist Mono', monospace",
+                      fontFamily: "var(--font-mono), monospace",
                       letterSpacing: "0.06em",
                       textTransform: "uppercase",
                       marginBottom: "0.4rem",
@@ -1724,7 +1733,7 @@ export function TimelineCanvas({
                       fontSize: "0.8rem",
                       color: "var(--text-secondary)",
                       lineHeight: 1.72,
-                      fontFamily: "'Inter', sans-serif",
+                      fontFamily: "var(--font-sans), sans-serif",
                       overflowWrap: "break-word",
                       display: "-webkit-box",
                       WebkitLineClamp: 7,
@@ -1752,51 +1761,50 @@ export function TimelineCanvas({
               >
                 {(hoveredTimelineNode.paper.citedByCount != null && hoveredTimelineNode.paper.citedByCount > 0) && (
                   <div style={{ display: "flex", flexDirection: "column", gap: "0.2rem", flexShrink: 0 }}>
-                    <span style={{ fontSize: "0.5rem", fontFamily: "'Geist Mono', monospace", color: "var(--accent)", letterSpacing: "0.1em", textTransform: "uppercase" }}>
+                    <span style={{ fontSize: "0.5rem", fontFamily: "var(--font-mono), monospace", color: "var(--accent)", letterSpacing: "0.1em", textTransform: "uppercase" }}>
                       cited by
                     </span>
-                    <span style={{ fontSize: "1.125rem", fontWeight: 700, fontFamily: "'Inter', sans-serif", color: "var(--text-primary)", lineHeight: 1, letterSpacing: "-0.02em" }}>
+                    <span style={{ fontSize: "1.125rem", fontWeight: 700, fontFamily: "var(--font-sans), sans-serif", color: "var(--text-primary)", lineHeight: 1, letterSpacing: "-0.02em" }}>
                       {formatCount(hoveredTimelineNode.paper.citedByCount)}
                     </span>
                   </div>
                 )}
                 {(hoveredTimelineNode.paper.referencesCount != null && hoveredTimelineNode.paper.referencesCount > 0) && (
                   <div style={{ display: "flex", flexDirection: "column", gap: "0.2rem", flexShrink: 0 }}>
-                    <span style={{ fontSize: "0.5rem", fontFamily: "'Geist Mono', monospace", color: "var(--text-tertiary)", letterSpacing: "0.1em", textTransform: "uppercase" }}>
+                    <span style={{ fontSize: "0.5rem", fontFamily: "var(--font-mono), monospace", color: "var(--text-tertiary)", letterSpacing: "0.1em", textTransform: "uppercase" }}>
                       cites
                     </span>
-                    <span style={{ fontSize: "1.125rem", fontWeight: 700, fontFamily: "'Inter', sans-serif", color: "var(--text-primary)", lineHeight: 1, letterSpacing: "-0.02em" }}>
+                    <span style={{ fontSize: "1.125rem", fontWeight: 700, fontFamily: "var(--font-sans), sans-serif", color: "var(--text-primary)", lineHeight: 1, letterSpacing: "-0.02em" }}>
                       {formatCount(hoveredTimelineNode.paper.referencesCount)}
                     </span>
                   </div>
                 )}
                 {hoveredTimelineNode.paper.concepts && hoveredTimelineNode.paper.concepts.length > 0 && (
                   <div style={{ display: "flex", flexDirection: "column", gap: "0.2rem", flex: 1, minWidth: 0 }}>
-                    <span style={{ fontSize: "0.5rem", fontFamily: "'Geist Mono', monospace", color: "var(--text-tertiary)", letterSpacing: "0.1em", textTransform: "uppercase" }}>
+                    <span style={{ fontSize: "0.5rem", fontFamily: "var(--font-mono), monospace", color: "var(--text-tertiary)", letterSpacing: "0.1em", textTransform: "uppercase" }}>
                       topics
                     </span>
                     <div style={{ overflow: "hidden", position: "relative" }}>
-                      <motion.span
+                      <span
                         key={hoveredTimelineNode.paper.openalexId}
-                        style={{ fontSize: "0.75rem", fontFamily: "'Inter', sans-serif", color: "var(--text-secondary)", lineHeight: 1.3, whiteSpace: "nowrap", display: "inline-block" }}
-                        animate={{ x: ["0%", "-50%"] }}
-                        transition={{ duration: 12, ease: "linear", repeat: Infinity }}
+                        className="sediment-concept-marquee"
+                        style={{ fontSize: "0.75rem", fontFamily: "var(--font-sans), sans-serif", color: "var(--text-secondary)", lineHeight: 1.3, whiteSpace: "nowrap", display: "inline-block" }}
                       >
                         {`${hoveredTimelineNode.paper.concepts.join(" · ")}     ${hoveredTimelineNode.paper.concepts.join(" · ")}     `}
-                      </motion.span>
+                      </span>
                     </div>
                   </div>
                 )}
               </div>
             )}
-          </motion.div>
+          </m.div>
         )}
       </AnimatePresence>
 
       {/* Side panel backdrop */}
       <AnimatePresence>
         {activeNodeId !== null && activeNode && (
-          <motion.div
+          <m.div
             data-canvas-ui="true"
             key="backdrop"
             initial={{ opacity: 0 }}
@@ -1817,7 +1825,7 @@ export function TimelineCanvas({
       {/* Conversational side panel */}
       <AnimatePresence>
         {activeNodeId !== null && activeNode && (
-          <motion.div
+          <m.div
             data-canvas-ui="true"
             key={activeNodeId}
             initial={{ x: "100%" }}
@@ -1902,7 +1910,7 @@ export function TimelineCanvas({
                 style={{
                   fontSize: "0.6875rem",
                   color: "var(--text-tertiary)",
-                  fontFamily: "'Geist Mono', monospace",
+                  fontFamily: "var(--font-mono), monospace",
                   letterSpacing: "0.04em",
                   flexShrink: 0,
                 }}
@@ -1915,7 +1923,7 @@ export function TimelineCanvas({
                   minWidth: 0,
                   fontSize: "0.8125rem",
                   color: "var(--text-primary)",
-                  fontFamily: "'Inter', sans-serif",
+                  fontFamily: "var(--font-sans), sans-serif",
                   fontWeight: 500,
                   lineHeight: 1.35,
                 }}
@@ -2019,7 +2027,7 @@ export function TimelineCanvas({
                       </button>
                   <AnimatePresence>
                     {editingNodeId === activeNodeId && (
-                      <motion.div
+                      <m.div
                         data-canvas-ui="true"
                         initial={{ opacity: 0, scale: 0.96, y: -4 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -2036,7 +2044,6 @@ export function TimelineCanvas({
                           border: "0.0625rem solid var(--border)",
                           background: "color-mix(in srgb, var(--bg-primary) 98%, transparent)",
                           boxShadow: "0 1rem 2.5rem rgba(0,0,0,0.28)",
-                          backdropFilter: "blur(18px)",
                         }}
                       >
                         <div
@@ -2100,7 +2107,7 @@ export function TimelineCanvas({
                             Delete node
                           </button>
                         </div>
-                      </motion.div>
+                      </m.div>
                     )}
                   </AnimatePresence>
                     </div>
@@ -2114,7 +2121,7 @@ export function TimelineCanvas({
                     style={{
                       fontSize: "0.5625rem",
                       lineHeight: 1.2,
-                      fontFamily: "'Geist Mono', monospace",
+                      fontFamily: "var(--font-mono), monospace",
                       color: paperAccessColor(activePaperAccess),
                       whiteSpace: "nowrap",
                     }}
@@ -2153,7 +2160,7 @@ export function TimelineCanvas({
                   <span style={{
                     alignSelf: "flex-start",
                     fontSize: "0.625rem",
-                    fontFamily: "'Geist Mono', monospace",
+                    fontFamily: "var(--font-mono), monospace",
                     letterSpacing: "0.06em",
                     textTransform: "uppercase",
                     color: "var(--accent)",
@@ -2168,10 +2175,10 @@ export function TimelineCanvas({
 
                 {/* AI Summary */}
                 <div>
-                  <p style={{ fontSize: "0.625rem", color: "var(--text-tertiary)", fontFamily: "'Geist Mono', monospace", letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: "0.3125rem" }}>
+                  <p style={{ fontSize: "0.625rem", color: "var(--text-tertiary)", fontFamily: "var(--font-mono), monospace", letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: "0.3125rem" }}>
                     AI Summary
                   </p>
-                  <MarkdownContent style={{ fontSize: "0.8125rem", color: "var(--text-primary)", lineHeight: 1.6, fontFamily: "'Inter', sans-serif", fontStyle: "italic", overflowWrap: "break-word" }}>
+                  <MarkdownContent style={{ fontSize: "0.8125rem", color: "var(--text-primary)", lineHeight: 1.6, fontFamily: "var(--font-sans), sans-serif", fontStyle: "italic", overflowWrap: "break-word" }}>
                     {activeNode.paper.summary}
                   </MarkdownContent>
                 </div>
@@ -2179,10 +2186,10 @@ export function TimelineCanvas({
                 {/* Abstract */}
                 {activeNode.paper.detail && (
                   <div>
-                    <p style={{ fontSize: "0.625rem", color: "var(--text-tertiary)", fontFamily: "'Geist Mono', monospace", letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: "0.3125rem" }}>
+                    <p style={{ fontSize: "0.625rem", color: "var(--text-tertiary)", fontFamily: "var(--font-mono), monospace", letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: "0.3125rem" }}>
                       Abstract
                     </p>
-                    <MarkdownContent style={{ fontSize: "0.78125rem", color: "var(--text-secondary)", lineHeight: 1.7, fontFamily: "'Inter', sans-serif", overflowWrap: "break-word" }}>
+                    <MarkdownContent style={{ fontSize: "0.78125rem", color: "var(--text-secondary)", lineHeight: 1.7, fontFamily: "var(--font-sans), sans-serif", overflowWrap: "break-word" }}>
                       {activeNode.paper.detail}
                     </MarkdownContent>
                   </div>
@@ -2194,7 +2201,7 @@ export function TimelineCanvas({
                     {activeNode.paper.concepts.map((c) => (
                       <span key={c} style={{
                         fontSize: "0.625rem",
-                        fontFamily: "'Inter', sans-serif",
+                        fontFamily: "var(--font-sans), sans-serif",
                         color: "var(--text-tertiary)",
                         background: "var(--bg-primary)",
                         border: "0.0625rem solid var(--border)",
@@ -2209,7 +2216,7 @@ export function TimelineCanvas({
 
                 {/* Authors */}
                 {activeNode.paper.authors && activeNode.paper.authors.length > 0 && (
-                  <p style={{ fontSize: "0.6875rem", color: "var(--text-tertiary)", fontFamily: "'Inter', sans-serif" }}>
+                  <p style={{ fontSize: "0.6875rem", color: "var(--text-tertiary)", fontFamily: "var(--font-sans), sans-serif" }}>
                     {activeNode.paper.authors.join(", ")}
                   </p>
                 )}
@@ -2217,7 +2224,7 @@ export function TimelineCanvas({
 
               {/* Chat messages */}
               {(chatHistories[activeNodeId] ?? []).map((msg) => (
-                <motion.div
+                <m.div
                   id={`paper-chat-${activeNodeId}-${msg.id}`}
                   key={msg.id}
                   initial={{ opacity: 0, y: 8 }}
@@ -2236,7 +2243,7 @@ export function TimelineCanvas({
                           maxWidth: "80%",
                           fontSize: "0.8125rem",
                           color: "var(--text-primary)",
-                          fontFamily: "'Inter', sans-serif",
+                          fontFamily: "var(--font-sans), sans-serif",
                           lineHeight: 1.5,
                         }}
                       >
@@ -2262,11 +2269,11 @@ export function TimelineCanvas({
                   ) : (
                     <div>
                       {msg.content ? (
-                        <MarkdownContent style={{ fontSize: "0.84375rem", color: "var(--text-primary)", lineHeight: 1.7, fontFamily: "'Inter', sans-serif", marginBottom: msg.suggestion ? "0.875rem" : 0 }}>
+                        <MarkdownContent style={{ fontSize: "0.84375rem", color: "var(--text-primary)", lineHeight: 1.7, fontFamily: "var(--font-sans), sans-serif", marginBottom: msg.suggestion ? "0.875rem" : 0 }}>
                           {msg.content}
                         </MarkdownContent>
                       ) : (
-                        <p style={{ fontSize: "0.8125rem", color: "var(--text-tertiary)", fontFamily: "'Inter', sans-serif", marginBottom: "0.5rem" }}>
+                        <p style={{ fontSize: "0.8125rem", color: "var(--text-tertiary)", fontFamily: "var(--font-sans), sans-serif", marginBottom: "0.5rem" }}>
                           Working…
                         </p>
                       )}
@@ -2281,13 +2288,13 @@ export function TimelineCanvas({
                           }}
                         >
                           {(msg.statusEvents ?? []).slice(-2).map((status, index) => (
-                            <div key={`${msg.id}-status-${index}`} style={{ display: "flex", alignItems: "center", gap: "0.375rem", color: "var(--text-tertiary)", fontSize: "0.6875rem", fontFamily: "'Geist Mono', monospace" }}>
+                            <div key={`${msg.id}-status-${index}`} style={{ display: "flex", alignItems: "center", gap: "0.375rem", color: "var(--text-tertiary)", fontSize: "0.6875rem", fontFamily: "var(--font-mono), monospace" }}>
                               <span style={{ width: "0.375rem", height: "0.375rem", borderRadius: "50%", background: msg.pending ? "var(--accent)" : "var(--text-tertiary)", display: "inline-block" }} />
                               {status}
                             </div>
                           ))}
                           {(msg.toolEvents ?? []).map((tool) => (
-                            <div key={`${msg.id}-${tool.name}`} style={{ display: "flex", alignItems: "center", gap: "0.375rem", color: "var(--text-secondary)", fontSize: "0.71875rem", fontFamily: "'Inter', sans-serif" }}>
+                            <div key={`${msg.id}-${tool.name}`} style={{ display: "flex", alignItems: "center", gap: "0.375rem", color: "var(--text-secondary)", fontSize: "0.71875rem", fontFamily: "var(--font-sans), sans-serif" }}>
                               <span style={{ color: tool.status === "started" || tool.status === "processing" ? "var(--accent)" : tool.status === "error" ? "var(--danger, #b45309)" : "var(--text-tertiary)" }}>
                                 {tool.status === "started" || tool.status === "processing" ? "↻" : tool.status === "error" ? "!" : "✓"}
                               </span>
@@ -2310,7 +2317,7 @@ export function TimelineCanvas({
                             padding: "0.4375rem 0.75rem",
                             fontSize: "0.75rem",
                             fontWeight: 500,
-                            fontFamily: "'Inter', sans-serif",
+                            fontFamily: "var(--font-sans), sans-serif",
                             cursor: isThinking ? "default" : "pointer",
                             opacity: isThinking ? 0.6 : 1,
                             margin: "0 0 0.875rem",
@@ -2334,7 +2341,7 @@ export function TimelineCanvas({
                               title={citationTooltip(citation)}
                               style={{
                                 fontSize: "0.625rem",
-                                fontFamily: "'Geist Mono', monospace",
+                                fontFamily: "var(--font-mono), monospace",
                                 color: "var(--text-tertiary)",
                                 background: "var(--bg-secondary)",
                                 border: "0.0625rem solid var(--border)",
@@ -2350,27 +2357,26 @@ export function TimelineCanvas({
                       )}
                     </div>
                   )}
-                </motion.div>
+                </m.div>
               ))}
 
               {/* Thinking indicator */}
               <AnimatePresence>
                 {isThinking && (
-                  <motion.div
+                  <m.div
                     initial={{ opacity: 0, y: 6 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0 }}
                     style={{ display: "flex", gap: "0.25rem", alignItems: "center", paddingBottom: "0.75rem" }}
                   >
                     {[0, 1, 2].map((i) => (
-                      <motion.div
+                      <div
                         key={i}
-                        animate={{ opacity: [0.3, 1, 0.3] }}
-                        transition={{ duration: 1, repeat: Infinity, delay: i * 0.2 }}
-                        style={{ width: "0.375rem", height: "0.375rem", borderRadius: "0.1875rem", background: "var(--text-tertiary)" }}
+                        className="sediment-typing-dot"
+                        style={{ width: "0.375rem", height: "0.375rem", borderRadius: "0.1875rem", background: "var(--text-tertiary)", animationDelay: `${i * 0.2}s` }}
                       />
                     ))}
-                  </motion.div>
+                  </m.div>
                 )}
               </AnimatePresence>
 
@@ -2417,7 +2423,7 @@ export function TimelineCanvas({
                   <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flexShrink: 0, marginTop: "0.0625rem", color: "var(--accent)" }}>
                     <path d="M2 5.5h8.5M7 2l3.5 3.5L7 9" />
                   </svg>
-                  <span style={{ flex: 1, minWidth: 0, fontSize: "0.71875rem", lineHeight: 1.45, fontFamily: "'Inter', sans-serif" }}>
+                  <span style={{ flex: 1, minWidth: 0, fontSize: "0.71875rem", lineHeight: 1.45, fontFamily: "var(--font-sans), sans-serif" }}>
                     “{excerptPreview(activeSelectedExcerpt, 240)}”
                   </span>
                   <button
@@ -2475,7 +2481,7 @@ export function TimelineCanvas({
                       outline: "none",
                       color: "var(--text-primary)",
                       fontSize: "0.8125rem",
-                      fontFamily: "'Inter', sans-serif",
+                      fontFamily: "var(--font-sans), sans-serif",
                     }}
                   />
                   <button
@@ -2504,7 +2510,7 @@ export function TimelineCanvas({
                 </div>
               </form>
             </div>}
-          </motion.div>
+          </m.div>
         )}
       </AnimatePresence>
 
@@ -2532,7 +2538,7 @@ export function TimelineCanvas({
           userId={userId}
         />
       )}
-    </motion.div>
+    </m.div>
   );
 }
 
@@ -2572,7 +2578,7 @@ function mobilePanelEditButtonStyle(disabled: boolean): React.CSSProperties {
     fontWeight: 600,
     letterSpacing: "0.08em",
     textTransform: "uppercase",
-    fontFamily: "'Geist Mono', monospace",
+    fontFamily: "var(--font-mono), monospace",
   };
 }
 

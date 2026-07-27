@@ -1,4 +1,4 @@
-import { NODE_DIMENSIONS, PADDING_X, PADDING_Y } from "./dummy-data";
+import { NODE_DIMENSIONS, PADDING_X, PADDING_Y } from "./layout-constants";
 import { TIMELINE_NOTE_DEFAULT_WIDTH, TIMELINE_NOTE_MIN_HEIGHT } from "./note-style";
 import { TimelineData, TimelineNote, TimelineNode } from "./types";
 

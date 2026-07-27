@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 
 interface Props {
   question: string;
@@ -38,7 +38,7 @@ export function ClarificationModal({ question, options, onSelect, onDismiss }: P
   }
 
   return (
-    <motion.div
+    <m.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
@@ -47,7 +47,6 @@ export function ClarificationModal({ question, options, onSelect, onDismiss }: P
         position: "fixed",
         inset: 0,
         background: "rgba(10, 8, 5, 0.55)",
-        backdropFilter: "blur(0.25rem)",
         zIndex: 200,
         display: "flex",
         alignItems: "center",
@@ -55,7 +54,7 @@ export function ClarificationModal({ question, options, onSelect, onDismiss }: P
         padding: "1.5rem",
       }}
     >
-      <motion.div
+      <m.div
         initial={{ opacity: 0, y: 16, scale: 0.97 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: 16, scale: 0.97 }}
@@ -84,7 +83,7 @@ export function ClarificationModal({ question, options, onSelect, onDismiss }: P
                 style={{
                   fontSize: "0.625rem",
                   color: "var(--accent)",
-                  fontFamily: "'Geist Mono', monospace",
+                  fontFamily: "var(--font-mono), monospace",
                   letterSpacing: "0.1em",
                   textTransform: "uppercase",
                   marginBottom: "0.5rem",
@@ -97,7 +96,7 @@ export function ClarificationModal({ question, options, onSelect, onDismiss }: P
                 style={{
                   fontSize: "1rem",
                   color: "var(--text-primary)",
-                  fontFamily: "'Inter', sans-serif",
+                  fontFamily: "var(--font-sans), sans-serif",
                   fontWeight: 500,
                   lineHeight: 1.4,
                 }}
@@ -143,7 +142,7 @@ export function ClarificationModal({ question, options, onSelect, onDismiss }: P
                     background: "var(--bg-secondary)",
                     color: "var(--text-primary)",
                     fontSize: "0.875rem",
-                    fontFamily: "'Inter', sans-serif",
+                    fontFamily: "var(--font-sans), sans-serif",
                     fontWeight: 500,
                     cursor: "pointer",
                     transition: "border-color 0.12s, background 0.12s, color 0.12s",
@@ -174,7 +173,7 @@ export function ClarificationModal({ question, options, onSelect, onDismiss }: P
           {/* Divider */}
           <div style={{ display: "flex", alignItems: "center", gap: "0.625rem" }}>
             <div style={{ flex: 1, height: "0.0625rem", background: "var(--border)" }} />
-            <span style={{ fontSize: "0.6875rem", color: "var(--text-tertiary)", fontFamily: "'Geist Mono', monospace", letterSpacing: "0.04em" }}>
+            <span style={{ fontSize: "0.6875rem", color: "var(--text-tertiary)", fontFamily: "var(--font-mono), monospace", letterSpacing: "0.04em" }}>
               or type your own
             </span>
             <div style={{ flex: 1, height: "0.0625rem", background: "var(--border)" }} />
@@ -197,7 +196,7 @@ export function ClarificationModal({ question, options, onSelect, onDismiss }: P
                 background: "var(--bg-primary)",
                 color: "var(--text-primary)",
                 fontSize: "0.875rem",
-                fontFamily: "'Inter', sans-serif",
+                fontFamily: "var(--font-sans), sans-serif",
                 outline: "none",
                 transition: "border-color 0.12s",
               }}
@@ -215,7 +214,7 @@ export function ClarificationModal({ question, options, onSelect, onDismiss }: P
                 background: "var(--accent-soft)",
                 color: "var(--accent)",
                 fontSize: "0.8125rem",
-                fontFamily: "'Inter', sans-serif",
+                fontFamily: "var(--font-sans), sans-serif",
                 fontWeight: 600,
                 cursor: customValue.trim() ? "pointer" : "default",
                 opacity: customValue.trim() ? 1 : 0.45,
@@ -225,7 +224,7 @@ export function ClarificationModal({ question, options, onSelect, onDismiss }: P
               Trace
             </button>
           </form>
-      </motion.div>
-    </motion.div>
+      </m.div>
+    </m.div>
   );
 }
