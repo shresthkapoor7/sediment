@@ -227,7 +227,7 @@ export function TimelineCanvas({
         setChatHistories((current) => (
           current[targetNodeId]?.length
             ? current
-            : { ...current, [targetNodeId]: restored }
+            : { ...current, [targetNodeId]: capNodeMessages(restored) }
         ));
       })
       .catch(() => {

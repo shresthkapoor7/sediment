@@ -234,7 +234,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
             citations: message.citations,
           };
         });
-        setMessages((current) => mergeMessagesById(current, restored));
+        setMessages((current) => capMessages(mergeMessagesById(current, restored)));
       })
       .catch(() => undefined);
     return () => { cancelled = true; };

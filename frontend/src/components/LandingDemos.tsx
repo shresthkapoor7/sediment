@@ -309,7 +309,6 @@ function DemoGraph({
             1,
           );
           const isHighlighted = hoverId === from || hoverId === to;
-          const length = 2000;
 
           return (
             <path
@@ -317,8 +316,8 @@ function DemoGraph({
               d={buildBezierPath(x1, y1, x2, y2)}
               className={`demo-graph-edge${isHighlighted ? " is-highlighted" : ""}`}
               pathLength={1}
-              strokeDasharray={length}
-              strokeDashoffset={length * (1 - localProgress)}
+              strokeDasharray={1}
+              strokeDashoffset={1 - localProgress}
             />
           );
         })}

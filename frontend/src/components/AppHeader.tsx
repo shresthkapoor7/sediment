@@ -11,6 +11,15 @@ const GITHUB_REPO_URL = "https://github.com/shresthkapoor7/sediment";
 
 const THUMB_SIZE = 13;
 
+// Single source of truth for the traversal-settings sliders so the desktop and
+// mobile panels can't drift on ranges. Only the label differs per surface.
+const TRAVERSAL_SLIDERS = [
+  { key: "depth", label: "Depth", min: 1, max: 2 },
+  { key: "breadth", label: "Breadth", min: 1, max: 4 },
+  { key: "referenceLimit", label: "Reference limit", compactLabel: "Ref limit", min: 5, max: 30 },
+  { key: "topN", label: "Top N", min: 1, max: 6 },
+] as const;
+
 function SettingsSlider({
   item,
   value,
@@ -607,10 +616,8 @@ export function AppHeader({
                     setDraftSettings(settings);
                     return;
                   }
-                  setSettingsOpen((open) => {
-                    setDraftSettings(settings);
-                    return !open;
-                  });
+                  setDraftSettings(settings);
+                  setSettingsOpen((open) => !open);
                 }}
                 aria-label={timelineData ? "Session actions" : "Settings"}
                 aria-expanded={timelineData ? sessionActionsOpen : settingsOpen}
@@ -764,27 +771,15 @@ export function AppHeader({
                     >
                       traversal settings
                     </p>
-                    {(
-                      [
-                        { key: "depth", label: "Depth", min: 1, max: 2 },
-                        { key: "breadth", label: "Breadth", min: 1, max: 4 },
-                        {
-                          key: "referenceLimit",
-                          label: "Reference limit",
-                          min: 5,
-                          max: 30,
-                        },
-                        { key: "topN", label: "Top N", min: 1, max: 6 },
-                      ] as const
-                    ).map((item) => (
+                    {TRAVERSAL_SLIDERS.map((slider) => (
                       <SettingsSlider
-                        key={item.key}
-                        item={item}
-                        value={draftSettings[item.key]}
+                        key={slider.key}
+                        item={{ key: slider.key, label: slider.label, min: slider.min, max: slider.max }}
+                        value={draftSettings[slider.key]}
                         onChange={(v) =>
                           setDraftSettings((prev) => ({
                             ...prev,
-                            [item.key]: v,
+                            [slider.key]: v,
                           }))
                         }
                       />
@@ -1258,25 +1253,18 @@ export function AppHeader({
                     gap: "0.625rem",
                   }}
                 >
-                  {(
-                    [
-                      { key: "depth", label: "Depth", min: 1, max: 2 },
-                      { key: "breadth", label: "Breadth", min: 1, max: 4 },
-                      {
-                        key: "referenceLimit",
-                        label: "Ref limit",
-                        min: 5,
-                        max: 30,
-                      },
-                      { key: "topN", label: "Top N", min: 1, max: 6 },
-                    ] as const
-                  ).map((item) => (
+                  {TRAVERSAL_SLIDERS.map((slider) => (
                     <SettingsSlider
-                      key={item.key}
-                      item={item}
-                      value={draftSettings[item.key]}
+                      key={slider.key}
+                      item={{
+                        key: slider.key,
+                        label: "compactLabel" in slider ? slider.compactLabel : slider.label,
+                        min: slider.min,
+                        max: slider.max,
+                      }}
+                      value={draftSettings[slider.key]}
                       onChange={(v) =>
-                        setDraftSettings((prev) => ({ ...prev, [item.key]: v }))
+                        setDraftSettings((prev) => ({ ...prev, [slider.key]: v }))
                       }
                     />
                   ))}

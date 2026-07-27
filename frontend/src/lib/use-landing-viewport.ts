@@ -8,10 +8,15 @@ export function useLandingViewport() {
   useEffect(() => {
     const updateViewport = () => {
       const width = window.innerWidth;
-      setViewport({
-        compact: width <= 1024,
-        mobile: width <= 640,
-      });
+      const compact = width <= 1024;
+      const mobile = width <= 640;
+      // Only allocate a new object (and re-render consumers) when a breakpoint
+      // actually flips — most resize events don't cross one.
+      setViewport((prev) =>
+        prev.compact === compact && prev.mobile === mobile
+          ? prev
+          : { compact, mobile },
+      );
     };
 
     updateViewport();
