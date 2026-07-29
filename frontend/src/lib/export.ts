@@ -95,7 +95,7 @@ export async function exportObsidianZip(
   const agentsMd = [
     `# ${lineageName} — Research Lineage`,
     "",
-    `This vault was exported from [Sediment](https://sediment-seven.vercel.app/), a research lineage explorer.`,
+    `This vault was exported from [Sediment](https://www.sediment-ai.com/), a research lineage explorer.`,
     `The user traced the intellectual history of: **${lineageName}**`,
     "",
     "## How this vault is structured",

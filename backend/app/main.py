@@ -26,7 +26,12 @@ app = FastAPI(title="Sediment API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "https://sediment-seven.vercel.app"],
+    allow_origins=[
+        "http://localhost:3000",
+        "https://sediment-seven.vercel.app",
+        "https://sediment-ai.com",
+        "https://www.sediment-ai.com",
+    ],
     allow_methods=["*"],
     allow_headers=["*"],
 )
