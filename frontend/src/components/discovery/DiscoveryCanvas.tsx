@@ -24,6 +24,7 @@ interface DiscoveryCanvasProps {
 interface HoverPreview extends DiscoveryPreviewData {
   left: number;
   top: number;
+  width: number;
 }
 
 export function DiscoveryCanvas({ graph, selected, onToggleTopic, onClearSelection }: DiscoveryCanvasProps) {
@@ -221,10 +222,15 @@ export function DiscoveryCanvas({ graph, selected, onToggleTopic, onClearSelecti
   const placePreview = (rect: DOMRect, data: DiscoveryPreviewData) => {
     if (movedRef.current || !hoverPreviewEnabled) return;
     clearHoverTimeout();
+    const margin = 12;
+    // The card is capped at calc(100vw - 2rem); mirror that so narrow viewports
+    // don't overflow either edge.
+    const width = Math.min(PREVIEW_W, window.innerWidth - margin * 2);
     let left = rect.right + 14;
-    if (left + PREVIEW_W > window.innerWidth - 12) left = rect.left - PREVIEW_W - 14;
-    const top = Math.max(12, Math.min(rect.top - 6, window.innerHeight - 340));
-    setPreview({ ...data, left, top });
+    if (left + width > window.innerWidth - margin) left = rect.left - width - 14;
+    left = Math.max(margin, Math.min(left, window.innerWidth - width - margin));
+    const top = Math.max(margin, Math.min(rect.top - 6, window.innerHeight - 340));
+    setPreview({ ...data, left, top, width });
   };
 
   // ── node dragging ──
@@ -577,7 +583,7 @@ export function DiscoveryCanvas({ graph, selected, onToggleTopic, onClearSelecti
             data={preview}
             left={preview.left}
             top={preview.top}
-            width={PREVIEW_W}
+            width={preview.width}
             onMouseEnter={clearHoverTimeout}
             onMouseLeave={scheduleHide}
           />
