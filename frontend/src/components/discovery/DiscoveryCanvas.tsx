@@ -164,6 +164,8 @@ export function DiscoveryCanvas({ graph, selected, onToggleTopic, onClearSelecti
 
   // ── highlight sets: selection = intersection, hover = transient preview ──
   const selectedArr = [...selected];
+  const selectedTopicList = topics.filter((t) => selected.has(t.id));
+  const sharedCount = selected.size > 0 ? papers.filter((p) => selectedArr.every((t) => p.topics.includes(t))).length : 0;
   const litTopics = new Set<string>();
   const litPapers = new Set<string>();
   selected.forEach((t) => litTopics.add(t));
@@ -579,33 +581,84 @@ export function DiscoveryCanvas({ graph, selected, onToggleTopic, onClearSelecti
         </button>
       </div>
 
-      {/* Legend */}
-      <div
-        style={{
-          position: "absolute",
-          bottom: "1rem",
-          right: "1rem",
-          zIndex: 20,
-          display: "flex",
-          flexWrap: "wrap",
-          gap: "0.5rem 0.875rem",
-          maxWidth: "22rem",
-          justifyContent: "flex-end",
-          padding: "0.625rem 0.75rem",
-          border: "0.0625rem solid var(--border)",
-          borderRadius: "0.375rem",
-          background: "color-mix(in srgb, var(--bg-primary) 82%, transparent)",
-          backdropFilter: "blur(8px)",
-        }}
-      >
-        {topics.map((t) => (
-          <div key={t.id} style={{ display: "flex", alignItems: "center", gap: "0.375rem" }}>
-            <span style={{ width: "0.5rem", height: "0.5rem", borderRadius: "50%", background: t.color }} />
-            <span style={{ fontSize: "0.6875rem", fontFamily: "var(--font-mono), monospace", color: "var(--text-secondary)", letterSpacing: "0.02em" }}>
-              {t.short}
+      {/* Bottom-right stack: selection readout above the legend */}
+      <div style={{ position: "absolute", bottom: "1rem", right: "1rem", zIndex: 20, display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "0.5rem" }}>
+        {selected.size > 0 && (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "0.5rem",
+              padding: "0.375rem 0.375rem 0.375rem 0.625rem",
+              borderRadius: "0.375rem",
+              border: "0.0625rem solid var(--border)",
+              background: "color-mix(in srgb, var(--bg-primary) 82%, transparent)",
+              backdropFilter: "blur(8px)",
+            }}
+          >
+            <span style={{ display: "flex", alignItems: "center", gap: "0.375rem", fontFamily: "var(--font-mono), monospace", fontSize: "0.75rem", color: "var(--text-secondary)" }}>
+              {selectedTopicList.map((t, i) => (
+                <span key={t.id} style={{ display: "flex", alignItems: "center", gap: "0.375rem" }}>
+                  {i > 0 && <span style={{ color: "var(--text-tertiary)" }}>∩</span>}
+                  <span style={{ width: "0.5rem", height: "0.5rem", borderRadius: "50%", background: t.color }} />
+                  {t.short}
+                </span>
+              ))}
             </span>
+            <span style={{ fontFamily: "var(--font-mono), monospace", fontSize: "0.75rem", fontWeight: 500, color: "var(--accent)" }}>
+              {sharedCount} {selectedTopicList.length > 1 ? "shared" : sharedCount === 1 ? "paper" : "papers"}
+            </span>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onClearSelection();
+              }}
+              title="Clear selection"
+              aria-label="Clear selection"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                width: "1.5rem",
+                height: "1.5rem",
+                border: "none",
+                borderRadius: "0.375rem",
+                background: "transparent",
+                color: "var(--text-tertiary)",
+                cursor: "pointer",
+                fontSize: "0.875rem",
+                lineHeight: 1,
+              }}
+            >
+              ×
+            </button>
           </div>
-        ))}
+        )}
+
+        {/* Legend */}
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            gap: "0.5rem 0.875rem",
+            maxWidth: "22rem",
+            justifyContent: "flex-end",
+            padding: "0.625rem 0.75rem",
+            border: "0.0625rem solid var(--border)",
+            borderRadius: "0.375rem",
+            background: "color-mix(in srgb, var(--bg-primary) 82%, transparent)",
+            backdropFilter: "blur(8px)",
+          }}
+        >
+          {topics.map((t) => (
+            <div key={t.id} style={{ display: "flex", alignItems: "center", gap: "0.375rem" }}>
+              <span style={{ width: "0.5rem", height: "0.5rem", borderRadius: "50%", background: t.color }} />
+              <span style={{ fontSize: "0.6875rem", fontFamily: "var(--font-mono), monospace", color: "var(--text-secondary)", letterSpacing: "0.02em" }}>
+                {t.short}
+              </span>
+            </div>
+          ))}
+        </div>
       </div>
     </m.div>
   );

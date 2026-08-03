@@ -5,29 +5,17 @@ import { useState } from "react";
 import { m } from "framer-motion";
 import { LogoMark } from "@/components/LogoMark";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import type { PlacedTopic } from "@/lib/discovery";
 
 interface DiscoveryDockProps {
   concept: string;
-  selectedTopics: PlacedTopic[];
-  sharedCount: number;
-  onClearSelection: () => void;
   chatOpen: boolean;
   onToggleChat: () => void;
 }
 
 /** Reuses the graph-view header styling (.app-header-graph) so the dock matches
  *  the rest of the app: floating centred pill, collapse toggle, icon actions. */
-export function DiscoveryDock({
-  concept,
-  selectedTopics,
-  sharedCount,
-  onClearSelection,
-  chatOpen,
-  onToggleChat,
-}: DiscoveryDockProps) {
+export function DiscoveryDock({ concept, chatOpen, onToggleChat }: DiscoveryDockProps) {
   const [compact, setCompact] = useState(false);
-  const hasSelection = selectedTopics.length > 0;
 
   return (
     <m.header
@@ -47,55 +35,6 @@ export function DiscoveryDock({
           <span className="app-header-graph-query" title={concept}>
             {concept}
           </span>
-
-          {hasSelection && (
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "0.5rem",
-                height: "2rem",
-                padding: "0 0.25rem 0 0.625rem",
-                borderRadius: "0.4375rem",
-                background: "var(--bg-secondary)",
-                border: "0.0625rem solid var(--border)",
-              }}
-            >
-              <span style={{ display: "flex", alignItems: "center", gap: "0.375rem", fontFamily: "var(--font-mono), monospace", fontSize: "0.75rem", color: "var(--text-secondary)" }}>
-                {selectedTopics.map((t, i) => (
-                  <span key={t.id} style={{ display: "flex", alignItems: "center", gap: "0.375rem" }}>
-                    {i > 0 && <span style={{ color: "var(--text-tertiary)" }}>∩</span>}
-                    <span style={{ width: "0.5rem", height: "0.5rem", borderRadius: "50%", background: t.color }} />
-                    {t.short}
-                  </span>
-                ))}
-              </span>
-              <span style={{ fontFamily: "var(--font-mono), monospace", fontSize: "0.75rem", fontWeight: 500, color: "var(--accent)" }}>
-                {sharedCount} {selectedTopics.length > 1 ? "shared" : sharedCount === 1 ? "paper" : "papers"}
-              </span>
-              <button
-                onClick={onClearSelection}
-                title="Clear selection"
-                aria-label="Clear selection"
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  width: "1.5rem",
-                  height: "1.5rem",
-                  border: "none",
-                  borderRadius: "0.375rem",
-                  background: "transparent",
-                  color: "var(--text-tertiary)",
-                  cursor: "pointer",
-                  fontSize: "0.875rem",
-                  lineHeight: 1,
-                }}
-              >
-                ×
-              </button>
-            </div>
-          )}
 
           <button
             type="button"
