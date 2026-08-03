@@ -43,6 +43,8 @@ export function DiscoveryCanvas({ graph, selected, onToggleTopic, onClearSelecti
   const [hoverTopic, setHoverTopic] = useState<string | null>(null);
   const [hoverPaper, setHoverPaper] = useState<string | null>(null);
   const [preview, setPreview] = useState<HoverPreview | null>(null);
+  const [hoverPreviewEnabled, setHoverPreviewEnabled] = useState(true);
+  const hoverHideRef = useRef<number | null>(null);
 
   const layout = useMemo(() => layoutGraph(graph), [graph]);
   const { world, input, topics, papers, topicById } = layout;
@@ -91,7 +93,9 @@ export function DiscoveryCanvas({ graph, selected, onToggleTopic, onClearSelecti
     const onDown = (e: PointerEvent) => {
       if (e.pointerType === "touch" || e.button !== 0) return;
       movedRef.current = false;
-      if (e.target instanceof Element && e.target.closest("[data-neuron]")) return;
+      // Don't start a pan (which captures the pointer and swallows clicks) when
+      // the press lands on a node or any interactive control.
+      if (e.target instanceof Element && e.target.closest("[data-neuron], button, a, input")) return;
       isPanningRef.current = true;
       panStartRef.current = { x: e.clientX - panRef.current.x, y: e.clientY - panRef.current.y };
       setCursor("grabbing");
@@ -182,8 +186,28 @@ export function DiscoveryCanvas({ graph, selected, onToggleTopic, onClearSelecti
   const synLit = (topicId: string, paperId: string) => litTopics.has(topicId) && litPapers.has(paperId);
 
   // ── preview positioning ──
+  const clearHoverTimeout = () => {
+    if (hoverHideRef.current) {
+      window.clearTimeout(hoverHideRef.current);
+      hoverHideRef.current = null;
+    }
+  };
+  const clearHover = () => {
+    clearHoverTimeout();
+    setHoverTopic(null);
+    setHoverPaper(null);
+    setPreview(null);
+  };
+  // Delay the hide so the cursor can travel from a node onto the preview card.
+  const scheduleHide = () => {
+    clearHoverTimeout();
+    hoverHideRef.current = window.setTimeout(clearHover, 160);
+  };
+  useEffect(() => () => clearHoverTimeout(), []);
+
   const placePreview = (rect: DOMRect, data: DiscoveryPreviewData) => {
-    if (movedRef.current) return;
+    if (movedRef.current || !hoverPreviewEnabled) return;
+    clearHoverTimeout();
     let left = rect.right + 14;
     if (left + PREVIEW_W > window.innerWidth - 12) left = rect.left - PREVIEW_W - 14;
     const top = Math.max(12, Math.min(rect.top - 6, window.innerHeight - 340));
@@ -323,6 +347,7 @@ export function DiscoveryCanvas({ graph, selected, onToggleTopic, onClearSelecti
                   transition={{ duration: 0.4, delay: 0.1 + i * 0.04, ease: [0.16, 1, 0.3, 1] }}
                   onMouseEnter={(e) => {
                     if (movedRef.current) return;
+                    clearHoverTimeout();
                     setHoverTopic(t.id);
                     placePreview(e.currentTarget.getBoundingClientRect(), {
                       kind: "topic",
@@ -336,10 +361,7 @@ export function DiscoveryCanvas({ graph, selected, onToggleTopic, onClearSelecti
                       accent: t.color,
                     });
                   }}
-                  onMouseLeave={() => {
-                    setHoverTopic(null);
-                    setPreview(null);
-                  }}
+                  onMouseLeave={scheduleHide}
                   onClick={(e) => {
                     e.stopPropagation();
                     if (!movedRef.current) onToggleTopic(t.id);
@@ -397,6 +419,7 @@ export function DiscoveryCanvas({ graph, selected, onToggleTopic, onClearSelecti
                   transition={{ duration: 0.4, delay: 0.22 + i * 0.025, ease: [0.16, 1, 0.3, 1] }}
                   onMouseEnter={(e) => {
                     if (movedRef.current) return;
+                    clearHoverTimeout();
                     setHoverPaper(p.id);
                     placePreview(e.currentTarget.getBoundingClientRect(), {
                       kind: "paper",
@@ -413,10 +436,7 @@ export function DiscoveryCanvas({ graph, selected, onToggleTopic, onClearSelecti
                       accent: "var(--accent)",
                     });
                   }}
-                  onMouseLeave={() => {
-                    setHoverPaper(null);
-                    setPreview(null);
-                  }}
+                  onMouseLeave={scheduleHide}
                   onClick={(e) => e.stopPropagation()}
                   style={{
                     position: "absolute",
@@ -470,7 +490,16 @@ export function DiscoveryCanvas({ graph, selected, onToggleTopic, onClearSelecti
 
       {/* Hover preview */}
       <AnimatePresence>
-        {preview && <DiscoveryPreview data={preview} left={preview.left} top={preview.top} width={PREVIEW_W} />}
+        {preview && (
+          <DiscoveryPreview
+            data={preview}
+            left={preview.left}
+            top={preview.top}
+            width={PREVIEW_W}
+            onMouseEnter={clearHoverTimeout}
+            onMouseLeave={scheduleHide}
+          />
+        )}
       </AnimatePresence>
 
       {/* Zoom controls */}
@@ -483,7 +512,10 @@ export function DiscoveryCanvas({ graph, selected, onToggleTopic, onClearSelecti
           <button
             key={btn.title}
             title={btn.title}
-            onClick={btn.action}
+            onClick={(e) => {
+              e.stopPropagation();
+              btn.action();
+            }}
             style={{
               width: "1.75rem",
               height: "1.75rem",
@@ -516,6 +548,35 @@ export function DiscoveryCanvas({ graph, selected, onToggleTopic, onClearSelecti
         >
           {zoomDisplay}%
         </div>
+
+        {/* Hover-preview toggle */}
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setHoverPreviewEnabled((v) => !v);
+            clearHover();
+          }}
+          title={hoverPreviewEnabled ? "Disable preview" : "Enable preview"}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            width: "1.75rem",
+            height: "1.75rem",
+            marginLeft: "0.25rem",
+            background: hoverPreviewEnabled ? "var(--accent-soft)" : "var(--bg-secondary)",
+            border: `0.0625rem solid ${hoverPreviewEnabled ? "var(--accent)" : "var(--border)"}`,
+            borderRadius: "0.375rem",
+            color: hoverPreviewEnabled ? "var(--accent)" : "var(--text-tertiary)",
+            cursor: "pointer",
+          }}
+        >
+          <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M1 8s3-5 7-5 7 5 7 5-3 5-7 5-7-5-7-5z" />
+            <circle cx="8" cy="8" r="2" />
+            {!hoverPreviewEnabled && <path d="M2 2l12 12" />}
+          </svg>
+        </button>
       </div>
 
       {/* Legend */}

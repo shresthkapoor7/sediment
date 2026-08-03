@@ -22,11 +22,13 @@ interface DiscoveryPreviewProps {
   left: number;
   top: number;
   width: number;
+  onMouseEnter?: () => void;
+  onMouseLeave?: () => void;
 }
 
 /** Mirrors the main canvas hover preview: gradient left panel + AI readout right,
- *  with a topics marquee spanning the bottom. Pointer-transparent. */
-export function DiscoveryPreview({ data, left, top, width }: DiscoveryPreviewProps) {
+ *  with a topics marquee spanning the bottom. Hoverable so the cursor can reach it. */
+export function DiscoveryPreview({ data, left, top, width, onMouseEnter, onMouseLeave }: DiscoveryPreviewProps) {
   return (
     <m.div
       key={data.title}
@@ -34,6 +36,8 @@ export function DiscoveryPreview({ data, left, top, width }: DiscoveryPreviewPro
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, y: 10, scale: 0.98 }}
       transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
       style={{
         position: "fixed",
         top,
@@ -42,7 +46,7 @@ export function DiscoveryPreview({ data, left, top, width }: DiscoveryPreviewPro
         maxWidth: "calc(100vw - 2rem)",
         minHeight: "14rem",
         zIndex: 40,
-        pointerEvents: "none",
+        pointerEvents: "auto",
         display: "grid",
         gridTemplateColumns: "minmax(0, 13rem) minmax(0, 1fr)",
         gap: "0.875rem",
@@ -118,12 +122,16 @@ export function DiscoveryPreview({ data, left, top, width }: DiscoveryPreviewPro
 
         <div style={{ position: "relative", display: "flex", flexDirection: "column", gap: "0.625rem" }}>
           {data.href && (
-            <span
+            <a
+              href={data.href}
+              target="_blank"
+              rel="noopener noreferrer"
               style={{
                 display: "inline-flex",
                 alignItems: "center",
                 justifyContent: "space-between",
                 gap: "0.5rem",
+                textDecoration: "none",
                 fontSize: "0.75rem",
                 fontWeight: 600,
                 color: "var(--text-primary)",
@@ -133,13 +141,26 @@ export function DiscoveryPreview({ data, left, top, width }: DiscoveryPreviewPro
                 borderRadius: "0.8rem",
                 padding: "0.65rem 0.8rem",
                 boxShadow: "0 0.125rem 0.375rem rgba(0,0,0,0.10)",
+                transition: "transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease, color 0.18s ease",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = "translateY(-1px)";
+                e.currentTarget.style.boxShadow = "0 0.25rem 0.75rem rgba(0,0,0,0.16)";
+                e.currentTarget.style.borderColor = "var(--accent)";
+                e.currentTarget.style.color = "var(--accent)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = "translateY(0)";
+                e.currentTarget.style.boxShadow = "0 0.125rem 0.375rem rgba(0,0,0,0.10)";
+                e.currentTarget.style.borderColor = "var(--border)";
+                e.currentTarget.style.color = "var(--text-primary)";
               }}
             >
               <span>{data.openLabel}</span>
               <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="var(--accent)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
                 <path d="M2 8L8 2M8 2H3.5M8 2V6.5" />
               </svg>
-            </span>
+            </a>
           )}
           <div style={{ fontSize: "0.625rem", lineHeight: 1.55, color: "color-mix(in srgb, var(--text-secondary) 88%, transparent)", fontFamily: "var(--font-mono), monospace", wordBreak: "break-word" }}>
             {data.url ?? "No public link available"}
