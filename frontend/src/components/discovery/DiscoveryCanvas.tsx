@@ -46,6 +46,11 @@ export function DiscoveryCanvas({ graph, selected, onToggleTopic, onClearSelecti
   const [hoverPreviewEnabled, setHoverPreviewEnabled] = useState(true);
   const hoverHideRef = useRef<number | null>(null);
 
+  // Per-node position overrides (dragging). Keyed by node id; concept = "__concept__".
+  const [positions, setPositions] = useState<Record<string, { x: number; y: number }>>({});
+  const dragRef = useRef<{ id: string; x0: number; y0: number; px: number; py: number; moved: boolean } | null>(null);
+  const suppressClickRef = useRef(false);
+
   const layout = useMemo(() => layoutGraph(graph), [graph]);
   const { world, input, topics, papers, topicById } = layout;
 
@@ -216,6 +221,46 @@ export function DiscoveryCanvas({ graph, selected, onToggleTopic, onClearSelecti
     setPreview({ ...data, left, top });
   };
 
+  // ── node dragging ──
+  const withPos = <T extends { id?: string; x: number; y: number }>(node: T, id: string): T => {
+    const p = positions[id];
+    return p ? { ...node, x: p.x, y: p.y } : node;
+  };
+  const inputV = { ...input, ...(positions.__concept__ ?? {}) };
+  const topicsV = topics.map((t) => withPos(t, t.id));
+  const papersV = papers.map((p) => withPos(p, p.id));
+  const topicByIdV: Record<string, (typeof topicsV)[number]> = {};
+  topicsV.forEach((t) => (topicByIdV[t.id] = t));
+
+  const startDrag = (id: string, x0: number, y0: number) => (e: React.PointerEvent) => {
+    if (e.button !== 0) return;
+    e.stopPropagation();
+    clearHover();
+    dragRef.current = { id, x0, y0, px: e.clientX, py: e.clientY, moved: false };
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+  const onDragMove = (e: React.PointerEvent) => {
+    const d = dragRef.current;
+    if (!d) return;
+    if (Math.abs(e.clientX - d.px) + Math.abs(e.clientY - d.py) > 3) d.moved = true;
+    const z = zoomRef.current;
+    setPositions((prev) => ({
+      ...prev,
+      [d.id]: { x: d.x0 + (e.clientX - d.px) / z, y: d.y0 + (e.clientY - d.py) / z },
+    }));
+  };
+  const onDragEnd = () => {
+    if (dragRef.current?.moved) {
+      // Swallow the click that follows a drag; a real click resets it first,
+      // the timeout clears it when no click fires (e.g. the concept node).
+      suppressClickRef.current = true;
+      window.setTimeout(() => {
+        suppressClickRef.current = false;
+      }, 0);
+    }
+    dragRef.current = null;
+  };
+
   return (
     <m.div
       ref={containerRef}
@@ -231,12 +276,12 @@ export function DiscoveryCanvas({ graph, selected, onToggleTopic, onClearSelecti
       <svg width="100%" height="100%" style={{ position: "absolute", inset: 0 }}>
         <g ref={gRef}>
           {/* input → topic synapses */}
-          {topics.map((t) => {
+          {topicsV.map((t) => {
             const lit = topicLit(t.id);
             return (
               <path
                 key={`it-${t.id}`}
-                d={synapsePath(input.x + R_INPUT, input.y, t.x - R_TOPIC, t.y)}
+                d={synapsePath(inputV.x + R_INPUT, inputV.y, t.x - R_TOPIC, t.y)}
                 fill="none"
                 stroke={lit ? t.color : "var(--edge-color)"}
                 strokeWidth={lit ? 2 : 1.25}
@@ -248,9 +293,9 @@ export function DiscoveryCanvas({ graph, selected, onToggleTopic, onClearSelecti
           })}
 
           {/* topic → paper synapses */}
-          {papers.flatMap((p) =>
+          {papersV.flatMap((p) =>
             p.topics.map((topicId) => {
-              const t = topicById[topicId];
+              const t = topicByIdV[topicId];
               if (!t) return null;
               const lit = synLit(topicId, p.id);
               return (
@@ -303,26 +348,32 @@ export function DiscoveryCanvas({ graph, selected, onToggleTopic, onClearSelecti
 
           {/* Input neuron */}
           <m.div
+            data-neuron
             initial={{ opacity: 0, scale: 0.8 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
+            onPointerDown={startDrag("__concept__", inputV.x, inputV.y)}
+            onPointerMove={onDragMove}
+            onPointerUp={onDragEnd}
             style={{
               position: "absolute",
-              left: input.x - R_INPUT,
-              top: input.y - R_INPUT,
+              left: inputV.x - R_INPUT,
+              top: inputV.y - R_INPUT,
               width: R_INPUT * 2,
               height: R_INPUT * 2,
               borderRadius: "50%",
               background: "var(--accent)",
               boxShadow: "0 0 0 0.5rem var(--accent-soft), 0 0.375rem 1.25rem var(--accent-glow)",
+              cursor: "grab",
+              touchAction: "none",
               pointerEvents: "auto",
             }}
           />
           <div
             style={{
               position: "absolute",
-              left: input.x,
-              top: input.y + R_INPUT + 14,
+              left: inputV.x,
+              top: inputV.y + R_INPUT + 14,
               transform: "translateX(-50%)",
               textAlign: "center",
               whiteSpace: "nowrap",
@@ -332,11 +383,11 @@ export function DiscoveryCanvas({ graph, selected, onToggleTopic, onClearSelecti
               letterSpacing: "-0.01em",
             }}
           >
-            {input.data.label}
+            {inputV.data.label}
           </div>
 
           {/* Topic neurons */}
-          {topics.map((t, i) => {
+          {topicsV.map((t, i) => {
             const lit = topicLit(t.id);
             const isSel = selected.has(t.id);
             const count = papers.filter((p) => p.topics.includes(t.id)).length;
@@ -347,8 +398,11 @@ export function DiscoveryCanvas({ graph, selected, onToggleTopic, onClearSelecti
                   initial={{ opacity: 0, scale: 0.8 }}
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ duration: 0.4, delay: 0.1 + i * 0.04, ease: [0.16, 1, 0.3, 1] }}
+                  onPointerDown={startDrag(t.id, t.x, t.y)}
+                  onPointerMove={onDragMove}
+                  onPointerUp={onDragEnd}
                   onMouseEnter={(e) => {
-                    if (movedRef.current) return;
+                    if (movedRef.current || dragRef.current) return;
                     clearHoverTimeout();
                     setHoverTopic(t.id);
                     placePreview(e.currentTarget.getBoundingClientRect(), {
@@ -366,7 +420,11 @@ export function DiscoveryCanvas({ graph, selected, onToggleTopic, onClearSelecti
                   onMouseLeave={scheduleHide}
                   onClick={(e) => {
                     e.stopPropagation();
-                    if (!movedRef.current) onToggleTopic(t.id);
+                    if (suppressClickRef.current) {
+                      suppressClickRef.current = false;
+                      return;
+                    }
+                    onToggleTopic(t.id);
                   }}
                   style={{
                     position: "absolute",
@@ -385,7 +443,8 @@ export function DiscoveryCanvas({ graph, selected, onToggleTopic, onClearSelecti
                     opacity: isActive && !lit ? 0.4 : 1,
                     transform: `scale(${isSel ? 1.14 : lit ? 1.06 : 1})`,
                     transition: "opacity 0.2s ease, background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease",
-                    cursor: "pointer",
+                    cursor: "grab",
+                    touchAction: "none",
                     pointerEvents: "auto",
                   }}
                 />
@@ -408,9 +467,9 @@ export function DiscoveryCanvas({ graph, selected, onToggleTopic, onClearSelecti
           })}
 
           {/* Paper neurons */}
-          {papers.map((p, i) => {
+          {papersV.map((p, i) => {
             const lit = paperLit(p.id);
-            const parents = p.topics.map((id) => topicById[id]).filter(Boolean);
+            const parents = p.topics.map((id) => topicByIdV[id]).filter(Boolean);
             const single = parents.length === 1;
             return (
               <div key={p.id}>
@@ -419,8 +478,11 @@ export function DiscoveryCanvas({ graph, selected, onToggleTopic, onClearSelecti
                   initial={{ opacity: 0, scale: 0.8 }}
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ duration: 0.4, delay: 0.22 + i * 0.025, ease: [0.16, 1, 0.3, 1] }}
+                  onPointerDown={startDrag(p.id, p.x, p.y)}
+                  onPointerMove={onDragMove}
+                  onPointerUp={onDragEnd}
                   onMouseEnter={(e) => {
-                    if (movedRef.current) return;
+                    if (movedRef.current || dragRef.current) return;
                     clearHoverTimeout();
                     setHoverPaper(p.id);
                     placePreview(e.currentTarget.getBoundingClientRect(), {
@@ -453,7 +515,8 @@ export function DiscoveryCanvas({ graph, selected, onToggleTopic, onClearSelecti
                     opacity: isActive && !lit ? 0.28 : 1,
                     transform: `scale(${lit && isActive ? 1.22 : 1})`,
                     transition: "opacity 0.2s ease, background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease",
-                    cursor: "pointer",
+                    cursor: "grab",
+                    touchAction: "none",
                     pointerEvents: "auto",
                   }}
                 >
