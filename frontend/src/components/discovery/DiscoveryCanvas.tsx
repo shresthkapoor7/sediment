@@ -118,6 +118,12 @@ export function DiscoveryCanvas({ graph, selected, onToggleTopic, onClearSelecti
       if (isPanningRef.current) {
         isPanningRef.current = false;
         setCursor("grab");
+        // Clear the moved flag after the click that follows this pan fires, so
+        // the container onClick still suppresses clearing selection, but later
+        // hover previews (which bail while movedRef is set) work again.
+        window.setTimeout(() => {
+          movedRef.current = false;
+        }, 0);
       }
     };
     el.addEventListener("pointerdown", onDown);
@@ -395,12 +401,23 @@ export function DiscoveryCanvas({ graph, selected, onToggleTopic, onClearSelecti
               <div key={t.id}>
                 <m.div
                   data-neuron
+                  role="button"
+                  tabIndex={0}
+                  aria-pressed={isSel}
+                  aria-label={`${t.label} sub-field${isSel ? ", selected" : ""}`}
                   initial={{ opacity: 0, scale: 0.8 }}
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ duration: 0.4, delay: 0.1 + i * 0.04, ease: [0.16, 1, 0.3, 1] }}
                   onPointerDown={startDrag(t.id, t.x, t.y)}
                   onPointerMove={onDragMove}
                   onPointerUp={onDragEnd}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      onToggleTopic(t.id);
+                    }
+                  }}
                   onMouseEnter={(e) => {
                     if (movedRef.current || dragRef.current) return;
                     clearHoverTimeout();

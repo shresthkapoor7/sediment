@@ -257,15 +257,23 @@ export function DiscoveryChat({ open, onClose, graph }: DiscoveryChatProps) {
   );
 }
 
+// Whole-word, case-insensitive match so short names like "RL" or "MAS" don't
+// match inside larger words (e.g. "world", "atlas").
+function matchesWord(text: string, term: string): boolean {
+  const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`\\b${escaped}\\b`, "i").test(text);
+}
+
 // Canned stand-in for a real model call.
 function respond(q: string, graph: DiscoveryGraph): string {
-  const lower = q.toLowerCase();
-  const topic = graph.topics.find((t) => lower.includes(t.short.toLowerCase()) || lower.includes(t.label.toLowerCase()));
+  const topic = graph.topics.find((t) => matchesWord(q, t.short) || matchesWord(q, t.label));
   if (topic) {
     const papers = graph.papers.filter((p) => p.topics.includes(topic.id));
     return `${topic.label} (${topic.short}) covers ${papers.length} papers here: ${papers.map((p) => p.title).join(", ")}.`;
   }
+  const lower = q.toLowerCase();
   if (lower.includes("newest") || lower.includes("latest") || lower.includes("recent")) {
+    if (graph.papers.length === 0) return "There are no papers in this map yet.";
     const newest = [...graph.papers].sort((a, b) => b.year - a.year)[0];
     return `The most recent is ${newest.title} (${newest.year}) — ${newest.summary ?? ""}`.trim();
   }
