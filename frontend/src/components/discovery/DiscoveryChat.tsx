@@ -216,12 +216,12 @@ export function DiscoveryChat({ open, onClose, graph }: DiscoveryChatProps) {
                   send(input);
                 }}
               >
-                <div style={{ display: "flex", alignItems: "flex-end", gap: "0.5rem", background: "var(--bg-secondary)", border: "0.0625rem solid var(--border)", borderRadius: "0.25rem", padding: "0.5625rem 0.75rem" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", background: "var(--bg-secondary)", border: "0.0625rem solid var(--border)", borderRadius: "0.25rem", padding: "0.5rem 0.75rem" }}>
                   <input
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     placeholder="Ask about this map..."
-                    style={{ flex: 1, minWidth: 0, background: "none", border: "none", outline: "none", color: "var(--text-primary)", fontSize: "0.8125rem", fontFamily: "var(--font-sans), sans-serif", lineHeight: 1.5, padding: 0 }}
+                    style={{ flex: 1, minWidth: 0, height: "1.75rem", background: "none", border: "none", outline: "none", color: "var(--text-primary)", fontSize: "0.8125rem", fontFamily: "var(--font-sans), sans-serif", lineHeight: 1.5, padding: 0 }}
                   />
                   <button
                     type="submit"
