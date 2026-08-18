@@ -1,9 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { CSSProperties } from "react";
 import { m } from "framer-motion";
-import { TimelineNote } from "@/lib/types";
-import { NOTE_COLOR_OPTIONS, NOTE_KIND_OPTIONS, TIMELINE_NOTE_DEFAULT_WIDTH, TIMELINE_NOTE_MIN_HEIGHT, noteColorStyle, noteKindLabel } from "@/lib/note-style";
+import { SpecialNoteFile, TimelineNote } from "@/lib/types";
+import { NOTE_COLOR_OPTIONS, NOTE_KIND_OPTIONS, SPECIAL_NOTE_MIN_HEIGHT, TIMELINE_NOTE_DEFAULT_WIDTH, TIMELINE_NOTE_MIN_HEIGHT, noteColorStyle, noteKindLabel } from "@/lib/note-style";
 import { MarkdownContent } from "./MarkdownContent";
 
 interface TimelineNoteCardProps {
@@ -19,6 +20,9 @@ interface TimelineNoteCardProps {
   onColorChange?: (noteId: string, color: TimelineNote["color"]) => void;
   onToggleActiveConnection?: (noteId: string) => void;
   onDelete?: (noteId: string) => void;
+  onOpenSpecialNote?: (note: TimelineNote) => void;
+  specialNotePreviewUrl?: string;
+  isSpecialNoteDeleting?: boolean;
 }
 
 export function TimelineNoteCard({
@@ -34,9 +38,13 @@ export function TimelineNoteCard({
   onColorChange,
   onToggleActiveConnection,
   onDelete,
+  onOpenSpecialNote,
+  specialNotePreviewUrl,
+  isSpecialNoteDeleting = false,
 }: TimelineNoteCardProps) {
+  const isSpecialNote = note.kind === "special_note" || Boolean(note.specialNote);
   const width = note.width ?? TIMELINE_NOTE_DEFAULT_WIDTH;
-  const height = note.height ?? TIMELINE_NOTE_MIN_HEIGHT;
+  const height = note.height ?? (isSpecialNote ? SPECIAL_NOTE_MIN_HEIGHT : TIMELINE_NOTE_MIN_HEIGHT);
   const colorStyle = noteColorStyle(note.color);
   const cardRef = useRef<HTMLDivElement>(null);
   const dragStartRef = useRef<{ pointerId: number; clientX: number; clientY: number; x: number; y: number } | null>(null);
@@ -199,7 +207,7 @@ export function TimelineNoteCard({
             padding: "0.625rem 0.75rem 0",
           }}
         >
-          {readOnly ? (
+          {readOnly || isSpecialNote ? (
             <span
               style={{
                 fontSize: "0.625rem",
@@ -209,7 +217,7 @@ export function TimelineNoteCard({
                 color: colorStyle.accent,
               }}
             >
-              {noteKindLabel(note.kind)}
+              {noteKindLabel(isSpecialNote ? "special_note" : note.kind)}
             </span>
           ) : (
             <div
@@ -320,7 +328,44 @@ export function TimelineNoteCard({
           </span>
         </div>
 
-        {!readOnly && isEditingText ? (
+        {isSpecialNote && note.specialNote ? (
+          <>
+            <SpecialNotePreview
+              file={note.specialNote}
+              previewUrl={specialNotePreviewUrl}
+              disabled={readOnly}
+              onOpen={() => onOpenSpecialNote?.(note)}
+            />
+            {!readOnly && isEditingText ? (
+              <textarea
+                data-note-control="true"
+                value={note.text}
+                onChange={(event) => onTextChange?.(note.id, event.currentTarget.value)}
+                onPointerDown={(event) => event.stopPropagation()}
+                onFocus={() => setIsEditingText(true)}
+                onBlur={() => setIsEditingText(false)}
+                autoFocus
+                aria-label="Special note description"
+                style={specialNoteTextAreaStyle}
+              />
+            ) : (
+              <button
+                data-note-control="true"
+                type="button"
+                disabled={readOnly}
+                onClick={() => {
+                  if (!readOnly) setIsEditingText(true);
+                }}
+                onPointerDown={(event) => event.stopPropagation()}
+                style={specialNoteDescriptionStyle(readOnly)}
+              >
+                <MarkdownContent style={specialNoteDescriptionContentStyle}>
+                  {note.text || "Add a description"}
+                </MarkdownContent>
+              </button>
+            )}
+          </>
+        ) : !readOnly && isEditingText ? (
           <textarea
             data-note-control="true"
             value={note.text}
@@ -428,18 +473,19 @@ export function TimelineNoteCard({
             <button
               type="button"
               onClick={() => onDelete?.(note.id)}
+              disabled={isSpecialNoteDeleting}
               style={{
                 background: "transparent",
                 border: "none",
-                color: "var(--text-tertiary)",
-                cursor: "pointer",
+                color: isSpecialNoteDeleting ? "var(--text-tertiary)" : "var(--cat-rose)",
+                cursor: isSpecialNoteDeleting ? "default" : "pointer",
                 fontSize: "0.625rem",
                 fontFamily: "var(--font-mono), monospace",
                 letterSpacing: "0.04em",
                 padding: "0.125rem",
               }}
             >
-              Delete
+              {isSpecialNoteDeleting ? "Deleting…" : isSpecialNote ? "Delete file" : "Delete"}
             </button>
           </div>
         )}
@@ -503,3 +549,177 @@ export function TimelineNoteCard({
     </m.div>
   );
 }
+
+function SpecialNotePreview({
+  file,
+  previewUrl,
+  disabled,
+  onOpen,
+}: {
+  file: SpecialNoteFile;
+  previewUrl?: string;
+  disabled: boolean;
+  onOpen: () => void;
+}) {
+  const label = file.fileType === "pdf" ? "PDF" : file.fileType === "spreadsheet" ? "SHEET" : "IMAGE";
+  const accent = file.fileType === "pdf" ? "var(--cat-rose)" : file.fileType === "spreadsheet" ? "var(--cat-green)" : "var(--cat-blue)";
+
+  return (
+    <button
+      data-note-control="true"
+      type="button"
+      disabled={disabled}
+      onClick={onOpen}
+      onPointerDown={(event) => event.stopPropagation()}
+      title={disabled ? file.filename : `Open ${file.filename}`}
+      style={{
+        position: "relative",
+        display: "block",
+        width: "calc(100% - 1.5rem)",
+        minHeight: "8.5rem",
+        margin: "0.625rem 0.75rem 0",
+        overflow: "hidden",
+        border: "0.0625rem solid var(--border)",
+        borderRadius: "0.5rem",
+        background: "var(--bg-tertiary)",
+        color: "var(--text-primary)",
+        cursor: disabled ? "default" : "pointer",
+        textAlign: "left",
+      }}
+    >
+      {file.fileType === "image" && previewUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element -- Signed Supabase Storage URLs cannot use Next image optimization.
+        <img
+          src={previewUrl}
+          alt={`Preview of ${file.filename}`}
+          style={{ width: "100%", height: "8.5rem", objectFit: "cover" }}
+        />
+      ) : (
+        <div
+          aria-hidden="true"
+          style={{
+            display: "grid",
+            height: "8.5rem",
+            placeItems: "center",
+            background: `linear-gradient(135deg, color-mix(in srgb, ${accent} 12%, var(--bg-secondary)), var(--bg-tertiary))`,
+          }}
+        >
+          {file.fileType === "spreadsheet" ? <SpreadsheetGlyph color={accent} /> : <DocumentGlyph color={accent} />}
+        </div>
+      )}
+      <span
+        style={{
+          position: "absolute",
+          top: "0.5rem",
+          left: "0.5rem",
+          borderRadius: "999px",
+          background: "color-mix(in srgb, var(--bg-primary) 88%, transparent)",
+          color: accent,
+          fontFamily: "var(--font-mono), monospace",
+          fontSize: "0.5625rem",
+          fontWeight: 700,
+          letterSpacing: "0.09em",
+          padding: "0.25rem 0.375rem",
+        }}
+      >
+        {label}
+      </span>
+      {!disabled && (
+        <span
+          style={{
+            position: "absolute",
+            right: "0.5rem",
+            bottom: "0.5rem",
+            borderRadius: "0.375rem",
+            background: "color-mix(in srgb, var(--bg-primary) 92%, transparent)",
+            color: "var(--text-primary)",
+            fontFamily: "var(--font-mono), monospace",
+            fontSize: "0.5625rem",
+            letterSpacing: "0.04em",
+            padding: "0.25rem 0.375rem",
+          }}
+        >
+          VIEW
+        </span>
+      )}
+      <span
+        style={{
+          position: "absolute",
+          right: disabled ? "0.625rem" : "3.75rem",
+          bottom: "0.625rem",
+          left: "0.625rem",
+          overflow: "hidden",
+          color: "var(--text-primary)",
+          fontFamily: "var(--font-sans), sans-serif",
+          fontSize: "0.75rem",
+          fontWeight: 600,
+          lineHeight: 1.3,
+          textOverflow: "ellipsis",
+          textShadow: "0 0.0625rem 0.5rem var(--bg-primary)",
+          whiteSpace: "nowrap",
+        }}
+      >
+        {file.filename}
+      </span>
+    </button>
+  );
+}
+
+function DocumentGlyph({ color }: { color: string }) {
+  return (
+    <svg width="47" height="58" viewBox="0 0 47 58" fill="none" aria-hidden="true">
+      <path d="M9 2h20l9 9v43a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Z" fill="var(--bg-primary)" stroke={color} strokeWidth="1.5" />
+      <path d="M29 2v10h9M14 28h17M14 35h17M14 42h12" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function SpreadsheetGlyph({ color }: { color: string }) {
+  return (
+    <svg width="58" height="52" viewBox="0 0 58 52" fill="none" aria-hidden="true">
+      <rect x="2" y="2" width="54" height="48" rx="4" fill="var(--bg-primary)" stroke={color} strokeWidth="1.5" />
+      <path d="M2 15h54M17 15v35M35 15v35M2 32h54" stroke={color} strokeWidth="1.35" />
+      <path d="M8 8h7" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+const specialNoteTextAreaStyle: CSSProperties = {
+  position: "relative",
+  width: "100%",
+  flex: 1,
+  minHeight: "2.5rem",
+  resize: "none",
+  border: "none",
+  outline: "none",
+  background: "transparent",
+  color: "var(--text-primary)",
+  fontFamily: "var(--font-sans), sans-serif",
+  fontSize: "0.75rem",
+  lineHeight: 1.45,
+  padding: "0.5rem 0.75rem",
+  cursor: "text",
+};
+
+function specialNoteDescriptionStyle(readOnly: boolean): CSSProperties {
+  return {
+    position: "relative",
+    width: "100%",
+    flex: 1,
+    minHeight: "2.5rem",
+    border: "none",
+    background: "transparent",
+    textAlign: "left",
+    padding: "0.5rem 0.75rem",
+    overflow: "auto",
+    cursor: readOnly ? "default" : "text",
+  };
+}
+
+const specialNoteDescriptionContentStyle: CSSProperties = {
+  color: "var(--text-secondary)",
+  fontFamily: "var(--font-sans), sans-serif",
+  fontSize: "0.75rem",
+  lineHeight: 1.45,
+  overflowWrap: "break-word",
+};

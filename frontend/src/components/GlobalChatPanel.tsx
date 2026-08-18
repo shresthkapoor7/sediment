@@ -396,7 +396,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
     summary: n.paper.summary,
   }));
   const noteCount = Object.values(data.notes ?? {}).filter(
-    (note) => note.id && note.text.trim(),
+    (note) => note.id && note.text.trim() && note.kind !== "special_note" && !note.specialNote,
   ).length;
   const mentionOptions = papers
     .filter((paper) => !mentionedPaperIds.includes(paper.openalexId))
@@ -409,9 +409,12 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
       );
     })
     .slice(0, 8);
-  const buildNoteContext = useCallback((): TimelineNoteContext => ({
-    notes: Object.values(data.notes ?? {})
-      .filter((note) => note.id && note.text.trim())
+  const buildNoteContext = useCallback((): TimelineNoteContext => {
+    const agentNotes = Object.values(data.notes ?? {})
+      .filter((note) => note.id && note.text.trim() && note.kind !== "special_note" && !note.specialNote);
+    const agentNoteIds = new Set(agentNotes.map((note) => note.id));
+    return {
+      notes: agentNotes
       .map((note) => ({
         id: note.id,
         text: note.text,
@@ -420,11 +423,13 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
       })),
     connections: (data.noteEdges ?? [])
       .map((edge) => {
+        if (!agentNoteIds.has(edge.noteId)) return null;
         const paperId = data.nodes[edge.nodeId]?.paper.openalexId;
         return paperId ? { noteId: edge.noteId, paperId, relation: edge.relation ?? "about" } : null;
       })
       .filter((connection): connection is { noteId: string; paperId: string; relation: TimelineNoteRelation } => Boolean(connection)),
-  }), [data]);
+    };
+  }, [data]);
   const buildNodeColorContext = useCallback((): TimelineNodeColorChange[] => (
     Object.values(data.nodes).flatMap((node) => (
       node.annotation?.borderColor

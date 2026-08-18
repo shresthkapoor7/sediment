@@ -5,11 +5,41 @@ import unittest
 from unittest.mock import AsyncMock, patch
 
 from app.models import ChatRequest, GlobalChatRequest
-from app.routers.chat import _compact_tool_result_for_event, chat, chat_global
+from app.routers.chat import _compact_tool_result_for_event, _note_context_from_graph, chat, chat_global
 from app.services.chat_memory import ChatContext
 
 
 class PersistentChatRouterTests(unittest.IsolatedAsyncioTestCase):
+    def test_restored_graph_context_excludes_special_notes(self) -> None:
+        context = _note_context_from_graph({
+            "nodes": {"1": {"paper": {"openalexId": "W1"}}},
+            "notes": {
+                "regular": {"id": "regular", "text": "Keep this note", "kind": "field_note"},
+                "special": {
+                    "id": "special",
+                    "text": "private budget.xlsx",
+                    "kind": "special_note",
+                    "specialNote": {"id": "file-1"},
+                },
+            },
+            "noteEdges": [
+                {"noteId": "regular", "nodeId": 1},
+                {"noteId": "special", "nodeId": 1},
+            ],
+        })
+
+        self.assertEqual(context["notes"], [{
+            "id": "regular",
+            "text": "Keep this note",
+            "kind": "field_note",
+            "color": "paper",
+        }])
+        self.assertEqual(context["connections"], [{
+            "noteId": "regular",
+            "paperId": "W1",
+            "relation": "about",
+        }])
+
     def test_compact_tool_event_reports_relationship_count(self) -> None:
         result = _compact_tool_result_for_event({
             "status": "completed",

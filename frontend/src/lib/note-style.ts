@@ -2,6 +2,7 @@ import { TimelineNote, TimelineNoteKind } from "./types";
 
 export const TIMELINE_NOTE_DEFAULT_WIDTH = 300;
 export const TIMELINE_NOTE_MIN_HEIGHT = 176;
+export const SPECIAL_NOTE_MIN_HEIGHT = 316;
 
 export const NOTE_COLOR_OPTIONS: Array<{
   key: NonNullable<TimelineNote["color"]>;
@@ -64,5 +65,6 @@ export function noteColorStyle(color: TimelineNote["color"] = "paper") {
 }
 
 export function noteKindLabel(kind: TimelineNote["kind"] = "field_note") {
+  if (kind === "special_note") return "SPECIAL NOTE";
   return NOTE_KIND_OPTIONS.find((option) => option.key === kind)?.shortLabel ?? NOTE_KIND_OPTIONS[0].shortLabel;
 }

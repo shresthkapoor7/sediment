@@ -112,6 +112,8 @@ def _note_context_from_graph(graph_data: object) -> dict[str, list[dict[str, str
         for note_id, raw_note in raw_notes.items():
             if not isinstance(raw_note, dict):
                 continue
+            if raw_note.get("kind") == "special_note" or "specialNote" in raw_note:
+                continue
             resolved_id = str(raw_note.get("id") or note_id).strip()
             text = str(raw_note.get("text") or "").strip()
             kind = raw_note.get("kind") if raw_note.get("kind") in NOTE_KINDS else "field_note"
@@ -121,12 +123,15 @@ def _note_context_from_graph(graph_data: object) -> dict[str, list[dict[str, str
 
     raw_nodes = graph_data.get("nodes")
     raw_connections = graph_data.get("noteEdges")
+    visible_note_ids = {note["id"] for note in notes}
     connections: list[dict[str, str]] = []
     if isinstance(raw_nodes, dict) and isinstance(raw_connections, list):
         for raw_connection in raw_connections:
             if not isinstance(raw_connection, dict):
                 continue
             note_id = str(raw_connection.get("noteId") or "").strip()
+            if note_id not in visible_note_ids:
+                continue
             node = raw_nodes.get(str(raw_connection.get("nodeId")))
             if node is None:
                 node = raw_nodes.get(raw_connection.get("nodeId"))
