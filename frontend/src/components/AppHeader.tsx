@@ -1,5 +1,7 @@
 "use client";
 
+/* eslint-disable react-hooks/set-state-in-effect -- The scroll subscription synchronizes compact-header state. */
+
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { m, AnimatePresence } from "framer-motion";

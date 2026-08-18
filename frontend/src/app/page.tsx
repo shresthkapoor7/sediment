@@ -1,5 +1,7 @@
 "use client";
 
+/* eslint-disable react-hooks/set-state-in-effect -- Effects hydrate browser storage and fetch saved history. */
+
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useState, useCallback, useEffect, useRef } from "react";

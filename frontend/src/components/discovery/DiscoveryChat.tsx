@@ -1,5 +1,7 @@
 "use client";
 
+/* eslint-disable react-hooks/set-state-in-effect -- The effect restores the persisted panel width. */
+
 import { useCallback, useEffect, useRef, useState } from "react";
 import { m, AnimatePresence } from "framer-motion";
 import { LogoMark } from "@/components/LogoMark";

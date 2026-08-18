@@ -1,5 +1,7 @@
 "use client";
 
+/* eslint-disable react-hooks/refs -- Drag and pan interaction state is intentionally stored in mutable refs. */
+
 import { useRef, useEffect, useCallback, useMemo, useState } from "react";
 import { m, AnimatePresence } from "framer-motion";
 import {

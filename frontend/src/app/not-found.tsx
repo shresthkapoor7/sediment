@@ -1,12 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 import { LogoMark } from "@/components/LogoMark";
 
 export default function NotFound() {
-  const pathname = usePathname();
-
   return (
     <main className="notfound-shell">
       <div className="notfound-content">

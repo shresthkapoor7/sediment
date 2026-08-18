@@ -1,5 +1,8 @@
 "use client";
 
+/* eslint-disable react-hooks/set-state-in-effect -- Effects synchronize canvas navigation and restored chat state. */
+/* eslint-disable react-hooks/refs -- Canvas hover positioning and controls deliberately use imperative DOM measurements. */
+
 import { useState, useRef, useCallback, useEffect } from "react";
 import { m, AnimatePresence } from "framer-motion";
 import { MarkdownContent } from "./MarkdownContent";

@@ -812,6 +812,7 @@ html[data-theme="dark"] .notfound-shell {
   --accent-hover: #6BA2F7;
   --accent-soft: rgba(75, 139, 244, 0.14);
   --accent-glow: rgba(75, 139, 244, 0.18);
+
   background-color: #0A0D10;
 }
 

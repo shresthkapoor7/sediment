@@ -11,12 +11,4 @@ export default defineConfig([
     "build/**",
     "next-env.d.ts",
   ]),
-  {
-    rules: {
-      "@next/next/no-html-link-for-pages": "off",
-      "react-hooks/immutability": "off",
-      "react-hooks/refs": "off",
-      "react-hooks/set-state-in-effect": "off",
-    },
-  },
 ]);

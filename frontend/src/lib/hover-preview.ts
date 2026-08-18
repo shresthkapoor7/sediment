@@ -1,5 +1,7 @@
 "use client";
 
+/* eslint-disable react-hooks/set-state-in-effect -- The effect hydrates the persisted toggle preference. */
+
 import { useCallback, useEffect, useState } from "react";
 
 export const TIMELINE_MOBILE_BREAKPOINT_PX = 640;

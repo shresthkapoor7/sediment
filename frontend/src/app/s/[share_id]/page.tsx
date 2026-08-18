@@ -1,5 +1,8 @@
 "use client";
 
+/* eslint-disable react-hooks/set-state-in-effect -- The shared graph fetch effect owns this loading state. */
+
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { m, AnimatePresence } from "framer-motion";
@@ -103,7 +106,7 @@ export default function SharedGraphPage() {
         }}
       >
         {/* Logo */}
-        <a
+        <Link
           href="/"
           className="app-header-brand"
           style={{
@@ -126,7 +129,7 @@ export default function SharedGraphPage() {
           >
             Sediment
           </span>
-        </a>
+        </Link>
 
         {/* Centered query label — desktop only */}
         {graphTitle && (

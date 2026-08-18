@@ -1,5 +1,7 @@
 "use client";
 
+/* eslint-disable react-hooks/set-state-in-effect -- The effect hydrates the persisted theme preference. */
+
 import { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { LazyMotion, domAnimation } from "framer-motion";
 

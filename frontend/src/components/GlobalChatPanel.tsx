@@ -1,5 +1,8 @@
 "use client";
 
+/* eslint-disable react-hooks/set-state-in-effect -- Session, navigation, and trace effects intentionally synchronize chat state. */
+/* eslint-disable react-hooks/immutability -- The suggestion effect safely reads derived graph papers declared later in the component. */
+
 import { useState, useRef, useEffect, useId, useCallback, type ReactNode } from "react";
 import { m, AnimatePresence } from "framer-motion";
 import dynamic from "next/dynamic";
