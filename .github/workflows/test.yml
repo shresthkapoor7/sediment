@@ -44,6 +44,7 @@ jobs:
     env:
       ANTHROPIC_API_KEY: test-anthropic-api-key
       ACTOR_KEY_SECRET: test-actor-key-secret
+      VOYAGE_API_KEY: test-voyage-api-key
     steps:
       - name: Check out repository
         uses: actions/checkout@v6
