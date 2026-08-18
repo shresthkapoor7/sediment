@@ -3,7 +3,7 @@ from __future__ import annotations
 import io
 import unittest
 import uuid
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, call, patch
 
 from fastapi import HTTPException
 from starlette.datastructures import UploadFile
@@ -232,6 +232,10 @@ class SpecialNotePersistenceRouterTests(unittest.IsolatedAsyncioTestCase):
             SPECIAL_NOTE_BUCKET,
             f"{USER_ID}/{FILE_ID}.pdf",
         )
+        self.assertEqual(db.mock_calls, [
+            call.delete_special_note_file(GRAPH_ID, USER_ID, FILE_ID),
+            call.delete_storage_object(SPECIAL_NOTE_BUCKET, f"{USER_ID}/{FILE_ID}.pdf"),
+        ])
 
     async def test_delete_returns_not_found_without_removing_a_storage_object(self) -> None:
         db = AsyncMock()
