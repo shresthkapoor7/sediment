@@ -172,6 +172,18 @@ interface AppHeaderProps {
   ) => void | Promise<void>;
 }
 
+/**
+ * Renders the responsive header for Sediment's landing and graph views.
+ *
+ * @param timelineData - The active timeline data, when displaying a graph view
+ * @param mobile - Whether the mobile layout is active
+ * @param searchedQuery - The query associated with the current graph
+ * @param graphTitle - The current graph title
+ * @param settings - The active traversal settings
+ * @param draftSettings - The traversal settings currently being edited
+ * @param credits - The number of daily usage credits remaining
+ * @param shareState - The current share operation state
+ */
 export function AppHeader({
   timelineData,
   mobile,

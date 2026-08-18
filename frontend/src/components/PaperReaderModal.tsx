@@ -53,6 +53,16 @@ function ensurePaperReaderSelectionHighlightStyle() {
   document.head.append(style);
 }
 
+/**
+ * Renders a modal paper reader with loading, error, and Markdown content states.
+ *
+ * @param open - Whether the reader is visible
+ * @param content - Paper data to display
+ * @param loading - Whether paper content is loading
+ * @param error - Error message to display
+ * @param onClose - Handles closing the reader
+ * @param onAskSediment - Handles requests about selected paper text
+ */
 export function PaperReaderModal({ open, content, loading, error, onClose, onAskSediment }: PaperReaderModalProps) {
   const readerRef = useRef<HTMLElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);

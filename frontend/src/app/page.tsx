@@ -72,6 +72,9 @@ const DELETE_CONFIRMATION_DISABLED_KEY = "history_delete_confirmation_disabled";
 const HISTORY_PAGE_SIZE = 10;
 
 
+/**
+ * Renders the Sediment research lineage explorer, including search, graph visualization, saved-graph history, editing, sharing, and export controls.
+ */
 export default function Home() {
   const reduceMotion = useReducedMotion();
   const [timelineData, setTimelineData] = useState<TimelineData | null>(null);
