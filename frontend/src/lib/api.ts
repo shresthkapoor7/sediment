@@ -27,6 +27,7 @@ const EXPENSIVE_API_BASE = USE_API_PROXY ? PROXY_API_BASE : API_BASE;
 export const SEDIMENT_USER_ID_KEY = "sediment_user_id";
 export const LAST_GRAPH_ID_KEY = "last_graph_id";
 export const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || "0.1.0";
+export const SPECIAL_NOTE_SIGNED_URL_TTL_MS = 5 * 60 * 1000;
 
 export class APIError extends Error {
   status: number;
@@ -516,8 +517,14 @@ export async function fetchSpecialNoteFileUrl(
     const detail = await readErrorDetail(response);
     throw new APIError(detail || `Special note open failed with status ${response.status}`, response.status);
   }
-  const payload = await response.json();
-  return payload.url;
+  const payload: unknown = await response.json();
+  const url = payload && typeof payload === "object" && !Array.isArray(payload)
+    ? (payload as { url?: unknown }).url
+    : undefined;
+  if (typeof url !== "string" || !url) {
+    throw new APIError("Special note open response was invalid.", response.status);
+  }
+  return url;
 }
 
 export async function deleteSpecialNoteFile(

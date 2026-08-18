@@ -3,12 +3,12 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { m, AnimatePresence } from "framer-motion";
 import { MarkdownContent } from "./MarkdownContent";
-import { deleteSpecialNoteFile, fetchCachedPaperContent, fetchPaperAccess, fetchSpecialNoteFileUrl, listSpecialNoteFiles, openChatSession, streamChatAboutPaper, uploadSpecialNoteFile } from "@/lib/api";
+import { SPECIAL_NOTE_SIGNED_URL_TTL_MS, deleteSpecialNoteFile, fetchCachedPaperContent, fetchPaperAccess, fetchSpecialNoteFileUrl, listSpecialNoteFiles, openChatSession, streamChatAboutPaper, uploadSpecialNoteFile } from "@/lib/api";
 import { DETAIL_PANEL_DEFAULT_WIDTH, DETAIL_PANEL_MAX_WIDTH, DETAIL_PANEL_MIN_WIDTH, DETAIL_PANEL_WIDTH_KEY } from "@/lib/detail-panel";
 import { TIMELINE_MOBILE_BREAKPOINT_PX } from "@/lib/hover-preview";
 import { TimelineData, ChatSuggestion, PaperAccessResponse, PaperContentResponse, TimelineNode, PaperChatStreamEvent, TimelineGraphAction, NodeBorderColor, TimelineNote, LineageChange, TimelineNodeColorChange, TimelineNoteChange, SpecialNoteFile, SpecialNoteFileListResponse } from "@/lib/types";
 import { NODE_BORDER_COLOR_OPTIONS } from "@/lib/node-style";
-import { SPECIAL_NOTE_MIN_HEIGHT, TIMELINE_NOTE_DEFAULT_WIDTH, TIMELINE_NOTE_MIN_HEIGHT } from "@/lib/note-style";
+import { SPECIAL_NOTE_MIN_HEIGHT, TIMELINE_NOTE_DEFAULT_WIDTH, TIMELINE_NOTE_MIN_HEIGHT, isSpecialNote } from "@/lib/note-style";
 import { NODE_DIMENSIONS } from "@/lib/layout-constants";
 import { TimelineNodeCard } from "./TimelineNode";
 import { TimelineEdgeLine } from "./TimelineEdge";
@@ -41,6 +41,12 @@ interface ToolEvent {
 // Cap per-node chat history so long sessions don't grow the heap without bound.
 // Sessions restore from the server, so trimming client memory is lossless.
 const MAX_RETAINED_NODE_MESSAGES = 100;
+export const SPECIAL_NOTE_STORAGE_LIMIT_BYTES = 20 * 1024 * 1024;
+
+interface SpecialNotePreviewUrl {
+  url: string;
+  expiresAt: number;
+}
 
 function capNodeMessages(messages: ChatMessage[]): ChatMessage[] {
   return messages.length > MAX_RETAINED_NODE_MESSAGES
@@ -158,9 +164,10 @@ export function TimelineCanvas({
   const [specialNoteUsage, setSpecialNoteUsage] = useState<SpecialNoteFileListResponse>({
     items: [],
     usedBytes: 0,
-    limitBytes: 20 * 1024 * 1024,
+    limitBytes: SPECIAL_NOTE_STORAGE_LIMIT_BYTES,
   });
-  const [specialNotePreviewUrls, setSpecialNotePreviewUrls] = useState<Record<string, string>>({});
+  const [specialNotePreviewUrls, setSpecialNotePreviewUrls] = useState<Record<string, SpecialNotePreviewUrl>>({});
+  const specialNotePreviewRequestsRef = useRef(new Set<string>());
   const [specialNoteViewer, setSpecialNoteViewer] = useState<{ file: SpecialNoteFile; url: string } | null>(null);
   const [deletingSpecialNoteId, setDeletingSpecialNoteId] = useState<string | null>(null);
 
@@ -206,8 +213,9 @@ export function TimelineCanvas({
     setPaperReaderError(null);
     setSpecialNoteTargetNodeId(null);
     setSpecialNoteError(null);
-    setSpecialNoteUsage({ items: [], usedBytes: 0, limitBytes: 20 * 1024 * 1024 });
+    setSpecialNoteUsage({ items: [], usedBytes: 0, limitBytes: SPECIAL_NOTE_STORAGE_LIMIT_BYTES });
     setSpecialNotePreviewUrls({});
+    specialNotePreviewRequestsRef.current.clear();
     setSpecialNoteViewer(null);
     setDeletingSpecialNoteId(null);
   }, [graphId, userId]);
@@ -728,30 +736,43 @@ export function TimelineCanvas({
   const nodeArray = Object.values(data.nodes);
   const noteArray = Object.values(data.notes ?? {});
   const specialNotes = useMemo(
-    () => Object.values(data.notes ?? {}).filter((note) => Boolean(note.specialNote)),
+    () => Object.values(data.notes ?? {}).filter((note) => isSpecialNote(note) && Boolean(note.specialNote)),
     [data.notes],
   );
 
   useEffect(() => {
     if (!graphId || !userId || readOnly || !specialNotes.length) return;
     let cancelled = false;
+    const now = Date.now();
     const missingPreviewFiles = specialNotes
       .map((note) => note.specialNote!)
-      .filter((file) => !specialNotePreviewUrls[file.id]);
+      .filter((file, index, files) => files.findIndex((candidate) => candidate.id === file.id) === index)
+      .filter((file) => {
+        const requestKey = `${graphId}:${file.id}`;
+        const cached = specialNotePreviewUrls[file.id];
+        return (!cached || cached.expiresAt <= now) && !specialNotePreviewRequestsRef.current.has(requestKey);
+      });
     if (!missingPreviewFiles.length) return;
-    void Promise.all(
+    const requestKeys = missingPreviewFiles.map((file) => `${graphId}:${file.id}`);
+    requestKeys.forEach((key) => specialNotePreviewRequestsRef.current.add(key));
+    void Promise.allSettled(
       missingPreviewFiles.map(async (file) => ({
         id: file.id,
         url: await fetchSpecialNoteFileUrl(graphId, userId, file.id),
+        expiresAt: Date.now() + SPECIAL_NOTE_SIGNED_URL_TTL_MS,
       })),
-    ).then((previews) => {
+    ).then((results) => {
       if (cancelled) return;
-      setSpecialNotePreviewUrls((current) => ({
-        ...current,
-        ...Object.fromEntries(previews.map((preview) => [preview.id, preview.url])),
-      }));
-    }).catch(() => {
+      const previews = results.flatMap((result) => result.status === "fulfilled" ? [result.value] : []);
+      if (previews.length) {
+        setSpecialNotePreviewUrls((current) => ({
+          ...current,
+          ...Object.fromEntries(previews.map((preview) => [preview.id, { url: preview.url, expiresAt: preview.expiresAt }])),
+        }));
+      }
       // A document-style thumbnail remains available when a preview URL cannot be created.
+    }).finally(() => {
+      requestKeys.forEach((key) => specialNotePreviewRequestsRef.current.delete(key));
     });
     return () => {
       cancelled = true;
@@ -1200,8 +1221,12 @@ export function TimelineCanvas({
       if (readOnly) return;
       const note = data.notes?.[noteId];
       if (note?.specialNote) {
-        if (!graphId || !userId || deletingSpecialNoteId) {
-          if (!graphId || !userId) setSpecialNoteError("This special note cannot be deleted until its graph is saved.");
+        if (!graphId || !userId) {
+          setSpecialNoteError("This special note cannot be deleted until its graph is saved.");
+          return;
+        }
+        if (deletingSpecialNoteId) {
+          setSpecialNoteError("A special note deletion is already in progress.");
           return;
         }
         setDeletingSpecialNoteId(note.specialNote.id);
@@ -1235,13 +1260,16 @@ export function TimelineCanvas({
     const file = note.specialNote;
     if (!file || !graphId || !userId || readOnly) return;
     const existingUrl = specialNotePreviewUrls[file.id];
-    if (existingUrl) {
-      setSpecialNoteViewer({ file, url: existingUrl });
+    if (existingUrl && existingUrl.expiresAt > Date.now()) {
+      setSpecialNoteViewer({ file, url: existingUrl.url });
       return;
     }
     void fetchSpecialNoteFileUrl(graphId, userId, file.id)
       .then((url) => {
-        setSpecialNotePreviewUrls((current) => ({ ...current, [file.id]: url }));
+        setSpecialNotePreviewUrls((current) => ({
+          ...current,
+          [file.id]: { url, expiresAt: Date.now() + SPECIAL_NOTE_SIGNED_URL_TTL_MS },
+        }));
         setSpecialNoteViewer({ file, url });
       })
       .catch((error) => {
@@ -1664,7 +1692,7 @@ export function TimelineCanvas({
                   onToggleActiveConnection={handleToggleNoteConnection}
                   onDelete={handleDeleteNote}
                   onOpenSpecialNote={handleOpenSpecialNote}
-                  specialNotePreviewUrl={note.specialNote ? specialNotePreviewUrls[note.specialNote.id] : undefined}
+                  specialNotePreviewUrl={note.specialNote ? specialNotePreviewUrls[note.specialNote.id]?.url : undefined}
                   isSpecialNoteDeleting={note.specialNote?.id === deletingSpecialNoteId}
                 />
               );

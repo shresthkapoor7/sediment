@@ -10,6 +10,7 @@ import { ConversationNavigator } from "./ConversationNavigator";
 import { LogoMark } from "./LogoMark";
 import { openChatSession, streamChatAboutTimeline, suggestTimelineQuestions } from "@/lib/api";
 import { DETAIL_PANEL_DEFAULT_WIDTH, DETAIL_PANEL_MAX_WIDTH, DETAIL_PANEL_MIN_WIDTH, DETAIL_PANEL_WIDTH_KEY } from "@/lib/detail-panel";
+import { isSpecialNote } from "@/lib/note-style";
 import {
   GlobalChatStreamEvent,
   LineageChange,
@@ -396,7 +397,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
     summary: n.paper.summary,
   }));
   const noteCount = Object.values(data.notes ?? {}).filter(
-    (note) => note.id && note.text.trim() && note.kind !== "special_note" && !note.specialNote,
+    (note) => note.id && note.text.trim() && !isSpecialNote(note),
   ).length;
   const mentionOptions = papers
     .filter((paper) => !mentionedPaperIds.includes(paper.openalexId))
@@ -411,7 +412,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
     .slice(0, 8);
   const buildNoteContext = useCallback((): TimelineNoteContext => {
     const agentNotes = Object.values(data.notes ?? {})
-      .filter((note) => note.id && note.text.trim() && note.kind !== "special_note" && !note.specialNote);
+      .filter((note) => note.id && note.text.trim() && !isSpecialNote(note));
     const agentNoteIds = new Set(agentNotes.map((note) => note.id));
     return {
       notes: agentNotes

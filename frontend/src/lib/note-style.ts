@@ -4,6 +4,10 @@ export const TIMELINE_NOTE_DEFAULT_WIDTH = 300;
 export const TIMELINE_NOTE_MIN_HEIGHT = 176;
 export const SPECIAL_NOTE_MIN_HEIGHT = 316;
 
+export function isSpecialNote(note: Pick<TimelineNote, "kind" | "specialNote">): boolean {
+  return note.kind === "special_note" || Boolean(note.specialNote);
+}
+
 export const NOTE_COLOR_OPTIONS: Array<{
   key: NonNullable<TimelineNote["color"]>;
   label: string;

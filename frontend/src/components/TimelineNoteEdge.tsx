@@ -3,7 +3,7 @@
 import { m } from "framer-motion";
 import { TimelineNode, TimelineNote, TimelineNoteEdge } from "@/lib/types";
 import { NODE_DIMENSIONS } from "@/lib/layout-constants";
-import { TIMELINE_NOTE_DEFAULT_WIDTH, TIMELINE_NOTE_MIN_HEIGHT, noteColorStyle } from "@/lib/note-style";
+import { TIMELINE_NOTE_DEFAULT_WIDTH, TIMELINE_NOTE_MIN_HEIGHT, isSpecialNote, noteColorStyle } from "@/lib/note-style";
 
 interface TimelineNoteEdgeLineProps {
   note: TimelineNote;
@@ -25,7 +25,7 @@ export function TimelineNoteEdgeLine({ note, node, edge, index }: TimelineNoteEd
   const nodeAnchorX = noteCenterX < nodeCenterX ? node.x : node.x + NODE_DIMENSIONS.width;
   const midX = (noteAnchorX + nodeAnchorX) / 2;
   const path = `M ${noteAnchorX} ${noteCenterY} C ${midX} ${noteCenterY}, ${midX} ${nodeCenterY}, ${nodeAnchorX} ${nodeCenterY}`;
-  const isSpecialNote = note.kind === "special_note" || Boolean(note.specialNote);
+  const specialNote = isSpecialNote(note);
 
   return (
     <g>
@@ -35,10 +35,10 @@ export function TimelineNoteEdgeLine({ note, node, edge, index }: TimelineNoteEd
         stroke={colorStyle.accent}
         strokeWidth={1.35}
         strokeLinecap="round"
-        strokeDasharray={isSpecialNote ? "1.5 4.5" : edge.relation === "question" ? "5 4" : "2 5"}
-        initial={isSpecialNote ? { opacity: 0 } : { pathLength: 0, opacity: 0 }}
-        animate={isSpecialNote ? { opacity: 0.58 } : { pathLength: 1, opacity: 0.58 }}
-        transition={isSpecialNote
+        strokeDasharray={specialNote ? "1.5 4.5" : edge.relation === "question" ? "5 4" : "2 5"}
+        initial={specialNote ? { opacity: 0 } : { pathLength: 0, opacity: 0 }}
+        animate={specialNote ? { opacity: 0.58 } : { pathLength: 1, opacity: 0.58 }}
+        transition={specialNote
           ? { opacity: { duration: 0.2, delay: index * 0.04 } }
           : {
             pathLength: {

@@ -235,6 +235,8 @@ export function SpecialNoteViewerModal({ file, url, onClose }: SpecialNoteViewer
                 <iframe
                   title={`Preview of ${file.filename}`}
                   src={url}
+                  sandbox=""
+                  referrerPolicy="no-referrer"
                   style={{ display: "block", width: "100%", height: "100%", border: "none", background: "var(--bg-primary)" }}
                 />
               ) : (

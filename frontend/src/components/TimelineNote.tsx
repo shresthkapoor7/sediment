@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { m } from "framer-motion";
 import { SpecialNoteFile, TimelineNote } from "@/lib/types";
-import { NOTE_COLOR_OPTIONS, NOTE_KIND_OPTIONS, SPECIAL_NOTE_MIN_HEIGHT, TIMELINE_NOTE_DEFAULT_WIDTH, TIMELINE_NOTE_MIN_HEIGHT, noteColorStyle, noteKindLabel } from "@/lib/note-style";
+import { NOTE_COLOR_OPTIONS, NOTE_KIND_OPTIONS, SPECIAL_NOTE_MIN_HEIGHT, TIMELINE_NOTE_DEFAULT_WIDTH, TIMELINE_NOTE_MIN_HEIGHT, isSpecialNote, noteColorStyle, noteKindLabel } from "@/lib/note-style";
 import { MarkdownContent } from "./MarkdownContent";
 
 interface TimelineNoteCardProps {
@@ -41,9 +41,9 @@ export function TimelineNoteCard({
   specialNotePreviewUrl,
   isSpecialNoteDeleting = false,
 }: TimelineNoteCardProps) {
-  const isSpecialNote = note.kind === "special_note" || Boolean(note.specialNote);
+  const specialNote = isSpecialNote(note);
   const width = note.width ?? TIMELINE_NOTE_DEFAULT_WIDTH;
-  const height = note.height ?? (isSpecialNote ? SPECIAL_NOTE_MIN_HEIGHT : TIMELINE_NOTE_MIN_HEIGHT);
+  const height = note.height ?? (specialNote ? SPECIAL_NOTE_MIN_HEIGHT : TIMELINE_NOTE_MIN_HEIGHT);
   const colorStyle = noteColorStyle(note.color);
   const cardRef = useRef<HTMLDivElement>(null);
   const dragStartRef = useRef<{ pointerId: number; clientX: number; clientY: number; x: number; y: number } | null>(null);
@@ -140,10 +140,11 @@ export function TimelineNoteCard({
       event.preventDefault();
       event.stopPropagation();
       const nextWidth = Math.max(180, start.width + event.clientX - start.clientX);
-      const nextHeight = Math.max(TIMELINE_NOTE_MIN_HEIGHT, start.height + event.clientY - start.clientY);
+      const minHeight = specialNote ? SPECIAL_NOTE_MIN_HEIGHT : TIMELINE_NOTE_MIN_HEIGHT;
+      const nextHeight = Math.max(minHeight, start.height + event.clientY - start.clientY);
       onResize?.(note.id, nextWidth, nextHeight);
     },
-    [note.id, onResize, readOnly],
+    [note.id, onResize, readOnly, specialNote],
   );
 
   const finishResize = useCallback((event: React.PointerEvent<HTMLButtonElement>) => {
@@ -206,7 +207,7 @@ export function TimelineNoteCard({
             padding: "0.625rem 0.75rem 0",
           }}
         >
-          {readOnly || isSpecialNote ? (
+          {readOnly || specialNote ? (
             <span
               style={{
                 fontSize: "0.625rem",
@@ -216,7 +217,7 @@ export function TimelineNoteCard({
                 color: colorStyle.accent,
               }}
             >
-              {noteKindLabel(isSpecialNote ? "special_note" : note.kind)}
+              {noteKindLabel(specialNote ? "special_note" : note.kind)}
             </span>
           ) : (
             <div
@@ -327,7 +328,7 @@ export function TimelineNoteCard({
           </span>
         </div>
 
-        {isSpecialNote && note.specialNote ? (
+        {specialNote && note.specialNote ? (
           <SpecialNotePreview
             file={note.specialNote}
             previewUrl={specialNotePreviewUrl}
@@ -411,7 +412,7 @@ export function TimelineNoteCard({
               alignItems: "center",
               justifyContent: "space-between",
               gap: "0.5rem",
-              padding: isSpecialNote ? "0.75rem 0.625rem 0.625rem" : "0 0.625rem 0.625rem",
+              padding: specialNote ? "0.75rem 0.625rem 0.625rem" : "0 0.625rem 0.625rem",
             }}
             onPointerDown={(event) => event.stopPropagation()}
           >
@@ -454,7 +455,7 @@ export function TimelineNoteCard({
                 padding: "0.125rem",
               }}
             >
-              {isSpecialNoteDeleting ? "Deleting…" : isSpecialNote ? "Delete file" : "Delete"}
+              {isSpecialNoteDeleting ? "Deleting…" : specialNote ? "Delete file" : "Delete"}
             </button>
           </div>
         )}

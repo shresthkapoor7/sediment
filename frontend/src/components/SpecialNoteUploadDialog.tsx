@@ -38,18 +38,27 @@ export function SpecialNoteUploadDialog({
 }: SpecialNoteUploadDialogProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
+  const previouslyFocusedRef = useRef<HTMLElement | null>(null);
+  const onCloseRef = useRef(onClose);
+  const isUploadingRef = useRef(isUploading);
   const [isDragging, setIsDragging] = useState(false);
 
   useEffect(() => {
+    onCloseRef.current = onClose;
+    isUploadingRef.current = isUploading;
+  }, [isUploading, onClose]);
+
+  useEffect(() => {
     if (!open) return;
+    previouslyFocusedRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !isUploading) onClose();
+      if (event.key === "Escape" && !isUploadingRef.current) onCloseRef.current();
       if (event.key !== "Tab") return;
-      const focusable = dialogRef.current?.querySelectorAll<HTMLElement>(
+      const focusable = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>(
         "button:not([disabled]), input:not([disabled])",
-      );
-      if (!focusable?.length) return;
-      const items = Array.from(focusable);
+      ) ?? []).filter((element) => !element.hidden && element.getClientRects().length > 0);
+      if (!focusable.length) return;
+      const items = focusable;
       const first = items[0];
       const last = items[items.length - 1];
       if (event.shiftKey && document.activeElement === first) {
@@ -65,8 +74,9 @@ export function SpecialNoteUploadDialog({
     return () => {
       window.removeEventListener("keydown", onKeyDown);
       window.clearTimeout(timer);
+      if (previouslyFocusedRef.current?.isConnected) previouslyFocusedRef.current.focus();
     };
-  }, [isUploading, onClose, open]);
+  }, [open]);
 
   const selectFiles = (files: FileList | null) => {
     const selected = files ? Array.from(files) : [];
