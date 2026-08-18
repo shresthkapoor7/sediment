@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { CSSProperties } from "react";
 import { m } from "framer-motion";
 import { SpecialNoteFile, TimelineNote } from "@/lib/types";
 import { NOTE_COLOR_OPTIONS, NOTE_KIND_OPTIONS, SPECIAL_NOTE_MIN_HEIGHT, TIMELINE_NOTE_DEFAULT_WIDTH, TIMELINE_NOTE_MIN_HEIGHT, noteColorStyle, noteKindLabel } from "@/lib/note-style";
@@ -329,42 +328,12 @@ export function TimelineNoteCard({
         </div>
 
         {isSpecialNote && note.specialNote ? (
-          <>
-            <SpecialNotePreview
-              file={note.specialNote}
-              previewUrl={specialNotePreviewUrl}
-              disabled={readOnly}
-              onOpen={() => onOpenSpecialNote?.(note)}
-            />
-            {!readOnly && isEditingText ? (
-              <textarea
-                data-note-control="true"
-                value={note.text}
-                onChange={(event) => onTextChange?.(note.id, event.currentTarget.value)}
-                onPointerDown={(event) => event.stopPropagation()}
-                onFocus={() => setIsEditingText(true)}
-                onBlur={() => setIsEditingText(false)}
-                autoFocus
-                aria-label="Special note description"
-                style={specialNoteTextAreaStyle}
-              />
-            ) : (
-              <button
-                data-note-control="true"
-                type="button"
-                disabled={readOnly}
-                onClick={() => {
-                  if (!readOnly) setIsEditingText(true);
-                }}
-                onPointerDown={(event) => event.stopPropagation()}
-                style={specialNoteDescriptionStyle(readOnly)}
-              >
-                <MarkdownContent style={specialNoteDescriptionContentStyle}>
-                  {note.text || "Add a description"}
-                </MarkdownContent>
-              </button>
-            )}
-          </>
+          <SpecialNotePreview
+            file={note.specialNote}
+            previewUrl={specialNotePreviewUrl}
+            disabled={readOnly}
+            onOpen={() => onOpenSpecialNote?.(note)}
+          />
         ) : !readOnly && isEditingText ? (
           <textarea
             data-note-control="true"
@@ -576,6 +545,7 @@ function SpecialNotePreview({
         position: "relative",
         display: "block",
         width: "calc(100% - 1.5rem)",
+        flex: 1,
         minHeight: "8.5rem",
         margin: "0.625rem 0.75rem 0",
         overflow: "hidden",
@@ -592,14 +562,14 @@ function SpecialNotePreview({
         <img
           src={previewUrl}
           alt={`Preview of ${file.filename}`}
-          style={{ width: "100%", height: "8.5rem", objectFit: "cover" }}
+          style={{ width: "100%", height: "100%", objectFit: "cover" }}
         />
       ) : (
         <div
           aria-hidden="true"
           style={{
             display: "grid",
-            height: "8.5rem",
+            height: "100%",
             placeItems: "center",
             background: `linear-gradient(135deg, color-mix(in srgb, ${accent} 12%, var(--bg-secondary)), var(--bg-tertiary))`,
           }}
@@ -683,43 +653,3 @@ function SpreadsheetGlyph({ color }: { color: string }) {
     </svg>
   );
 }
-
-const specialNoteTextAreaStyle: CSSProperties = {
-  position: "relative",
-  width: "100%",
-  flex: 1,
-  minHeight: "2.5rem",
-  resize: "none",
-  border: "none",
-  outline: "none",
-  background: "transparent",
-  color: "var(--text-primary)",
-  fontFamily: "var(--font-sans), sans-serif",
-  fontSize: "0.75rem",
-  lineHeight: 1.45,
-  padding: "0.5rem 0.75rem",
-  cursor: "text",
-};
-
-function specialNoteDescriptionStyle(readOnly: boolean): CSSProperties {
-  return {
-    position: "relative",
-    width: "100%",
-    flex: 1,
-    minHeight: "2.5rem",
-    border: "none",
-    background: "transparent",
-    textAlign: "left",
-    padding: "0.5rem 0.75rem",
-    overflow: "auto",
-    cursor: readOnly ? "default" : "text",
-  };
-}
-
-const specialNoteDescriptionContentStyle: CSSProperties = {
-  color: "var(--text-secondary)",
-  fontFamily: "var(--font-sans), sans-serif",
-  fontSize: "0.75rem",
-  lineHeight: 1.45,
-  overflowWrap: "break-word",
-};

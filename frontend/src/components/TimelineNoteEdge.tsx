@@ -25,6 +25,7 @@ export function TimelineNoteEdgeLine({ note, node, edge, index }: TimelineNoteEd
   const nodeAnchorX = noteCenterX < nodeCenterX ? node.x : node.x + NODE_DIMENSIONS.width;
   const midX = (noteAnchorX + nodeAnchorX) / 2;
   const path = `M ${noteAnchorX} ${noteCenterY} C ${midX} ${noteCenterY}, ${midX} ${nodeCenterY}, ${nodeAnchorX} ${nodeCenterY}`;
+  const isSpecialNote = note.kind === "special_note" || Boolean(note.specialNote);
 
   return (
     <g>
@@ -34,7 +35,7 @@ export function TimelineNoteEdgeLine({ note, node, edge, index }: TimelineNoteEd
         stroke={colorStyle.accent}
         strokeWidth={1.35}
         strokeLinecap="round"
-        strokeDasharray={edge.relation === "question" ? "5 4" : "2 5"}
+        strokeDasharray={isSpecialNote ? "1.5 4.5" : edge.relation === "question" ? "5 4" : "2 5"}
         initial={{ pathLength: 0, opacity: 0 }}
         animate={{ pathLength: 1, opacity: 0.58 }}
         transition={{

@@ -6,7 +6,7 @@ import { MarkdownContent } from "./MarkdownContent";
 import { deleteSpecialNoteFile, fetchCachedPaperContent, fetchPaperAccess, fetchSpecialNoteFileUrl, listSpecialNoteFiles, openChatSession, streamChatAboutPaper, uploadSpecialNoteFile } from "@/lib/api";
 import { DETAIL_PANEL_DEFAULT_WIDTH, DETAIL_PANEL_MAX_WIDTH, DETAIL_PANEL_MIN_WIDTH, DETAIL_PANEL_WIDTH_KEY } from "@/lib/detail-panel";
 import { TIMELINE_MOBILE_BREAKPOINT_PX } from "@/lib/hover-preview";
-import { TimelineData, ChatSuggestion, PaperAccessResponse, PaperContentResponse, TimelineNode, PaperChatStreamEvent, TimelineGraphAction, NodeBorderColor, TimelineNote, LineageChange, TimelineNodeColorChange, TimelineNoteChange, SpecialNoteFileListResponse } from "@/lib/types";
+import { TimelineData, ChatSuggestion, PaperAccessResponse, PaperContentResponse, TimelineNode, PaperChatStreamEvent, TimelineGraphAction, NodeBorderColor, TimelineNote, LineageChange, TimelineNodeColorChange, TimelineNoteChange, SpecialNoteFile, SpecialNoteFileListResponse } from "@/lib/types";
 import { NODE_BORDER_COLOR_OPTIONS } from "@/lib/node-style";
 import { SPECIAL_NOTE_MIN_HEIGHT, TIMELINE_NOTE_DEFAULT_WIDTH, TIMELINE_NOTE_MIN_HEIGHT } from "@/lib/note-style";
 import { NODE_DIMENSIONS } from "@/lib/layout-constants";
@@ -18,6 +18,7 @@ import { GlobalChatPanel } from "./GlobalChatPanel";
 import { ConversationNavigator } from "./ConversationNavigator";
 import { PaperReaderModal } from "./PaperReaderModal";
 import { SpecialNoteUploadDialog } from "./SpecialNoteUploadDialog";
+import { SpecialNoteViewerModal } from "./SpecialNoteViewerModal";
 
 interface ChatMessage {
   id: number | string;
@@ -160,6 +161,7 @@ export function TimelineCanvas({
     limitBytes: 20 * 1024 * 1024,
   });
   const [specialNotePreviewUrls, setSpecialNotePreviewUrls] = useState<Record<string, string>>({});
+  const [specialNoteViewer, setSpecialNoteViewer] = useState<{ file: SpecialNoteFile; url: string } | null>(null);
   const [deletingSpecialNoteId, setDeletingSpecialNoteId] = useState<string | null>(null);
 
   // Track the latest generation so only new nodes animate
@@ -206,6 +208,7 @@ export function TimelineCanvas({
     setSpecialNoteError(null);
     setSpecialNoteUsage({ items: [], usedBytes: 0, limitBytes: 20 * 1024 * 1024 });
     setSpecialNotePreviewUrls({});
+    setSpecialNoteViewer(null);
     setDeletingSpecialNoteId(null);
   }, [graphId, userId]);
 
@@ -1091,7 +1094,7 @@ export function TimelineCanvas({
         const now = new Date().toISOString();
         createdNotes.push({
           id: `special-note-${uploaded.id}`,
-          text: uploaded.filename,
+          text: "",
           kind: "special_note",
           specialNote: uploaded,
           x: targetNode.x + NODE_DIMENSIONS.width + 56,
@@ -1231,19 +1234,15 @@ export function TimelineCanvas({
   const handleOpenSpecialNote = useCallback((note: TimelineNote) => {
     const file = note.specialNote;
     if (!file || !graphId || !userId || readOnly) return;
-    const openUrl = (url: string) => {
-      const windowReference = window.open(url, "_blank", "noopener,noreferrer");
-      if (windowReference) windowReference.opener = null;
-    };
     const existingUrl = specialNotePreviewUrls[file.id];
     if (existingUrl) {
-      openUrl(existingUrl);
+      setSpecialNoteViewer({ file, url: existingUrl });
       return;
     }
     void fetchSpecialNoteFileUrl(graphId, userId, file.id)
       .then((url) => {
         setSpecialNotePreviewUrls((current) => ({ ...current, [file.id]: url }));
-        openUrl(url);
+        setSpecialNoteViewer({ file, url });
       })
       .catch((error) => {
         setSpecialNoteError(error instanceof Error ? error.message : "Could not open this special note.");
@@ -2727,6 +2726,12 @@ export function TimelineCanvas({
         error={paperReaderError}
         onClose={closePaperReader}
         onAskSediment={askSedimentAboutSelectedExcerpt}
+      />
+
+      <SpecialNoteViewerModal
+        file={specialNoteViewer?.file ?? null}
+        url={specialNoteViewer?.url ?? null}
+        onClose={() => setSpecialNoteViewer(null)}
       />
 
       <SpecialNoteUploadDialog
