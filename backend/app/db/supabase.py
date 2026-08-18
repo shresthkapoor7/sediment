@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import json
 from typing import Any
 from urllib.parse import quote
 
@@ -14,7 +15,28 @@ class SupabaseConfigError(RuntimeError):
 
 
 class SupabaseAPIError(RuntimeError):
-    pass
+    def __init__(self, message: str, *, status_code: int | None = None, sqlstate: str | None = None):
+        super().__init__(message)
+        self.status_code = status_code
+        self.sqlstate = sqlstate
+
+
+_SUPABASE_REQUEST_TIMEOUT = aiohttp.ClientTimeout(total=60, connect=10)
+
+
+def _supabase_response_error(prefix: str, status_code: int, text: str) -> SupabaseAPIError:
+    sqlstate = None
+    try:
+        payload = json.loads(text)
+    except (TypeError, ValueError):
+        payload = None
+    if isinstance(payload, dict) and isinstance(payload.get("code"), str):
+        sqlstate = payload["code"]
+    return SupabaseAPIError(
+        f"{prefix} ({status_code}): {text}",
+        status_code=status_code,
+        sqlstate=sqlstate,
+    )
 
 
 class SupabaseClient:
@@ -540,16 +562,22 @@ class SupabaseClient:
         allow_empty: bool = False,
     ) -> Any:
         request_headers = {**self.headers, **(headers or {})}
-        async with aiohttp.ClientSession(headers=request_headers) as session:
+        async with aiohttp.ClientSession(headers=request_headers, timeout=_SUPABASE_REQUEST_TIMEOUT) as session:
             async with session.request(method, f"{self.base_url}{path}", json=json) as response:
                 text = await response.text()
                 if response.status >= 400:
-                    raise SupabaseAPIError(f"Supabase request failed ({response.status}): {text}")
+                    raise _supabase_response_error("Supabase request failed", response.status, text)
 
                 if not text:
                     return None if allow_empty else {}
 
-                data = await response.json()
+                try:
+                    data = await response.json()
+                except ValueError as exc:
+                    raise SupabaseAPIError(
+                        "Supabase response contained invalid JSON.",
+                        status_code=response.status,
+                    ) from exc
                 if expect_single:
                     if isinstance(data, list):
                         if not data:
@@ -570,7 +598,7 @@ class SupabaseClient:
         allow_empty: bool = False,
     ) -> Any:
         request_headers = {**self.headers, **(headers or {})}
-        async with aiohttp.ClientSession(headers=request_headers) as session:
+        async with aiohttp.ClientSession(headers=request_headers, timeout=_SUPABASE_REQUEST_TIMEOUT) as session:
             async with session.request(
                 method,
                 f"{self.base_url}{path}",
@@ -579,10 +607,15 @@ class SupabaseClient:
             ) as response:
                 text = await response.text()
                 if response.status >= 400:
-                    raise SupabaseAPIError(f"Supabase storage request failed ({response.status}): {text}")
+                    raise _supabase_response_error("Supabase storage request failed", response.status, text)
                 if not text:
                     return None if allow_empty else {}
                 try:
                     return await response.json()
                 except aiohttp.ContentTypeError:
                     return {"content": text}
+                except ValueError as exc:
+                    raise SupabaseAPIError(
+                        "Supabase storage response contained invalid JSON.",
+                        status_code=response.status,
+                    ) from exc
