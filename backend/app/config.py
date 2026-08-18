@@ -26,6 +26,8 @@ class Settings(BaseSettings):
     supabase_service_role_key: SecretStr = SecretStr("")
     app_url: str = ""
     max_request_bytes: int = 1_000_000
+    special_note_storage_quota_bytes: int = 20 * 1024 * 1024
+    max_special_note_upload_request_bytes: int = 20 * 1024 * 1024 + 256 * 1024
     daily_usage_limit_usd: float = 0.20
     burst_limit_requests: int = 8
     burst_limit_window_seconds: int = 60

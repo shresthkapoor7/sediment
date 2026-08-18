@@ -404,6 +404,25 @@ class UserRecord(BaseModel):
     last_seen: str
 
 
+class SpecialNoteFile(BaseModel):
+    id: str
+    filename: str
+    mediaType: str
+    fileType: Literal["pdf", "image", "spreadsheet"]
+    sizeBytes: int = Field(gt=0)
+    createdAt: str
+
+
+class SpecialNoteFileListResponse(BaseModel):
+    items: list[SpecialNoteFile] = Field(default_factory=list)
+    usedBytes: int = Field(ge=0)
+    limitBytes: int = Field(gt=0)
+
+
+class SpecialNoteFileUrl(BaseModel):
+    url: str
+
+
 class SavedGraphMetadata(BaseModel):
     title: str = ""
     nodeCount: int = 0

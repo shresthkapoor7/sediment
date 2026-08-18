@@ -109,8 +109,18 @@ async def resolve_client_ip(request: Request, call_next):
 @app.middleware("http")
 async def enforce_request_size(request: Request, call_next):
     if request.method in {"POST", "PATCH", "PUT"} and request.url.path.startswith("/api/"):
+        is_special_note_upload = (
+            request.method == "POST"
+            and request.url.path.startswith("/api/graphs/")
+            and request.url.path.endswith("/special-notes")
+        )
         body = await request.body()
-        if len(body) > settings.max_request_bytes:
+        limit = (
+            settings.max_special_note_upload_request_bytes
+            if is_special_note_upload
+            else settings.max_request_bytes
+        )
+        if len(body) > limit:
             return JSONResponse(status_code=413, content={"detail": "Request body too large."})
     return await call_next(request)
 
