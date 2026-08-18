@@ -63,7 +63,10 @@ export function PaperReaderModal({ open, content, loading, error, onClose, onAsk
   const [mounted, setMounted] = useState(false);
   const [selectedQuote, setSelectedQuote] = useState<SelectedQuote | null>(null);
   const [selectionHighlightRects, setSelectionHighlightRects] = useState<SelectionHighlightRect[]>([]);
-  useEffect(() => setMounted(true), []);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Mounted state gates client-only selection handling.
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     ensurePaperReaderSelectionHighlightStyle();

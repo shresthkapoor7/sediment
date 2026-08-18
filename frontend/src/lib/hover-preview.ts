@@ -25,6 +25,7 @@ export function useHoverPreviewToggle({
     const storedValue = window.localStorage.getItem(storageKey);
     if (storedValue === null) return;
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Hydrate the persisted toggle preference.
     setHoverPreviewEnabled(storedValue === "true");
   }, [persist, storageKey]);
 

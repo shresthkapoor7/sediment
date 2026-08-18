@@ -54,6 +54,7 @@ export function DiscoveryChat({ open, onClose, graph }: DiscoveryChatProps) {
       if (Number.isFinite(parsed)) {
         const clamped = getClampedWidth(parsed);
         panelWidthRef.current = clamped;
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- Restore the persisted panel width.
         setPanelWidth(clamped);
       }
     } catch {

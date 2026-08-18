@@ -168,6 +168,7 @@ export function TimelineCanvas({
   }, [data]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Reset transient canvas state for a new graph.
     setHighlightedPaperIds(new Set());
     setMentionedPaperIds(new Set());
     setEditingNodeId(null);
@@ -182,6 +183,7 @@ export function TimelineCanvas({
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Reset restored chat state when the active graph changes.
     setChatHistories({});
     setActivePaperNavigationIds({});
     chatHistoryLoadsRef.current.clear();
@@ -280,6 +282,7 @@ export function TimelineCanvas({
       if (!storedWidth) return;
       const parsed = Number(storedWidth);
       if (Number.isFinite(parsed)) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- Restore the persisted panel width.
         setDetailPanelWidth(parsed);
       }
     } catch {
@@ -630,6 +633,7 @@ export function TimelineCanvas({
     if (isMobileViewport) return;
     const clamped = getClampedDetailPanelWidth(detailPanelWidth);
     if (clamped !== detailPanelWidth) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Keep the panel width inside viewport bounds.
       setDetailPanelWidth(clamped);
     }
   }, [detailPanelWidth, getClampedDetailPanelWidth, isMobileViewport]);
@@ -733,6 +737,7 @@ export function TimelineCanvas({
 
   useEffect(() => {
     if (activeNodeId === null || !latestPaperNavigationId) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Track the most recent chat message for the active paper.
     setActivePaperNavigationIds((current) => (
       current[activeNodeId] === latestPaperNavigationId
         ? current
@@ -1086,11 +1091,14 @@ export function TimelineCanvas({
   const hoveredTimelineNode = hoveredNode ? data.nodes[hoveredNode.nodeId] : null;
   const hoverLinkHref = hoveredTimelineNode ? getPaperHref(hoveredTimelineNode) : null;
   const hoverPreviewLayout =
+    // eslint-disable-next-line react-hooks/refs -- Hover positioning requires the current canvas element.
     hoveredNode && hoveredTimelineNode && containerRef.current
+      // eslint-disable-next-line react-hooks/refs -- Hover positioning requires the current canvas element.
       ? getHoverPreviewLayout(containerRef.current, hoveredNode.rect)
       : null;
   const resolvedDetailPanelWidth = isMobileViewport
     ? "100%"
+    // eslint-disable-next-line react-hooks/refs -- Width clamping reads the current canvas element.
     : `${getClampedDetailPanelWidth(detailPanelWidth)}px`;
 
   return (
@@ -1124,6 +1132,7 @@ export function TimelineCanvas({
           alignItems: "center",
         }}
       >
+        {/* eslint-disable-next-line react-hooks/refs -- Zoom controls intentionally read imperative canvas refs in event handlers. */}
         {[
           {
             label: "\u2212",

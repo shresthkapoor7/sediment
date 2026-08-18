@@ -223,6 +223,7 @@ export function AppHeader({
     // Depending on the element itself (passed as state) means this re-attaches
     // exactly when the landing container mounts, regardless of timelineData.
     if (timelineData || !landingScrollEl) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Reset state when the landing scroll container is absent.
       setIsLandingHeaderCompact(false);
       return;
     }

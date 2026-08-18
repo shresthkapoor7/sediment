@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { m, AnimatePresence } from "framer-motion";
@@ -30,6 +31,7 @@ export default function SharedGraphPage() {
 
   useEffect(() => {
     if (!shareId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Resolve loading when no share ID is present.
       setIsLoading(false);
       return;
     }
@@ -103,7 +105,7 @@ export default function SharedGraphPage() {
         }}
       >
         {/* Logo */}
-        <a
+        <Link
           href="/"
           className="app-header-brand"
           style={{
@@ -126,7 +128,7 @@ export default function SharedGraphPage() {
           >
             Sediment
           </span>
-        </a>
+        </Link>
 
         {/* Centered query label — desktop only */}
         {graphTitle && (
