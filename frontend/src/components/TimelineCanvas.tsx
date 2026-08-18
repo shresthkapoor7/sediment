@@ -42,6 +42,7 @@ interface ToolEvent {
 // Sessions restore from the server, so trimming client memory is lossless.
 const MAX_RETAINED_NODE_MESSAGES = 100;
 export const SPECIAL_NOTE_STORAGE_LIMIT_BYTES = 20 * 1024 * 1024;
+const SPECIAL_NOTE_STACK_OFFSET = 36;
 
 interface SpecialNotePreviewUrl {
   url: string;
@@ -1113,13 +1114,14 @@ export function TimelineCanvas({
       try {
         const uploaded = await uploadSpecialNoteFile(graphId, userId, file);
         const now = new Date().toISOString();
+        const positionOffset = createdNotes.length * SPECIAL_NOTE_STACK_OFFSET;
         createdNotes.push({
           id: `special-note-${uploaded.id}`,
           text: "",
           kind: "special_note",
           specialNote: uploaded,
-          x: targetNode.x + NODE_DIMENSIONS.width + 56,
-          y: targetNode.y,
+          x: targetNode.x + NODE_DIMENSIONS.width + 56 + positionOffset,
+          y: targetNode.y + positionOffset,
           width: TIMELINE_NOTE_DEFAULT_WIDTH,
           height: SPECIAL_NOTE_MIN_HEIGHT,
           color: "paper",
