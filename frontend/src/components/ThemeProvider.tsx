@@ -1,7 +1,5 @@
 "use client";
 
-/* eslint-disable react-hooks/set-state-in-effect -- The effect hydrates the persisted theme preference. */
-
 import { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { LazyMotion, domAnimation } from "framer-motion";
 
@@ -28,6 +26,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const stored = localStorage.getItem("sediment-theme");
     if (stored === "light" || stored === "dark") {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Hydrate the persisted theme preference.
       setTheme(stored);
     } else if (window.matchMedia("(prefers-color-scheme: light)").matches) {
       setTheme("light");

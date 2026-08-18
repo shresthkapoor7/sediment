@@ -1,7 +1,5 @@
 "use client";
 
-/* eslint-disable react-hooks/refs -- Drag and pan interaction state is intentionally stored in mutable refs. */
-
 import { useRef, useEffect, useCallback, useMemo, useState } from "react";
 import { m, AnimatePresence } from "framer-motion";
 import {
@@ -249,7 +247,9 @@ export function DiscoveryCanvas({ graph, selected, onToggleTopic, onClearSelecti
   const startDrag = (id: string, x0: number, y0: number) => (e: React.PointerEvent) => {
     if (e.button !== 0) return;
     e.stopPropagation();
+    // eslint-disable-next-line react-hooks/refs -- Dragging deliberately clears imperative hover state.
     clearHover();
+    // eslint-disable-next-line react-hooks/refs -- Drag metadata is intentionally mutable without triggering a render.
     dragRef.current = { id, x0, y0, px: e.clientX, py: e.clientY, moved: false };
     e.currentTarget.setPointerCapture(e.pointerId);
   };
@@ -594,6 +594,7 @@ export function DiscoveryCanvas({ graph, selected, onToggleTopic, onClearSelecti
 
       {/* Zoom controls */}
       <div style={{ position: "absolute", bottom: "1rem", left: "1rem", zIndex: 20, display: "flex", gap: "0.25rem", alignItems: "center" }}>
+        {/* eslint-disable-next-line react-hooks/refs -- Zoom controls intentionally use imperative pan and zoom refs in handlers. */}
         {[
           { label: "−", title: "Zoom out", action: () => zoomBy(1 / 1.15) },
           { label: "+", title: "Zoom in", action: () => zoomBy(1.15) },

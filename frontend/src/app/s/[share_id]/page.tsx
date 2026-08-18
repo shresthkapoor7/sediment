@@ -1,7 +1,5 @@
 "use client";
 
-/* eslint-disable react-hooks/set-state-in-effect -- The shared graph fetch effect owns this loading state. */
-
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
@@ -33,6 +31,7 @@ export default function SharedGraphPage() {
 
   useEffect(() => {
     if (!shareId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Resolve loading when no share ID is present.
       setIsLoading(false);
       return;
     }

@@ -1,7 +1,5 @@
 "use client";
 
-/* eslint-disable react-hooks/set-state-in-effect -- The scroll subscription synchronizes compact-header state. */
-
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { m, AnimatePresence } from "framer-motion";
@@ -225,6 +223,7 @@ export function AppHeader({
     // Depending on the element itself (passed as state) means this re-attaches
     // exactly when the landing container mounts, regardless of timelineData.
     if (timelineData || !landingScrollEl) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Reset state when the landing scroll container is absent.
       setIsLandingHeaderCompact(false);
       return;
     }

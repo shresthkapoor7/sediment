@@ -1,7 +1,5 @@
 "use client";
 
-/* eslint-disable react-hooks/set-state-in-effect -- The effect restores the persisted panel width. */
-
 import { useCallback, useEffect, useRef, useState } from "react";
 import { m, AnimatePresence } from "framer-motion";
 import { LogoMark } from "@/components/LogoMark";
@@ -56,6 +54,7 @@ export function DiscoveryChat({ open, onClose, graph }: DiscoveryChatProps) {
       if (Number.isFinite(parsed)) {
         const clamped = getClampedWidth(parsed);
         panelWidthRef.current = clamped;
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- Restore the persisted panel width.
         setPanelWidth(clamped);
       }
     } catch {

@@ -1,7 +1,5 @@
 "use client";
 
-/* eslint-disable react-hooks/set-state-in-effect -- Effects hydrate browser storage and fetch saved history. */
-
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useState, useCallback, useEffect, useRef } from "react";
@@ -186,6 +184,7 @@ export default function Home() {
   }, [refreshCredits]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Hydrate the persisted confirmation preference.
     setSkipDeleteConfirmation(
       window.localStorage.getItem(DELETE_CONFIRMATION_DISABLED_KEY) === "true",
     );
@@ -238,6 +237,7 @@ export default function Home() {
   useEffect(() => {
     if (!historyOpen || !userId || timelineData) return;
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Loading state belongs to this history-fetch effect.
     setIsHistoryLoading(true);
     setHistoryDeletedCount(0);
     void listSavedGraphs(userId, { limit: HISTORY_PAGE_SIZE, offset: 0 })

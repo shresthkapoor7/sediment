@@ -1,8 +1,5 @@
 "use client";
 
-/* eslint-disable react-hooks/set-state-in-effect -- Session, navigation, and trace effects intentionally synchronize chat state. */
-/* eslint-disable react-hooks/immutability -- The suggestion effect safely reads derived graph papers declared later in the component. */
-
 import { useState, useRef, useEffect, useId, useCallback, type ReactNode } from "react";
 import { m, AnimatePresence } from "framer-motion";
 import dynamic from "next/dynamic";
@@ -224,6 +221,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
 
   useEffect(() => {
     let cancelled = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Reset messages before loading the next remote session.
     setMessages([]);
     if (!graphId || !userId) return () => { cancelled = true; };
     void openChatSession(graphId, userId, "graph")
@@ -253,6 +251,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
   useEffect(() => {
     if (!data.traceSummary || !traceSummaryKey) return;
     const id = `trace-summary:${traceSummaryKey}`;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Add the derived trace summary when its source changes.
     setMessages((current) => (
       current.some((message) => message.id === id)
         ? current
@@ -279,6 +278,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
   const latestNavigationId = navigationItems[navigationItems.length - 1]?.id ?? null;
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Keep the active item synchronized with new navigation entries.
     if (latestNavigationId) setActiveNavigationId(latestNavigationId);
   }, [latestNavigationId]);
 
@@ -320,6 +320,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
       if (Number.isFinite(parsed)) {
         const clamped = getClampedPanelWidth(parsed);
         panelWidthRef.current = clamped;
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- Restore the persisted panel width.
         setPanelWidth(clamped);
       }
     } catch {
@@ -368,7 +369,9 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
   useEffect(() => {
     if (open) {
       if (messages.length === 0 && suggestions.length === 0) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- Mark the request pending before fetching suggestions.
         setLoadingSuggestions(true);
+        // eslint-disable-next-line react-hooks/immutability -- This effect intentionally reads the current derived paper list.
         suggestTimelineQuestions(papers)
           .then(setSuggestions)
           .finally(() => setLoadingSuggestions(false));

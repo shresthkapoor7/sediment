@@ -1,7 +1,5 @@
 "use client";
 
-/* eslint-disable react-hooks/set-state-in-effect -- The effect hydrates the persisted toggle preference. */
-
 import { useCallback, useEffect, useState } from "react";
 
 export const TIMELINE_MOBILE_BREAKPOINT_PX = 640;
@@ -27,6 +25,7 @@ export function useHoverPreviewToggle({
     const storedValue = window.localStorage.getItem(storageKey);
     if (storedValue === null) return;
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Hydrate the persisted toggle preference.
     setHoverPreviewEnabled(storedValue === "true");
   }, [persist, storageKey]);
 
