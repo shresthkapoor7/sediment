@@ -411,7 +411,7 @@ export function TimelineNoteCard({
               alignItems: "center",
               justifyContent: "space-between",
               gap: "0.5rem",
-              padding: "0 0.625rem 0.625rem",
+              padding: isSpecialNote ? "0.75rem 0.625rem 0.625rem" : "0 0.625rem 0.625rem",
             }}
             onPointerDown={(event) => event.stopPropagation()}
           >

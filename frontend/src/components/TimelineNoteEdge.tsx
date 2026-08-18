@@ -36,16 +36,18 @@ export function TimelineNoteEdgeLine({ note, node, edge, index }: TimelineNoteEd
         strokeWidth={1.35}
         strokeLinecap="round"
         strokeDasharray={isSpecialNote ? "1.5 4.5" : edge.relation === "question" ? "5 4" : "2 5"}
-        initial={{ pathLength: 0, opacity: 0 }}
-        animate={{ pathLength: 1, opacity: 0.58 }}
-        transition={{
-          pathLength: {
-            duration: 0.45,
-            delay: index * 0.04,
-            ease: [0.16, 1, 0.3, 1],
-          },
-          opacity: { duration: 0.2, delay: index * 0.04 },
-        }}
+        initial={isSpecialNote ? { opacity: 0 } : { pathLength: 0, opacity: 0 }}
+        animate={isSpecialNote ? { opacity: 0.58 } : { pathLength: 1, opacity: 0.58 }}
+        transition={isSpecialNote
+          ? { opacity: { duration: 0.2, delay: index * 0.04 } }
+          : {
+            pathLength: {
+              duration: 0.45,
+              delay: index * 0.04,
+              ease: [0.16, 1, 0.3, 1],
+            },
+            opacity: { duration: 0.2, delay: index * 0.04 },
+          }}
       />
       <circle cx={nodeAnchorX} cy={nodeCenterY} r="3" fill={colorStyle.accent} opacity="0.72" />
     </g>
