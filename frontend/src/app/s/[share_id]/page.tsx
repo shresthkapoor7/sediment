@@ -15,6 +15,11 @@ import { exportObsidianZip } from "@/lib/export";
 
 const GITHUB_REPO_URL = "https://github.com/shresthkapoor7/sediment";
 
+/**
+ * Displays a shared timeline graph in read-only mode.
+ *
+ * @returns The shared timeline page interface.
+ */
 export default function SharedGraphPage() {
   const params = useParams();
   const shareId = params.share_id as string;

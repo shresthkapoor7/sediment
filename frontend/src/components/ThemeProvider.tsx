@@ -19,6 +19,12 @@ export function useTheme() {
   return useContext(ThemeContext);
 }
 
+/**
+ * Provides theme state and controls to descendant components.
+ *
+ * @param children - Content rendered within the theme provider
+ * @returns The theme context provider containing the rendered children
+ */
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setTheme] = useState<Theme>("dark");
   const [mounted, setMounted] = useState(false);

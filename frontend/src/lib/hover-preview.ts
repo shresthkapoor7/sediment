@@ -12,6 +12,14 @@ interface UseHoverPreviewToggleOptions {
   storageKey?: string;
 }
 
+/**
+ * Manages the enabled state and persistence of hover previews.
+ *
+ * @param defaultEnabled - Initial hover-preview state when no persisted preference exists
+ * @param persist - Whether to read and write the preference in local storage
+ * @param storageKey - Local-storage key used for the preference
+ * @returns The current state, its setter, and a callback that toggles the state
+ */
 export function useHoverPreviewToggle({
   defaultEnabled = true,
   persist = true,

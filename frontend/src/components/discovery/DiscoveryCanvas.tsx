@@ -27,6 +27,15 @@ interface HoverPreview extends DiscoveryPreviewData {
   width: number;
 }
 
+/**
+ * Renders an interactive discovery graph with selectable topics, draggable nodes, hover previews, panning, and zoom controls.
+ *
+ * @param graph - The discovery graph data to render.
+ * @param selected - The IDs of currently selected topics.
+ * @param onToggleTopic - Callback invoked when a topic is selected or deselected.
+ * @param onClearSelection - Callback invoked when the current topic selection is cleared.
+ * @returns The interactive discovery canvas.
+ */
 export function DiscoveryCanvas({ graph, selected, onToggleTopic, onClearSelection }: DiscoveryCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const gRef = useRef<SVGGElement>(null);

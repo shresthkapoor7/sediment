@@ -3,6 +3,9 @@
 import Link from "next/link";
 import { LogoMark } from "@/components/LogoMark";
 
+/**
+ * Renders the 404 page with navigation links to the home and discovery pages.
+ */
 export default function NotFound() {
   return (
     <main className="notfound-shell">

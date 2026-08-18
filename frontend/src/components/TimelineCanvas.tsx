@@ -80,6 +80,16 @@ type PaperAccessState = PaperAccessResponse | {
   message: string;
 };
 
+/**
+ * Displays an interactive timeline graph with paper and note nodes, navigation controls, detail panels, and paper conversations.
+ *
+ * @param data - Timeline graph data containing paper nodes, notes, and relationships
+ * @param readOnly - Whether to disable graph editing and paper chat actions
+ * @param hoverPreviewEnabled - Whether paper hover previews are enabled
+ * @param globalChatOpen - Whether the global chat panel is open
+ * @param closePaperPanelSignal - Signal value used to close the active paper panel
+ * @param saveState - Current graph save status displayed by the canvas
+ */
 export function TimelineCanvas({
   data,
   onExpandNode,

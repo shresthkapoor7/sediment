@@ -203,6 +203,21 @@ function capMessages(messages: Message[]): Message[] {
   ));
 }
 
+/**
+ * Renders a timeline-aware chat panel for researching papers and managing related timeline context.
+ *
+ * @param data - Timeline data used to provide paper, note, node-color, and trace context.
+ * @param open - Whether the chat panel is visible.
+ * @param onOpenChange - Handles changes to the panel's visibility.
+ * @param onHighlight - Updates highlighted paper IDs.
+ * @param onMentionedPaperIdsChange - Reports paper IDs mentioned in the focused input.
+ * @param onLineageChanges - Applies lineage changes returned by the assistant.
+ * @param onNoteChanges - Applies note changes returned by the assistant.
+ * @param onNodeColorChanges - Applies node-color changes returned by the assistant.
+ * @param onUsageChanged - Notifies consumers when chat usage may have changed.
+ * @param graphId - Identifies the graph whose chat session is restored.
+ * @param userId - Identifies the user whose chat session is restored.
+ */
 export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMentionedPaperIdsChange, onLineageChanges, onNoteChanges, onNodeColorChanges, onUsageChanged, graphId, userId }: GlobalChatPanelProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");

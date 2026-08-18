@@ -23,8 +23,13 @@ interface DiscoveryChatProps {
   graph: DiscoveryGraph;
 }
 
-/** Mirrors GlobalChatPanel — resizable right overlay, same header/bubbles/input.
- *  Replies are canned until the backend chat endpoint is wired up. */
+/**
+ * Displays a resizable chat overlay for the discovery graph.
+ *
+ * @param open - Whether the chat overlay is visible
+ * @param onClose - Callback invoked when the user closes the chat
+ * @param graph - Graph data used to display context and generate responses
+ */
 export function DiscoveryChat({ open, onClose, graph }: DiscoveryChatProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
