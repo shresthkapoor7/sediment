@@ -34,6 +34,7 @@ from ..services.openalex import OpenAlexClient, OpenAlexError
 from ..services.paper_access import PaperAccessChecker
 from ..services.paper_ingestion import IngestionError, PaperIngestionService
 from ..services.paper_retrieval import PaperRetrievalService, RetrievalError
+from ..services.special_notes import is_special_note
 from ..services.usage_limiter import limiter
 from .search import get_request_ip
 
@@ -112,9 +113,9 @@ def _note_context_from_graph(graph_data: object) -> dict[str, list[dict[str, str
         for note_id, raw_note in raw_notes.items():
             if not isinstance(raw_note, dict):
                 continue
-            if raw_note.get("kind") == "special_note" or "specialNote" in raw_note:
+            if is_special_note(raw_note):
                 continue
-            resolved_id = str(raw_note.get("id") or note_id).strip()
+            resolved_id = str(note_id).strip()
             text = str(raw_note.get("text") or "").strip()
             kind = raw_note.get("kind") if raw_note.get("kind") in NOTE_KINDS else "field_note"
             color = raw_note.get("color") if raw_note.get("color") in NOTE_COLORS else "paper"

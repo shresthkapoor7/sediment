@@ -18,6 +18,7 @@ from app.routers.persistence import (
 from app.services.special_notes import (
     SPECIAL_NOTE_BUCKET,
     SPECIAL_NOTE_SIGNED_URL_TTL_SECONDS,
+    _clean_special_note_filename,
     classify_special_note_upload,
     redact_special_notes_from_shared_graph_data,
 )
@@ -77,6 +78,15 @@ class SpecialNoteUploadTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "contents do not match"):
             classify_special_note_upload("looks-like-a-pdf.pdf", b"not a PDF")
 
+    def test_cleans_untrusted_filenames_and_rejects_invalid_names(self) -> None:
+        self.assertEqual(_clean_special_note_filename("../../private/research.pdf"), "research.pdf")
+        self.assertEqual(_clean_special_note_filename("folder\\report\x00.pdf"), "report.pdf")
+
+        with self.assertRaisesRegex(ValueError, "valid name"):
+            _clean_special_note_filename(f"{'a' * 252}.pdf")
+        with self.assertRaisesRegex(ValueError, "PDFs, images, and spreadsheets"):
+            classify_special_note_upload("untitled", b"not relevant")
+
 
 class SpecialNotePersistenceRouterTests(unittest.IsolatedAsyncioTestCase):
     async def test_list_scopes_files_and_usage_to_the_authenticated_graph_owner(self) -> None:
@@ -104,6 +114,7 @@ class SpecialNotePersistenceRouterTests(unittest.IsolatedAsyncioTestCase):
     async def test_upload_reserves_owner_scoped_path_then_uploads_private_object(self) -> None:
         content = b"%PDF-1.7\nhello"
         db = AsyncMock()
+        db.get_graph.return_value = {"id": GRAPH_ID}
         db.reserve_special_note_file.return_value = special_note_row(size_bytes=len(content))
         upload = UploadFile(filename="research.PDF", file=io.BytesIO(content))
 
@@ -133,6 +144,7 @@ class SpecialNotePersistenceRouterTests(unittest.IsolatedAsyncioTestCase):
     async def test_upload_releases_its_reservation_when_private_storage_write_fails(self) -> None:
         content = b"%PDF-1.7\nhello"
         db = AsyncMock()
+        db.get_graph.return_value = {"id": GRAPH_ID}
         db.reserve_special_note_file.return_value = special_note_row(size_bytes=len(content))
         db.upload_storage_object.side_effect = SupabaseAPIError("storage unavailable")
         upload = UploadFile(filename="research.pdf", file=io.BytesIO(content))
@@ -148,7 +160,12 @@ class SpecialNotePersistenceRouterTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_upload_returns_a_clear_quota_error_without_attempting_storage_write(self) -> None:
         db = AsyncMock()
-        db.reserve_special_note_file.side_effect = SupabaseAPIError("special note quota exceeded")
+        db.get_graph.return_value = {"id": GRAPH_ID}
+        db.reserve_special_note_file.side_effect = SupabaseAPIError(
+            "special note quota exceeded",
+            status_code=400,
+            sqlstate="22023",
+        )
         upload = UploadFile(filename="research.pdf", file=io.BytesIO(b"%PDF-1.7\nhello"))
 
         with patch("app.routers.persistence.get_db", return_value=db):
@@ -159,6 +176,21 @@ class SpecialNotePersistenceRouterTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(raised.exception.status_code, 409)
         self.assertIn("Delete a previous special note", raised.exception.detail)
         db.upload_storage_object.assert_not_awaited()
+
+    async def test_upload_checks_graph_ownership_before_reading_the_file(self) -> None:
+        db = AsyncMock()
+        db.get_graph.return_value = None
+        upload = AsyncMock()
+        upload.filename = "research.pdf"
+
+        with patch("app.routers.persistence.get_db", return_value=db):
+            with self.assertRaises(HTTPException) as raised:
+                await upload_special_note_file(GRAPH_ID, USER_ID, upload)
+
+        self.assertEqual(raised.exception.status_code, 404)
+        upload.read.assert_not_awaited()
+        upload.close.assert_awaited_once()
+        db.reserve_special_note_file.assert_not_awaited()
 
     async def test_signed_url_uses_only_the_owner_scoped_file_row(self) -> None:
         db = AsyncMock()
@@ -176,6 +208,17 @@ class SpecialNotePersistenceRouterTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(response.url, "https://storage.example/signed/private-file")
 
+    async def test_signed_url_returns_not_found_without_creating_a_storage_url(self) -> None:
+        db = AsyncMock()
+        db.get_special_note_file.return_value = None
+
+        with patch("app.routers.persistence.get_db", return_value=db):
+            with self.assertRaises(HTTPException) as raised:
+                await get_special_note_file_url(GRAPH_ID, FILE_ID, USER_ID)
+
+        self.assertEqual(raised.exception.status_code, 404)
+        db.create_storage_signed_url.assert_not_awaited()
+
     async def test_delete_removes_the_private_storage_object_after_its_database_record(self) -> None:
         db = AsyncMock()
         db.delete_special_note_file.return_value = special_note_row()
@@ -189,6 +232,17 @@ class SpecialNotePersistenceRouterTests(unittest.IsolatedAsyncioTestCase):
             SPECIAL_NOTE_BUCKET,
             f"{USER_ID}/{FILE_ID}.pdf",
         )
+
+    async def test_delete_returns_not_found_without_removing_a_storage_object(self) -> None:
+        db = AsyncMock()
+        db.delete_special_note_file.return_value = None
+
+        with patch("app.routers.persistence.get_db", return_value=db):
+            with self.assertRaises(HTTPException) as raised:
+                await delete_special_note_file(GRAPH_ID, FILE_ID, USER_ID)
+
+        self.assertEqual(raised.exception.status_code, 404)
+        db.delete_storage_object.assert_not_awaited()
 
 
 class SharedGraphSpecialNotePrivacyTests(unittest.TestCase):

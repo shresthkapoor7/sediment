@@ -40,6 +40,26 @@ class PersistentChatRouterTests(unittest.IsolatedAsyncioTestCase):
             "relation": "about",
         }])
 
+    def test_restored_graph_context_keys_note_edges_by_the_notes_map_key(self) -> None:
+        context = _note_context_from_graph({
+            "nodes": {"1": {"paper": {"openalexId": "W1"}}},
+            "notes": {
+                "note-map-key": {
+                    "id": "stale-note-id",
+                    "text": "Keep this note",
+                    "kind": "field_note",
+                },
+            },
+            "noteEdges": [{"noteId": "note-map-key", "nodeId": 1}],
+        })
+
+        self.assertEqual(context["notes"][0]["id"], "note-map-key")
+        self.assertEqual(context["connections"], [{
+            "noteId": "note-map-key",
+            "paperId": "W1",
+            "relation": "about",
+        }])
+
     def test_compact_tool_event_reports_relationship_count(self) -> None:
         result = _compact_tool_result_for_event({
             "status": "completed",

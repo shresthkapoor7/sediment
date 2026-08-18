@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 SPECIAL_NOTE_BUCKET = "special-notes"
-SPECIAL_NOTE_SIGNED_URL_TTL_SECONDS = 60 * 60
+SPECIAL_NOTE_SIGNED_URL_TTL_SECONDS = 5 * 60
 
 _SPECIAL_NOTE_FILE_TYPES: dict[str, tuple[str, str]] = {
     ".pdf": ("pdf", "application/pdf"),
@@ -17,6 +17,19 @@ _SPECIAL_NOTE_FILE_TYPES: dict[str, tuple[str, str]] = {
     ".ods": ("spreadsheet", "application/vnd.oasis.opendocument.spreadsheet"),
     ".csv": ("spreadsheet", "text/csv"),
 }
+
+
+def is_special_note(note: object) -> bool:
+    return isinstance(note, dict) and (
+        note.get("kind") == "special_note" or "specialNote" in note
+    )
+
+
+def format_special_note_storage_quota(quota_bytes: int) -> str:
+    mebibyte = 1024 * 1024
+    if quota_bytes > 0 and quota_bytes % mebibyte == 0:
+        return f"{quota_bytes // mebibyte} MiB"
+    return f"{quota_bytes / mebibyte:.1f} MiB"
 
 
 def _clean_special_note_filename(filename: str) -> str:
@@ -73,7 +86,7 @@ def redact_special_notes_from_shared_graph_data(data: dict[str, Any]) -> dict[st
     private_note_ids = {
         note_id
         for note_id, note in notes.items()
-        if isinstance(note, dict) and (note.get("kind") == "special_note" or "specialNote" in note)
+        if is_special_note(note)
     }
     if not private_note_ids:
         return data

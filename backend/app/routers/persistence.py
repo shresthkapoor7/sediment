@@ -10,6 +10,7 @@ from ..services.special_notes import (
     SPECIAL_NOTE_BUCKET,
     SPECIAL_NOTE_SIGNED_URL_TTL_SECONDS,
     classify_special_note_upload,
+    format_special_note_storage_quota,
     redact_special_notes_from_shared_graph_data,
 )
 from ..models import (
@@ -281,6 +282,14 @@ async def upload_special_note_file(
     user_id = _normalise_uuid(userId, "userId")
     graph_id = _normalise_uuid(graph_id, "graphId")
     try:
+        try:
+            db = get_db()
+            graph = await db.get_graph(graph_id, user_id)
+        except SupabaseAPIError as e:
+            logger.warning("Special note graph lookup failed for graph_id=%r user_id=%r", graph_id, user_id, exc_info=e)
+            raise HTTPException(status_code=502, detail="Failed to load graph.") from e
+        if not graph:
+            raise HTTPException(status_code=404, detail="graph not found")
         content = await file.read(app_settings.special_note_storage_quota_bytes + 1)
     finally:
         await file.close()
@@ -288,7 +297,10 @@ async def upload_special_note_file(
     if not content:
         raise HTTPException(status_code=400, detail="Choose a non-empty file.")
     if len(content) > app_settings.special_note_storage_quota_bytes:
-        raise HTTPException(status_code=413, detail="A special note file cannot exceed 20 MiB.")
+        raise HTTPException(
+            status_code=413,
+            detail=f"A special note file cannot exceed {format_special_note_storage_quota(app_settings.special_note_storage_quota_bytes)}.",
+        )
 
     try:
         filename, extension, file_kind, media_type = classify_special_note_upload(file.filename or "", content)
@@ -307,13 +319,12 @@ async def upload_special_note_file(
         "p_size_bytes": len(content),
     }
     try:
-        db = get_db()
         row = await db.reserve_special_note_file(reservation)
     except SupabaseAPIError as e:
-        detail = str(e).lower()
-        if "quota" in detail:
-            raise HTTPException(status_code=409, detail="Your 20 MiB special note storage is full. Delete a previous special note to add this file.") from e
-        if "graph not found" in detail:
+        if e.sqlstate == "22023":
+            quota = format_special_note_storage_quota(app_settings.special_note_storage_quota_bytes)
+            raise HTTPException(status_code=409, detail=f"Your {quota} special note storage is full. Delete a previous special note to add this file.") from e
+        if e.sqlstate == "P0002":
             raise HTTPException(status_code=404, detail="graph not found") from e
         logger.warning("Special note reservation failed for graph_id=%r user_id=%r", graph_id, user_id, exc_info=e)
         raise HTTPException(status_code=502, detail="Failed to reserve special note storage.") from e
