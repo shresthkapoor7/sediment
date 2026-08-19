@@ -11,6 +11,8 @@ import {
   SavedGraphListItem,
   SavedGraphListResponse,
   SavedGraphMetadata,
+  SpecialNoteFile,
+  SpecialNoteFileListResponse,
   TimelineData,
   TimelineNode,
   TimelineNodeColorChange,
@@ -25,6 +27,7 @@ const EXPENSIVE_API_BASE = USE_API_PROXY ? PROXY_API_BASE : API_BASE;
 export const SEDIMENT_USER_ID_KEY = "sediment_user_id";
 export const LAST_GRAPH_ID_KEY = "last_graph_id";
 export const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || "0.1.0";
+export const SPECIAL_NOTE_SIGNED_URL_TTL_MS = 5 * 60 * 1000;
 
 export class APIError extends Error {
   status: number;
@@ -464,6 +467,78 @@ export async function deleteSavedGraph(graphId: string, userId: string): Promise
   if (!response.ok) {
     const detail = await readErrorDetail(response);
     throw new APIError(detail || `Delete failed with status ${response.status}`, response.status);
+  }
+}
+
+export async function listSpecialNoteFiles(
+  graphId: string,
+  userId: string,
+): Promise<SpecialNoteFileListResponse> {
+  const response = await fetch(
+    `${API_BASE}/api/graphs/${encodeURIComponent(graphId)}/special-notes?userId=${encodeURIComponent(userId)}`,
+    { cache: "no-store" },
+  );
+  if (!response.ok) {
+    const detail = await readErrorDetail(response);
+    throw new APIError(detail || `Special note load failed with status ${response.status}`, response.status);
+  }
+  return response.json();
+}
+
+export async function uploadSpecialNoteFile(
+  graphId: string,
+  userId: string,
+  file: File,
+): Promise<SpecialNoteFile> {
+  const form = new FormData();
+  form.append("userId", userId);
+  form.append("file", file, file.name);
+  const response = await fetch(`${API_BASE}/api/graphs/${encodeURIComponent(graphId)}/special-notes`, {
+    method: "POST",
+    body: form,
+  });
+  if (!response.ok) {
+    const detail = await readErrorDetail(response);
+    throw new APIError(detail || `Special note upload failed with status ${response.status}`, response.status);
+  }
+  return response.json();
+}
+
+export async function fetchSpecialNoteFileUrl(
+  graphId: string,
+  userId: string,
+  fileId: string,
+): Promise<string> {
+  const response = await fetch(
+    `${API_BASE}/api/graphs/${encodeURIComponent(graphId)}/special-notes/${encodeURIComponent(fileId)}/url?userId=${encodeURIComponent(userId)}`,
+    { cache: "no-store" },
+  );
+  if (!response.ok) {
+    const detail = await readErrorDetail(response);
+    throw new APIError(detail || `Special note open failed with status ${response.status}`, response.status);
+  }
+  const payload: unknown = await response.json();
+  const url = payload && typeof payload === "object" && !Array.isArray(payload)
+    ? (payload as { url?: unknown }).url
+    : undefined;
+  if (typeof url !== "string" || !url) {
+    throw new APIError("Special note open response was invalid.", response.status);
+  }
+  return url;
+}
+
+export async function deleteSpecialNoteFile(
+  graphId: string,
+  userId: string,
+  fileId: string,
+): Promise<void> {
+  const response = await fetch(
+    `${API_BASE}/api/graphs/${encodeURIComponent(graphId)}/special-notes/${encodeURIComponent(fileId)}?userId=${encodeURIComponent(userId)}`,
+    { method: "DELETE" },
+  );
+  if (!response.ok) {
+    const detail = await readErrorDetail(response);
+    throw new APIError(detail || `Special note deletion failed with status ${response.status}`, response.status);
   }
 }
 

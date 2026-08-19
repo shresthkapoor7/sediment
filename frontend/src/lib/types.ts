@@ -37,7 +37,24 @@ export interface TimelineNodeColorChange {
 }
 
 export type TimelineNoteRelation = "about" | "question" | "insight" | "todo" | "contradiction";
-export type TimelineNoteKind = "field_note" | "question" | "insight" | "todo" | "contradiction";
+export type TimelineNoteKind = "field_note" | "question" | "insight" | "todo" | "contradiction" | "special_note";
+
+export type SpecialNoteFileType = "pdf" | "image" | "spreadsheet";
+
+export interface SpecialNoteFile {
+  id: string;
+  filename: string;
+  mediaType: string;
+  fileType: SpecialNoteFileType;
+  sizeBytes: number;
+  createdAt: string;
+}
+
+export interface SpecialNoteFileListResponse {
+  items: SpecialNoteFile[];
+  usedBytes: number;
+  limitBytes: number;
+}
 
 export interface TimelineNote {
   id: string;
@@ -48,6 +65,7 @@ export interface TimelineNote {
   width?: number;
   height?: number;
   color?: "paper" | "amber" | "blue" | "green" | "rose";
+  specialNote?: SpecialNoteFile;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -135,6 +153,12 @@ export type TimelineGraphAction =
   | {
       type: "add_note";
       note: TimelineNote;
+      connectToNodeId?: number | null;
+      relation?: TimelineNoteRelation;
+    }
+  | {
+      type: "add_notes";
+      notes: TimelineNote[];
       connectToNodeId?: number | null;
       relation?: TimelineNoteRelation;
     }

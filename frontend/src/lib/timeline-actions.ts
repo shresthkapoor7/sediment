@@ -21,6 +21,13 @@ export function applyTimelineGraphAction(
     const next = applyNoteAddition(data, action);
     return next === data ? data : layoutTimelineNotes(next, [action.note.id]);
   }
+  if (action.type === "add_notes") {
+    const next = action.notes.reduce<TimelineData>(
+      (current, note) => applyNoteAddition(current, { ...action, type: "add_note", note }),
+      data,
+    );
+    return next === data ? data : layoutTimelineNotes(next, action.notes.map((note) => note.id));
+  }
   if (action.type === "update_note") {
     return applyNoteUpdate(data, action.noteId, action.patch);
   }

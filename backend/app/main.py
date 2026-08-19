@@ -6,6 +6,7 @@ from typing import Optional
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from starlette.datastructures import Headers
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from .config import settings
@@ -35,6 +36,70 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+class RequestSizeMiddleware:
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http" or scope["method"] not in {"POST", "PATCH", "PUT"}:
+            await self.app(scope, receive, send)
+            return
+
+        path = scope.get("path", "")
+        if not path.startswith("/api/"):
+            await self.app(scope, receive, send)
+            return
+
+        is_special_note_upload = (
+            scope["method"] == "POST"
+            and path.startswith("/api/graphs/")
+            and path.endswith("/special-notes")
+        )
+        limit = (
+            settings.max_special_note_upload_request_bytes
+            if is_special_note_upload
+            else settings.max_request_bytes
+        )
+        try:
+            declared_size = int(Headers(scope=scope).get("content-length", ""))
+        except ValueError:
+            declared_size = None
+        if declared_size is not None and declared_size < 0:
+            declared_size = None
+        if declared_size is not None and declared_size > limit:
+            await JSONResponse(status_code=413, content={"detail": "Request body too large."})(scope, receive, send)
+            return
+
+        chunks: list[bytes] = []
+        received_size = 0
+        while True:
+            message = await receive()
+            if message["type"] == "http.disconnect":
+                return
+            if message["type"] != "http.request":
+                continue
+            chunk = message.get("body", b"")
+            received_size += len(chunk)
+            if received_size > limit:
+                await JSONResponse(status_code=413, content={"detail": "Request body too large."})(scope, receive, send)
+                return
+            chunks.append(chunk)
+            if not message.get("more_body", False):
+                break
+
+        body = b"".join(chunks)
+        body_delivered = False
+
+        async def receive_with_cached_body():
+            nonlocal body_delivered
+            if body_delivered:
+                return {"type": "http.disconnect"}
+            body_delivered = True
+            return {"type": "http.request", "body": body, "more_body": False}
+
+        await self.app(scope, receive_with_cached_body, send)
 
 
 def _normalize_ip(value: Optional[str]) -> Optional[str]:
@@ -106,15 +171,6 @@ async def resolve_client_ip(request: Request, call_next):
     return await call_next(request)
 
 
-@app.middleware("http")
-async def enforce_request_size(request: Request, call_next):
-    if request.method in {"POST", "PATCH", "PUT"} and request.url.path.startswith("/api/"):
-        body = await request.body()
-        if len(body) > settings.max_request_bytes:
-            return JSONResponse(status_code=413, content={"detail": "Request body too large."})
-    return await call_next(request)
-
-
 @app.exception_handler(StarletteHTTPException)
 async def http_exception_handler(request: Request, exc: StarletteHTTPException):
     if exc.status_code >= 500:
@@ -135,6 +191,7 @@ app.include_router(chat.router, prefix="/api")
 app.include_router(persistence.router, prefix="/api")
 app.include_router(paper_access.router, prefix="/api")
 app.include_router(usage.router, prefix="/api")
+app.add_middleware(RequestSizeMiddleware)
 
 
 @app.get("/health")

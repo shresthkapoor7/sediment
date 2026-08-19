@@ -26,6 +26,7 @@ interface TimelineNodeProps {
   onEditMenuToggle?: (id: number) => void;
   onSetBorderColor?: (id: number, borderColor: NodeBorderColor | null) => void;
   onAddNote?: (id: number) => void;
+  onAddSpecialNote?: (id: number) => void;
   onDeleteNode?: (id: number) => void;
 }
 
@@ -48,6 +49,7 @@ export function TimelineNodeCard({
   onEditMenuToggle,
   onSetBorderColor,
   onAddNote,
+  onAddSpecialNote,
   onDeleteNode,
 }: TimelineNodeProps) {
   const [isHovered, setIsHovered] = useState(false);
@@ -324,6 +326,14 @@ export function TimelineNodeCard({
                 style={menuButtonStyle(isGraphActionDisabled)}
               >
                 Add note
+              </button>
+              <button
+                type="button"
+                disabled={isGraphActionDisabled}
+                onClick={() => onAddSpecialNote?.(node.id)}
+                style={menuButtonStyle(isGraphActionDisabled)}
+              >
+                Add special note
               </button>
               <button
                 type="button"

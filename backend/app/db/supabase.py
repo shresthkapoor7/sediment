@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timezone
+import json
 from typing import Any
 from urllib.parse import quote
 
@@ -14,7 +16,28 @@ class SupabaseConfigError(RuntimeError):
 
 
 class SupabaseAPIError(RuntimeError):
-    pass
+    def __init__(self, message: str, *, status_code: int | None = None, sqlstate: str | None = None):
+        super().__init__(message)
+        self.status_code = status_code
+        self.sqlstate = sqlstate
+
+
+_SUPABASE_REQUEST_TIMEOUT = aiohttp.ClientTimeout(total=60, connect=10)
+
+
+def _supabase_response_error(prefix: str, status_code: int, text: str) -> SupabaseAPIError:
+    sqlstate = None
+    try:
+        payload = json.loads(text)
+    except (TypeError, ValueError):
+        payload = None
+    if isinstance(payload, dict) and isinstance(payload.get("code"), str):
+        sqlstate = payload["code"]
+    return SupabaseAPIError(
+        f"{prefix} ({status_code}): {text}",
+        status_code=status_code,
+        sqlstate=sqlstate,
+    )
 
 
 class SupabaseClient:
@@ -133,6 +156,108 @@ class SupabaseClient:
             expect_single=True,
             allow_empty=True,
         )
+
+    async def reserve_special_note_file(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return await self.rpc("reserve_special_note_file", payload, expect_single=True)
+
+    async def list_special_note_files(self, graph_id: str, user_id: str) -> list[dict[str, Any]]:
+        query = (
+            "/rest/v1/special_note_files"
+            "?select=id,graph_id,user_id,storage_path,original_filename,media_type,file_kind,size_bytes,created_at"
+            f"&graph_id=eq.{quote(graph_id, safe='')}"
+            f"&user_id=eq.{quote(user_id, safe='')}"
+            "&order=created_at.asc"
+        )
+        return await self._request("GET", query)
+
+    async def get_special_note_file(
+        self,
+        graph_id: str,
+        user_id: str,
+        file_id: str,
+    ) -> dict[str, Any] | None:
+        query = (
+            "/rest/v1/special_note_files"
+            "?select=id,graph_id,user_id,storage_path,original_filename,media_type,file_kind,size_bytes,created_at"
+            f"&id=eq.{quote(file_id, safe='')}"
+            f"&graph_id=eq.{quote(graph_id, safe='')}"
+            f"&user_id=eq.{quote(user_id, safe='')}"
+            "&limit=1"
+        )
+        return await self._request("GET", query, expect_single=True, allow_empty=True)
+
+    async def get_special_note_storage_usage(self, user_id: str) -> int:
+        value = await self.rpc("get_special_note_storage_usage", {"p_user_id": user_id})
+        return int(value or 0)
+
+    async def delete_special_note_file(
+        self,
+        graph_id: str,
+        user_id: str,
+        file_id: str,
+    ) -> dict[str, Any] | None:
+        existing = await self.get_special_note_file(graph_id, user_id, file_id)
+        if not existing:
+            return None
+        query = (
+            "/rest/v1/special_note_files"
+            f"?id=eq.{quote(file_id, safe='')}"
+            f"&graph_id=eq.{quote(graph_id, safe='')}"
+            f"&user_id=eq.{quote(user_id, safe='')}"
+        )
+        deleted = await self._request(
+            "DELETE",
+            query,
+            headers={"Prefer": "return=representation"},
+            expect_single=True,
+            allow_empty=True,
+        )
+        return deleted or existing
+
+    async def delete_special_note_files_for_graph(self, graph_id: str, user_id: str) -> list[dict[str, Any]]:
+        files = await self.list_special_note_files(graph_id, user_id)
+        if not files:
+            return []
+        query = (
+            "/rest/v1/special_note_files"
+            f"?graph_id=eq.{quote(graph_id, safe='')}"
+            f"&user_id=eq.{quote(user_id, safe='')}"
+        )
+        await self._request("DELETE", query, headers={"Prefer": "return=minimal"}, allow_empty=True)
+        return files
+
+    async def upload_storage_object(
+        self,
+        bucket: str,
+        object_path: str,
+        content: bytes,
+        media_type: str,
+    ) -> None:
+        await self._storage_request(
+            "POST",
+            f"/storage/v1/object/{quote(bucket, safe='')}/{quote(object_path, safe='/')}",
+            data=content,
+            headers={"Content-Type": media_type, "x-upsert": "false"},
+            allow_empty=True,
+        )
+
+    async def delete_storage_object(self, bucket: str, object_path: str) -> None:
+        await self._storage_request(
+            "DELETE",
+            f"/storage/v1/object/{quote(bucket, safe='')}/{quote(object_path, safe='/')}",
+            allow_empty=True,
+        )
+
+    async def create_storage_signed_url(self, bucket: str, object_path: str, expires_in: int = 3600) -> str:
+        payload = await self._storage_request(
+            "POST",
+            f"/storage/v1/object/sign/{quote(bucket, safe='')}/{quote(object_path, safe='/')}",
+            json={"expiresIn": expires_in},
+        )
+        signed_path = payload.get("signedURL") if isinstance(payload, dict) else None
+        if not isinstance(signed_path, str) or not signed_path.startswith("/"):
+            raise SupabaseAPIError("Supabase did not return a usable signed URL.")
+        return f"{self.base_url}/storage/v1{signed_path}"
 
     async def list_changelogs(self, limit: int = 10, offset: int = 0) -> list[dict[str, Any]]:
         safe_limit = min(max(limit, 1), 101)
@@ -438,16 +563,22 @@ class SupabaseClient:
         allow_empty: bool = False,
     ) -> Any:
         request_headers = {**self.headers, **(headers or {})}
-        async with aiohttp.ClientSession(headers=request_headers) as session:
+        async with aiohttp.ClientSession(headers=request_headers, timeout=_SUPABASE_REQUEST_TIMEOUT) as session:
             async with session.request(method, f"{self.base_url}{path}", json=json) as response:
                 text = await response.text()
                 if response.status >= 400:
-                    raise SupabaseAPIError(f"Supabase request failed ({response.status}): {text}")
+                    raise _supabase_response_error("Supabase request failed", response.status, text)
 
                 if not text:
                     return None if allow_empty else {}
 
-                data = await response.json()
+                try:
+                    data = await response.json()
+                except ValueError as exc:
+                    raise SupabaseAPIError(
+                        "Supabase response contained invalid JSON.",
+                        status_code=response.status,
+                    ) from exc
                 if expect_single:
                     if isinstance(data, list):
                         if not data:
@@ -456,3 +587,39 @@ class SupabaseClient:
                     return data
 
                 return data
+
+    async def _storage_request(
+        self,
+        method: str,
+        path: str,
+        *,
+        json: Any = None,
+        data: bytes | None = None,
+        headers: dict[str, str] | None = None,
+        allow_empty: bool = False,
+    ) -> Any:
+        request_headers = {**self.headers, **(headers or {})}
+        try:
+            async with aiohttp.ClientSession(headers=request_headers, timeout=_SUPABASE_REQUEST_TIMEOUT) as session:
+                async with session.request(
+                    method,
+                    f"{self.base_url}{path}",
+                    json=json,
+                    data=data,
+                ) as response:
+                    text = await response.text()
+                    if response.status >= 400:
+                        raise _supabase_response_error("Supabase storage request failed", response.status, text)
+                    if not text:
+                        return None if allow_empty else {}
+                    try:
+                        return await response.json()
+                    except aiohttp.ContentTypeError:
+                        return {"content": text}
+                    except ValueError as exc:
+                        raise SupabaseAPIError(
+                            "Supabase storage response contained invalid JSON.",
+                            status_code=response.status,
+                        ) from exc
+        except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
+            raise SupabaseAPIError("Supabase storage request failed.") from exc
