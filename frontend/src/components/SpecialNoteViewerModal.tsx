@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, m } from "framer-motion";
 import { SpecialNoteFile } from "@/lib/types";
+import { SpreadsheetPreview } from "./SpreadsheetPreview";
 
 interface SpecialNoteViewerModalProps {
   file: SpecialNoteFile | null;
@@ -218,7 +219,7 @@ export function SpecialNoteViewerModal({ file, url, onClose }: SpecialNoteViewer
               style={{
                 minHeight: 0,
                 flex: 1,
-                display: "grid",
+                display: file.fileType === "spreadsheet" ? "flex" : "grid",
                 placeItems: "center",
                 overflow: "auto",
                 background: "var(--bg-tertiary)",
@@ -240,24 +241,7 @@ export function SpecialNoteViewerModal({ file, url, onClose }: SpecialNoteViewer
                   style={{ display: "block", width: "100%", height: "100%", border: "none", background: "var(--bg-primary)" }}
                 />
               ) : (
-                <div
-                  style={{
-                    width: "min(26rem, calc(100% - 2rem))",
-                    padding: "2rem",
-                    border: "0.0625rem solid var(--border)",
-                    borderRadius: "0.5rem",
-                    background: "var(--bg-primary)",
-                    textAlign: "center",
-                  }}
-                >
-                  <SpreadsheetGlyph />
-                  <p style={{ margin: "1rem 0 0", color: "var(--text-primary)", fontSize: "0.875rem", fontWeight: 650 }}>
-                    {file.filename}
-                  </p>
-                  <p style={{ margin: "0.5rem 0 0", color: "var(--text-secondary)", fontSize: "0.75rem", lineHeight: 1.5 }}>
-                    Download this spreadsheet to view and edit its cells.
-                  </p>
-                </div>
+                <SpreadsheetPreview filename={file.filename} url={url} />
               )}
             </div>
           </m.section>
@@ -265,15 +249,5 @@ export function SpecialNoteViewerModal({ file, url, onClose }: SpecialNoteViewer
       )}
     </AnimatePresence>,
     document.body,
-  );
-}
-
-function SpreadsheetGlyph() {
-  return (
-    <svg width="58" height="52" viewBox="0 0 58 52" fill="none" aria-hidden="true">
-      <rect x="2" y="2" width="54" height="48" rx="4" fill="var(--bg-tertiary)" stroke="var(--cat-green)" strokeWidth="1.5" />
-      <path d="M2 15h54M17 15v35M35 15v35M2 32h54" stroke="var(--cat-green)" strokeWidth="1.35" />
-      <path d="M8 8h7" stroke="var(--cat-green)" strokeWidth="1.5" strokeLinecap="round" />
-    </svg>
   );
 }
