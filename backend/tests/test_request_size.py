@@ -97,7 +97,7 @@ class RequestSizeMiddlewareTests(unittest.IsolatedAsyncioTestCase):
                             ],
                         )
 
-        self.assertNotEqual(messages[0]["status"], 413)
+        self.assertEqual(messages[0]["status"], 404)
         db.get_graph.assert_awaited_once()
 
 

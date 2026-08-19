@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import io
 import unittest
 import uuid
@@ -146,7 +147,7 @@ class SpecialNotePersistenceRouterTests(unittest.IsolatedAsyncioTestCase):
         db = AsyncMock()
         db.get_graph.return_value = {"id": GRAPH_ID}
         db.reserve_special_note_file.return_value = special_note_row(size_bytes=len(content))
-        db.upload_storage_object.side_effect = SupabaseAPIError("storage unavailable")
+        db.upload_storage_object.side_effect = asyncio.TimeoutError()
         upload = UploadFile(filename="research.pdf", file=io.BytesIO(content))
 
         with patch("app.routers.persistence.get_db", return_value=db):
@@ -156,6 +157,7 @@ class SpecialNotePersistenceRouterTests(unittest.IsolatedAsyncioTestCase):
                         await upload_special_note_file(GRAPH_ID, USER_ID, upload)
 
         self.assertEqual(raised.exception.status_code, 502)
+        db.delete_storage_object.assert_awaited_once_with(SPECIAL_NOTE_BUCKET, f"{USER_ID}/{FILE_ID}.pdf")
         db.delete_special_note_file.assert_awaited_once_with(GRAPH_ID, USER_ID, FILE_ID)
 
     async def test_upload_returns_a_clear_quota_error_without_attempting_storage_write(self) -> None:

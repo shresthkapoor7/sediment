@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timezone
 import json
 from typing import Any
@@ -598,24 +599,27 @@ class SupabaseClient:
         allow_empty: bool = False,
     ) -> Any:
         request_headers = {**self.headers, **(headers or {})}
-        async with aiohttp.ClientSession(headers=request_headers, timeout=_SUPABASE_REQUEST_TIMEOUT) as session:
-            async with session.request(
-                method,
-                f"{self.base_url}{path}",
-                json=json,
-                data=data,
-            ) as response:
-                text = await response.text()
-                if response.status >= 400:
-                    raise _supabase_response_error("Supabase storage request failed", response.status, text)
-                if not text:
-                    return None if allow_empty else {}
-                try:
-                    return await response.json()
-                except aiohttp.ContentTypeError:
-                    return {"content": text}
-                except ValueError as exc:
-                    raise SupabaseAPIError(
-                        "Supabase storage response contained invalid JSON.",
-                        status_code=response.status,
-                    ) from exc
+        try:
+            async with aiohttp.ClientSession(headers=request_headers, timeout=_SUPABASE_REQUEST_TIMEOUT) as session:
+                async with session.request(
+                    method,
+                    f"{self.base_url}{path}",
+                    json=json,
+                    data=data,
+                ) as response:
+                    text = await response.text()
+                    if response.status >= 400:
+                        raise _supabase_response_error("Supabase storage request failed", response.status, text)
+                    if not text:
+                        return None if allow_empty else {}
+                    try:
+                        return await response.json()
+                    except aiohttp.ContentTypeError:
+                        return {"content": text}
+                    except ValueError as exc:
+                        raise SupabaseAPIError(
+                            "Supabase storage response contained invalid JSON.",
+                            status_code=response.status,
+                        ) from exc
+        except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
+            raise SupabaseAPIError("Supabase storage request failed.") from exc

@@ -331,11 +331,15 @@ async def upload_special_note_file(
 
     try:
         await db.upload_storage_object(SPECIAL_NOTE_BUCKET, storage_path, content, media_type)
-    except SupabaseAPIError as e:
+    except Exception as e:
         logger.warning("Special note upload failed for file_id=%r", file_id, exc_info=e)
         try:
+            await db.delete_storage_object(SPECIAL_NOTE_BUCKET, storage_path)
+        except Exception:
+            logger.exception("Could not remove failed special note storage object for file_id=%r", file_id)
+        try:
             await db.delete_special_note_file(graph_id, user_id, file_id)
-        except SupabaseAPIError:
+        except Exception:
             logger.exception("Could not release failed special note reservation for file_id=%r", file_id)
         raise HTTPException(status_code=502, detail="Failed to upload special note file.") from e
 
