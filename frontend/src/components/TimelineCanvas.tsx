@@ -1108,13 +1108,17 @@ export function TimelineCanvas({
     setSpecialNoteUploadState("uploading");
     setSpecialNoteError(null);
     const createdNotes: TimelineNote[] = [];
+    const existingSpecialNotes = (data.noteEdges ?? []).filter((edge) => {
+      const note = data.notes?.[edge.noteId];
+      return edge.nodeId === specialNoteTargetNodeId && Boolean(note && isSpecialNote(note));
+    }).length;
     let uploadError: string | null = null;
 
     for (const file of files) {
       try {
         const uploaded = await uploadSpecialNoteFile(graphId, userId, file);
         const now = new Date().toISOString();
-        const positionOffset = createdNotes.length * SPECIAL_NOTE_STACK_OFFSET;
+        const positionOffset = (existingSpecialNotes + createdNotes.length) * SPECIAL_NOTE_STACK_OFFSET;
         createdNotes.push({
           id: `special-note-${uploaded.id}`,
           text: "",
@@ -1160,7 +1164,7 @@ export function TimelineCanvas({
     } else {
       setSpecialNoteTargetNodeId(null);
     }
-  }, [data.nodes, graphId, onGraphAction, specialNoteTargetNodeId, userId]);
+  }, [data.nodes, data.noteEdges, data.notes, graphId, onGraphAction, specialNoteTargetNodeId, userId]);
 
   const handleMoveNote = useCallback(
     (noteId: string, x: number, y: number) => {

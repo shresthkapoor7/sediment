@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import type JSZip from "jszip";
 
 const MAX_PREVIEW_ROWS = 100;
 const MAX_PREVIEW_COLUMNS = 30;
@@ -14,6 +15,19 @@ interface SpreadsheetPreviewProps {
 interface SpreadsheetData {
   rows: string[][];
   isTruncated: boolean;
+}
+
+interface ZipEntryStream {
+  on(event: "data", callback: (chunk: Uint8Array) => void): ZipEntryStream;
+  on(event: "end", callback: () => void): ZipEntryStream;
+  on(event: "error", callback: (error: Error) => void): ZipEntryStream;
+  pause(): ZipEntryStream;
+  resume(): ZipEntryStream;
+}
+
+interface ZipEntryInternals {
+  _data?: { uncompressedSize?: unknown };
+  internalStream?: (type: "uint8array") => ZipEntryStream;
 }
 
 type PreviewState =
@@ -169,6 +183,7 @@ async function loadSpreadsheetPreview(filename: string, url: string): Promise<Sp
 async function parseXlsx(buffer: ArrayBuffer): Promise<SpreadsheetData> {
   const { default: JSZip } = await import("jszip");
   const zip = await JSZip.loadAsync(buffer);
+  await assertZipXmlEntriesWithinLimit(zip);
   const sheetPath = Object.keys(zip.files)
     .filter((path) => /^xl\/worksheets\/sheet\d+\.xml$/i.test(path))
     .sort()[0];
@@ -176,12 +191,12 @@ async function parseXlsx(buffer: ArrayBuffer): Promise<SpreadsheetData> {
 
   const sharedStringsFile = zip.file("xl/sharedStrings.xml");
   const sharedStrings = sharedStringsFile
-    ? Array.from(parseXml(await sharedStringsFile.async("text")).getElementsByTagName("si"))
+    ? Array.from(parseXml(await readZipXml(sharedStringsFile)).getElementsByTagName("si"))
       .map((entry) => entry.textContent ?? "")
     : [];
   const sheetFile = zip.file(sheetPath);
   if (!sheetFile) throw new Error("This workbook does not contain a previewable worksheet.");
-  const sheet = parseXml(await sheetFile.async("text"));
+  const sheet = parseXml(await readZipXml(sheetFile));
 
   const rows = Array.from(sheet.getElementsByTagName("row")).map((row) => {
     const cells: string[] = [];
@@ -200,9 +215,10 @@ async function parseXlsx(buffer: ArrayBuffer): Promise<SpreadsheetData> {
 async function parseOds(buffer: ArrayBuffer): Promise<SpreadsheetData> {
   const { default: JSZip } = await import("jszip");
   const zip = await JSZip.loadAsync(buffer);
+  await assertZipXmlEntriesWithinLimit(zip);
   const content = zip.file("content.xml");
   if (!content) throw new Error("This spreadsheet does not contain previewable cell data.");
-  const document = parseXml(await content.async("text"));
+  const document = parseXml(await readZipXml(content));
   const table = document.getElementsByTagName("table:table")[0];
   if (!table) throw new Error("This spreadsheet does not contain previewable cell data.");
 
@@ -211,12 +227,77 @@ async function parseOds(buffer: ArrayBuffer): Promise<SpreadsheetData> {
     Array.from(row.children).forEach((cell) => {
       if (!cell.tagName.endsWith("table-cell") && !cell.tagName.endsWith("covered-table-cell")) return;
       const repeats = Math.min(Number(cell.getAttribute("table:number-columns-repeated")) || 1, MAX_PREVIEW_COLUMNS);
-      const value = cell.textContent ?? cell.getAttribute("office:value") ?? "";
+      const value = cell.textContent || cell.getAttribute("office:value") || "";
       for (let repeat = 0; repeat < repeats && cells.length < MAX_PREVIEW_COLUMNS; repeat += 1) cells.push(value);
     });
     return cells;
   });
   return limitRows(rows);
+}
+
+async function assertZipXmlEntriesWithinLimit(zip: JSZip): Promise<void> {
+  for (const [path, entry] of Object.entries(zip.files)) {
+    if (entry.dir || !path.toLowerCase().endsWith(".xml")) continue;
+    const size = getZipEntryUncompressedSize(entry);
+    if (size !== null) {
+      if (size > MAX_PREVIEW_BYTES) throwPreviewTooLargeError();
+      continue;
+    }
+    await readBoundedZipText(entry);
+  }
+}
+
+async function readZipXml(entry: JSZip.JSZipObject): Promise<string> {
+  const size = getZipEntryUncompressedSize(entry);
+  if (size === null) return readBoundedZipText(entry);
+  if (size > MAX_PREVIEW_BYTES) throwPreviewTooLargeError();
+  return entry.async("text");
+}
+
+function getZipEntryUncompressedSize(entry: JSZip.JSZipObject): number | null {
+  const size = (entry as unknown as ZipEntryInternals)._data?.uncompressedSize;
+  return typeof size === "number" && Number.isSafeInteger(size) && size >= 0 ? size : null;
+}
+
+function readBoundedZipText(entry: JSZip.JSZipObject): Promise<string> {
+  const stream = (entry as unknown as ZipEntryInternals).internalStream?.("uint8array");
+  if (!stream) throw new Error("This spreadsheet cannot be safely previewed.");
+
+  return new Promise((resolve, reject) => {
+    const decoder = new TextDecoder();
+    const chunks: string[] = [];
+    let byteLength = 0;
+    let settled = false;
+
+    const rejectOnce = (error: Error) => {
+      if (settled) return;
+      settled = true;
+      stream.pause();
+      reject(error);
+    };
+
+    stream
+      .on("data", (chunk) => {
+        byteLength += chunk.byteLength;
+        if (byteLength > MAX_PREVIEW_BYTES) {
+          rejectOnce(new Error("This spreadsheet is too large to preview here. Download it to view the complete file."));
+          return;
+        }
+        chunks.push(decoder.decode(chunk, { stream: true }));
+      })
+      .on("error", (error) => rejectOnce(error))
+      .on("end", () => {
+        if (settled) return;
+        settled = true;
+        chunks.push(decoder.decode());
+        resolve(chunks.join(""));
+      })
+      .resume();
+  });
+}
+
+function throwPreviewTooLargeError(): never {
+  throw new Error("This spreadsheet is too large to preview here. Download it to view the complete file.");
 }
 
 function parseXml(source: string): Document {
