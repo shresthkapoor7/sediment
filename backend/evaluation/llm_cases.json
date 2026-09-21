@@ -1,0 +1,124 @@
+[
+  {
+    "id": "01_preserve_paper_title",
+    "description": "An exact paper title must survive query refinement.",
+    "method": "clarify_query",
+    "inputs": {"query": "Attention Is All You Need"},
+    "criteria": [
+      "needs_clarification is false.",
+      "refined_query preserves Attention Is All You Need as a paper title without adding adjacent topics or replacing it with broad keywords."
+    ]
+  },
+  {
+    "id": "02_disambiguate_attention",
+    "description": "An ambiguous concept should offer distinct research interpretations.",
+    "method": "clarify_query",
+    "inputs": {"query": "attention"},
+    "criteria": [
+      "needs_clarification is true and a concise clarifying question is present.",
+      "There are 2 to 4 specific options including both cognitive or psychological attention and machine-learning or transformer attention."
+    ]
+  },
+  {
+    "id": "03_seed_title_over_popularity",
+    "description": "Exact title relevance outweighs citation popularity.",
+    "method": "choose_seed",
+    "inputs": {
+      "query": "Attention Is All You Need",
+      "papers": [
+        {"title": "Deep Learning", "year": 2015, "citedByCount": 999999, "referencedWorksCount": 100},
+        {"title": "Attention Is All You Need", "year": 2017, "citedByCount": 1000, "referencedWorksCount": 40},
+        {"title": "Visual Attention in Cognitive Psychology", "year": 1990, "citedByCount": 20000, "referencedWorksCount": 60}
+      ]
+    },
+    "criteria": [
+      "index is 1 and confidence is high.",
+      "The reason identifies the matching paper title or transformer topic rather than claiming the selected paper has the highest citation count."
+    ]
+  },
+  {
+    "id": "04_reject_off_topic_seeds",
+    "description": "Unrelated candidates must not become a lineage seed.",
+    "method": "choose_seed",
+    "inputs": {
+      "query": "transformer self-attention in neural machine translation",
+      "papers": [
+        {"title": "Electrical Transformer Cooling Systems", "year": 2010, "referencedWorksCount": 60},
+        {"title": "Attention and Visual Neglect in Stroke Patients", "year": 2001, "referencedWorksCount": 40}
+      ]
+    },
+    "criteria": [
+      "index is null and confidence is low.",
+      "The reason recognizes that neither electrical transformers nor clinical attention addresses neural machine translation."
+    ]
+  },
+  {
+    "id": "05_foundational_reference_ranking",
+    "description": "Select relevant ancestors with explanatory summaries in time order.",
+    "method": "rank_references",
+    "inputs": {
+      "concept": "neural machine translation with attention",
+      "seed_paper": {"title": "Attention Is All You Need", "year": 2017},
+      "top_n": 2,
+      "papers": [
+        {"openalexId": "fixture:bahdanau", "title": "Neural Machine Translation by Jointly Learning to Align and Translate", "year": 2015, "abstract": "Introduces an attention mechanism that learns soft alignment for encoder-decoder translation."},
+        {"openalexId": "fixture:unrelated", "title": "High Yield Wheat Cultivation", "year": 2013, "abstract": "A study of agricultural irrigation.", "citedByCount": 999999},
+        {"openalexId": "fixture:seq2seq", "title": "Sequence to Sequence Learning with Neural Networks", "year": 2014, "abstract": "Uses multilayer LSTMs to map input sequences to output sequences in machine translation."}
+      ]
+    },
+    "criteria": [
+      "Exactly two papers are returned, fixture:seq2seq followed by fixture:bahdanau, oldest to newest, excluding the wheat paper.",
+      "Summaries distinguish encoder-decoder sequence modeling from learned soft alignment or attention, explaining their relevance without crediting either with introducing the Transformer."
+    ]
+  },
+  {
+    "id": "06_missing_paper_evidence",
+    "description": "Paper chat should admit absent experimental details.",
+    "method": "chat_about_paper",
+    "inputs": {
+      "paper": {"title": "Synthetic Sparse Routing Study", "year": 2025, "summary": "A fictional evaluation fixture describing sparse routing. No experimental results, datasets, or hardware details are provided."},
+      "question": "What exact GPU model, dataset size, and accuracy did this study report? Use only the supplied information."
+    },
+    "criteria": [
+      "The answer explicitly says the supplied information does not establish the requested GPU model, dataset size, or accuracy.",
+      "It does not invent any experimental value or pretend to have accessed the full text.",
+      "It answers directly without proposing timeline expansion."
+    ]
+  },
+  {
+    "id": "07_timeline_mentioned_paper_focus",
+    "description": "Timeline chat should explain the mentioned paper relative to predecessors.",
+    "method": "chat_about_timeline",
+    "inputs": {
+      "papers": [
+        {"openalexId": "fixture:seq2seq", "title": "Sequence to Sequence Learning with Neural Networks", "year": 2014, "summary": "An LSTM encoder-decoder translates sequences using a fixed-size representation."},
+        {"openalexId": "fixture:attention", "title": "Neural Machine Translation by Jointly Learning to Align and Translate", "year": 2015, "summary": "Soft attention lets the decoder use relevant encoder states at each output step."}
+      ],
+      "mentioned_paper_ids": ["fixture:attention"],
+      "question": "How does @Neural Machine Translation by Jointly Learning to Align and Translate address the earlier model's bottleneck?"
+    },
+    "criteria": [
+      "The answer explains that soft attention uses relevant encoder states per decoding step instead of relying only on one fixed-size representation.",
+      "The answer focuses on the mentioned attention paper, does not confuse it with the 2017 Transformer, and does not suggest adding or expanding papers.",
+      "highlightedPaperIds includes fixture:attention and contains only IDs from the supplied timeline."
+    ]
+  },
+  {
+    "id": "08_memory_preserves_correction",
+    "description": "Memory summarization must retain corrections and unresolved questions.",
+    "method": "summarize_conversation",
+    "inputs": {
+      "existing_summary": "The user is comparing LSTMs and Transformers and initially planned to focus on translation.",
+      "messages": [
+        {"role": "user", "content": "Correction: focus on speech recognition, not translation. Keep the explanation beginner-friendly."},
+        {"role": "assistant", "content": "We will compare them for speech recognition. We have not verified the training costs."},
+        {"role": "user", "content": "Leave the training-cost comparison as an open question; don't assume Transformers are cheaper."}
+      ]
+    },
+    "criteria": [
+      "The summary preserves the LSTM versus Transformer comparison, updates the current focus to speech recognition, and retains the beginner-friendly preference.",
+      "Training costs remain unresolved and the summary does not assert that Transformers are cheaper.",
+      "No new experimental facts or decisions are added beyond the supplied memory and transcript."
+    ]
+  }
+]
