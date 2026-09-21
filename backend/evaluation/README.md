@@ -1,5 +1,11 @@
 # Lineage and canvas-note evaluations
 
+The main suite is now the [30-case API evaluation](e2e/README.md), covering AI
+and mathematics with explicit paper recall, context recall, stage-input
+faithfulness, and scientific correctness. Run it for the combined evaluation.
+The eight tests documented below remain available as the historical custom-judge
+suite; they are not additionally run by the 30-case command.
+
 Eight opt-in cases judge whether Sediment produces scientifically correct,
 useful lineage graphs and notes for a topic. They use the existing `unittest`
 framework and `aiohttp`, with real Claude calls and OpenAI `gpt-6-astra` as judge.

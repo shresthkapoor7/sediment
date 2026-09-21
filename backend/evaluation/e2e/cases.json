@@ -1,0 +1,185 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "id": "transformer_standard",
+      "topic": "transformer",
+      "workflow": "standard",
+      "query": "Transformer architecture for neural machine translation"
+    },
+    {
+      "id": "transformer_deep",
+      "topic": "transformer",
+      "workflow": "deep",
+      "query": "Transformer architecture for neural machine translation"
+    },
+    {
+      "id": "transformer_clarify",
+      "topic": "transformer",
+      "workflow": "clarify",
+      "query": "Transformer architecture for neural machine translation"
+    },
+    {
+      "id": "transformer_selected_seed",
+      "topic": "transformer",
+      "workflow": "selected_seed",
+      "query": "Transformer architecture for neural machine translation"
+    },
+    {
+      "id": "transformer_expand",
+      "topic": "transformer",
+      "workflow": "expand",
+      "query": "Transformer architecture for neural machine translation"
+    },
+    {
+      "id": "rag_standard",
+      "topic": "rag",
+      "workflow": "standard",
+      "query": "Retrieval-augmented generation using dense retrieval and a sequence generator"
+    },
+    {
+      "id": "rag_deep",
+      "topic": "rag",
+      "workflow": "deep",
+      "query": "Retrieval-augmented generation using dense retrieval and a sequence generator"
+    },
+    {
+      "id": "rag_clarify",
+      "topic": "rag",
+      "workflow": "clarify",
+      "query": "Retrieval-augmented generation using dense retrieval and a sequence generator"
+    },
+    {
+      "id": "rag_selected_seed",
+      "topic": "rag",
+      "workflow": "selected_seed",
+      "query": "Retrieval-augmented generation using dense retrieval and a sequence generator"
+    },
+    {
+      "id": "rag_expand",
+      "topic": "rag",
+      "workflow": "expand",
+      "query": "Retrieval-augmented generation using dense retrieval and a sequence generator"
+    },
+    {
+      "id": "resnet_standard",
+      "topic": "resnet",
+      "workflow": "standard",
+      "query": "Deep residual learning and identity shortcuts for image recognition"
+    },
+    {
+      "id": "resnet_deep",
+      "topic": "resnet",
+      "workflow": "deep",
+      "query": "Deep residual learning and identity shortcuts for image recognition"
+    },
+    {
+      "id": "resnet_clarify",
+      "topic": "resnet",
+      "workflow": "clarify",
+      "query": "Deep residual learning and identity shortcuts for image recognition"
+    },
+    {
+      "id": "resnet_selected_seed",
+      "topic": "resnet",
+      "workflow": "selected_seed",
+      "query": "Deep residual learning and identity shortcuts for image recognition"
+    },
+    {
+      "id": "resnet_expand",
+      "topic": "resnet",
+      "workflow": "expand",
+      "query": "Deep residual learning and identity shortcuts for image recognition"
+    },
+    {
+      "id": "fista_standard",
+      "topic": "fista",
+      "workflow": "standard",
+      "query": "FISTA accelerated iterative shrinkage thresholding for linear inverse problems"
+    },
+    {
+      "id": "fista_deep",
+      "topic": "fista",
+      "workflow": "deep",
+      "query": "FISTA accelerated iterative shrinkage thresholding for linear inverse problems"
+    },
+    {
+      "id": "fista_clarify",
+      "topic": "fista",
+      "workflow": "clarify",
+      "query": "FISTA accelerated iterative shrinkage thresholding for linear inverse problems"
+    },
+    {
+      "id": "fista_selected_seed",
+      "topic": "fista",
+      "workflow": "selected_seed",
+      "query": "FISTA accelerated iterative shrinkage thresholding for linear inverse problems"
+    },
+    {
+      "id": "fista_expand",
+      "topic": "fista",
+      "workflow": "expand",
+      "query": "FISTA accelerated iterative shrinkage thresholding for linear inverse problems"
+    },
+    {
+      "id": "admm_standard",
+      "topic": "admm",
+      "workflow": "standard",
+      "query": "Distributed convex optimization with the alternating direction method of multipliers"
+    },
+    {
+      "id": "admm_deep",
+      "topic": "admm",
+      "workflow": "deep",
+      "query": "Distributed convex optimization with the alternating direction method of multipliers"
+    },
+    {
+      "id": "admm_clarify",
+      "topic": "admm",
+      "workflow": "clarify",
+      "query": "Distributed convex optimization with the alternating direction method of multipliers"
+    },
+    {
+      "id": "admm_selected_seed",
+      "topic": "admm",
+      "workflow": "selected_seed",
+      "query": "Distributed convex optimization with the alternating direction method of multipliers"
+    },
+    {
+      "id": "admm_expand",
+      "topic": "admm",
+      "workflow": "expand",
+      "query": "Distributed convex optimization with the alternating direction method of multipliers"
+    },
+    {
+      "id": "compressed_sensing_standard",
+      "topic": "compressed_sensing",
+      "workflow": "standard",
+      "query": "Exact sparse signal recovery from incomplete Fourier measurements using l1 minimization"
+    },
+    {
+      "id": "compressed_sensing_deep",
+      "topic": "compressed_sensing",
+      "workflow": "deep",
+      "query": "Exact sparse signal recovery from incomplete Fourier measurements using l1 minimization"
+    },
+    {
+      "id": "compressed_sensing_clarify",
+      "topic": "compressed_sensing",
+      "workflow": "clarify",
+      "query": "Exact sparse signal recovery from incomplete Fourier measurements using l1 minimization"
+    },
+    {
+      "id": "compressed_sensing_selected_seed",
+      "topic": "compressed_sensing",
+      "workflow": "selected_seed",
+      "query": "Exact sparse signal recovery from incomplete Fourier measurements using l1 minimization"
+    },
+    {
+      "id": "compressed_sensing_expand",
+      "topic": "compressed_sensing",
+      "workflow": "expand",
+      "query": "Exact sparse signal recovery from incomplete Fourier measurements using l1 minimization"
+    }
+  ]
+}

@@ -1,5 +1,11 @@
 # Mathematics lineage evaluation with Ragas
 
+For the main evaluation use the [30-case API suite](../e2e/README.md). It corrects
+the context split: faithfulness uses actual generation inputs, context recall uses
+live retrieved evidence, and scientific correctness uses an independent reference.
+The six tests below are preserved for historical comparison. Their old
+"faithfulness" score measures gold-reference support, not production-input faithfulness.
+
 This separate suite adds **six cases** without changing the existing eight
 Astra-rubric evals. Each mathematics topic runs the real `trace_lineage` pipeline
 in standard and deep modes, producing the final graph, summaries, and canvas notes:
