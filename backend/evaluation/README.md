@@ -1,75 +1,110 @@
-# LLM-as-judge evals
+# Lineage and canvas-note evaluations
 
-Eight fixed cases exercise the real `LLMClient` methods against Anthropic, then
-have OpenAI `gpt-6-astra` grade the results. This uses the backend's existing
-`unittest` framework and `aiohttp` dependency: no additional eval platform,
-SDK dependency, or hosted dataset is needed for this small suite. Production
-prompts and response parsing are reused rather than copied into the evaluator.
+Eight opt-in cases judge whether Sediment produces scientifically correct,
+useful lineage graphs and notes for a topic. They use the existing `unittest`
+framework and `aiohttp`, with real Claude calls and OpenAI `gpt-6-astra` as judge.
 
-The scope is service-level output quality. These cases do not cover HTTP routes,
-live retrieval, the agent tool loop, or database persistence. Paper IDs prefixed
-with `fixture:` are local labels, never fetched. Only usage persistence is mocked
-so the suite does not write to Supabase or consume application usage quotas.
-Provider charges still apply.
+| Cases | Production path | What is judged |
+|---|---|---|
+| 01–02 | Standard and deep `trace_lineage` | Transformer ancestry: seq2seq, soft alignment, supporting residual connections |
+| 03–04 | Standard and deep `trace_lineage` | RAG ancestry: DPR retrieval, BART generation, REALM as related work |
+| 05–06 | Standard and deep `trace_lineage` | ResNet ancestry: VGG, normalization, gated highway versus identity shortcuts |
+| 07 | `generate_trace_notes` | A multi-step seq2seq → Transformer → RAG explanation with all material papers connected |
+| 08 | `generate_trace_notes` | REALM/RAG conceptual comparison without claiming verified citation or derivation from an inferred edge |
 
-## Setup and execution
+The six trace cases run the actual orchestration, seed selection, reference
+ranking, graph construction, note generation, and (in deep mode) agent tool loop
+and proposal validation. Astra receives the **final graph, paper summaries, and
+canvas notes**. It judges topic relevance, required foundational coverage,
+scientific accuracy, relationship claims, note usefulness, and note grounding.
+All criteria must pass. A deep trace falling back to standard fails explicitly.
 
-Use the backend environment with `requirements.txt` installed. Put these in
-`backend/.env` (ignored by Git), or export them in your shell:
+## Reference evidence and scope
+
+`lineage_reference.json` contains curated paraphrases, primary-paper URLs,
+reference-list provenance, expected foundations, and a year convention.
+`llm_cases.json` defines the eight rubrics. Reference facts and expected selections
+are withheld from Claude and supplied separately to the judge. Source URLs are
+provenance: the judge does not browse, and must grade against the included facts.
+
+The OpenAlex adapter replays a small topic-specific catalog, including an unrelated
+distractor, and explicit reference lists. Every search returns that same pool;
+search queries are recorded but not matched against a live index. This isolates
+**lineage synthesis and note quality given bibliographic evidence**. It does not
+measure live OpenAlex retrieval recall, field-wide completeness, HTTP routes, or
+persistence. The catalogs are partial, not claims of exhaustive historical ancestry.
+Paper IDs prefixed with `fixture:` are local aliases, never real OpenAlex IDs.
+
+The note uncertainty case intentionally withholds verified citation evidence;
+a conceptual edge must not be promoted to a verified dependency by the note.
+Publication years use conference years where applicable; earlier preprints do
+not count as contradictions. Citation evidence alone is not proof of invention
+or direct methodological dependence.
+
+## Run
+
+Use the backend environment with `requirements.txt` installed. In `backend/.env`
+(ignored by Git), or in your shell, configure:
 
 ```dotenv
 ANTHROPIC_API_KEY=your-anthropic-key
 OPENAI_API_KEY=your-openai-key
-# Optional: uses the application's default Claude model when omitted.
+# Optional: otherwise uses the application's default Claude model.
 LLM_MODEL=claude-haiku-4-5-20251001
 ```
 
-Both keys are needed: Claude is the system under test; Astra is the judge.
-The OpenAI project must have access to `gpt-6-astra`. The judge model is fixed in
-`test_llm_judge.py`; there is no fallback to another model. No running backend,
-OpenAlex key, or Supabase credentials are required.
+Both keys are required. The OpenAI project needs access to `gpt-6-astra`; no model
+fallback is used. No server, OpenAlex key, or Supabase credentials are required.
+Usage persistence is mocked; provider charges still apply.
 
-From `backend/`, first discover all cases without making API calls:
-
-```bash
-python -m unittest discover -s evaluation -p 'test_llm_judge.py' -v
-```
-
-All eight should be skipped. To run one paid case:
+From `backend/`, discover all eight without API calls:
 
 ```bash
-RUN_LLM_EVALS=1 python -m unittest evaluation.test_llm_judge.LLMJudgeEvals.test_01_preserve_paper_title -v
+venv/bin/python -m unittest discover -s evaluation -p 'test_llm_judge.py' -v
 ```
 
-To run the suite, stopping at the first failure or API error:
+Run one paid case:
 
 ```bash
-RUN_LLM_EVALS=1 python -m unittest discover -s evaluation -p 'test_llm_judge.py' -v -f
+RUN_LLM_EVALS=1 venv/bin/python -m unittest evaluation.test_llm_judge.LLMJudgeEvals.test_01_transformer_standard -v
 ```
 
-The opt-in flag must be set in the process environment, not just `.env`.
-A complete run makes 8 target calls and 8 judge calls, sequentially, with no
-retries. Target calls allow up to 1,024 output tokens each and a 90-second client
-timeout; judge calls allow up to 4,096 output tokens each and a 120-second total
-timeout. These are per-call bounds, not a dollar budget.
+Run all eight and save the detailed outputs:
 
-## Reading results
+```bash
+RUN_LLM_EVALS=1 venv/bin/python -m unittest discover -s evaluation -p 'test_llm_judge.py' -v > /tmp/sediment-lineage-evals.jsonl
+```
 
-Each case supplies explicit criteria instead of matching exact answer wording.
-Astra returns a strict JSON verdict with a reason for each criterion. Every
-criterion must pass; missing/reordered criteria, incomplete output, refusals,
-invalid JSON, and API failures fail the test rather than count as a pass.
+Use `python` instead of `venv/bin/python` if your backend environment is already
+activated. Add `-f` to stop after the first failure. The opt-in flag must be in
+the process environment, not only `.env`.
 
-The runner prints one JSON report per judged case to stdout, including the
-candidate, criterion verdicts, model IDs, judge token usage, and response ID.
-`unittest` progress goes to stderr. To save reports, redirect stdout to a local
-file, for example `/tmp/sediment-evals.jsonl`. Reports contain fixture inputs'
-resulting answers, so review them before sharing. Judge requests use `store=false`.
+Unlike the earlier small service-method suite, full tracing requires multiple
+Claude calls per case. Limits are 4 target calls per standard trace, 10 per deep
+trace (including any fallback), and 1 per notes-only case: **at most 44 Claude
+calls and 8 Astra calls**. Normal deep traces can finish sooner. SDK retries are
+disabled. Target calls have a 90-second client timeout, and each complete trace
+has a 360-second timeout. Target output limits remain production defaults
+(1,024 tokens for JSON calls; 1,600 per deep-agent iteration). Each judge call
+has a 120-second total timeout and a 4,096-output-token limit. These are bounds,
+not a dollar budget.
 
-These are model judgments, not deterministic proof. Review the reasons before
-changing prompts or criteria; keep fixtures stable when comparing revisions.
-The suite has not been run against live APIs as part of its implementation.
-Only syntax, fixture/signature consistency, and skipped discovery were checked.
+## Interpret results
 
-API references: [Astra model](https://developers.openai.com/api/docs/models/gpt-6-astra)
+The JSONL stream contains `candidate` events with the output, tool lookups,
+model, target call count and usage, followed by `judgment` events with per-criterion
+verdicts, reasons, response ID, and judge usage. The two event types repeat target
+usage: count it once per case. A candidate event remains available if structural
+validation or the judge subsequently fails. Target-generation errors before a
+candidate exists are reported by `unittest` on stderr.
+
+Deterministic checks reject empty graphs, unknown paper IDs, invalid connections,
+missing notes, and mode fallback. Astra handles semantic correctness. Missing
+criteria, incomplete judge responses, refusals, malformed output, or API errors
+fail rather than count as passes. Inspect the criterion reasons before changing
+prompts or rubrics. A single model-judged run is a baseline, not a reliability
+estimate. The earlier suite's 7/8 result does **not** apply to this replacement.
+
+Primary references are linked alongside each fixture in `lineage_reference.json`.
+API references: [Astra](https://developers.openai.com/api/docs/models/gpt-6-astra)
 and [Structured Outputs](https://developers.openai.com/api/docs/guides/structured-outputs).

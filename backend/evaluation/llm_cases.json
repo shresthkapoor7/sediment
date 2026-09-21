@@ -1,124 +1,144 @@
 [
   {
-    "id": "01_preserve_paper_title",
-    "description": "An exact paper title must survive query refinement.",
-    "method": "clarify_query",
-    "inputs": {"query": "Attention Is All You Need"},
+    "id": "01_transformer_standard",
+    "kind": "trace",
+    "topic": "transformer",
+    "trace_mode": "standard",
+    "description": "Judge the complete standard transformer lineage, contribution summaries, and canvas notes.",
     "criteria": [
-      "needs_clarification is false.",
-      "refined_query preserves Attention Is All You Need as a paper title without adding adjacent topics or replacing it with broad keywords."
+      "Topic relevance and coverage: the seed is fixture:transformer; the graph includes fixture:seq2seq, fixture:alignment; excludes the unrelated distractor fixture:vgg. Do not demand exhaustive coverage beyond this bounded catalog.",
+      "Historical and scientific accuracy: generated paper summaries and notes agree with the reference facts, distinguish each method's contribution, and do not invent priority, experimental results, or guarantees. A generic standard-mode seed summary is acceptable only if notes explain the seed contribution.",
+      "Relationship accuracy: edges point from antecedent to later work, and explanatory text distinguishes cited evidence from conceptual inference. A verified citation alone is not proof of methodological dependence or exclusive invention; avoid overstating concurrent work as derivation.",
+      "Notes usefulness: 1 to 3 substantive canvas notes explain at least one concrete transition or dependency between the required foundational works and the seed, rather than merely listing titles or calling papers foundational.",
+      "Notes grounding: each note connects to all papers material to its explanation, without irrelevant connections, and supports its claims using the reference facts and supplied graph. No invented contributions or citations."
     ]
   },
   {
-    "id": "02_disambiguate_attention",
-    "description": "An ambiguous concept should offer distinct research interpretations.",
-    "method": "clarify_query",
-    "inputs": {"query": "attention"},
+    "id": "02_transformer_deep",
+    "kind": "trace",
+    "topic": "transformer",
+    "trace_mode": "deep",
+    "description": "Judge the complete deep transformer lineage, contribution summaries, and canvas notes.",
     "criteria": [
-      "needs_clarification is true and a concise clarifying question is present.",
-      "There are 2 to 4 specific options including both cognitive or psychological attention and machine-learning or transformer attention."
+      "Topic relevance and coverage: the seed is fixture:transformer; the graph includes fixture:seq2seq, fixture:alignment; excludes the unrelated distractor fixture:vgg. Do not demand exhaustive coverage beyond this bounded catalog.",
+      "Historical and scientific accuracy: generated paper summaries and notes agree with the reference facts, distinguish each method's contribution, and do not invent priority, experimental results, or guarantees. A generic standard-mode seed summary is acceptable only if notes explain the seed contribution.",
+      "Relationship accuracy: edges point from antecedent to later work, and explanatory text distinguishes cited evidence from conceptual inference. A verified citation alone is not proof of methodological dependence or exclusive invention; avoid overstating concurrent work as derivation.",
+      "Notes usefulness: 1 to 3 substantive canvas notes explain at least one concrete transition or dependency between the required foundational works and the seed, rather than merely listing titles or calling papers foundational.",
+      "Notes grounding: each note connects to all papers material to its explanation, without irrelevant connections, and supports its claims using the reference facts and supplied graph. No invented contributions or citations."
     ]
   },
   {
-    "id": "03_seed_title_over_popularity",
-    "description": "Exact title relevance outweighs citation popularity.",
-    "method": "choose_seed",
-    "inputs": {
-      "query": "Attention Is All You Need",
-      "papers": [
-        {"title": "Deep Learning", "year": 2015, "citedByCount": 999999, "referencedWorksCount": 100},
-        {"title": "Attention Is All You Need", "year": 2017, "citedByCount": 1000, "referencedWorksCount": 40},
-        {"title": "Visual Attention in Cognitive Psychology", "year": 1990, "citedByCount": 20000, "referencedWorksCount": 60}
-      ]
-    },
+    "id": "03_rag_standard",
+    "kind": "trace",
+    "topic": "rag",
+    "trace_mode": "standard",
+    "description": "Judge the complete standard rag lineage, contribution summaries, and canvas notes.",
     "criteria": [
-      "index is 1 and confidence is high.",
-      "The reason identifies the matching paper title or transformer topic rather than claiming the selected paper has the highest citation count."
+      "Topic relevance and coverage: the seed is fixture:rag; the graph includes fixture:dpr, fixture:bart; excludes the unrelated distractor fixture:vgg. Do not demand exhaustive coverage beyond this bounded catalog.",
+      "Historical and scientific accuracy: generated paper summaries and notes agree with the reference facts, distinguish each method's contribution, and do not invent priority, experimental results, or guarantees. A generic standard-mode seed summary is acceptable only if notes explain the seed contribution.",
+      "Relationship accuracy: edges point from antecedent to later work, and explanatory text distinguishes cited evidence from conceptual inference. A verified citation alone is not proof of methodological dependence or exclusive invention; avoid overstating concurrent work as derivation.",
+      "Notes usefulness: 1 to 3 substantive canvas notes explain at least one concrete transition or dependency between the required foundational works and the seed, rather than merely listing titles or calling papers foundational.",
+      "Notes grounding: each note connects to all papers material to its explanation, without irrelevant connections, and supports its claims using the reference facts and supplied graph. No invented contributions or citations."
     ]
   },
   {
-    "id": "04_reject_off_topic_seeds",
-    "description": "Unrelated candidates must not become a lineage seed.",
-    "method": "choose_seed",
-    "inputs": {
-      "query": "transformer self-attention in neural machine translation",
-      "papers": [
-        {"title": "Electrical Transformer Cooling Systems", "year": 2010, "referencedWorksCount": 60},
-        {"title": "Attention and Visual Neglect in Stroke Patients", "year": 2001, "referencedWorksCount": 40}
-      ]
-    },
+    "id": "04_rag_deep",
+    "kind": "trace",
+    "topic": "rag",
+    "trace_mode": "deep",
+    "description": "Judge the complete deep rag lineage, contribution summaries, and canvas notes.",
     "criteria": [
-      "index is null and confidence is low.",
-      "The reason recognizes that neither electrical transformers nor clinical attention addresses neural machine translation."
+      "Topic relevance and coverage: the seed is fixture:rag; the graph includes fixture:dpr, fixture:bart; excludes the unrelated distractor fixture:vgg. Do not demand exhaustive coverage beyond this bounded catalog.",
+      "Historical and scientific accuracy: generated paper summaries and notes agree with the reference facts, distinguish each method's contribution, and do not invent priority, experimental results, or guarantees. A generic standard-mode seed summary is acceptable only if notes explain the seed contribution.",
+      "Relationship accuracy: edges point from antecedent to later work, and explanatory text distinguishes cited evidence from conceptual inference. A verified citation alone is not proof of methodological dependence or exclusive invention; avoid overstating concurrent work as derivation.",
+      "Notes usefulness: 1 to 3 substantive canvas notes explain at least one concrete transition or dependency between the required foundational works and the seed, rather than merely listing titles or calling papers foundational.",
+      "Notes grounding: each note connects to all papers material to its explanation, without irrelevant connections, and supports its claims using the reference facts and supplied graph. No invented contributions or citations."
     ]
   },
   {
-    "id": "05_foundational_reference_ranking",
-    "description": "Select relevant ancestors with explanatory summaries in time order.",
-    "method": "rank_references",
-    "inputs": {
-      "concept": "neural machine translation with attention",
-      "seed_paper": {"title": "Attention Is All You Need", "year": 2017},
-      "top_n": 2,
-      "papers": [
-        {"openalexId": "fixture:bahdanau", "title": "Neural Machine Translation by Jointly Learning to Align and Translate", "year": 2015, "abstract": "Introduces an attention mechanism that learns soft alignment for encoder-decoder translation."},
-        {"openalexId": "fixture:unrelated", "title": "High Yield Wheat Cultivation", "year": 2013, "abstract": "A study of agricultural irrigation.", "citedByCount": 999999},
-        {"openalexId": "fixture:seq2seq", "title": "Sequence to Sequence Learning with Neural Networks", "year": 2014, "abstract": "Uses multilayer LSTMs to map input sequences to output sequences in machine translation."}
-      ]
-    },
+    "id": "05_resnet_standard",
+    "kind": "trace",
+    "topic": "resnet",
+    "trace_mode": "standard",
+    "description": "Judge the complete standard resnet lineage, contribution summaries, and canvas notes.",
     "criteria": [
-      "Exactly two papers are returned, fixture:seq2seq followed by fixture:bahdanau, oldest to newest, excluding the wheat paper.",
-      "Summaries distinguish encoder-decoder sequence modeling from learned soft alignment or attention, explaining their relevance without crediting either with introducing the Transformer."
+      "Topic relevance and coverage: the seed is fixture:resnet; the graph includes fixture:vgg, fixture:highway; excludes the unrelated distractor fixture:dpr. Do not demand exhaustive coverage beyond this bounded catalog.",
+      "Historical and scientific accuracy: generated paper summaries and notes agree with the reference facts, distinguish each method's contribution, and do not invent priority, experimental results, or guarantees. A generic standard-mode seed summary is acceptable only if notes explain the seed contribution.",
+      "Relationship accuracy: edges point from antecedent to later work, and explanatory text distinguishes cited evidence from conceptual inference. A verified citation alone is not proof of methodological dependence or exclusive invention; avoid overstating concurrent work as derivation.",
+      "Notes usefulness: 1 to 3 substantive canvas notes explain at least one concrete transition or dependency between the required foundational works and the seed, rather than merely listing titles or calling papers foundational.",
+      "Notes grounding: each note connects to all papers material to its explanation, without irrelevant connections, and supports its claims using the reference facts and supplied graph. No invented contributions or citations."
     ]
   },
   {
-    "id": "06_missing_paper_evidence",
-    "description": "Paper chat should admit absent experimental details.",
-    "method": "chat_about_paper",
-    "inputs": {
-      "paper": {"title": "Synthetic Sparse Routing Study", "year": 2025, "summary": "A fictional evaluation fixture describing sparse routing. No experimental results, datasets, or hardware details are provided."},
-      "question": "What exact GPU model, dataset size, and accuracy did this study report? Use only the supplied information."
-    },
+    "id": "06_resnet_deep",
+    "kind": "trace",
+    "topic": "resnet",
+    "trace_mode": "deep",
+    "description": "Judge the complete deep resnet lineage, contribution summaries, and canvas notes.",
     "criteria": [
-      "The answer explicitly says the supplied information does not establish the requested GPU model, dataset size, or accuracy.",
-      "It does not invent any experimental value or pretend to have accessed the full text.",
-      "It answers directly without proposing timeline expansion."
+      "Topic relevance and coverage: the seed is fixture:resnet; the graph includes fixture:vgg, fixture:highway; excludes the unrelated distractor fixture:dpr. Do not demand exhaustive coverage beyond this bounded catalog.",
+      "Historical and scientific accuracy: generated paper summaries and notes agree with the reference facts, distinguish each method's contribution, and do not invent priority, experimental results, or guarantees. A generic standard-mode seed summary is acceptable only if notes explain the seed contribution.",
+      "Relationship accuracy: edges point from antecedent to later work, and explanatory text distinguishes cited evidence from conceptual inference. A verified citation alone is not proof of methodological dependence or exclusive invention; avoid overstating concurrent work as derivation.",
+      "Notes usefulness: 1 to 3 substantive canvas notes explain at least one concrete transition or dependency between the required foundational works and the seed, rather than merely listing titles or calling papers foundational.",
+      "Notes grounding: each note connects to all papers material to its explanation, without irrelevant connections, and supports its claims using the reference facts and supplied graph. No invented contributions or citations."
     ]
   },
   {
-    "id": "07_timeline_mentioned_paper_focus",
-    "description": "Timeline chat should explain the mentioned paper relative to predecessors.",
-    "method": "chat_about_timeline",
-    "inputs": {
-      "papers": [
-        {"openalexId": "fixture:seq2seq", "title": "Sequence to Sequence Learning with Neural Networks", "year": 2014, "summary": "An LSTM encoder-decoder translates sequences using a fixed-size representation."},
-        {"openalexId": "fixture:attention", "title": "Neural Machine Translation by Jointly Learning to Align and Translate", "year": 2015, "summary": "Soft attention lets the decoder use relevant encoder states at each output step."}
+    "id": "07_notes_multistep",
+    "kind": "notes",
+    "description": "Judge a three-paper explanatory chain, including the transition to external retrieval.",
+    "concept": "From sequence-to-sequence translation to retrieval-augmented generation",
+    "paper_ids": [
+      "fixture:seq2seq",
+      "fixture:transformer",
+      "fixture:rag"
+    ],
+    "edges": [
+      [
+        "fixture:seq2seq",
+        "fixture:transformer",
+        "influenced"
       ],
-      "mentioned_paper_ids": ["fixture:attention"],
-      "question": "How does @Neural Machine Translation by Jointly Learning to Align and Translate address the earlier model's bottleneck?"
-    },
+      [
+        "fixture:transformer",
+        "fixture:rag",
+        "influenced"
+      ]
+    ],
+    "reference_facts": [
+      "The Transformer cites seq2seq (reference 35); RAG cites the Transformer (reference 58). These graph links represent citations, not exclusive ancestry.",
+      "The conceptual chain moves from recurrent encoder-decoder sequence mapping to attention-based transduction, then supplements sequence generation with external retrieved memory."
+    ],
     "criteria": [
-      "The answer explains that soft attention uses relevant encoder states per decoding step instead of relying only on one fixed-size representation.",
-      "The answer focuses on the mentioned attention paper, does not confuse it with the 2017 Transformer, and does not suggest adding or expanding papers.",
-      "highlightedPaperIds includes fixture:attention and contains only IDs from the supplied timeline."
+      "At least one note explains both transitions across seq2seq, Transformer, and RAG, and connects to all three papers.",
+      "The notes correctly distinguish recurrent sequence mapping, attention without recurrence, and generation conditioned on retrieved documents; they do not credit seq2seq with attention or the Transformer with inventing retrieval.",
+      "All 1 to 3 notes add concrete explanatory value and contain no unsupported causal, experimental, or priority claims; connections match each note's actual claims."
     ]
   },
   {
-    "id": "08_memory_preserves_correction",
-    "description": "Memory summarization must retain corrections and unresolved questions.",
-    "method": "summarize_conversation",
-    "inputs": {
-      "existing_summary": "The user is comparing LSTMs and Transformers and initially planned to focus on translation.",
-      "messages": [
-        {"role": "user", "content": "Correction: focus on speech recognition, not translation. Keep the explanation beginner-friendly."},
-        {"role": "assistant", "content": "We will compare them for speech recognition. We have not verified the training costs."},
-        {"role": "user", "content": "Leave the training-cost comparison as an open question; don't assume Transformers are cheaper."}
+    "id": "08_notes_inferred_relationship",
+    "kind": "notes",
+    "description": "Judge whether notes preserve uncertainty when only a conceptual relationship is supplied.",
+    "concept": "Retrieval-augmented pretraining versus retrieval-augmented generation",
+    "paper_ids": [
+      "fixture:realm",
+      "fixture:rag"
+    ],
+    "edges": [
+      [
+        "fixture:realm",
+        "fixture:rag",
+        "inferred"
       ]
-    },
+    ],
+    "reference_facts": [
+      "REALM learns retrieval in language-model pretraining; RAG combines dense retrieval with sequence generation.",
+      "For this case the graph deliberately supplies ONLY a conceptual relationship, with no verified reference evidence. Do not infer direct citation or derivation from the graph, even if the judge knows the papers externally."
+    ],
     "criteria": [
-      "The summary preserves the LSTM versus Transformer comparison, updates the current focus to speech recognition, and retains the beginner-friendly preference.",
-      "Training costs remain unresolved and the summary does not assert that Transformers are cheaper.",
-      "No new experimental facts or decisions are added beyond the supplied memory and transcript."
+      "At least one note explains the distinction between retrieval-augmented pretraining in REALM and sequence generation with retrieved evidence in RAG, connecting to both papers.",
+      "The notes treat the edge as conceptual or explicitly uncertain, never claiming the supplied graph proves direct citation, derivation, or that RAG uses REALM as its retriever.",
+      "All 1 to 3 notes stay within the provided evidence, with no invented comparative scores or assertions that retrieval eliminates hallucination."
     ]
   }
 ]

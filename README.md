@@ -113,5 +113,5 @@ openssl rand -hex 32
 ## LLM evaluations
 
 The backend includes eight opt-in API evals using OpenAI Astra to judge Claude's
-research-assistant outputs. See [setup, cases, and run commands](backend/evaluation/README.md).
+generated lineage graphs, paper summaries, and canvas notes against curated reference evidence. See [setup, cases, and run commands](backend/evaluation/README.md).
 Paid evals are skipped unless explicitly enabled with `RUN_LLM_EVALS=1`.
