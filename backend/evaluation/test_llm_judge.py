@@ -75,15 +75,21 @@ class LLMJudgeEvals(unittest.IsolatedAsyncioTestCase):
         usage_patch.start()
         self.addCleanup(usage_patch.stop)
         self.target_usage = []
+        self.target_errors = []
         self.target_calls = 0
         self.call_limit = 0
         original_create = self.service.client.messages.create
 
         async def bounded_create(**kwargs):
             if self.target_calls >= self.call_limit:
-                raise RuntimeError("Evaluation target-call budget exhausted")
+                self.target_errors.append("Evaluation target-call budget exhausted")
+                raise RuntimeError(self.target_errors[-1])
             self.target_calls += 1
-            response = await original_create(**kwargs)
+            try:
+                response = await original_create(**kwargs)
+            except Exception as exc:
+                self.target_errors.append(type(exc).__name__)
+                raise
             self.target_usage.append(response.usage.model_dump())
             return response
 
@@ -114,7 +120,9 @@ class LLMJudgeEvals(unittest.IsolatedAsyncioTestCase):
                           "candidate": candidate, "tool_calls": tool_calls,
                           "target_model": self.service.model,
                           "target_calls": self.target_calls,
-                          "target_usage": self.target_usage}, ensure_ascii=False), flush=True)
+                          "target_usage": self.target_usage,
+                          "target_errors": self.target_errors}, ensure_ascii=False), flush=True)
+        self.assertFalse(self.target_errors, "Target API/budget error hidden by production fallback")
         if case["kind"] == "trace":
             self.assertEqual(candidate.get("meta", {}).get("traceMode"), case["trace_mode"],
                              "Requested trace mode did not complete; fallback is not a pass")

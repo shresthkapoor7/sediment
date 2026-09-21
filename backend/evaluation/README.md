@@ -66,22 +66,22 @@ Usage persistence is mocked; provider charges still apply.
 From `backend/`, discover all eight without API calls:
 
 ```bash
-venv/bin/python -m unittest discover -s evaluation -p 'test_llm_judge.py' -v
+.venv/bin/python -m unittest discover -s evaluation -p 'test_llm_judge.py' -v
 ```
 
 Run one paid case:
 
 ```bash
-RUN_LLM_EVALS=1 venv/bin/python -m unittest evaluation.test_llm_judge.LLMJudgeEvals.test_01_transformer_standard -v
+RUN_LLM_EVALS=1 .venv/bin/python -m unittest evaluation.test_llm_judge.LLMJudgeEvals.test_01_transformer_standard -v
 ```
 
 Run all eight and save the detailed outputs:
 
 ```bash
-RUN_LLM_EVALS=1 venv/bin/python -m unittest discover -s evaluation -p 'test_llm_judge.py' -v > /tmp/sediment-lineage-evals.jsonl
+RUN_LLM_EVALS=1 .venv/bin/python -m unittest discover -s evaluation -p 'test_llm_judge.py' -v > /tmp/sediment-lineage-evals.jsonl
 ```
 
-Use `python` instead of `venv/bin/python` if your backend environment is already
+Use `python` instead of `.venv/bin/python` if your backend environment is already
 activated. Add `-f` to stop after the first failure. The opt-in flag must be in
 the process environment, not only `.env`.
 
@@ -98,10 +98,11 @@ not a dollar budget.
 ## Interpret results
 
 The JSONL stream contains `candidate` events with the output, tool lookups,
-model, target call count and usage, followed by `judgment` events with per-criterion
+model, target call count, usage and errors, followed by `judgment` events with per-criterion
 verdicts, reasons, response ID, and judge usage. The two event types repeat target
 usage: count it once per case. A candidate event remains available if structural
-validation or the judge subsequently fails. Target-generation errors before a
+validation or the judge subsequently fails. Target API/budget errors hidden by
+fallback fail after emitting the candidate and before calling the judge. Errors before a
 candidate exists are reported by `unittest` on stderr.
 
 Deterministic checks reject empty graphs, unknown paper IDs, invalid connections,
