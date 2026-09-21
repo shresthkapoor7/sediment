@@ -115,3 +115,7 @@ openssl rand -hex 32
 The backend includes eight opt-in API evals using OpenAI Astra to judge Claude's
 generated lineage graphs, paper summaries, and canvas notes against curated reference evidence. See [setup, cases, and run commands](backend/evaluation/README.md).
 Paid evals are skipped unless explicitly enabled with `RUN_LLM_EVALS=1`.
+
+A separate [Ragas mathematics suite](backend/evaluation/ragas_math/README.md)
+adds six standard/deep lineage cases for FISTA, ADMM, and compressed sensing.
+It uses its own environment and `RUN_RAGAS_EVALS=1` opt-in flag.
