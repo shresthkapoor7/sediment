@@ -68,3 +68,6 @@ logs/
 .vercel
 *.pem
 .mcp.json
+
+# Optional isolated Ragas evaluation environment
+.venv-ragas/

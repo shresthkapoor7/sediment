@@ -1,0 +1,16 @@
+# Optional, isolated Python 3.11+ environment; no production dependency changes.
+ragas==0.4.3
+openai==2.54.0
+instructor==1.16.0
+# Ragas 0.4.3 imports a VertexAI adapter removed in community 0.4.2.
+langchain-community==0.3.31
+langchain-openai==0.3.35
+# Minimal backend dependencies needed by the lineage service (no PDF ingestion).
+anthropic==0.89.0
+fastapi==0.128.8
+pydantic==2.12.5
+pydantic-settings==2.11.0
+aiohttp==3.13.5
+python-dotenv==1.2.1
+python-multipart>=0.0.31
+httpx==0.28.1

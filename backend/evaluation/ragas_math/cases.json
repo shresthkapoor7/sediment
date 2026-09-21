@@ -1,0 +1,200 @@
+{
+  "version": 1,
+  "topics": [
+    {
+      "id": "fista",
+      "concept": "A Fast Iterative Shrinkage-Thresholding Algorithm for Linear Inverse Problems",
+      "papers": [
+        {
+          "openalexId": "math:fista",
+          "title": "A Fast Iterative Shrinkage-Thresholding Algorithm for Linear Inverse Problems",
+          "year": 2009,
+          "abstract": "FISTA accelerates proximal gradient for convex composite minimization. With a Lipschitz smooth gradient and suitable proximal term and step sizes, objective error is O(1/k^2), versus O(1/k) for ISTA. These are objective-value bounds, not quadratic local convergence of iterates.",
+          "source": "https://www.ceremade.dauphine.fr/~carlier/FISTA",
+          "source_locator": "Sections 2-4; Theorems 3.1 and 4.4"
+        },
+        {
+          "openalexId": "math:nesterov",
+          "title": "A Method of Solving a Convex Programming Problem with Convergence Rate O(1/k^2)",
+          "year": 1983,
+          "abstract": "An accelerated first-order method for smooth convex optimization; provides the acceleration antecedent discussed by FISTA.",
+          "source": "https://www.ceremade.dauphine.fr/~carlier/FISTA",
+          "source_locator": "Introduction and reference 27"
+        },
+        {
+          "openalexId": "math:thresholding",
+          "title": "An Iterative Thresholding Algorithm for Linear Inverse Problems with a Sparsity Constraint",
+          "year": 2004,
+          "abstract": "Iterative thresholding for sparsity-regularized inverse problems; an antecedent of the basic shrinkage iteration accelerated by FISTA.",
+          "source": "https://www.ceremade.dauphine.fr/~carlier/FISTA",
+          "source_locator": "Section 1.1 and reference 10"
+        },
+        {
+          "openalexId": "math:forward_backward",
+          "title": "Signal Recovery by Proximal Forward-Backward Splitting",
+          "year": 2005,
+          "abstract": "Proximal forward-backward splitting combines a gradient step for a smooth term with a proximal step for a convex nonsmooth term.",
+          "source": "https://www.ceremade.dauphine.fr/~carlier/FISTA",
+          "source_locator": "Section 1.1 and reference 9"
+        },
+        {
+          "openalexId": "math:transformer",
+          "title": "Attention Is All You Need",
+          "year": 2017,
+          "abstract": "Introduces an attention-based neural sequence-transduction architecture. Unrelated to the requested mathematical lineage.",
+          "source": "https://arxiv.org/html/1706.03762v7",
+          "source_locator": "Abstract"
+        }
+      ],
+      "required": [
+        "math:nesterov",
+        "math:thresholding"
+      ],
+      "evidence": [
+        "FISTA combines accelerated first-order optimization with proximal shrinkage. Nesterov, iterative thresholding, and forward-backward splitting play different roles; FISTA does not introduce convexity or the proximal operator.",
+        "The convex composite assumptions matter. Do not extend the O(1/k^2) objective-error guarantee to arbitrary nonconvex problems, describe it as quadratic convergence of iterates, or promise finite-step exact recovery.",
+        "The FISTA paper cites these three predecessors in references 27, 10, and 9. A direct citation does not establish that one predecessor invented every technique used by the others."
+      ],
+      "reference": "Explain how Nesterov-style acceleration improves the basic iterative shrinkage method while retaining a proximal step. Include the seed, Nesterov, and iterative thresholding. Notes must distinguish rate improvements in convex objective error from claims about iterate convergence or nonconvex guarantees.",
+      "seed": "math:fista",
+      "references": {
+        "math:fista": [
+          "math:nesterov",
+          "math:thresholding",
+          "math:forward_backward"
+        ]
+      },
+      "distractor": "math:transformer"
+    },
+    {
+      "id": "admm",
+      "concept": "Distributed Optimization and Statistical Learning via the Alternating Direction Method of Multipliers",
+      "papers": [
+        {
+          "openalexId": "math:admm_review",
+          "title": "Distributed Optimization and Statistical Learning via the Alternating Direction Method of Multipliers",
+          "year": 2011,
+          "abstract": "A review and application framework for ADMM in distributed convex optimization, not the invention of ADMM. Alternates primal subproblems with a dual update; combines decomposition and augmented Lagrangian ideas. Convergence uses convexity and a saddle-point assumption.",
+          "source": "https://web.stanford.edu/~boyd/papers/pdf/admm_distr_stats.pdf",
+          "source_locator": "Sections 1, 2, 3.1-3.2, 3.5"
+        },
+        {
+          "openalexId": "math:douglas_rachford",
+          "title": "On the Numerical Solution of Heat Conduction Problems in Two and Three Space Variables",
+          "year": 1956,
+          "abstract": "An alternating-direction numerical method for heat equations; a historical source of Douglas-Rachford splitting, later developed for monotone operators.",
+          "source": "https://web.stanford.edu/~boyd/papers/pdf/admm_distr_stats.pdf",
+          "source_locator": "Section 3.5; reference 53"
+        },
+        {
+          "openalexId": "math:gabay_mercier",
+          "title": "A Dual Algorithm for the Solution of Nonlinear Variational Problems via Finite Element Approximation",
+          "year": 1976,
+          "abstract": "An early alternating-direction multiplier method, credited among the original ADMM developments of the mid-1970s.",
+          "source": "https://web.stanford.edu/~boyd/papers/pdf/admm_distr_stats.pdf",
+          "source_locator": "Sections 1 and 3.5; reference 82"
+        },
+        {
+          "openalexId": "math:eckstein_bertsekas",
+          "title": "On the Douglas-Rachford Splitting Method and the Proximal Point Algorithm for Maximal Monotone Operators",
+          "year": 1992,
+          "abstract": "Relates Douglas-Rachford splitting to proximal point methods and supports convergence analysis of alternating-direction methods under appropriate hypotheses.",
+          "source": "https://web.stanford.edu/~boyd/papers/pdf/admm_distr_stats.pdf",
+          "source_locator": "Section 3.5; reference 63"
+        },
+        {
+          "openalexId": "math:transformer",
+          "title": "Attention Is All You Need",
+          "year": 2017,
+          "abstract": "Introduces an attention-based neural sequence-transduction architecture. Unrelated to the requested mathematical lineage.",
+          "source": "https://arxiv.org/html/1706.03762v7",
+          "source_locator": "Abstract"
+        }
+      ],
+      "required": [
+        "math:gabay_mercier",
+        "math:eckstein_bertsekas"
+      ],
+      "evidence": [
+        "The 2011 review organizes earlier ADMM theory and distributed applications. It explicitly does not claim a new algorithm or new theoretical results. ADMM was introduced in the 1970s, with splitting roots in the 1950s.",
+        "The review links ADMM, Douglas-Rachford splitting, and proximal point theory. It cites the listed works as references 53, 82, and 63. The 1956 heat-equation paper did not itself introduce the 2011 statistical framework.",
+        "Standard convergence statements require the stated convex setup and saddle-point existence. They are not guarantees of global optimality for arbitrary nonconvex objectives or unconditional linear convergence."
+      ],
+      "reference": "Connect early alternating-direction multiplier methods and later operator-splitting convergence theory to the 2011 distributed-optimization review. Include Gabay-Mercier and Eckstein-Bertsekas. Treat the seed as synthesis and application, not invention, and retain convexity qualifications in any convergence claims.",
+      "seed": "math:admm_review",
+      "references": {
+        "math:admm_review": [
+          "math:douglas_rachford",
+          "math:gabay_mercier",
+          "math:eckstein_bertsekas"
+        ]
+      },
+      "distractor": "math:transformer"
+    },
+    {
+      "id": "compressed_sensing",
+      "concept": "Robust Uncertainty Principles: Exact Signal Reconstruction from Highly Incomplete Frequency Information",
+      "papers": [
+        {
+          "openalexId": "math:compressed_sensing",
+          "title": "Robust Uncertainty Principles: Exact Signal Reconstruction from Highly Incomplete Frequency Information",
+          "year": 2006,
+          "abstract": "Shows exact recovery of sufficiently sparse signals from suitably randomly sampled incomplete Fourier measurements by l1 minimization, with high probability under sampling and sparsity conditions. This is not recovery of arbitrary signals from arbitrary measurements.",
+          "source": "https://arxiv.org/pdf/math/0409186",
+          "source_locator": "Abstract; Sections 1.2-1.3"
+        },
+        {
+          "openalexId": "math:basis_pursuit",
+          "title": "Atomic Decomposition by Basis Pursuit",
+          "year": 1998,
+          "abstract": "Uses l1 minimization to obtain sparse decompositions in dictionaries; provides a convex-optimization antecedent for sparse recovery.",
+          "source": "https://arxiv.org/pdf/math/0409186",
+          "source_locator": "Section 1.3 and reference 3"
+        },
+        {
+          "openalexId": "math:ideal_atomic",
+          "title": "Uncertainty Principles and Ideal Atomic Decomposition",
+          "year": 2001,
+          "abstract": "Connects uncertainty principles and conditions for sparse atomic decompositions with l1-based recovery; antecedent work on sparse representations.",
+          "source": "https://arxiv.org/pdf/math/0409186",
+          "source_locator": "Section 1.3 and reference 7"
+        },
+        {
+          "openalexId": "math:uncertainty",
+          "title": "Uncertainty Principles and Signal Recovery",
+          "year": 1989,
+          "abstract": "Studies uncertainty principles and their implications for signal recovery, providing earlier mathematical context for sparse recovery.",
+          "source": "https://arxiv.org/pdf/math/0409186",
+          "source_locator": "Section 1.3 and reference 6"
+        },
+        {
+          "openalexId": "math:transformer",
+          "title": "Attention Is All You Need",
+          "year": 2017,
+          "abstract": "Introduces an attention-based neural sequence-transduction architecture. Unrelated to the requested mathematical lineage.",
+          "source": "https://arxiv.org/html/1706.03762v7",
+          "source_locator": "Abstract"
+        }
+      ],
+      "required": [
+        "math:basis_pursuit",
+        "math:ideal_atomic"
+      ],
+      "evidence": [
+        "The seed distinguishes recovering a signal from incomplete observations from selecting a sparse representation of a fully known signal. It extends earlier l1 and uncertainty-principle ideas to probabilistic incomplete-Fourier recovery.",
+        "Exact recovery is conditional on sparsity and the random sampling setup; do not omit these conditions when making guarantees. The noiseless result does not promise exact reconstruction under arbitrary noise or universal recovery below Nyquist for all signals.",
+        "The supplied 2004 preprint cites basis pursuit, ideal atomic decomposition, and uncertainty/signal recovery as references 3, 7, and 6. The seed journal publication is 2006; basis pursuit is commonly dated 1998, although this preprint lists 1999. These bibliographic variants are not mathematical errors."
+      ],
+      "reference": "Explain the progression from sparse atomic representations and l1 basis pursuit to conditional, high-probability recovery from incomplete Fourier samples. Include basis pursuit and ideal atomic decomposition. Notes must preserve sparsity/sampling assumptions, distinguish representation from reconstruction, and avoid unconditional or noisy exact-recovery guarantees.",
+      "seed": "math:compressed_sensing",
+      "references": {
+        "math:compressed_sensing": [
+          "math:basis_pursuit",
+          "math:ideal_atomic",
+          "math:uncertainty"
+        ]
+      },
+      "distractor": "math:transformer"
+    }
+  ]
+}

@@ -1,0 +1,150 @@
+{
+  "version": 1,
+  "year_policy": "Conference publication years where applicable; earlier arXiv dates are not contradictions. IDs are local aliases, not actual OpenAlex IDs. Reference lists are deliberately partial.",
+  "papers": [
+    {
+      "openalexId": "fixture:transformer",
+      "title": "Attention Is All You Need",
+      "year": 2017,
+      "abstract": "Introduces the Transformer: attention-based encoder-decoder sequence transduction without recurrent or convolutional layers.",
+      "detail": "Introduces the Transformer: attention-based encoder-decoder sequence transduction without recurrent or convolutional layers.",
+      "source": "https://arxiv.org/html/1706.03762v7"
+    },
+    {
+      "openalexId": "fixture:seq2seq",
+      "title": "Sequence to Sequence Learning with Neural Networks",
+      "year": 2014,
+      "abstract": "Uses LSTM encoder-decoder networks to map sequences through a fixed-dimensional representation for translation.",
+      "detail": "Uses LSTM encoder-decoder networks to map sequences through a fixed-dimensional representation for translation.",
+      "source": "https://arxiv.org/abs/1409.3215"
+    },
+    {
+      "openalexId": "fixture:alignment",
+      "title": "Neural Machine Translation by Jointly Learning to Align and Translate",
+      "year": 2015,
+      "abstract": "Learns soft alignment so a recurrent decoder can use relevant encoder states rather than only a fixed-length vector.",
+      "detail": "Learns soft alignment so a recurrent decoder can use relevant encoder states rather than only a fixed-length vector.",
+      "source": "https://arxiv.org/abs/1409.0473"
+    },
+    {
+      "openalexId": "fixture:resnet",
+      "title": "Deep Residual Learning for Image Recognition",
+      "year": 2016,
+      "abstract": "Uses residual functions and identity shortcuts to ease optimization of deep image-recognition networks. Contrasts ungated identity shortcuts with concurrent gated highway networks.",
+      "detail": "Uses residual functions and identity shortcuts to ease optimization of deep image-recognition networks. Contrasts ungated identity shortcuts with concurrent gated highway networks.",
+      "source": "https://arxiv.org/html/1512.03385v1"
+    },
+    {
+      "openalexId": "fixture:vgg",
+      "title": "Very Deep Convolutional Networks for Large-Scale Image Recognition",
+      "year": 2015,
+      "abstract": "Studies deeper convolutional image-recognition networks using small 3 by 3 filters.",
+      "detail": "Studies deeper convolutional image-recognition networks using small 3 by 3 filters.",
+      "source": "https://arxiv.org/abs/1409.1556"
+    },
+    {
+      "openalexId": "fixture:batchnorm",
+      "title": "Batch Normalization: Accelerating Deep Network Training by Reducing Internal Covariate Shift",
+      "year": 2015,
+      "abstract": "Normalizes layer inputs using minibatch statistics to improve neural-network training. This is not a residual shortcut mechanism.",
+      "detail": "Normalizes layer inputs using minibatch statistics to improve neural-network training. This is not a residual shortcut mechanism.",
+      "source": "https://arxiv.org/abs/1502.03167"
+    },
+    {
+      "openalexId": "fixture:highway",
+      "title": "Highway Networks",
+      "year": 2015,
+      "abstract": "Uses learned gates to control information flow through deep networks; distinct from ungated identity residual shortcuts.",
+      "detail": "Uses learned gates to control information flow through deep networks; distinct from ungated identity residual shortcuts.",
+      "source": "https://arxiv.org/abs/1505.00387"
+    },
+    {
+      "openalexId": "fixture:rag",
+      "title": "Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks",
+      "year": 2020,
+      "abstract": "Combines a DPR-initialized dense retriever with a BART sequence generator and external Wikipedia memory. Fine-tunes query encoder and generator while keeping the document encoder fixed.",
+      "detail": "Combines a DPR-initialized dense retriever with a BART sequence generator and external Wikipedia memory. Fine-tunes query encoder and generator while keeping the document encoder fixed.",
+      "source": "https://arxiv.org/html/2005.11401v4"
+    },
+    {
+      "openalexId": "fixture:dpr",
+      "title": "Dense Passage Retrieval for Open-Domain Question Answering",
+      "year": 2020,
+      "abstract": "Learns dense question and passage representations with a dual encoder for passage retrieval in open-domain question answering.",
+      "detail": "Learns dense question and passage representations with a dual encoder for passage retrieval in open-domain question answering.",
+      "source": "https://arxiv.org/abs/2004.04906"
+    },
+    {
+      "openalexId": "fixture:bart",
+      "title": "BART: Denoising Sequence-to-Sequence Pre-training for Natural Language Generation, Translation, and Comprehension",
+      "year": 2020,
+      "abstract": "Pretrains a sequence-to-sequence model to reconstruct text corrupted by noise, combining a bidirectional encoder with an autoregressive decoder.",
+      "detail": "Pretrains a sequence-to-sequence model to reconstruct text corrupted by noise, combining a bidirectional encoder with an autoregressive decoder.",
+      "source": "https://arxiv.org/abs/1910.13461"
+    },
+    {
+      "openalexId": "fixture:realm",
+      "title": "REALM: Retrieval-Augmented Language Model Pre-Training",
+      "year": 2020,
+      "abstract": "Learns retrieval during language-model pretraining and applies it to open-domain question answering; related work rather than the BART generator used by RAG.",
+      "detail": "Learns retrieval during language-model pretraining and applies it to open-domain question answering; related work rather than the BART generator used by RAG.",
+      "source": "https://arxiv.org/abs/2002.08909"
+    }
+  ],
+  "topics": {
+    "transformer": {
+      "concept": "Transformer architecture for neural machine translation",
+      "seed": "fixture:transformer",
+      "ancestors": [
+        "fixture:seq2seq",
+        "fixture:alignment",
+        "fixture:resnet"
+      ],
+      "required": [
+        "fixture:seq2seq",
+        "fixture:alignment"
+      ],
+      "distractor": "fixture:vgg",
+      "facts": [
+        "Sequence-to-sequence recurrent translation precedes soft alignment and the Transformer; the Transformer removes recurrence, not the encoder-decoder idea.",
+        "Attention Is All You Need cites seq2seq, alignment, and residual learning (references 35, 2, and 11). Residual connections are a supporting architectural ingredient, not the origin of attention."
+      ]
+    },
+    "rag": {
+      "concept": "Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks",
+      "seed": "fixture:rag",
+      "ancestors": [
+        "fixture:dpr",
+        "fixture:bart",
+        "fixture:realm"
+      ],
+      "required": [
+        "fixture:dpr",
+        "fixture:bart"
+      ],
+      "distractor": "fixture:vgg",
+      "facts": [
+        "DPR supplies retriever initialization; BART supplies the generator. REALM is related retrieval-augmented pretraining, not the generator.",
+        "The RAG paper cites DPR, BART, and REALM (references 26, 32, and 20). Its document encoder remains fixed; it does not guarantee elimination of hallucinations."
+      ]
+    },
+    "resnet": {
+      "concept": "Deep Residual Learning for Image Recognition",
+      "seed": "fixture:resnet",
+      "ancestors": [
+        "fixture:vgg",
+        "fixture:batchnorm",
+        "fixture:highway"
+      ],
+      "required": [
+        "fixture:vgg",
+        "fixture:highway"
+      ],
+      "distractor": "fixture:dpr",
+      "facts": [
+        "Residual learning addresses optimization degradation with residual functions and identity shortcuts; highway networks use gates and are described as concurrent work.",
+        "ResNet cites VGG, Batch Normalization, and Highway Networks (references 41, 16, and 42). A citation to concurrent work does not establish that ResNet was derived from it."
+      ]
+    }
+  }
+}
