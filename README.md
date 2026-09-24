@@ -33,6 +33,28 @@ Sediment is an agentic research lineage explorer, built to be the 'cursor for ac
 | Canvas | SVG in React | Hand-rolled, no React Flow |
 | Export | Markdown serializer | Obsidian-ready |
 
+## Architecture
+
+```mermaid
+flowchart TD
+    UI["Frontend"] <--> API["FastAPI Backend"]
+
+    API --> L["Lineage Discovery<br/>Find seed → Trace references → Build graph"]
+    API --> A["Research Agent<br/>Chat → Use tools → Answer with evidence"]
+    API --> P["Paper Ingestion<br/>Download → Parse → Chunk → Embed"]
+
+    L <--> OA["OpenAlex"]
+    L <--> C["Claude"]
+    A <--> C
+
+    A --> R["Retrieval<br/>Search chunks → Rerank"]
+    P --> DB[("Supabase<br/>Graphs · Paper chunks · Chat history")]
+    R <--> DB
+    API <--> DB
+
+    E["Tests & Evals<br/>Behavior · Recall · Faithfulness · Correctness"] -.-> API
+```
+
 ## Repo Structure
 
 ```
