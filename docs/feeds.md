@@ -17,9 +17,10 @@ The frontend follows the existing `NEXT_PUBLIC_API_URL` and `NEXT_PUBLIC_USE_API
 | `GET /api/feeds?userId=<uuid>` | Restore interests and the first 12 cached papers; no external search. |
 | `POST /api/feeds` with `userId`, `action: "interests"`, `interests` | Validate up to three topics, search recent metadata, persist a new feed revision, return up to 12 papers. |
 | `POST /api/feeds` with `userId`, `action: "refresh"` | Search the saved interests and replace the revision, retaining earlier matches behind new discoveries. |
-| `POST /api/feeds` with `userId`, `action: "more"`, `cursor` | Consume buffered candidates or fetch provider continuation pages; return up to 12 additional unique papers. |
+| `POST /api/feeds` with `userId`, `action: "source"`, `source` | Select `all`, `arxiv`, `huggingface`, or `openalex`; return up to 12 matches from the full stored snapshot, fetching only that provider when needed. |
+| `POST /api/feeds` with `userId`, `action: "more"`, `cursor`, `source` | Continue the selected source view; return up to 12 additional unique papers. `source` defaults to `all`. |
 
-Responses contain `interests`, `queries`, `papers`, `cursor`, `refreshedAt`, `warnings`, and `revision`. Cursors are opaque and signed for a browser ID and revision. A changed revision returns HTTP 409; reload before continuing. Repeating a cursor is safe. The client also merges repeated responses by paper ID.
+Responses contain `interests`, `queries`, `papers`, `cursor`, `refreshedAt`, `warnings`, `revision`, and `source`. Cursors are opaque and signed for a browser ID, revision, and source. Source cursors cannot be used in other source views. A changed revision returns HTTP 409; reload before continuing. Each source has a stable ordered view within the snapshot, including papers whose source membership is discovered later. Existing snapshots gain these views on demand without a database migration. Switching tabs preserves the client’s loaded pages and cursor for each source; refresh or changing interests clears them. Repeating a cursor is safe. The client also merges repeated responses by paper ID.
 
 Interest planning uses local tokenization and a few acronym expansions, not an LLM. Commas, semicolons, newlines, and “and” separate topics. Four or more topics are rejected rather than silently dropped. This is keyword matching, so broad plain-language interests can need refinement.
 
