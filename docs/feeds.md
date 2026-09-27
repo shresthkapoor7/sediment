@@ -48,7 +48,7 @@ All three sources normalize into a common paper model. Deduplication uses normal
 
 Twenty local SVG illustrations in [`frontend/public/feed-illustrations`](../frontend/public/feed-illustrations) are tagged in [`feed-illustrations.ts`](../frontend/src/lib/feed-illustrations.ts). Local matching weights topics, title, and abstract; a stable paper-ID hash selects ties and leaves some cards text-only. These are decorative topic diagrams, explicitly captioned as such, not figures or findings from the papers.
 
-An approved Hugging Face thumbnail is used when available, then a topic illustration if loading fails. Other providers do not trigger image extraction or paper downloads. Cards use natural content heights in the existing masonry layout.
+An approved Hugging Face thumbnail is used when available, then a topic illustration if loading fails. Other providers do not trigger image extraction or paper downloads. Cards use measured masonry placement with variable heights and aligned column bottoms. Abstract previews use 3–9 lines and image areas adjust between 120–240px to balance the columns; titles remain complete and images use contain sizing. Layout is recalculated for resizing, loaded images, and additional papers, while DOM reading order stays in feed order.
 
 Bookmark IDs stay in browser storage. “Saved in this feed” filters the currently loaded papers; bookmarks are not a separate server-side reading library.
 

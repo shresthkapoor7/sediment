@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { BalancedMasonry } from "@/components/feeds/BalancedMasonry";
 import { PageHeader } from "@/components/PageHeader";
 import { APIError, getOrCreateAnonymousUserId } from "@/lib/api";
 import { Feed, FeedAction, FeedPaper, FeedFilter, fetchFeed, sourceLabels } from "@/lib/feeds-api";
@@ -166,18 +167,18 @@ export default function FeedsPage() {
         {!!feed.warnings.length && <p className={styles.warning} role="status">{feed.warnings.map(value => sourceLabels[value]).join(", ")} couldn’t be reached. Showing available papers; try refreshing later.</p>}
         <div className={styles.toolbar}><div className={styles.filters} aria-label="Filter by source">{(["all", "arxiv", "huggingface", "openalex"] as const).map(value => <button key={value} aria-pressed={source === value} disabled={disabled || editing} onClick={() => void update("source", value)} className={source === value ? styles.active : ""}>{value === "all" ? "All papers" : sourceLabels[value]}</button>)}</div><button className={`${styles.savedFilter} ${savedOnly ? styles.active : ""}`} aria-pressed={savedOnly} onClick={() => setSavedOnly(value => !value)}>Saved <span>{feed.papers.filter(paper => saved.includes(paper.id)).length}</span></button></div>
         <div className={styles.resultCount} role="status">{visible.length} of {feed.papers.length} loaded papers <span>Recent research</span></div>
-        <div className={styles.masonry}>
+        <BalancedMasonry className={styles.masonry}>
           {visible.map(paper => <article className={styles.card} key={paper.id}>
             <PaperImage paper={paper} />
             <div className={styles.cardBody}>
               <div className={styles.cardMeta}><span>{paper.topics[0] || (paper.preprint ? "Preprint" : "Research paper")}</span><time dateTime={paper.published || undefined}>{dateLabel(paper.published)}</time></div>
               <h3><a href={paper.url} target="_blank" rel="noopener noreferrer">{paper.title}</a></h3>
               {!!paper.authors.length && <p className={styles.authors}>{paper.authors.slice(0, 3).join(", ")}{paper.authors.length > 3 ? " & collaborators" : ""}</p>}
-              {paper.abstract && <p className={styles.summary}>{paper.abstract.length > 360 ? `${paper.abstract.slice(0, 360).replace(/\s+\S*$/, "")}…` : paper.abstract}</p>}
+              {paper.abstract && <p data-preview className={styles.summary}>{paper.abstract}</p>}
               <div className={styles.cardFooter}><span>{paper.sources.map(value => sourceLabels[value]).join(" · ")}{paper.preprint && <small>Preprint</small>}</span><button aria-label={`${saved.includes(paper.id) ? "Unsave" : "Save"} ${paper.title}`} aria-pressed={saved.includes(paper.id)} onClick={() => toggleSaved(paper.id)}><svg width="15" height="17" viewBox="0 0 16 18" fill={saved.includes(paper.id) ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.3" aria-hidden="true"><path d="M3 2h10v14l-5-3-5 3z" /></svg>{saved.includes(paper.id) ? "Saved" : "Save"}</button></div>
             </div>
           </article>)}
-        </div>
+        </BalancedMasonry>
         {!visible.length && <div className={styles.empty}><h3>{savedOnly ? "Keep something for later." : "No matching papers yet."}</h3><p>{savedOnly ? "Papers you save from this feed will appear here." : source !== "all" ? "Try another source or load more papers." : "Try broader interests, or check for more results below."}</p>{(source !== "all" || savedOnly) && <button disabled={disabled || editing} onClick={() => { setSavedOnly(false); void update("source", "all"); }}>Show all papers</button>}</div>}
         {feed.cursor && <div className={styles.loadMore}><button className={styles.secondary} disabled={disabled || editing} onClick={() => void update("more")}>{pending === "more" ? "Loading…" : "Load more papers"}</button></div>}
         <p className={styles.endnote}>{feed.cursor ? "Up to 12 new papers at a time." : "You’re caught up with the available results. Refresh later or edit your interests."}<br />Topic illustrations are decorative. Paper links open the original source.</p>
