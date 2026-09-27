@@ -32,7 +32,14 @@ export function FeedPaperDetail({ paper, intercepted = false, missing = false, l
     return () => { document.title = previous; };
   }, [paper]);
   const external = paper && /^https?:\/\//.test(paper.url) ? paper.url : null;
-  return <dialog ref={dialog} className={styles.dialog} aria-labelledby="paper-detail-title" onCancel={event => { event.preventDefault(); close(); }} onClick={event => { if (event.target === event.currentTarget) close(); }}>
+  return <dialog ref={dialog} className={styles.dialog} aria-labelledby="paper-detail-title" onKeyDown={event => {
+      if (event.key !== "Tab") return;
+      const controls = Array.from(event.currentTarget.querySelectorAll<HTMLElement>('button:not([disabled]), a[href], [tabindex="0"]'));
+      const first = controls[0];
+      const last = controls[controls.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+    }} onCancel={event => { event.preventDefault(); close(); }} onClick={event => { if (event.target === event.currentTarget) close(); }}>
     <div className={styles.surface}>
       <header className={styles.header}><span>Sediment <span>/</span> Paper</span><button type="button" aria-label="Close paper details" onClick={close} autoFocus><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg></button></header>
       {paper ? <article className={styles.content}>
