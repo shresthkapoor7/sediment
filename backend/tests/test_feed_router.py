@@ -61,3 +61,18 @@ class FeedRouterTests(unittest.IsolatedAsyncioTestCase):
             response = await self.client.post('/api/feeds', json={'userId': USER, 'action': 'refresh'})
         self.assertEqual(response.status_code, 503)
         self.assertNotIn('missing config', response.text)
+
+    async def test_source_selection_and_cursor_scope_over_http(self):
+        await self.client.post('/api/feeds', json={'userId': USER, 'action': 'interests', 'interests': 'robot learning'})
+        selected = await self.client.post('/api/feeds', json={'userId': USER, 'action': 'source', 'source': 'arxiv'})
+        self.assertEqual(selected.status_code, 200)
+        self.assertEqual(selected.json()['source'], 'arxiv')
+        self.assertEqual(len(selected.json()['papers']), 12)
+        cursor = selected.json()['cursor']
+        wrong = await self.client.post('/api/feeds', json={'userId': USER, 'action': 'more', 'source': 'openalex', 'cursor': cursor})
+        self.assertEqual(wrong.status_code, 409)
+        more = await self.client.post('/api/feeds', json={'userId': USER, 'action': 'more', 'source': 'arxiv', 'cursor': cursor})
+        self.assertEqual(more.status_code, 200)
+        self.assertFalse({p['id'] for p in selected.json()['papers']} & {p['id'] for p in more.json()['papers']})
+        invalid = await self.client.post('/api/feeds', json={'userId': USER, 'action': 'source', 'source': 'unknown'})
+        self.assertEqual(invalid.status_code, 422)

@@ -86,17 +86,23 @@ def merge_papers(existing: list[Paper], incoming: list[Paper]) -> list[Paper]:
     return result
 
 
-def cursor_for(user: str, revision: str, offset: int) -> str:
-    payload = f'{revision}:{offset}'
+def cursor_for(user: str, revision: str, offset: int, source: str = "all") -> str:
+    # Preserve existing all-paper cursors; bind filtered cursors to their source.
+    payload = f'{revision}:{offset}' if source == "all" else f'{revision}:{source}:{offset}'
     signature = hmac.new(settings.actor_key_secret.get_secret_value().encode(), f'{user}:{payload}'.encode(), hashlib.sha256).hexdigest()
     return base64.urlsafe_b64encode(f'{payload}:{signature}'.encode()).decode().rstrip('=')
 
 
-def cursor_offset(user: str, revision: str, cursor: str) -> int:
+def cursor_offset(user: str, revision: str, cursor: str, source: str = "all") -> int:
     try:
         raw = base64.urlsafe_b64decode(cursor + '=' * (-len(cursor) % 4)).decode()
-        rev, offset, signature = raw.split(':')
-        expected = cursor_for(user, rev, int(offset))
+        parts = raw.split(':')
+        if source == 'all':
+            rev, offset, signature = parts
+        else:
+            rev, cursor_source, offset, signature = parts
+            if cursor_source != source: raise ValueError()
+        expected = cursor_for(user, rev, int(offset), source)
         if not hmac.compare_digest(expected, cursor) or rev != revision or not 0 <= int(offset) <= MAX_PAPERS:
             raise ValueError()
         return int(offset)
@@ -104,24 +110,42 @@ def cursor_offset(user: str, revision: str, cursor: str) -> int:
         raise HTTPException(409, 'This feed changed. Reload it before loading more.') from None
 
 
+def matches_source(paper, source: str) -> bool:
+    return paper is not None and (source == 'all' or source in (paper.sources if isinstance(paper, Paper) else paper['sources']))
+
+
+def source_papers(state: dict, source: str) -> list:
+    if source == 'all': return state['papers']
+    # Source membership can arrive later when another provider enriches an old
+    # record. Append newly matching IDs to this view rather than losing them
+    # behind a cursor that already scanned those global slots.
+    by_id = {p['id']: p for p in state['papers'] if matches_source(p, source)}
+    views = state.setdefault('source_views', {})
+    order = views.setdefault(source, [])
+    known = set(order)
+    order.extend(identifier for identifier in by_id if identifier not in known)
+    return [by_id.get(identifier) for identifier in order]
+
+
 class FeedService:
     def __init__(self, repository=None, sources=None):
         self.repo = repository or FeedRepository()
         self.sources = sources or [HuggingFaceSource(), ArxivSource(), OpenAlexSource()]
 
-    def response(self, user: str, state: dict | None, offset: int = 0) -> dict:
+    def response(self, user: str, state: dict | None, offset: int = 0, source: str = "all") -> dict:
         if not state:
-            return {'interests': '', 'queries': [], 'papers': [], 'cursor': None, 'refreshedAt': None, 'warnings': [], 'revision': None}
+            return {'interests': '', 'queries': [], 'papers': [], 'cursor': None, 'refreshedAt': None, 'warnings': [], 'revision': None, 'source': source}
+        slots = source_papers(state, source)
         papers = []
         following = offset
-        while following < len(state['papers']) and len(papers) < PAGE_SIZE:
-            paper = state['papers'][following]
+        while following < len(slots) and len(papers) < PAGE_SIZE:
+            paper = slots[following]
             following += 1
-            if paper is not None: papers.append(paper)
-        available = following < len(state['papers']) or (len(state['papers']) < MAX_PAPERS and any(not s['done'] for s in state['streams']))
+            if matches_source(paper, source): papers.append(paper)
+        available = any(matches_source(p, source) for p in slots[following:]) or (len(state['papers']) < MAX_PAPERS and any(not s['done'] and (source == 'all' or s['source'] == source) for s in state['streams']))
         return {'interests': state['interests'], 'queries': state['queries'], 'papers': papers,
-                'cursor': cursor_for(user, state['revision'], following) if available else None,
-                'refreshedAt': state['refreshed_at'], 'warnings': state.get('warnings', []), 'revision': state['revision']}
+                'cursor': cursor_for(user, state['revision'], following, source) if available else None,
+                'refreshedAt': state['refreshed_at'], 'warnings': state.get('warnings', []), 'revision': state['revision'], 'source': source}
 
     async def read(self, user: str) -> dict:
         return self.response(user, await self.repo.get(user))
@@ -145,16 +169,16 @@ class FeedService:
         await self.repo.cache(key, source.name, page)
         return page
 
-    async def fill(self, state: dict, needed: int):
+    async def fill(self, state: dict, needed: int, source: str = "all"):
         existing = [Paper.model_validate(p) for p in state['papers'] if p is not None]
         candidates = []
         warnings = set()
         fetched = successful = 0
         deadline = time.monotonic() + 110
-        sources = {source.name: source for source in self.sources}
+        sources = {provider.name: provider for provider in self.sources}
         # Round-robin prevents the first provider consuming the whole request budget.
-        while len(merge_papers(existing, candidates)) < needed and fetched < MAX_FETCHES:
-            active = [s for s in state['streams'] if not s['done'] and s['source'] not in warnings]
+        while sum(matches_source(p, source) for p in merge_papers(existing, candidates)) < needed and fetched < MAX_FETCHES and len(state['papers']) < MAX_PAPERS:
+            active = [s for s in state['streams'] if not s['done'] and s['source'] not in warnings and (source == 'all' or s['source'] == source)]
             if not active or time.monotonic() >= deadline: break
             for stream in active:
                 if fetched >= MAX_FETCHES or time.monotonic() >= deadline: break
@@ -183,21 +207,23 @@ class FeedService:
         additions = [p for p in merged if p.id not in previous_ids]
         additions.sort(key=lambda p: (p.published or '', relevance(p, state['queries'])), reverse=True)
         state['papers'] = (prefix + [p.model_dump() for p in additions])[:MAX_PAPERS]
-        state['warnings'] = sorted(warnings)
+        state['warnings'] = sorted(warnings | ({s for s in state.get('warnings', []) if s != source} if source != 'all' else set()))
 
-    async def mutate(self, user: str, action: str, interests: str | None = None, cursor: str | None = None):
+    async def mutate(self, user: str, action: str, interests: str | None = None, cursor: str | None = None, source: str = "all"):
         token = str(uuid.uuid4()); lock = 'feed:' + user
         if not await self.repo.claim(lock, token):
             raise HTTPException(409, 'A feed update is already running. Please try again shortly.')
         try:
             old = await self.repo.get(user)
-            if action == 'more':
-                if not old or not cursor: raise HTTPException(400, 'Create a feed before loading more.')
-                offset = cursor_offset(user, old['revision'], cursor)
-                if offset > len(old['papers']): raise HTTPException(400, 'Invalid feed position.')
-                await self.fill(old, sum(p is not None for p in old['papers'][:offset]) + PAGE_SIZE)
+            if action in ('more', 'source'):
+                if not old or (action == 'more' and not cursor): raise HTTPException(400, 'Create a feed before loading more.')
+                offset = cursor_offset(user, old['revision'], cursor, source) if action == 'more' else 0
+                slots = source_papers(old, source)
+                if offset > len(slots): raise HTTPException(400, 'Invalid feed position.')
+                await self.fill(old, sum(p is not None for p in slots[:offset]) + PAGE_SIZE, source)
+                result = self.response(user, old, offset, source)
                 await self.repo.save(user, token, old)
-                return self.response(user, old, offset)
+                return result
             if action == 'refresh' and not old: raise HTTPException(400, 'Add interests first.')
             description = interests.strip() if interests is not None else old['interests']
             queries = plan_queries(description)

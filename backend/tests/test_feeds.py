@@ -135,3 +135,48 @@ class FeedTests(unittest.IsolatedAsyncioTestCase):
 
     def test_extra_topics_not_silently_discarded(self):
         with self.assertRaises(HTTPException): plan_queries('robots, climate, medicine, quantum')
+
+    async def test_source_selection_reads_beyond_the_all_papers_first_page(self):
+        repo=Repo(); service=FeedService(repo,[Source()])
+        await service.mutate('u','interests','robot learning')
+        state=repo.rows['u']
+        state['papers']=[paper(i).model_copy(update={'sources':['openalex'] if i<30 else ['arxiv'] if i<36 else ['huggingface']}).model_dump() for i in range(42)]
+        state['streams']=[]
+        first=await service.read('u')
+        self.assertTrue(all(p['sources']==['openalex'] for p in first['papers']))
+        arxiv=await service.mutate('u','source',source='arxiv')
+        hf=await service.mutate('u','source',source='huggingface')
+        self.assertEqual(len(arxiv['papers']),6)
+        self.assertEqual(len(hf['papers']),6)
+        self.assertIsNone(hf['cursor'])
+        self.assertEqual(hf['source'],'huggingface')
+        self.assertEqual(first['papers'],(await service.read('u'))['papers'])
+
+    async def test_source_pagination_only_fetches_selected_provider(self):
+        repo=Repo(); arxiv=Source(); arxiv.name='arxiv'
+        hf=Source(); hf.search=AsyncMock(return_value=SearchPage(papers=[]))
+        service=FeedService(repo,[arxiv,hf])
+        first=await service.mutate('u','interests','robot learning')
+        hf.search.reset_mock()
+        selected=await service.mutate('u','source',source='arxiv')
+        second=await service.mutate('u','more',cursor=selected['cursor'],source='arxiv')
+        third=await service.mutate('u','more',cursor=second['cursor'],source='arxiv')
+        self.assertEqual(len(third['papers']),12)
+        self.assertFalse({p['id'] for p in selected['papers']} & {p['id'] for p in second['papers']})
+        hf.search.assert_not_awaited()
+        with self.assertRaises(HTTPException):
+            await service.mutate('u','more',cursor=first['cursor'],source='arxiv')
+        with self.assertRaises(HTTPException):
+            await service.mutate('u','more',cursor=selected['cursor'],source='huggingface')
+
+    async def test_late_source_membership_is_not_skipped_by_filtered_cursor(self):
+        repo=Repo(); source=Source(); source.name='arxiv'; service=FeedService(repo,[source])
+        await service.mutate('u','interests','robot learning')
+        state=repo.rows['u']
+        state['papers']=[paper(i).model_copy(update={'sources':['arxiv'] if i<12 else ['openalex']}).model_dump() for i in range(13)]
+        selected=await service.mutate('u','source',source='arxiv')
+        # A later arXiv record links the OpenAlex paper already in the snapshot.
+        source.search=AsyncMock(return_value=SearchPage(papers=[paper(12)]))
+        more=await service.mutate('u','more',cursor=selected['cursor'],source='arxiv')
+        self.assertEqual([p['id'] for p in more['papers']],[paper(12).id])
+        self.assertIsNone(more['cursor'])
