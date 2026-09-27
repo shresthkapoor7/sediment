@@ -2420,3 +2420,7 @@ html[data-theme="dark"] .changelog-page {
     transition: none;
   }
 }
+
+.feeds-nav-link { display: flex; align-items: center; gap: .375rem; color: var(--text-secondary); text-decoration: none; font-size: .75rem; }
+.feeds-new { font-size: .5625rem; font-weight: 500; line-height: 1.4; padding: .125rem .3rem; border-radius: .25rem; color: var(--accent); background: var(--accent-soft); }
+.feeds-mobile-link { padding: .625rem .5rem; }
