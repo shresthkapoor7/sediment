@@ -2,7 +2,7 @@ import unittest
 from datetime import date
 from unittest.mock import AsyncMock, patch
 
-from app.services.feed_sources.base import Paper, SearchRequest, arxiv_id, doi_id, identity_keys
+from app.services.feed_sources.base import Paper, SearchRequest, arxiv_id, doi_id, identity_keys, SourceError
 from app.services.feed_sources.arxiv import ArxivSource
 from app.services.feed_sources.huggingface import HuggingFaceSource
 from app.services.feed_sources.openalex import OpenAlexSource
@@ -33,3 +33,20 @@ class FeedSourcesTests(unittest.IsolatedAsyncioTestCase):
         a = Paper(id='a', title='An identical title about machine learning', authors=['Jane'], url='https://example.org')
         b = a.model_copy(update={'id': 'b', 'authors': ['John']})
         self.assertFalse(identity_keys(a) & identity_keys(b))
+
+    async def test_malformed_source_envelope_is_a_provider_failure(self):
+        request=SearchRequest(query='robotics', since=date(2026,9,1), until=date(2026,9,27))
+        with patch('app.services.feed_sources.huggingface.fetch', AsyncMock(return_value={'error':'unavailable'})):
+            with self.assertRaises(SourceError): await HuggingFaceSource().search(request)
+        with patch('app.services.feed_sources.openalex.fetch', AsyncMock(return_value=[])):
+            with self.assertRaises(SourceError): await OpenAlexSource().search(request)
+
+    async def test_malformed_record_does_not_hide_usable_results(self):
+        request=SearchRequest(query='robotics', since=date(2026,9,1), until=date(2026,9,27))
+        rows=[None, {'paper':{'id':'2609.12345','title':'Robot learning','publishedAt':'2026-09-27','authors':None}}]
+        with patch('app.services.feed_sources.huggingface.fetch', AsyncMock(return_value=rows)):
+            result=await HuggingFaceSource().search(request)
+        self.assertEqual(len(result.papers),1)
+
+    def test_arxiv_rejects_entity_declarations(self):
+        with self.assertRaises(SourceError): ArxivSource.parse('<!DOCTYPE feed [<!ENTITY x "test">]><feed/>')

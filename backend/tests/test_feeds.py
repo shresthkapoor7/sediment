@@ -1,5 +1,6 @@
 import copy
 import unittest
+from datetime import date
 from unittest.mock import AsyncMock
 from fastapi import HTTPException
 from app.services.feeds import FeedService, merge_papers, plan_queries, cursor_for, cursor_offset
@@ -8,7 +9,7 @@ from app.services.feed_sources.base import Paper, SearchPage, SourceError
 
 def paper(i, **kwargs):
     return Paper(id=f'arxiv:2609.{i:05d}', arxiv_id=f'2609.{i:05d}', title=f'Robot learning study {i}',
-                 published='2026-09-27', url=f'https://arxiv.org/abs/2609.{i:05d}', sources=['arxiv'], **kwargs)
+                 published=date.today().isoformat(), url=f'https://arxiv.org/abs/2609.{i:05d}', sources=['arxiv'], **kwargs)
 
 
 class Repo:
@@ -112,3 +113,25 @@ class FeedTests(unittest.IsolatedAsyncioTestCase):
         ids=[p['id'] for p in repo.rows['u']['papers']]
         self.assertEqual(len(ids),25)
         self.assertEqual(len(set(ids)),25)
+
+    async def test_query_cache_shared_between_browsers(self):
+        repo=Repo(); source=Source(); service=FeedService(repo,[source])
+        await service.mutate('first','interests','robot learning')
+        await service.mutate('second','interests','robot learning')
+        self.assertEqual(source.calls,1)
+
+    async def test_exhaustion_returns_no_more_cursor(self):
+        source=Source(); source.search=AsyncMock(return_value=SearchPage(papers=[paper(1)]))
+        result=await FeedService(Repo(),[source]).mutate('u','interests','robot learning')
+        self.assertEqual(len(result['papers']),1)
+        self.assertIsNone(result['cursor'])
+
+    async def test_conflicting_update_rejected_without_search(self):
+        repo=Repo(); source=Source(); repo.locks.add('feed:u')
+        with self.assertRaises(HTTPException) as ctx:
+            await FeedService(repo,[source]).mutate('u','interests','robot learning')
+        self.assertEqual(ctx.exception.status_code,409)
+        self.assertEqual(source.calls,0)
+
+    def test_extra_topics_not_silently_discarded(self):
+        with self.assertRaises(HTTPException): plan_queries('robots, climate, medicine, quantum')

@@ -55,17 +55,17 @@ class SourceError(RuntimeError):
 
 
 def clean(value: Optional[str]) -> str:
-    return ' '.join(html.unescape(re.sub(r'<[^>]+>', ' ', value or '')).split())
+    return ' '.join(html.unescape(re.sub(r'<[^>]+>', ' ', value if isinstance(value, str) else '')).split())
 
 
 def doi_id(value: Optional[str]) -> Optional[str]:
-    value = (value or '').strip().lower()
+    value = value.strip().lower() if isinstance(value, str) else ''
     value = re.sub(r'^(?:https?://(?:dx\.)?doi.org/|doi:\s*)', '', value)
     return value if re.fullmatch(r'10\.\d{4,9}/\S+', value) else None
 
 
 def arxiv_id(value: Optional[str]) -> Optional[str]:
-    value = (value or '').strip()
+    value = value.strip() if isinstance(value, str) else ''
     value = re.sub(r'^https?://(?:export\.)?arxiv.org/(?:abs|pdf)/', '', value)
     value = re.sub(r'\.pdf$', '', value)
     value = re.sub(r'v\d+$', '', value)
@@ -108,5 +108,23 @@ async def fetch(url: str, params: dict | None = None, *, xml: bool = False):
                 if xml: return body.decode('utf-8')
                 import json
                 return json.loads(body)
-    except (aiohttp.ClientError, asyncio.TimeoutError, ValueError) as exc:
+    except (aiohttp.ClientError, asyncio.TimeoutError, ValueError):
         raise SourceError('Provider request failed') from None
+
+
+def parse_records(rows, parser) -> list[Paper]:
+    """A malformed record must not discard other providers' usable results."""
+    if not isinstance(rows, list):
+        raise SourceError('Invalid provider response')
+    papers = []
+    malformed = 0
+    for row in rows:
+        try:
+            if not isinstance(row, dict): raise ValueError()
+            paper = parser(row)
+            if paper is not None: papers.append(paper)
+        except (ValueError, TypeError, AttributeError, KeyError):
+            malformed += 1
+    if rows and malformed == len(rows):
+        raise SourceError('Invalid provider records')
+    return papers

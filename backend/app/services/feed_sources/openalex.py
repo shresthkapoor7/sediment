@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from ...config import settings
 from ..openalex import _abstract_from_inverted_index
-from .base import Paper, SearchPage, SearchRequest, arxiv_id, clean, doi_id, fetch, safe_url
+from .base import Paper, SearchPage, SearchRequest, arxiv_id, clean, doi_id, fetch, safe_url, parse_records, SourceError
 
 
 class OpenAlexSource:
@@ -21,9 +21,9 @@ class OpenAlexSource:
         primary = raw.get('primary_location') or {}
         return Paper(id='openalex:' + identifier, openalex_id=identifier, arxiv_id=arxiv, doi=doi,
                      title=clean(raw.get('display_name')), abstract=clean(_abstract_from_inverted_index(raw.get('abstract_inverted_index'))),
-                     authors=[a['author']['display_name'] for a in raw.get('authorships', []) if a.get('author', {}).get('display_name')],
+                     authors=[a['author']['display_name'] for a in (raw.get('authorships') or []) if a.get('author', {}).get('display_name')],
                      published=raw.get('publication_date'), sources=['openalex'],
-                     topics=[t['display_name'] for t in raw.get('topics', []) if t.get('display_name')],
+                     topics=[t['display_name'] for t in (raw.get('topics') or []) if t.get('display_name')],
                      url=safe_url(raw.get('doi')) or safe_url(primary.get('landing_page_url')) or 'https://openalex.org/' + identifier,
                      preprint=raw.get('type') == 'preprint')
 
@@ -32,11 +32,14 @@ class OpenAlexSource:
                   'sort': 'publication_date:desc', 'per_page': request.limit, 'cursor': request.cursor or '*'}
         if settings.openalex_api_key: params['api_key'] = settings.openalex_api_key
         data = await fetch('https://api.openalex.org/works', params)
-        papers = [p for raw in data.get('results', []) if (p := self.parse(raw))]
+        if not isinstance(data, dict) or not isinstance(data.get('meta'), dict):
+            raise SourceError('Invalid OpenAlex response')
+        papers = parse_records(data.get('results'), self.parse)
         return SearchPage(papers=papers, next_cursor=(data.get('meta') or {}).get('next_cursor') if papers else None)
 
     async def get(self, identifier: str) -> Paper | None:
         identifier = identifier.rsplit('/', 1)[-1]
         if not identifier.startswith('W') or not identifier[1:].isdigit(): return None
-        return self.parse(await fetch('https://api.openalex.org/works/' + identifier,
-                                     {'api_key': settings.openalex_api_key} if settings.openalex_api_key else {}))
+        papers = parse_records([await fetch('https://api.openalex.org/works/' + identifier,
+                               {'api_key': settings.openalex_api_key} if settings.openalex_api_key else {})], self.parse)
+        return papers[0] if papers else None

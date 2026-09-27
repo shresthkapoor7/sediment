@@ -41,8 +41,8 @@ async def update_feed(body: FeedRequest, request: Request, response: Response):
         raise HTTPException(400, 'Describe your research interests first.')
     if body.action != 'interests' and body.interests is not None:
         raise HTTPException(400, 'Use Edit interests to change your interests.')
-    await limiter.claim_request(get_request_ip(request), 'feeds')
     try:
+        await limiter.claim_request(get_request_ip(request), 'feeds')
         return await asyncio.wait_for(FeedService().mutate(str(body.userId), body.action, body.interests, body.cursor), timeout=165)
     except (SupabaseAPIError, SupabaseConfigError):
         logger.warning('Feed persistence unavailable')

@@ -4,8 +4,8 @@ import asyncio
 import base64
 import hashlib
 import hmac
-import json
 import re
+import time
 import uuid
 from datetime import date, datetime, timedelta, timezone
 
@@ -21,7 +21,7 @@ from .feed_sources.openalex import OpenAlexSource
 PAGE_SIZE = 12
 MAX_PAPERS = 600
 MAX_FETCHES = 9
-STOP = set('i me my we our am are is the a an of for to in on at by with about interested interests curious exploring explore research papers recent latest new please show find want learn learning more how what and or that this it'.split())
+STOP = set('i me my we our am are is the a an of for to in on at by with about interested interests curious exploring explore research papers recent latest new please show find want learn more how what and or that this it'.split())
 # Keep compound research phrases; expand only unambiguous common acronyms.
 SYNONYMS = {'llm': 'large language models', 'llms': 'large language models', 'ai': 'artificial intelligence',
             'rl': 'reinforcement learning', 'nlp': 'natural language processing'}
@@ -32,11 +32,12 @@ def plan_queries(interests: str) -> list[str]:
     queries = []
     for piece in pieces:
         words = re.findall(r'[\w-]+', piece)
-        # Preserve "learning" inside meaningful phrases such as machine learning.
-        words = [w for w in words if w not in (STOP - {'learning'})]
+        words = [w for w in words if w not in STOP]
         query = ' '.join(SYNONYMS.get(w, w) for w in words[:10]).strip()[:200]
         if query and query not in queries: queries.append(query)
-    return queries[:3]
+    if len(queries) > 3:
+        raise HTTPException(400, 'Choose up to three research topics for this feed.')
+    return queries
 
 
 def terms(text: str) -> set[str]:
@@ -149,13 +150,14 @@ class FeedService:
         candidates = []
         warnings = set()
         fetched = successful = 0
+        deadline = time.monotonic() + 110
         sources = {source.name: source for source in self.sources}
         # Round-robin prevents the first provider consuming the whole request budget.
         while len(merge_papers(existing, candidates)) < needed and fetched < MAX_FETCHES:
             active = [s for s in state['streams'] if not s['done'] and s['source'] not in warnings]
-            if not active: break
+            if not active or time.monotonic() >= deadline: break
             for stream in active:
-                if fetched >= MAX_FETCHES: break
+                if fetched >= MAX_FETCHES or time.monotonic() >= deadline: break
                 fetched += 1
                 request = SearchRequest(query=stream['query'], since=date.fromisoformat(state['since']),
                                         until=date.fromisoformat(state['until']), cursor=stream['cursor'], limit=24)
@@ -202,7 +204,7 @@ class FeedService:
             if not queries: raise HTTPException(400, 'Describe at least one research topic.')
             if old and old['interests'] == description and (datetime.now(timezone.utc) - datetime.fromisoformat(old['refreshed_at'])).total_seconds() < 60:
                 return self.response(user, old)
-            today = date.today()
+            today = datetime.now(timezone.utc).date()
             state = {'interests': description, 'queries': queries, 'revision': str(uuid.uuid4()),
                      'since': (today - timedelta(days=90)).isoformat(), 'until': today.isoformat(),
                      'refreshed_at': datetime.now(timezone.utc).isoformat(), 'papers': [], 'warnings': [],

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from .base import Paper, SearchPage, SearchRequest, arxiv_id, clean, fetch, safe_url
+from .base import Paper, SearchPage, SearchRequest, arxiv_id, clean, fetch, safe_url, parse_records, SourceError
 
 
 class HuggingFaceSource:
@@ -17,7 +17,7 @@ class HuggingFaceSource:
             thumbnail = None
         return Paper(id='arxiv:' + identifier, arxiv_id=identifier,
                      title=clean(raw.get('title')), abstract=clean(raw.get('summary')),
-                     authors=[a.get('name', '') for a in raw.get('authors', []) if a.get('name')],
+                     authors=[a.get('name', '') for a in (raw.get('authors') or []) if a.get('name')],
                      published=(raw.get('publishedAt') or '')[:10] or None,
                      sources=['huggingface'], url='https://huggingface.co/papers/' + identifier,
                      thumbnail=thumbnail, preprint=True)
@@ -27,12 +27,13 @@ class HuggingFaceSource:
         # cursor. Do not invent offset parameters or repeat its first page.
         if request.cursor: return SearchPage(papers=[])
         rows = await fetch('https://huggingface.co/api/papers/search', {'q': request.query})
-        if not isinstance(rows, list): return SearchPage(papers=[])
-        papers = [p for row in rows[:100] if (p := self.parse(row))]
+        if not isinstance(rows, list): raise SourceError('Invalid Hugging Face response')
+        papers = parse_records(rows[:100], self.parse)
         return SearchPage(papers=[p for p in papers if p.published and
                           request.since.isoformat() <= p.published <= request.until.isoformat()][:request.limit])
 
     async def get(self, identifier: str) -> Paper | None:
         identifier = arxiv_id(identifier)
         if not identifier: return None
-        return self.parse(await fetch('https://huggingface.co/api/papers/' + identifier))
+        papers = parse_records([await fetch('https://huggingface.co/api/papers/' + identifier)], self.parse)
+        return papers[0] if papers else None
