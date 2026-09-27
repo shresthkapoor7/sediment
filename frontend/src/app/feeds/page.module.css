@@ -1,12 +1,4 @@
 .page { height: 100dvh; overflow-y: auto; background: var(--bg-primary); }
-.header { max-width: 1440px; margin: auto; padding: 24px 48px; display: flex; align-items: center; gap: 20px; border-bottom: 1px solid var(--border); font-size: 13px; }
-.brand { display: flex; align-items: center; gap: 10px; font-weight: 650; font-size: 15px; color: var(--text-primary); text-decoration: none; }
-.brand svg { color: var(--accent); }
-.divider { color: var(--border-hover); }
-.headerLabel { color: var(--text-secondary); display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
-.development { font-size: 10px; line-height: 1.4; white-space: nowrap; color: var(--text-secondary); background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 4px; padding: 3px 6px; }
-.headerRight { margin-left: auto; display: flex; align-items: center; gap: 24px; }
-.headerRight a { color: var(--text-secondary); text-decoration: none; }
 .main { max-width: 1304px; margin: auto; padding: 64px 40px 32px; }
 .intro { text-align: center; }
 .eyebrow { display: flex; align-items: center; justify-content: center; gap: 8px; color: var(--text-secondary); font-size: 11px; letter-spacing: .06em; }
@@ -72,6 +64,4 @@
 .page button:focus-visible, .page a:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
 @media (min-width: 1500px) { .main { max-width: 1500px; } .masonry { columns: 4; } }
 @media (max-width: 1000px) { .masonry { columns: 2; } }
-@media (max-width: 640px) { .header { padding: 18px 20px; gap: 12px; } .headerRight { gap: 12px; } .headerRight a { font-size: 11px; } .main { padding: 40px 20px 20px; } .interests { padding: 18px; margin-bottom: 40px; } .formBottom { align-items: flex-start; flex-direction: column; } .primary { width: 100%; } .feedHeading { align-items: flex-start; flex-direction: column; gap: 12px; } .masonry { columns: 1; } .toolbar { gap: 6px; } .toolbar button { padding: 8px; } .applied { align-items: flex-start; flex-direction: column; gap: 12px; } }
-
-@media (max-width: 480px) { .header { flex-wrap: wrap; } .headerRight { gap: 10px; } }
+@media (max-width: 640px) { .main { padding: 40px 20px 20px; } .interests { padding: 18px; margin-bottom: 40px; } .formBottom { align-items: flex-start; flex-direction: column; } .primary { width: 100%; } .feedHeading { align-items: flex-start; flex-direction: column; gap: 12px; } .masonry { columns: 1; } .toolbar { gap: 6px; } .toolbar button { padding: 8px; } .applied { align-items: flex-start; flex-direction: column; gap: 12px; } }

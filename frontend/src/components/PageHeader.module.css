@@ -1,0 +1,11 @@
+.header { width: 100%; max-width: 1440px; margin: 0 auto; padding: 24px 48px; display: flex; align-items: center; gap: 20px; border-bottom: 1px solid var(--border); font-size: 13px; background: var(--bg-primary); flex-shrink: 0; }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 650; font-size: 15px; color: var(--text-primary); text-decoration: none; }
+.brand svg { color: var(--accent); }
+.divider { color: var(--border-hover); }
+.label { color: var(--text-secondary); display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.status { font-size: 10px; line-height: 1.4; white-space: nowrap; color: var(--text-secondary); background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 4px; padding: 3px 6px; }
+.actions { margin-left: auto; display: flex; align-items: center; gap: 24px; }
+.actions a { color: var(--text-secondary); text-decoration: none; white-space: nowrap; }
+.header a:focus-visible, .header button:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+@media (max-width: 640px) { .header { padding: 18px 20px; gap: 12px; } .actions { gap: 12px; } .actions a { font-size: 11px; } }
+@media (max-width: 480px) { .header { flex-wrap: wrap; } .actions { gap: 10px; } }

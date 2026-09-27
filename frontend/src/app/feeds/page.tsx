@@ -1,9 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { useState } from "react";
-import { LogoMark } from "@/components/LogoMark";
-import { ThemeToggle } from "@/components/ThemeToggle";
+import { PageHeader } from "@/components/PageHeader";
 import styles from "./page.module.css";
 
 const topics = ["All papers", "Machine learning", "Neuroscience", "Climate science"];
@@ -40,11 +38,7 @@ export default function FeedsPage() {
   const visible = papers.filter(p => (topic === "All papers" || p.topic === topic) && (!savedOnly || saved.includes(p.id)));
 
   return <div className={styles.page}>
-    <header className={styles.header}>
-      <Link href="/" className={styles.brand}><LogoMark width="23" height="23" /><span>Sediment</span></Link>
-      <span className={styles.divider}>/</span><span className={styles.headerLabel}>Feeds <span className={styles.development}>Under development</span></span>
-      <div className={styles.headerRight}><Link href="/">Back to home</Link><ThemeToggle /></div>
-    </header>
+    <PageHeader title="Feeds" />
     <main className={styles.main}>
       <section className={styles.intro}>
         <div className={styles.eyebrow}><span /> A little closer to your next idea</div>

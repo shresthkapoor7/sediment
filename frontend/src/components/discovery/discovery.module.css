@@ -1,0 +1,37 @@
+.page { display: flex; flex-direction: column; }
+.workspace { position: relative; flex: 1; min-height: 0; }
+.iconButton, .chatToggle { display: flex; align-items: center; justify-content: center; gap: 8px; height: 32px; padding: 0 10px; border-radius: 5px; border: 1px solid var(--border); background: var(--node-bg); color: var(--text-secondary); font: inherit; font-size: 11px; cursor: pointer; }
+.iconButton { width: 32px; padding: 0; }
+.chatToggle[aria-pressed="true"] { color: var(--accent); background: var(--accent-soft); border-color: var(--accent); }
+.node { display: flex; flex-direction: column; justify-content: center; gap: 9px; padding: 14px 18px; text-align: left; }
+.nodeKicker { color: var(--accent); font-size: 11px; }
+.conceptTitle { color: var(--text-primary); font-size: 19px; line-height: 1.3; font-weight: 550; letter-spacing: -.03em; }
+.nodeMeta { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--text-secondary); font-size: 12px; }
+.nodeTitle { color: var(--text-primary); font-size: 16px; line-height: 1.35; font-weight: 550; letter-spacing: -.02em; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.page button:focus-visible, .page a:focus-visible, .node:focus-visible, .articleLink:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.preview { position: fixed; max-width: calc(100vw - 2rem); max-height: calc(100dvh - 2rem); overflow-y: auto; z-index: 55; pointer-events: auto; padding: 22px; background: var(--node-bg); border: 1px solid var(--border); border-radius: 8px; box-shadow: var(--node-shadow-hover); }
+.previewMeta { display: flex; justify-content: space-between; gap: 12px; font-size: 10px; color: var(--text-secondary); }
+.preview h2 { margin-top: 14px; font-size: 19px; font-weight: 550; line-height: 1.35; letter-spacing: -.035em; }
+.authors { margin-top: 10px; font-size: 11px; line-height: 1.6; color: var(--text-secondary); }
+.summary { margin-top: 16px; font-size: 13px; line-height: 1.8; color: var(--text-secondary); }
+.related { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border); font-size: 11px; line-height: 1.7; color: var(--text-secondary); }
+.related > span { font-size: 10px; font-weight: 600; }
+.related p { margin-top: 5px; }
+.articleLink { display: inline-block; margin-top: 18px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 5px; text-decoration: none; color: var(--text-primary); background: var(--bg-secondary); font-size: 12px; }
+.articleLink:hover { border-color: var(--border-hover); color: var(--accent); }
+.chat form > div { transition: border-color .12s ease, box-shadow .12s ease; }
+.chat form > div:focus-within { border-color: color-mix(in srgb, var(--accent) 35%, var(--border)) !important; box-shadow: 0 0 0 3px var(--accent-soft); }
+@media (max-width: 700px) { .chatToggle span { display: none; } .legend { max-width: calc(100% - 32px); bottom: 60px !important; } .legend > div { flex-wrap: wrap; } .zoomControls { max-width: calc(100% - 32px); } }
+@media (prefers-reduced-motion: reduce) { .node, .chat form > div { transition: none !important; } }
+
+.canvasHint { position: absolute; top: 16px; left: 24px; color: var(--text-secondary); font-size: 11px; pointer-events: none; }
+@media (max-width: 700px) { .canvasHint { left: 16px; right: 16px; font-size: 10px; } }
+
+.paperNode { justify-content: flex-start; padding: 18px; gap: 10px; }
+.paperNode .nodeTitle { display: block; overflow: visible; font-size: 18px; line-height: 1.4; }
+.paperAuthors { color: var(--text-secondary); font-size: 11px; line-height: 1.5; }
+.paperSummary { color: var(--text-secondary); font-size: 13px; line-height: 1.7; margin-top: 2px; }
+.paperTopics { display: flex; flex-wrap: wrap; gap: 6px; border-top: 1px solid var(--border); padding-top: 12px; margin-top: 4px; }
+.paperTopics span { font-size: 10px; line-height: 1.5; padding: 3px 6px; border-radius: 4px; background: var(--bg-secondary); }
+
+.mapChatToggle { position: absolute; bottom: 76px; left: 16px; z-index: 30; }

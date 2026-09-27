@@ -1,5 +1,6 @@
 "use client";
 
+import styles from "@/components/discovery/discovery.module.css";
 import { useState } from "react";
 import { DiscoveryCanvas } from "@/components/discovery/DiscoveryCanvas";
 import { DiscoveryDock } from "@/components/discovery/DiscoveryDock";
@@ -27,20 +28,21 @@ export default function DiscoveryPage() {
 
   return (
     <div
-      className="canvas-shell"
-      style={{ position: "relative", width: "100vw", height: "100vh", overflow: "hidden", background: "var(--bg-canvas)" }}
+      className={`canvas-shell ${styles.page}`}
+      style={{ position: "relative", width: "100vw", height: "100dvh", overflow: "hidden", background: "var(--bg-canvas)" }}
     >
+      <DiscoveryDock
+        chatOpen={chatOpen}
+        onToggleChat={() => setChatOpen((v) => !v)}
+      />
+      <div className={styles.workspace}>
       <DiscoveryCanvas
         graph={graph}
         selected={selected}
         onToggleTopic={toggleTopic}
         onClearSelection={clearSelection}
       />
-      <DiscoveryDock
-        concept={graph.concept.label}
-        chatOpen={chatOpen}
-        onToggleChat={() => setChatOpen((v) => !v)}
-      />
+      </div>
       <DiscoveryChat open={chatOpen} onClose={() => setChatOpen(false)} graph={graph} />
     </div>
   );
