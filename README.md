@@ -102,6 +102,10 @@ The final iteration forces a submission attempt. The backend requires at least o
 
 Implementation: [lineage orchestration](backend/app/services/lineage.py), [OpenAlex adapter](backend/app/services/openalex.py), and [prompts and agent loop](backend/app/services/llm.py).
 
+### Personalized feeds
+
+Feeds combine Hugging Face Papers, arXiv, and OpenAlex metadata around browser-saved interests. The page starts empty, then supports manual refresh and deduplicated 12-paper pagination. It uses tagged local illustrations without downloading papers or running per-paper AI calls. See [feed setup, API behavior, and provider adapters](docs/feeds.md), including the required database migration.
+
 ### Research agent
 
 The research agent answers questions about an individual paper or the whole timeline. Saved conversations restore recent messages and a rolling summary; paper chat also accepts a selected excerpt, while timeline chat accepts paper mentions and canvas context.
