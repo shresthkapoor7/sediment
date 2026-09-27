@@ -21,7 +21,7 @@
 .articleLink:hover { border-color: var(--border-hover); color: var(--accent); }
 .chat form > div { transition: border-color .12s ease, box-shadow .12s ease; }
 .chat form > div:focus-within { border-color: color-mix(in srgb, var(--accent) 35%, var(--border)) !important; box-shadow: 0 0 0 3px var(--accent-soft); }
-@media (max-width: 700px) { .chatToggle span { display: none; } .legend { max-width: calc(100% - 32px); bottom: 60px !important; } .legend > div { flex-wrap: wrap; } .zoomControls { max-width: calc(100% - 32px); } }
+@media (max-width: 700px) { .chatToggle span { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; } .legend { max-width: calc(100% - 32px); bottom: 60px !important; } .legend > div { flex-wrap: wrap; } .zoomControls { max-width: calc(100% - 32px); } }
 @media (prefers-reduced-motion: reduce) { .node, .chat form > div { transition: none !important; } }
 
 .canvasHint { position: absolute; top: 16px; left: 24px; color: var(--text-secondary); font-size: 11px; pointer-events: none; }
