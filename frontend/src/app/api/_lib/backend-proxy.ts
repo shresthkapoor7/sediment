@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 const DEFAULT_BACKEND_URL = "http://127.0.0.1:8000";
 
-function getBackendBaseUrl(): string {
+export function getBackendBaseUrl(): string {
   const candidate = (
     process.env.BACKEND_INTERNAL_URL
     || process.env.RAILWAY_API_URL

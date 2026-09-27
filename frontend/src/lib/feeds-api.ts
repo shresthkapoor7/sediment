@@ -8,6 +8,7 @@ export type FeedPaper = {
   abstract: string;
   authors: string[];
   published: string | null;
+  updated: string | null;
   doi: string | null;
   arxiv_id: string | null;
   openalex_id: string | null;
@@ -43,4 +44,8 @@ export async function fetchFeed(userId: string, update?: { action: FeedAction; s
     throw new APIError(typeof data?.detail === "string" ? data.detail : "Couldn’t load your feed. Please try again.", response.status);
   }
   return response.json();
+}
+
+export function feedPaperPath(paper: FeedPaper): string {
+  return `/${encodeURIComponent(paper.id.replace(":", "-").replaceAll("/", "_"))}`;
 }

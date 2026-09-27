@@ -52,6 +52,12 @@ An approved Hugging Face thumbnail is used when available, then a topic illustra
 
 Bookmark IDs stay in browser storage. “Saved in this feed” filters the currently loaded papers; bookmarks are not a separate server-side reading library.
 
+## Paper detail links
+
+Feed cards open a centered dialog at a shareable root URL such as `/arxiv-2609.30258` or `/openalex-W7204949214`. The dialog shows the full stored abstract, authors, dates, topics, identifiers, available image, browser bookmark, and a link to the original paper. The browser tab title follows the paper title. Native history preserves the mounted feed and its scroll position when opening or closing; Back/Forward restores the overlay. Modified clicks can open the same link in a new tab.
+
+Direct visits and reloads use the server-rendered `[paperId]` route and `GET /api/feed-papers/{paper_id}`. This endpoint reads and merges public metadata from `feed_papers`; it does not read browser interests or call external paper providers or an LLM. Uncached papers return 404 from the API, and storage failures show a retry state. Bookmark changes sync between cards and the overlay through the existing browser-local bookmark store. No new database migration is needed.
+
 ## Validation
 
 From `backend/`, run:

@@ -1,37 +1,27 @@
 "use client";
 
+import Link from "next/link";
+import { FeedPaperDetail } from "@/components/feeds/FeedPaperDetail";
+import { FeedPaperImage } from "@/components/feeds/FeedPaperImage";
+import { useFeedBookmarks } from "@/lib/feed-bookmarks";
 import { useEffect, useRef, useState } from "react";
 import { BalancedMasonry } from "@/components/feeds/BalancedMasonry";
 import { PageHeader } from "@/components/PageHeader";
 import { APIError, getOrCreateAnonymousUserId } from "@/lib/api";
-import { Feed, FeedAction, FeedPaper, FeedFilter, fetchFeed, sourceLabels } from "@/lib/feeds-api";
-import { illustrationFor } from "@/lib/feed-illustrations";
+import { Feed, FeedAction, FeedFilter, FeedPaper, fetchFeed, sourceLabels, feedPaperPath } from "@/lib/feeds-api";
 import styles from "./page.module.css";
-
-function PaperImage({ paper }: { paper: FeedPaper }) {
-  const [failed, setFailed] = useState<string[]>([]);
-  const illustration = illustrationFor(paper);
-  const thumbnail = paper.thumbnail?.startsWith("https://cdn-thumbnails.huggingface.co/") ? paper.thumbnail : null;
-  const src = [thumbnail, illustration].find(candidate => candidate && !failed.includes(candidate));
-  if (!src) return null;
-  return <figure className={styles.figure}>
-    {/* Provider thumbnails and local SVGs are served directly without an image transformation service. */}
-    {/* eslint-disable-next-line @next/next/no-img-element */}
-    <img src={src} alt="" loading="lazy" referrerPolicy="no-referrer" onError={() => setFailed(current => [...current, src])} />
-    <figcaption>{src === thumbnail ? "Paper thumbnail · Hugging Face" : "Topic illustration"}</figcaption>
-  </figure>;
-}
 
 function dateLabel(value: string | null) {
   return value ? new Date(`${value.slice(0, 10)}T12:00:00Z`).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" }) : "Date unavailable";
 }
 
 export default function FeedsPage() {
+  const [openedPaper, setOpenedPaper] = useState<FeedPaper | null>(null);
   const [feed, setFeed] = useState<Feed | null>(null);
   const [interests, setInterests] = useState("");
   const [editing, setEditing] = useState(false);
   const [source, setSource] = useState<FeedFilter>("all");
-  const [saved, setSaved] = useState<string[]>([]);
+  const { saved, toggle } = useFeedBookmarks();
   const [savedOnly, setSavedOnly] = useState(false);
   const [pending, setPending] = useState<FeedAction | "restore" | null>("restore");
   const [error, setError] = useState("");
@@ -57,10 +47,6 @@ export default function FeedsPage() {
         setEditing(!result.interests);
         setNeedsReload(false);
         setError("");
-        try {
-          const ids = JSON.parse(localStorage.getItem("sediment_feed_saved") || "[]");
-          if (Array.isArray(ids)) setSaved(ids.filter(id => typeof id === "string"));
-        } catch { /* Bookmarks are optional; feed persistence lives on the server. */ }
       } catch (err) {
         if (!controller.signal.aborted) setError(err instanceof Error ? err.message : "Couldn’t restore your feed.");
       } finally {
@@ -70,6 +56,22 @@ export default function FeedsPage() {
     void restore();
     return () => { controller.abort(); request.current?.abort(); };
   }, [restoreKey]);
+
+  useEffect(() => {
+    function restoreOverlay() {
+      const paper = window.history.state?.sedimentFeedPaper as FeedPaper | undefined;
+      setOpenedPaper(paper && feedPaperPath(paper) === window.location.pathname ? paper : null);
+    }
+    window.addEventListener("popstate", restoreOverlay);
+    return () => window.removeEventListener("popstate", restoreOverlay);
+  }, []);
+
+  function openPaper(paper: FeedPaper) {
+    // Native history keeps this feed, its loaded pages, and scroll position
+    // mounted. The same URL has a server-rendered route for direct visits.
+    window.history.pushState({ sedimentFeedPaper: paper }, "", feedPaperPath(paper));
+    setOpenedPaper(paper);
+  }
 
   function reload() {
     setPending("restore");
@@ -133,10 +135,8 @@ export default function FeedsPage() {
   }
 
   function toggleSaved(id: string) {
-    const next = saved.includes(id) ? saved.filter(value => value !== id) : [...saved, id];
-    setSaved(next);
-    try { localStorage.setItem("sediment_feed_saved", JSON.stringify(next)); }
-    catch { setError("This browser couldn’t save bookmarks. Your selection will last for this visit."); }
+    try { toggle(id); }
+    catch { setError("This browser couldn’t save the bookmark. Please try again."); }
   }
 
   const visible = (feed?.papers || []).filter(paper => !savedOnly || saved.includes(paper.id));
@@ -169,10 +169,10 @@ export default function FeedsPage() {
         <div className={styles.resultCount} role="status">{visible.length} of {feed.papers.length} loaded papers <span>Recent research</span></div>
         <BalancedMasonry className={styles.masonry}>
           {visible.map(paper => <article className={styles.card} key={paper.id}>
-            <PaperImage paper={paper} />
+            <FeedPaperImage paper={paper} className={styles.figure} />
             <div className={styles.cardBody}>
               <div className={styles.cardMeta}><span>{paper.topics[0] || (paper.preprint ? "Preprint" : "Research paper")}</span><time dateTime={paper.published || undefined}>{dateLabel(paper.published)}</time></div>
-              <h3><a href={paper.url} target="_blank" rel="noopener noreferrer">{paper.title}</a></h3>
+              <h3><Link className={styles.paperLink} href={feedPaperPath(paper)} scroll={false} prefetch={false} onClick={event => { if (event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) { event.preventDefault(); openPaper(paper); } }}>{paper.title}</Link></h3>
               {!!paper.authors.length && <p className={styles.authors}>{paper.authors.slice(0, 3).join(", ")}{paper.authors.length > 3 ? " & collaborators" : ""}</p>}
               {paper.abstract && <p data-preview className={styles.summary}>{paper.abstract}</p>}
               <div className={styles.cardFooter}><span>{paper.sources.map(value => sourceLabels[value]).join(" · ")}{paper.preprint && <small>Preprint</small>}</span><button aria-label={`${saved.includes(paper.id) ? "Unsave" : "Save"} ${paper.title}`} aria-pressed={saved.includes(paper.id)} onClick={() => toggleSaved(paper.id)}><svg width="15" height="17" viewBox="0 0 16 18" fill={saved.includes(paper.id) ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.3" aria-hidden="true"><path d="M3 2h10v14l-5-3-5 3z" /></svg>{saved.includes(paper.id) ? "Saved" : "Save"}</button></div>
@@ -181,8 +181,9 @@ export default function FeedsPage() {
         </BalancedMasonry>
         {!visible.length && <div className={styles.empty}><h3>{savedOnly ? "Keep something for later." : "No matching papers yet."}</h3><p>{savedOnly ? "Papers you save from this feed will appear here." : source !== "all" ? "Try another source or load more papers." : "Try broader interests, or check for more results below."}</p>{(source !== "all" || savedOnly) && <button disabled={disabled || editing} onClick={() => { setSavedOnly(false); void update("source", "all"); }}>Show all papers</button>}</div>}
         {feed.cursor && <div className={styles.loadMore}><button className={styles.secondary} disabled={disabled || editing} onClick={() => void update("more")}>{pending === "more" ? "Loading…" : "Load more papers"}</button></div>}
-        <p className={styles.endnote}>{feed.cursor ? "Up to 12 new papers at a time." : "You’re caught up with the available results. Refresh later or edit your interests."}<br />Topic illustrations are decorative. Paper links open the original source.</p>
+        <p className={styles.endnote}>{feed.cursor ? "Up to 12 new papers at a time." : "You’re caught up with the available results. Refresh later or edit your interests."}<br />Topic illustrations are decorative. Open a paper for its full abstract and original source.</p>
       </section>}
     </main>
+    {openedPaper && <FeedPaperDetail paper={openedPaper} intercepted />}
   </div>;
 }

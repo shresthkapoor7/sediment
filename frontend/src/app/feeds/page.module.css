@@ -38,7 +38,7 @@
 .masonry { --column-count: 3; position: relative; display: grid; grid-template-columns: repeat(var(--column-count), minmax(0, 1fr)); gap: 18px; }
 .masonry[data-balanced] { display: block; }
 .masonry[data-balanced] > .card { position: absolute; }
-.card { display: flex; flex-direction: column; min-width: 0; width: 100%; border: 1px solid var(--border); background: var(--node-bg); border-radius: 10px; overflow: hidden; transition: border-color .2s, box-shadow .2s; }
+.card { position: relative; display: flex; flex-direction: column; min-width: 0; width: 100%; border: 1px solid var(--border); background: var(--node-bg); border-radius: 10px; overflow: hidden; transition: border-color .2s, box-shadow .2s; }
 .card:hover { border-color: var(--border-hover); box-shadow: var(--node-shadow-hover); }
 .cardBody { padding: 22px; display: flex; flex-direction: column; flex: 1; min-height: 0; }
 .cardMeta { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 9px; color: var(--text-secondary); }
@@ -91,3 +91,7 @@
 .authors:has(+ .summary) { margin-bottom: 0; }
 .card h3 { overflow-wrap: anywhere; }
 .card h3:has(+ .cardFooter) { margin-bottom: 22px; }
+
+.paperLink::after { content: ""; position: absolute; inset: 0; z-index: 1; }
+.cardFooter button { position: relative; z-index: 2; }
+.card:has(.paperLink:focus-visible) { outline: 2px solid var(--accent); outline-offset: 3px; }
