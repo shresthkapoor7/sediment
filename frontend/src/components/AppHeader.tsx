@@ -1222,13 +1222,15 @@ export function AppHeader({
 
               {!timelineData && (
                 <Link className="feeds-nav-link feeds-mobile-link" href="/feeds" onClick={() => setMobileMenuOpen(false)}>
-                  Feeds <span className="feeds-new">New</span>
+                  <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="var(--text-tertiary)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="2" y="2" width="5" height="7" rx="1" /><rect x="9" y="2" width="5" height="4" rx="1" /><rect x="2" y="11" width="5" height="3" rx="1" /><rect x="9" y="8" width="5" height="6" rx="1" /></svg>
+                  <span>Feeds</span><span className="feeds-new">New</span>
                 </Link>
               )}
 
               {!timelineData && (
                 <Link className="feeds-nav-link feeds-mobile-link" href="/discovery" onClick={() => setMobileMenuOpen(false)}>
-                  Discovery <span className="feeds-new">New</span>
+                  <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="var(--text-tertiary)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 8h3M8 4v8M8 4h3M8 12h3" /><rect x="1" y="6" width="4" height="4" rx=".75" /><rect x="11" y="2" width="4" height="4" rx=".75" /><rect x="11" y="10" width="4" height="4" rx=".75" /></svg>
+                  <span>Discovery</span><span className="feeds-new">New</span>
                 </Link>
               )}
 
