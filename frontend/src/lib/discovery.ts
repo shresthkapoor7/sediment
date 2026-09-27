@@ -134,12 +134,12 @@ export function assignTopicColors(topics: DiscoveryTopic[]): Record<string, stri
 // ── Layout geometry (SVG/px space) ──
 
 export const DISCOVERY_GEOMETRY = {
-  worldW: 1720,
-  columns: { input: 260, topic: 720, paper: 1200 },
-  headerY: 70,
+  worldW: 1580,
+  columns: { input: 160, topic: 550, paper: 1000 },
+  headerY: 32,
   topicGap: 168,
-  paperGap: 120,
-  vertMargin: 220,
+  paperGap: 96,
+  vertMargin: 90,
   rInput: 34,
   rTopic: 17,
   rPaper: 11,
@@ -153,6 +153,7 @@ export interface PlacedTopic extends DiscoveryTopic {
 export interface PlacedPaper extends DiscoveryPaper {
   x: number;
   y: number;
+  height: number;
 }
 
 export interface DiscoveryLayout {
@@ -166,15 +167,25 @@ export interface DiscoveryLayout {
 
 /** Turn a graph into placed nodes. Papers are ordered by the mean vertical
  *  index of their sub-fields so synapses stay untangled. */
-export function layoutGraph(graph: DiscoveryGraph): DiscoveryLayout {
+export function layoutGraph(graph: DiscoveryGraph, paperHeights: Record<string, number> = {}): DiscoveryLayout {
   const G = DISCOVERY_GEOMETRY;
   const colors = assignTopicColors(graph.topics);
 
-  const contentH = Math.max(
-    (graph.topics.length - 1) * G.topicGap,
-    (graph.papers.length - 1) * G.paperGap,
-    0,
-  );
+  const topicIndex: Record<string, number> = {};
+  graph.topics.forEach((t, i) => (topicIndex[t.id] = i));
+  const meanIdx = (p: DiscoveryPaper) =>
+    p.topics.reduce((sum, id) => sum + (topicIndex[id] ?? 0), 0) / Math.max(p.topics.length, 1);
+  const ordered = [...graph.papers].sort((a, b) => meanIdx(a) - meanIdx(b));
+  const bottoms = [0, 0];
+  const paperPositions = ordered.map(paper => {
+    const column = bottoms[0] <= bottoms[1] ? 0 : 1;
+    const height = paperHeights[paper.id] ?? 170;
+    const y = bottoms[column] + height / 2;
+    bottoms[column] += height + 18;
+    return { ...paper, x: G.columns.paper + column * 350, y, height };
+  });
+  const paperContentH = Math.max(0, ...bottoms) - (ordered.length ? 18 : 0);
+  const contentH = Math.max((graph.topics.length - 1) * G.topicGap + 80, paperContentH);
   const worldH = contentH + G.vertMargin * 2;
   const cy = worldH / 2;
 
@@ -187,14 +198,9 @@ export function layoutGraph(graph: DiscoveryGraph): DiscoveryLayout {
     ({ item, x, y }) => ({ ...item, x, y, color: colors[item.id] }),
   );
 
-  const topicIndex: Record<string, number> = {};
-  graph.topics.forEach((t, i) => (topicIndex[t.id] = i));
-  const meanIdx = (p: DiscoveryPaper) =>
-    p.topics.reduce((s, id) => s + (topicIndex[id] ?? 0), 0) / Math.max(p.topics.length, 1);
-  const ordered = [...graph.papers].sort((a, b) => meanIdx(a) - meanIdx(b));
-  const papers: PlacedPaper[] = column(ordered, G.columns.paper, G.paperGap).map(
-    ({ item, x, y }) => ({ ...item, x, y }),
-  );
+  const papers: PlacedPaper[] = paperPositions.map(paper => ({
+    ...paper, y: paper.y + (worldH - paperContentH) / 2,
+  }));
 
   const topicById: Record<string, PlacedTopic> = {};
   topics.forEach((t) => (topicById[t.id] = t));

@@ -1,5 +1,8 @@
 "use client";
 
+// @refresh reset
+// Remount this imperative canvas on edits so transforms and hook state stay in sync.
+
 import { useRef, useEffect, useCallback, useMemo, useState } from "react";
 import { m, AnimatePresence } from "framer-motion";
 import {
@@ -8,11 +11,15 @@ import {
   synapsePath,
   type DiscoveryGraph,
 } from "@/lib/discovery";
+import styles from "./discovery.module.css";
 import { DiscoveryPreview, type DiscoveryPreviewData } from "./DiscoveryPreview";
 
-const { rInput: R_INPUT, rTopic: R_TOPIC, rPaper: R_PAPER, headerY: HEADER_Y, columns: COLS } =
+const { headerY: HEADER_Y, columns: COLS } =
   DISCOVERY_GEOMETRY;
-const PREVIEW_W = 480;
+const PREVIEW_W = 360;
+const R_INPUT = 110;
+const R_TOPIC = 120;
+const R_PAPER = 165;
 
 interface DiscoveryCanvasProps {
   graph: DiscoveryGraph;
@@ -52,8 +59,32 @@ export function DiscoveryCanvas({ graph, selected, onToggleTopic, onClearSelecti
   const dragRef = useRef<{ id: string; x0: number; y0: number; px: number; py: number; moved: boolean } | null>(null);
   const suppressClickRef = useRef(false);
 
-  const layout = useMemo(() => layoutGraph(graph), [graph]);
-  const { world, input, topics, papers, topicById } = layout;
+  const hasMeasuredPapers = useRef(false);
+  const [paperHeights, setPaperHeights] = useState<Record<string, number>>({});
+  const layout = useMemo(() => layoutGraph(graph, paperHeights), [graph, paperHeights]);
+
+  useEffect(() => {
+    const layer = nodeLayerRef.current;
+    if (!layer) return;
+    const observer = new ResizeObserver(entries => {
+      const measured: Record<string, number> = {};
+      for (const entry of entries) {
+        const element = entry.target as HTMLElement;
+        measured[element.dataset.paperId!] = element.offsetHeight;
+      }
+      if (!hasMeasuredPapers.current && entries.length > 0) {
+        hasMeasuredPapers.current = true;
+        hasCentered.current = false;
+      }
+      setPaperHeights(previous => {
+        if (Object.entries(measured).every(([id, height]) => previous[id] === height)) return previous;
+        return { ...previous, ...measured };
+      });
+    });
+    layer.querySelectorAll("[data-paper-id]").forEach(element => observer.observe(element));
+    return () => observer.disconnect();
+  }, [graph]);
+  const { world, input, topics, papers } = layout;
 
   const applyTransform = useCallback(() => {
     const { x, y } = panRef.current;
@@ -97,7 +128,7 @@ export function DiscoveryCanvas({ graph, selected, onToggleTopic, onClearSelecti
     const el = containerRef.current;
     if (!el) return;
     const onDown = (e: PointerEvent) => {
-      if (e.pointerType === "touch" || e.button !== 0) return;
+      if (e.button !== 0) return;
       movedRef.current = false;
       // Don't start a pan (which captures the pointer and swallows clicks) when
       // the press lands on a node or any interactive control.
@@ -139,20 +170,25 @@ export function DiscoveryCanvas({ graph, selected, onToggleTopic, onClearSelecti
     };
   }, [applyTransform]);
 
-  const fitToView = useCallback(() => {
+  const fitToView = useCallback((initial = false) => {
     const el = containerRef.current;
     if (!el) return;
     const { clientWidth, clientHeight } = el;
     const fit = Math.min(clientWidth / world.w, clientHeight / world.h, 1) * 0.94;
     zoomRef.current = fit;
     panRef.current = { x: (clientWidth - world.w * fit) / 2, y: (clientHeight - world.h * fit) / 2 };
+    // Start narrow screens at a readable scale; Fit to view still shows the full map.
+    if (initial && clientWidth < 700) {
+      zoomRef.current = 0.85;
+      panRef.current = { x: 24 - (COLS.input - R_INPUT) * 0.85, y: clientHeight / 2 - (world.h / 2) * 0.85 };
+    }
     applyTransform();
-    setZoomDisplay(Math.round(fit * 100));
+    setZoomDisplay(Math.round(zoomRef.current * 100));
   }, [applyTransform, world.w, world.h]);
 
   useEffect(() => {
     if (!hasCentered.current) {
-      fitToView();
+      fitToView(true);
       hasCentered.current = true;
     }
   }, [fitToView]);
@@ -278,7 +314,7 @@ export function DiscoveryCanvas({ graph, selected, onToggleTopic, onClearSelecti
   return (
     <m.div
       ref={containerRef}
-      className="canvas-grid"
+      className={`canvas-grid ${styles.canvas}`}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.5 }}
@@ -362,6 +398,7 @@ export function DiscoveryCanvas({ graph, selected, onToggleTopic, onClearSelecti
 
           {/* Input neuron */}
           <m.div
+            className={styles.node}
             data-neuron
             initial={{ opacity: 0, scale: 0.8 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -372,33 +409,21 @@ export function DiscoveryCanvas({ graph, selected, onToggleTopic, onClearSelecti
             style={{
               position: "absolute",
               left: inputV.x - R_INPUT,
-              top: inputV.y - R_INPUT,
+              top: inputV.y - 48,
               width: R_INPUT * 2,
-              height: R_INPUT * 2,
-              borderRadius: "50%",
-              background: "var(--accent)",
-              boxShadow: "0 0 0 0.5rem var(--accent-soft), 0 0.375rem 1.25rem var(--accent-glow)",
+              height: 96,
+              borderRadius: "8px",
+              background: "var(--node-bg)",
+              border: "1px solid var(--border-hover)",
+              boxShadow: "var(--node-shadow)",
               cursor: "grab",
               touchAction: "none",
               pointerEvents: "auto",
             }}
-          />
-          <div
-            style={{
-              position: "absolute",
-              left: inputV.x,
-              top: inputV.y + R_INPUT + 14,
-              transform: "translateX(-50%)",
-              textAlign: "center",
-              whiteSpace: "nowrap",
-              fontSize: "0.9375rem",
-              fontWeight: 600,
-              color: "var(--text-primary)",
-              letterSpacing: "-0.01em",
-            }}
           >
-            {inputV.data.label}
-          </div>
+            <span className={styles.nodeKicker}>Exploring</span>
+            <span className={styles.conceptTitle}>{inputV.data.label}</span>
+          </m.div>
 
           {/* Topic neurons */}
           {topicsV.map((t, i) => {
@@ -408,6 +433,7 @@ export function DiscoveryCanvas({ graph, selected, onToggleTopic, onClearSelecti
             return (
               <div key={t.id}>
                 <m.div
+                  className={styles.node}
                   data-neuron
                   role="button"
                   tabIndex={0}
@@ -454,39 +480,27 @@ export function DiscoveryCanvas({ graph, selected, onToggleTopic, onClearSelecti
                   style={{
                     position: "absolute",
                     left: t.x - R_TOPIC,
-                    top: t.y - R_TOPIC,
+                    top: t.y - 40,
                     width: R_TOPIC * 2,
-                    height: R_TOPIC * 2,
-                    borderRadius: "50%",
-                    background: isSel ? t.color : "var(--node-bg)",
-                    border: `0.1875rem solid ${lit ? t.color : "var(--border-hover)"}`,
+                    height: 80,
+                    borderRadius: "6px",
+                    background: isSel ? `color-mix(in srgb, ${t.color} 8%, var(--node-bg))` : "var(--node-bg)",
+                    border: `1px solid ${lit ? t.color : "var(--border)"}`,
                     boxShadow: isSel
-                      ? `0 0 0 0.375rem color-mix(in srgb, ${t.color} 22%, transparent)`
+                      ? `0 0 0 2px color-mix(in srgb, ${t.color} 22%, transparent)`
                       : lit
                         ? "var(--node-shadow-hover)"
                         : "var(--node-shadow)",
                     opacity: isActive && !lit ? 0.4 : 1,
-                    transform: `scale(${isSel ? 1.14 : lit ? 1.06 : 1})`,
                     transition: "opacity 0.2s ease, background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease",
                     cursor: "grab",
                     touchAction: "none",
                     pointerEvents: "auto",
                   }}
-                />
-                <div
-                  style={{
-                    position: "absolute",
-                    left: t.x + R_TOPIC + 12,
-                    top: t.y,
-                    transform: "translateY(-50%)",
-                    whiteSpace: "nowrap",
-                    opacity: isActive && !lit ? 0.4 : 1,
-                    transition: "opacity 0.2s ease",
-                  }}
                 >
-                  <div style={{ fontSize: "0.8125rem", fontWeight: 600, color: "var(--text-primary)", lineHeight: 1.15 }}>{t.label}</div>
-                  <div style={{ fontSize: "0.625rem", fontFamily: "var(--font-mono), monospace", color: "var(--text-tertiary)", letterSpacing: "0.06em" }}>{t.short}</div>
-                </div>
+                  <span className={styles.nodeMeta}><span style={{ color: t.color }}>{t.short}</span><span>{count} papers</span></span>
+                  <span className={styles.nodeTitle}>{t.label}</span>
+                </m.div>
               </div>
             );
           })}
@@ -499,6 +513,8 @@ export function DiscoveryCanvas({ graph, selected, onToggleTopic, onClearSelecti
             return (
               <div key={p.id}>
                 <m.div
+                  className={`${styles.node} ${styles.paperNode}`}
+                  data-paper-id={p.id}
                   data-neuron
                   initial={{ opacity: 0, scale: 0.8 }}
                   animate={{ opacity: 1, scale: 1 }}
@@ -530,48 +546,25 @@ export function DiscoveryCanvas({ graph, selected, onToggleTopic, onClearSelecti
                   style={{
                     position: "absolute",
                     left: p.x - R_PAPER,
-                    top: p.y - R_PAPER,
+                    top: p.y - p.height / 2,
                     width: R_PAPER * 2,
-                    height: R_PAPER * 2,
-                    borderRadius: "50%",
-                    background: lit && single ? parents[0].color : "var(--node-bg)",
-                    border: `0.125rem solid ${lit ? (single ? parents[0].color : "var(--border-hover)") : "var(--border-hover)"}`,
+                    borderRadius: "6px",
+                    background: "var(--node-bg)",
+                    border: `1px solid ${lit ? (single ? parents[0].color : "var(--accent)") : "var(--border)"}`,
                     boxShadow: lit ? "var(--node-shadow-hover)" : "var(--node-shadow)",
                     opacity: isActive && !lit ? 0.28 : 1,
-                    transform: `scale(${lit && isActive ? 1.22 : 1})`,
                     transition: "opacity 0.2s ease, background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease",
                     cursor: "grab",
                     touchAction: "none",
                     pointerEvents: "auto",
                   }}
                 >
-                  {lit && parents.length > 1 && (
-                    <div style={{ position: "absolute", inset: "0.0625rem", borderRadius: "50%", overflow: "hidden", display: "flex" }}>
-                      {parents.map((par) => (
-                        <span key={par.id} style={{ flex: 1, background: par.color }} />
-                      ))}
-                    </div>
-                  )}
+                  <span className={styles.nodeMeta}><span>{parents.map(par => par.short).join(" · ")}</span><span>{p.year}</span></span>
+                  <span className={styles.nodeTitle}>{p.title}</span>
+                  {!!p.authors?.length && <span className={styles.paperAuthors}>{p.authors.join(", ")}</span>}
+                  {p.summary && <p className={styles.paperSummary}>{p.summary}</p>}
+                  {parents.length > 1 && <div className={styles.paperTopics}>{parents.map(parent => <span key={parent.id} style={{ color: parent.color }}>{parent.label}</span>)}</div>}
                 </m.div>
-                <div
-                  style={{
-                    position: "absolute",
-                    left: p.x + R_PAPER + 12,
-                    top: p.y,
-                    transform: "translateY(-50%)",
-                    whiteSpace: "nowrap",
-                    opacity: isActive && !lit ? 0.28 : 1,
-                    transition: "opacity 0.2s ease",
-                  }}
-                >
-                  <div style={{ display: "flex", alignItems: "baseline", gap: "0.375rem" }}>
-                    <span style={{ fontSize: "0.8125rem", fontWeight: 600, color: "var(--text-primary)", lineHeight: 1.15 }}>{p.title}</span>
-                    <span style={{ fontSize: "0.625rem", fontFamily: "var(--font-mono), monospace", color: "var(--accent)" }}>{p.year}</span>
-                  </div>
-                  <div style={{ fontSize: "0.625rem", fontFamily: "var(--font-mono), monospace", color: "var(--text-tertiary)", letterSpacing: "0.04em" }}>
-                    {parents.map((par) => par.short).join(" · ")}
-                  </div>
-                </div>
               </div>
             );
           })}
@@ -592,8 +585,10 @@ export function DiscoveryCanvas({ graph, selected, onToggleTopic, onClearSelecti
         )}
       </AnimatePresence>
 
+      <div className={styles.canvasHint}>Drag to explore · Select sub-fields to find shared papers</div>
+
       {/* Zoom controls */}
-      <div style={{ position: "absolute", bottom: "1rem", left: "1rem", zIndex: 20, display: "flex", gap: "0.25rem", alignItems: "center" }}>
+      <div className={styles.zoomControls} style={{ position: "absolute", bottom: "1rem", left: "1rem", zIndex: 20, display: "flex", gap: "0.25rem", alignItems: "center" }}>
         {/* eslint-disable-next-line react-hooks/refs -- Zoom controls intentionally use imperative pan and zoom refs in handlers. */}
         {[
           { label: "−", title: "Zoom out", action: () => zoomBy(1 / 1.15) },
@@ -671,7 +666,7 @@ export function DiscoveryCanvas({ graph, selected, onToggleTopic, onClearSelecti
       </div>
 
       {/* Bottom-right stack: selection readout above the legend */}
-      <div style={{ position: "absolute", bottom: "1rem", right: "1rem", zIndex: 20, display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "0.5rem" }}>
+      <div className={styles.legend} style={{ position: "absolute", bottom: "1rem", right: "1rem", zIndex: 20, display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "0.5rem" }}>
         {selected.size > 0 && (
           <div
             style={{

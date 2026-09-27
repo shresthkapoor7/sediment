@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { m, AnimatePresence } from "framer-motion";
+import styles from "./discovery.module.css";
 import { LogoMark } from "@/components/LogoMark";
 import {
   DETAIL_PANEL_DEFAULT_WIDTH,
@@ -115,6 +116,7 @@ export function DiscoveryChat({ open, onClose, graph }: DiscoveryChatProps) {
       <AnimatePresence>
         {open && (
           <m.div
+            className={styles.chat}
             initial={{ x: "100%" }}
             animate={{ x: 0 }}
             exit={{ x: "100%" }}
@@ -128,7 +130,7 @@ export function DiscoveryChat({ open, onClose, graph }: DiscoveryChatProps) {
               width: `min(${panelWidth}px, 100vw)`,
               background: "var(--bg-primary)",
               borderLeft: "0.0625rem solid var(--border)",
-              boxShadow: "-0.75rem 0 2.5rem rgba(0,0,0,0.16)",
+              boxShadow: "var(--node-shadow-hover)",
               display: "flex",
               flexDirection: "column",
               overflow: "hidden",
@@ -179,7 +181,7 @@ export function DiscoveryChat({ open, onClose, graph }: DiscoveryChatProps) {
                     <button
                       key={hint}
                       onClick={() => send(hint)}
-                      style={{ textAlign: "left", background: "var(--bg-secondary)", border: "0.0625rem solid var(--border)", borderRadius: "0.5rem", padding: "0.4375rem 0.625rem", fontSize: "0.71875rem", color: "var(--text-secondary)", fontFamily: "var(--font-sans), sans-serif", cursor: "pointer", transition: "border-color 0.15s, color 0.15s" }}
+                      style={{ textAlign: "left", background: "var(--bg-secondary)", border: "0.0625rem solid var(--border)", borderRadius: "0.375rem", padding: "0.4375rem 0.625rem", fontSize: "0.71875rem", color: "var(--text-secondary)", fontFamily: "var(--font-sans), sans-serif", cursor: "pointer", transition: "border-color 0.15s, color 0.15s" }}
                       onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--border-hover)"; e.currentTarget.style.color = "var(--text-primary)"; e.currentTarget.style.background = "var(--bg-tertiary)"; }}
                       onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.color = "var(--text-secondary)"; e.currentTarget.style.background = "var(--bg-secondary)"; }}
                     >
@@ -195,7 +197,7 @@ export function DiscoveryChat({ open, onClose, graph }: DiscoveryChatProps) {
                     style={{
                       maxWidth: "88%",
                       padding: "0.4375rem 0.625rem",
-                      borderRadius: msg.role === "user" ? "0.625rem 0.625rem 0.1875rem 0.625rem" : "0.625rem 0.625rem 0.625rem 0.1875rem",
+                      borderRadius: "0.375rem",
                       background: msg.role === "user" ? "var(--accent)" : "var(--bg-secondary)",
                       color: msg.role === "user" ? "var(--on-accent)" : "var(--text-primary)",
                       fontSize: "0.78125rem",
@@ -221,6 +223,7 @@ export function DiscoveryChat({ open, onClose, graph }: DiscoveryChatProps) {
                   <input
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
+                    aria-label="Ask about this map"
                     placeholder="Ask about this map..."
                     style={{ flex: 1, minWidth: 0, height: "1.75rem", background: "none", border: "none", outline: "none", color: "var(--text-primary)", fontSize: "0.8125rem", fontFamily: "var(--font-sans), sans-serif", lineHeight: 1.5, padding: 0 }}
                   />

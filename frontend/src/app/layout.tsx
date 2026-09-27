@@ -44,7 +44,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      data-theme="dark"
+      data-theme="light"
       className={`${inter.variable} ${geistMono.variable} ${sourceSerif.variable}`}
       suppressHydrationWarning
     >
@@ -56,8 +56,9 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{
             __html: `
               (function() {
-                var t = localStorage.getItem('sediment-theme');
-                if (!t) t = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+                var t = 'light';
+                try { t = localStorage.getItem('sediment-theme') || 'light'; } catch (_) {}
+                if (t !== 'dark') t = 'light';
                 document.documentElement.setAttribute('data-theme', t);
               })();
             `,
