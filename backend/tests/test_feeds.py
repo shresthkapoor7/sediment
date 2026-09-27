@@ -180,3 +180,23 @@ class FeedTests(unittest.IsolatedAsyncioTestCase):
         more=await service.mutate('u','more',cursor=selected['cursor'],source='arxiv')
         self.assertEqual([p['id'] for p in more['papers']],[paper(12).id])
         self.assertIsNone(more['cursor'])
+
+    async def test_paper_details_merge_cached_sources_without_search(self):
+        repo=Repo(); source=Source(); service=FeedService(repo,[source])
+        arxiv=paper(1,abstract='Full original abstract',authors=['Jane Doe'])
+        oa=arxiv.model_copy(update={'id':'openalex:W123','openalex_id':'W123','sources':['openalex'],'doi':'10.1234/example','topics':['Robotics']})
+        repo.paper_records=AsyncMock(side_effect=[[oa],[arxiv,oa]])
+        result=await service.paper('openalex-W123')
+        self.assertEqual(result.id,'openalex:W123')
+        self.assertEqual(result.abstract,'Full original abstract')
+        self.assertEqual(set(result.sources),{'arxiv','openalex'})
+        self.assertEqual(result.topics,['Robotics'])
+        self.assertEqual(source.calls,0)
+
+    async def test_paper_detail_missing_and_invalid_ids(self):
+        repo=Repo(); repo.paper_records=AsyncMock(return_value=[])
+        service=FeedService(repo,[Source()])
+        for slug in ['arxiv-2609.99999','openalex-W999','not-a-paper','openalex-W1,or=anything']:
+            with self.assertRaises(HTTPException) as ctx: await service.paper(slug)
+            self.assertEqual(ctx.exception.status_code,404)
+        self.assertEqual(repo.paper_records.await_count,2)

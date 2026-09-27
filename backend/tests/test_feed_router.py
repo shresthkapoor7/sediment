@@ -76,3 +76,12 @@ class FeedRouterTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse({p['id'] for p in selected.json()['papers']} & {p['id'] for p in more.json()['papers']})
         invalid = await self.client.post('/api/feeds', json={'userId': USER, 'action': 'source', 'source': 'unknown'})
         self.assertEqual(invalid.status_code, 422)
+
+    async def test_public_paper_details_do_not_require_browser_identity(self):
+        from tests.test_feeds import paper
+        self.service.paper=AsyncMock(return_value=paper(1,abstract='Complete saved abstract'))
+        response=await self.client.get('/api/feed-papers/arxiv-2609.00001')
+        self.assertEqual(response.status_code,200)
+        self.assertEqual(response.json()['abstract'],'Complete saved abstract')
+        self.assertNotIn('interests',response.json())
+        self.service.paper.assert_awaited_once_with('arxiv-2609.00001')

@@ -13,7 +13,7 @@ from fastapi import HTTPException
 
 from ..config import settings
 from ..db.feeds import FeedRepository
-from .feed_sources.base import Paper, SearchRequest, SourceError, identity_keys
+from .feed_sources.base import Paper, SearchRequest, SourceError, identity_keys, arxiv_id
 from .feed_sources.arxiv import ArxivSource
 from .feed_sources.huggingface import HuggingFaceSource
 from .feed_sources.openalex import OpenAlexSource
@@ -146,6 +146,29 @@ class FeedService:
         return {'interests': state['interests'], 'queries': state['queries'], 'papers': papers,
                 'cursor': cursor_for(user, state['revision'], following, source) if available else None,
                 'refreshedAt': state['refreshed_at'], 'warnings': state.get('warnings', []), 'revision': state['revision'], 'source': source}
+
+    async def paper(self, slug: str) -> Paper:
+        if slug.startswith('arxiv-') and arxiv_id(slug[6:].replace('_', '/')):
+            identifier = arxiv_id(slug[6:].replace('_', '/'))
+            canonical = 'arxiv:' + identifier
+            identifiers = {'id': canonical, 'arxiv_id': identifier}
+        elif re.fullmatch(r'openalex-W[0-9]+', slug):
+            identifier = slug[9:]
+            canonical = 'openalex:' + identifier
+            identifiers = {'id': canonical, 'openalex_id': identifier}
+        else:
+            raise HTTPException(404, 'Paper not found.')
+        records = await self.repo.paper_records(identifiers)
+        if not records: raise HTTPException(404, 'This paper is not in the feed library.')
+        # Public detail links read only cached metadata, never private feed state
+        # or upstream providers. Enrich with records carrying the same identifiers.
+        seed = next((p for p in records if p.id == canonical), records[0])
+        aliases = {field: getattr(seed, field) for field in ('doi', 'arxiv_id', 'openalex_id') if getattr(seed, field)}
+        if aliases: records.extend(await self.repo.paper_records(aliases))
+        combined = merge_papers([seed], records)[0]
+        combined.id = canonical
+        combined.updated = max((p.updated for p in records if p.updated), default=None)
+        return combined
 
     async def read(self, user: str) -> dict:
         return self.response(user, await self.repo.get(user))

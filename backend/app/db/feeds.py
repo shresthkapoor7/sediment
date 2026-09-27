@@ -16,6 +16,17 @@ class FeedRepository:
                                      expect_single=True, allow_empty=True)
         return row['state'] if row else None
 
+    async def paper_records(self, identifiers: dict[str, str]) -> list[Paper]:
+        clauses = []
+        for field, value in identifiers.items():
+            if field not in {'id', 'arxiv_id', 'openalex_id', 'doi'}: continue
+            escaped = value.replace('\\', '\\\\').replace('"', '\\"')
+            clauses.append(f'data->>{field}.eq."{escaped}"')
+        if not clauses: return []
+        query = quote('(' + ','.join(clauses) + ')', safe='')
+        rows = await self.db._request('GET', '/rest/v1/feed_papers?select=data&limit=20&or=' + query)
+        return [Paper.model_validate(row['data']) for row in rows]
+
     async def claim(self, key: str, token: str, seconds: int = 180) -> bool:
         return await self.db.rpc('claim_feed_lease', {'p_key': key, 'p_token': token, 'p_seconds': seconds})
 

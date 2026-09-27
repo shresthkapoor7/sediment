@@ -54,3 +54,12 @@ async def update_feed(body: FeedRequest, request: Request, response: Response):
         raise HTTPException(504, 'Feed update took too long. Please retry.') from None
     except RuntimeError:
         raise HTTPException(409, 'Feed update could not finish. Please retry.') from None
+
+
+@router.get('/feed-papers/{paper_id}')
+async def get_feed_paper(paper_id: str, response: Response):
+    response.headers['Cache-Control'] = 'no-store'
+    try:
+        return await FeedService().paper(paper_id)
+    except (SupabaseAPIError, SupabaseConfigError):
+        raise HTTPException(503, 'Paper details are unavailable. Please try again later.') from None
