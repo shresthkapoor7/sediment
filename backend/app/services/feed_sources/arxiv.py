@@ -11,19 +11,26 @@ ATOM = '{http://www.w3.org/2005/Atom}'
 ARXIV = '{http://arxiv.org/schemas/atom}'
 _lock = asyncio.Lock()
 _last_request = 0.0
+_blocked_until = 0.0
 
 
 class ArxivSource:
     name = 'arxiv'
 
     async def _fetch(self, params: dict) -> str:
-        global _last_request
+        global _last_request, _blocked_until
         # One connection, at least 3 seconds between calls. The feed repository also
         # holds a database lease so this remains serialized across API workers.
         async with _lock:
+            if time.monotonic() < _blocked_until:
+                raise SourceError('arXiv is rate limited; retry in a minute', status=429)
             await asyncio.sleep(max(0, 3.1 - (time.monotonic() - _last_request)))
             try:
                 return await fetch('https://export.arxiv.org/api/query', params, xml=True)
+            except SourceError as error:
+                if error.status == 429:
+                    _blocked_until = time.monotonic() + 60
+                raise
             finally:
                 _last_request = time.monotonic()
 
@@ -33,8 +40,12 @@ class ArxivSource:
             raise SourceError('Unexpected XML declaration')
         try:
             root = ET.fromstring(text)
+            if root.tag != ATOM + 'feed':
+                raise SourceError('Invalid arXiv feed')
             papers = []
             for entry in root.findall(ATOM + 'entry'):
+                if (entry.findtext(ATOM + 'id') or '').startswith(('http://arxiv.org/api/errors', 'https://arxiv.org/api/errors')):
+                    raise SourceError('arXiv returned an API error')
                 identifier = arxiv_id(entry.findtext(ATOM + 'id'))
                 if not identifier: continue
                 papers.append(Paper(

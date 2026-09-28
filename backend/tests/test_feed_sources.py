@@ -50,3 +50,35 @@ class FeedSourcesTests(unittest.IsolatedAsyncioTestCase):
 
     def test_arxiv_rejects_entity_declarations(self):
         with self.assertRaises(SourceError): ArxivSource.parse('<!DOCTYPE feed [<!ENTITY x "test">]><feed/>')
+
+    def test_arxiv_error_feed_is_not_a_successful_empty_page(self):
+        xml = '''<feed xmlns="http://www.w3.org/2005/Atom"><entry>
+        <id>http://arxiv.org/api/errors#query_error</id><title>Error</title>
+        <summary>Upstream diagnostic that should not reach the client</summary>
+        </entry></feed>'''
+        with self.assertRaises(SourceError): ArxivSource.parse(xml)
+        with self.assertRaises(SourceError): ArxivSource.parse('<html>Unavailable</html>')
+        self.assertEqual(ArxivSource.parse('<feed xmlns="http://www.w3.org/2005/Atom"/>'), ([], 0))
+
+    async def test_arxiv_rate_limit_prevents_immediate_repeat_request(self):
+        with patch('app.services.feed_sources.arxiv._blocked_until', 0), \
+             patch('app.services.feed_sources.arxiv._last_request', 0), \
+             patch('app.services.feed_sources.arxiv.fetch', AsyncMock(side_effect=SourceError('Provider returned HTTP 429', status=429))) as fetch:
+            for _ in range(2):
+                with self.assertRaises(SourceError) as caught:
+                    await ArxivSource()._fetch({'search_query': 'all:learning'})
+                self.assertEqual(caught.exception.status, 429)
+            fetch.assert_awaited_once()
+
+    async def test_transport_preserves_rate_limit_status_without_response_body(self):
+        from unittest.mock import MagicMock
+        from app.services.feed_sources.base import fetch
+        with patch('app.services.feed_sources.base.aiohttp.ClientSession') as factory:
+            session = MagicMock()
+            factory.return_value.__aenter__.return_value = session
+            response = session.get.return_value.__aenter__.return_value
+            response.status = 429
+            with self.assertRaises(SourceError) as caught:
+                await fetch('https://export.arxiv.org/api/query', xml=True)
+            self.assertEqual(caught.exception.status, 429)
+            self.assertEqual(str(caught.exception), 'Provider returned HTTP 429')

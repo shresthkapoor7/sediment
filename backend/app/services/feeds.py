@@ -4,6 +4,7 @@ import asyncio
 import base64
 import hashlib
 import hmac
+import logging
 import re
 import time
 import uuid
@@ -17,6 +18,8 @@ from .feed_sources.base import Paper, SearchRequest, SourceError, identity_keys,
 from .feed_sources.arxiv import ArxivSource
 from .feed_sources.huggingface import HuggingFaceSource
 from .feed_sources.openalex import OpenAlexSource
+
+logger = logging.getLogger(__name__)
 
 PAGE_SIZE = 12
 MAX_PAPERS = 600
@@ -185,10 +188,14 @@ class FeedService:
                 if await self.repo.claim('provider:arxiv', token, 30): acquired = True; break
                 await asyncio.sleep(1)
             if not acquired: raise SourceError('arXiv is busy; try again shortly')
+        cooldown = 4
         try:
             page = await source.search(request)
+        except SourceError as error:
+            if error.status == 429: cooldown = 60
+            raise
         finally:
-            if source.name == 'arxiv': await self.repo.release('provider:arxiv', token, 4)
+            if source.name == 'arxiv': await self.repo.release('provider:arxiv', token, cooldown)
         await self.repo.cache(key, source.name, page)
         return page
 
@@ -204,20 +211,24 @@ class FeedService:
             active = [s for s in state['streams'] if not s['done'] and s['source'] not in warnings and (source == 'all' or s['source'] == source)]
             if not active or time.monotonic() >= deadline: break
             for stream in active:
+                if stream['source'] in warnings: continue
                 if fetched >= MAX_FETCHES or time.monotonic() >= deadline: break
                 fetched += 1
                 request = SearchRequest(query=stream['query'], since=date.fromisoformat(state['since']),
                                         until=date.fromisoformat(state['until']), cursor=stream['cursor'], limit=24)
                 try:
                     page = await self.source_page(sources[stream['source']], request)
-                except SourceError:
+                except SourceError as error:
+                    logger.warning('Feed provider %s unavailable: %s', stream['source'], error)
                     warnings.add(stream['source']); continue
                 successful += 1
                 stream['done'] = page.next_cursor is None or page.next_cursor == stream['cursor']
                 stream['cursor'] = page.next_cursor
                 candidates.extend(p for p in page.papers if p.title and p.published and
                                   state['since'] <= p.published <= state['until'] and relevance(p, state['queries']) >= .65)
-        if fetched and not successful:
+        if fetched and not successful and not any(matches_source(p, source) for p in existing):
+            if source == 'arxiv':
+                raise HTTPException(503, 'arXiv is temporarily unavailable. Please try again in a minute.', headers={'Retry-After': '60'})
             raise HTTPException(503, 'Paper sources are temporarily unavailable. Your existing feed is unchanged; please retry.')
         merged = merge_papers(existing, candidates)
         # Preserve the displayed prefix so an offset cursor never skips cards when

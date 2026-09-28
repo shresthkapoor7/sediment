@@ -53,6 +53,10 @@ class PaperSource(Protocol):
 class SourceError(RuntimeError):
     """Deliberately excludes provider bodies and credential-bearing request URLs."""
 
+    def __init__(self, message: str, *, status: Optional[int] = None):
+        super().__init__(message)
+        self.status = status
+
 
 def clean(value: Optional[str]) -> str:
     return ' '.join(html.unescape(re.sub(r'<[^>]+>', ' ', value if isinstance(value, str) else '')).split())
@@ -99,7 +103,7 @@ async def fetch(url: str, params: dict | None = None, *, xml: bool = False):
                                          headers={'User-Agent': 'Sediment/0.1 (research discovery)'}) as session:
             async with session.get(url, params=params) as response:
                 if response.status != 200:
-                    raise SourceError(f'Provider returned HTTP {response.status}')
+                    raise SourceError(f'Provider returned HTTP {response.status}', status=response.status)
                 # Never fetch PDFs; bound metadata response size as well.
                 body = bytearray()
                 async for chunk in response.content.iter_chunked(65536):
@@ -108,7 +112,9 @@ async def fetch(url: str, params: dict | None = None, *, xml: bool = False):
                 if xml: return body.decode('utf-8')
                 import json
                 return json.loads(body)
-    except (aiohttp.ClientError, asyncio.TimeoutError, ValueError):
+    except asyncio.TimeoutError:
+        raise SourceError('Provider request timed out') from None
+    except (aiohttp.ClientError, ValueError):
         raise SourceError('Provider request failed') from None
 
 

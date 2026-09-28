@@ -200,3 +200,42 @@ class FeedTests(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(HTTPException) as ctx: await service.paper(slug)
             self.assertEqual(ctx.exception.status_code,404)
         self.assertEqual(repo.paper_records.await_count,2)
+
+    async def test_arxiv_failure_keeps_cached_papers_visible_and_retries_possible(self):
+        repo = Repo(); source = Source(); source.name = 'arxiv'
+        service = FeedService(repo, [source])
+        await service.mutate('u', 'interests', 'robot learning')
+        repo.rows['u']['papers'] = repo.rows['u']['papers'][:5]
+        repo.cache_rows.clear()
+        repo.release = AsyncMock(wraps=repo.release)
+        source.search = AsyncMock(side_effect=SourceError('Provider returned HTTP 429', status=429))
+        result = await service.mutate('u', 'source', source='arxiv')
+        self.assertEqual(len(result['papers']), 5)
+        self.assertEqual(result['warnings'], ['arxiv'])
+        self.assertIsNotNone(result['cursor'])
+        self.assertFalse(repo.rows['u']['streams'][0]['done'])
+        provider_releases = [call.args for call in repo.release.await_args_list if call.args[0] == 'provider:arxiv']
+        self.assertEqual(provider_releases[0][2], 60)
+
+    async def test_arxiv_outage_without_cached_matches_is_clear_and_preserves_state(self):
+        repo = Repo(); source = Source(); source.name = 'arxiv'
+        service = FeedService(repo, [source])
+        await service.mutate('u', 'interests', 'robot learning')
+        repo.rows['u']['papers'] = []
+        old = copy.deepcopy(repo.rows['u'])
+        repo.cache_rows.clear()
+        source.search = AsyncMock(side_effect=SourceError('Provider request timed out'))
+        with self.assertRaises(HTTPException) as caught:
+            await service.mutate('u', 'source', source='arxiv')
+        self.assertEqual(caught.exception.status_code, 503)
+        self.assertIn('arXiv', caught.exception.detail)
+        self.assertEqual(caught.exception.headers['Retry-After'], '60')
+        self.assertEqual(repo.rows['u'], old)
+
+    async def test_failed_provider_is_not_retried_for_each_interest_in_one_update(self):
+        good = Source(); bad = Source(); bad.name = 'arxiv'
+        bad.search = AsyncMock(side_effect=SourceError('offline'))
+        result = await FeedService(Repo(), [good, bad]).mutate('u', 'interests', 'robot learning, physics, climate')
+        bad.search.assert_awaited_once()
+        self.assertEqual(result['warnings'], ['arxiv'])
+        self.assertTrue(result['papers'])
