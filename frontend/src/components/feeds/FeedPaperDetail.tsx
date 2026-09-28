@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FeedPaper, sourceLabels } from "@/lib/feeds-api";
 import { useFeedBookmarks } from "@/lib/feed-bookmarks";
@@ -20,11 +21,12 @@ export function FeedPaperDetail({ paper, intercepted = false, missing = false, l
   const [error, setError] = useState("");
   const close = () => intercepted ? router.back() : router.replace("/feeds");
   useEffect(() => {
+    if (!intercepted) return;
     const element = dialog.current;
     const previous = document.activeElement as HTMLElement | null;
     element?.showModal();
     return () => { element?.close(); previous?.focus({ preventScroll: true }); };
-  }, []);
+  }, [intercepted]);
   useEffect(() => {
     if (!paper) return;
     const previous = document.title;
@@ -32,16 +34,9 @@ export function FeedPaperDetail({ paper, intercepted = false, missing = false, l
     return () => { document.title = previous; };
   }, [paper]);
   const external = paper && /^https?:\/\//.test(paper.url) ? paper.url : null;
-  return <dialog ref={dialog} className={styles.dialog} aria-labelledby="paper-detail-title" onKeyDown={event => {
-      if (event.key !== "Tab") return;
-      const controls = Array.from(event.currentTarget.querySelectorAll<HTMLElement>('button:not([disabled]), a[href], [tabindex="0"]'));
-      const first = controls[0];
-      const last = controls[controls.length - 1];
-      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
-      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
-    }} onCancel={event => { event.preventDefault(); close(); }} onClick={event => { if (event.target === event.currentTarget) close(); }}>
+  const content = (
     <div className={styles.surface}>
-      <header className={styles.header}><span>Sediment <span>/</span> Paper</span><button type="button" aria-label="Close paper details" onClick={close} autoFocus><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg></button></header>
+      <header className={styles.header}><span>Sediment <span>/</span> Paper</span>{intercepted ? <button type="button" aria-label="Close paper details" onClick={close} autoFocus><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg></button> : <Link href="/feeds" aria-label="Back to feed"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg></Link>}</header>
       {paper ? <article className={styles.content}>
         <div className={styles.meta}>{paper.preprint ? "Preprint" : "Research paper"}{paper.published && <><span>·</span><time dateTime={paper.published}>{date(paper.published)}</time></>}</div>
         <h1 id="paper-detail-title">{paper.title}</h1>
@@ -54,5 +49,14 @@ export function FeedPaperDetail({ paper, intercepted = false, missing = false, l
         <dl className={styles.facts}><div><dt>Sources</dt><dd>{paper.sources.map(source => sourceLabels[source]).join(" · ")}</dd></div>{paper.updated && <div><dt>Updated</dt><dd>{date(paper.updated)}</dd></div>}{paper.doi && <div><dt>DOI</dt><dd><a href={`https://doi.org/${paper.doi}`} target="_blank" rel="noopener noreferrer">{paper.doi}</a></dd></div>}{paper.arxiv_id && <div><dt>arXiv</dt><dd><a href={`https://arxiv.org/abs/${paper.arxiv_id}`} target="_blank" rel="noopener noreferrer">{paper.arxiv_id}</a></dd></div>}{paper.openalex_id && <div><dt>OpenAlex</dt><dd><a href={`https://openalex.org/${paper.openalex_id}`} target="_blank" rel="noopener noreferrer">{paper.openalex_id}</a></dd></div>}</dl>
       </article> : <div className={styles.empty}><h1 id="paper-detail-title">{loading ? "Loading paper…" : missing ? "Paper not found" : "Couldn’t load this paper"}</h1><p role="status">{loading ? "Opening the saved paper details." : missing ? "This paper is no longer available in the feed library." : "Please try again in a moment."}</p>{!loading && !missing && <button onClick={() => router.refresh()}>Try again</button>}<button onClick={close}>Back to feed</button></div>}
     </div>
-  </dialog>;
+  );
+  return intercepted ? <dialog ref={dialog} className={styles.dialog} aria-labelledby="paper-detail-title" onKeyDown={event => {
+      if (event.key !== "Tab") return;
+      const controls = Array.from(event.currentTarget.querySelectorAll<HTMLElement>('button:not([disabled]), a[href], [tabindex="0"]'));
+      const first = controls[0];
+      const last = controls[controls.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+    }} onCancel={event => { event.preventDefault(); close(); }} onClick={event => { if (event.target === event.currentTarget) close(); }}>
+    {content}</dialog> : <main className={styles.page} aria-labelledby="paper-detail-title"><div className={styles.standalone}>{content}</div></main>;
 }

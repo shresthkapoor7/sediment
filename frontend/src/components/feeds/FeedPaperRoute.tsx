@@ -1,3 +1,4 @@
+import { notFound } from "next/navigation";
 import { getFeedPaper } from "@/lib/feed-paper";
 import { FeedPaperDetail } from "./FeedPaperDetail";
 
@@ -10,5 +11,6 @@ export async function paperMetadata({ params }: { params: Promise<{ paperId: str
 export async function FeedPaperRoute({ params, intercepted = false }: { params: Promise<{ paperId: string }>; intercepted?: boolean }) {
   const { paperId } = await params;
   const { paper, missing } = await getFeedPaper(paperId);
+  if (missing && !intercepted) notFound();
   return <FeedPaperDetail paper={paper} missing={missing} intercepted={intercepted} />;
 }

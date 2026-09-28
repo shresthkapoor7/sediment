@@ -1,12 +1,12 @@
 # Personalized feeds
 
-`/feeds` starts empty. The browser's existing `sediment_user_id` UUID owns its saved interests and feed snapshot in Supabase. Returning visits read that snapshot without querying paper providers. Clearing browser storage creates a different identity; this is anonymous browser persistence, not an authenticated account or cross-device sync.
+`/feeds` starts empty. A server-issued signed bearer credential owns the browser's saved interests and feed snapshot in Supabase. The server derives the UUID database key from its validated credential. Returning visits read that snapshot without querying paper providers. The credential is retained in localStorage with a stable in-memory fallback when storage is blocked. Clearing storage or losing that in-memory session creates a different identity. This is an authenticated anonymous session, not an account or cross-device sync. Legacy UUID-only feed rows remain untouched but cannot be auto-claimed securely by a new session.
 
 ## Setup
 
 Apply the repository's earlier migrations, then [20260928000000_add_personal_feeds.sql](../supabase/migrations/20260928000000_add_personal_feeds.sql) through your normal Supabase migration process or SQL editor. The migration creates the feed tables and service-role-only RPCs. A service role API key cannot execute database migrations; application credentials alone do not install the schema.
 
-The backend uses the existing `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `ACTOR_KEY_SECRET`, and `OPENALEX_API_KEY` configuration. Keep `ACTOR_KEY_SECRET` consistent across workers and deployments: it signs pagination cursors. No Hugging Face token, arXiv token, LLM key, or image generation service is used by feeds.
+The backend uses the existing `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `ACTOR_KEY_SECRET`, and `OPENALEX_API_KEY` configuration. Keep `ACTOR_KEY_SECRET` consistent across workers and deployments: it signs feed session credentials and pagination cursors. Credentials expire after 180 days. No Hugging Face token, arXiv token, LLM key, or image generation service is used by feeds.
 
 The frontend follows the existing `NEXT_PUBLIC_API_URL` and `NEXT_PUBLIC_USE_API_PROXY` configuration. When proxying, configure `BACKEND_INTERNAL_URL` or `RAILWAY_API_URL` on the Next.js server. The feed proxy declares a 180-second maximum duration; the hosting plan and any reverse proxy must support the backend's 165-second update timeout. Direct API calls use the backend's existing CORS configuration.
 
@@ -14,13 +14,16 @@ The frontend follows the existing `NEXT_PUBLIC_API_URL` and `NEXT_PUBLIC_USE_API
 
 | Request | Behavior |
 | --- | --- |
-| `GET /api/feeds?userId=<uuid>` | Restore interests and the first 12 cached papers; no external search. |
-| `POST /api/feeds` with `userId`, `action: "interests"`, `interests` | Validate up to three topics, search recent metadata, persist a new feed revision, return up to 12 papers. |
-| `POST /api/feeds` with `userId`, `action: "refresh"` | Search the saved interests and replace the revision, retaining earlier matches behind new discoveries. |
-| `POST /api/feeds` with `userId`, `action: "source"`, `source` | Select `all`, `arxiv`, `huggingface`, or `openalex`; return up to 12 matches from the full stored snapshot, fetching only that provider when needed. |
-| `POST /api/feeds` with `userId`, `action: "more"`, `cursor`, `source` | Continue the selected source view; return up to 12 additional unique papers. `source` defaults to `all`. |
+| `POST /api/feed-session` | Issue a new signed anonymous bearer credential; no client-chosen identity. |
+| `GET /api/feeds` | Restore interests and the first 12 cached papers; no external search. |
+| `POST /api/feeds` with `action: "interests"`, `interests` | Validate up to three topics, search recent metadata, persist a new feed revision, return up to 12 papers. |
+| `POST /api/feeds` with `action: "refresh"` | Search the saved interests and replace the revision, retaining earlier matches behind new discoveries. |
+| `POST /api/feeds` with `action: "source"`, `source` | Select `all`, `arxiv`, `huggingface`, or `openalex`; return up to 12 matches from the full stored snapshot, fetching only that provider when needed. |
+| `POST /api/feeds` with `action: "more"`, `cursor`, `source` | Continue the selected source view; return up to 12 additional unique papers. `source` defaults to `all`. |
 
-Responses contain `interests`, `queries`, `papers`, `cursor`, `refreshedAt`, `warnings`, `revision`, and `source`. Cursors are opaque and signed for a browser ID, revision, and source. Source cursors cannot be used in other source views. A changed revision returns HTTP 409; reload before continuing. Each source has a stable ordered view within the snapshot, including papers whose source membership is discovered later. Existing snapshots gain these views on demand without a database migration. Switching tabs preserves the client’s loaded pages and cursor for each source; refresh or changing interests clears them. Repeating a cursor is safe. The client also merges repeated responses by paper ID.
+All private feed reads and mutations require `Authorization: Bearer <credential>`. UUID selectors are rejected. The frontend explicitly omits cookies; the backend never uses cookies for feed authentication, and the Next.js feed proxy forwards only the explicit Authorization header. Cookie-only cross-site requests cannot authorize mutations. Credential and feed responses use `Cache-Control: no-store`.
+
+Responses contain `interests`, `queries`, `papers`, `cursor`, `refreshedAt`, `warnings`, `revision`, and `source`. Cursors are opaque and signed for the server-derived actor, revision, and source. Source cursors cannot be used in other source views. A changed revision returns HTTP 409; reload before continuing. Each source has a stable ordered view within the snapshot, including papers whose source membership is discovered later. Existing snapshots gain these views on demand without a database migration. Switching tabs preserves the client’s loaded pages and cursor for each source; refresh or changing interests clears them. Repeating a cursor is safe. The client also merges repeated responses by paper ID.
 
 Interest planning uses local tokenization and a few acronym expansions, not an LLM. Commas, semicolons, newlines, and “and” separate topics. Four or more topics are rejected rather than silently dropped. This is keyword matching, so broad plain-language interests can need refinement.
 
@@ -56,7 +59,7 @@ Bookmark IDs stay in browser storage. “Saved in this feed” filters the curre
 
 Feed cards open a centered dialog at a shareable root URL such as `/arxiv-2609.30258` or `/openalex-W7204949214`. The dialog shows the full stored abstract, authors, dates, topics, identifiers, available image, browser bookmark, and a link to the original paper. The browser tab title follows the paper title. Native history preserves the mounted feed and its scroll position when opening or closing; Back/Forward restores the overlay. Modified clicks can open the same link in a new tab.
 
-Direct visits and reloads use the server-rendered `[paperId]` route and `GET /api/feed-papers/{paper_id}`. This endpoint reads and merges public metadata from `feed_papers`; it does not read browser interests or call external paper providers or an LLM. Uncached papers return 404 from the API, and storage failures show a retry state. Bookmark changes sync between cards and the overlay through the existing browser-local bookmark store. No new database migration is needed.
+Direct visits and reloads use a visible server-rendered page (not a hydration-dependent dialog) at the `[paperId]` route and `GET /api/feed-papers/{paper_id}`. This endpoint reads and merges public metadata from `feed_papers`; it does not read browser interests or call external paper providers or an LLM. Uncached papers return 404 from the API and use Next.js not-found handling on direct routes; storage failures show a retry state. Bookmark changes sync between cards and the overlay through the existing browser-local bookmark store. No new database migration is needed.
 
 ## Validation
 
