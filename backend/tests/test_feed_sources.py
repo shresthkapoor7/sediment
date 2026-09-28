@@ -16,12 +16,6 @@ class FeedSourcesTests(unittest.IsolatedAsyncioTestCase):
         oa = OpenAlexSource.parse({'id': 'https://openalex.org/W123', 'doi': 'https://doi.org/10.48550/arXiv.2401.12345'})
         self.assertTrue(identity_keys(hf) & identity_keys(oa))
 
-    def test_arxiv_revisions_and_dates(self):
-        xml = '''<feed xmlns="http://www.w3.org/2005/Atom"><entry><id>http://arxiv.org/abs/2401.12345v2</id><title> A paper </title><published>2024-01-01T00:00:00Z</published><updated>2024-02-01T00:00:00Z</updated><author><name>Jane Doe</name></author><summary>Some abstract</summary></entry></feed>'''
-        papers, _ = ArxivSource.parse(xml)
-        self.assertEqual(papers[0].arxiv_id, '2401.12345')
-        self.assertEqual(papers[0].published, '2024-01-01')
-        self.assertEqual(papers[0].updated, '2024-02-01')
 
     async def test_hf_uses_paper_date_not_feature_date(self):
         rows = [{'paper': {'id': '2401.12345', 'publishedAt': '2024-01-01', 'title': 'Old'}, 'publishedAt': '2026-09-26'}]
@@ -48,27 +42,6 @@ class FeedSourcesTests(unittest.IsolatedAsyncioTestCase):
             result=await HuggingFaceSource().search(request)
         self.assertEqual(len(result.papers),1)
 
-    def test_arxiv_rejects_entity_declarations(self):
-        with self.assertRaises(SourceError): ArxivSource.parse('<!DOCTYPE feed [<!ENTITY x "test">]><feed/>')
-
-    def test_arxiv_error_feed_is_not_a_successful_empty_page(self):
-        xml = '''<feed xmlns="http://www.w3.org/2005/Atom"><entry>
-        <id>http://arxiv.org/api/errors#query_error</id><title>Error</title>
-        <summary>Upstream diagnostic that should not reach the client</summary>
-        </entry></feed>'''
-        with self.assertRaises(SourceError): ArxivSource.parse(xml)
-        with self.assertRaises(SourceError): ArxivSource.parse('<html>Unavailable</html>')
-        self.assertEqual(ArxivSource.parse('<feed xmlns="http://www.w3.org/2005/Atom"/>'), ([], 0))
-
-    async def test_arxiv_rate_limit_prevents_immediate_repeat_request(self):
-        with patch('app.services.feed_sources.arxiv._blocked_until', 0), \
-             patch('app.services.feed_sources.arxiv._last_request', 0), \
-             patch('app.services.feed_sources.arxiv.fetch', AsyncMock(side_effect=SourceError('Provider returned HTTP 429', status=429))) as fetch:
-            for _ in range(2):
-                with self.assertRaises(SourceError) as caught:
-                    await ArxivSource()._fetch({'search_query': 'all:learning'})
-                self.assertEqual(caught.exception.status, 429)
-            fetch.assert_awaited_once()
 
     async def test_transport_preserves_rate_limit_status_without_response_body(self):
         from unittest.mock import MagicMock
@@ -79,6 +52,58 @@ class FeedSourcesTests(unittest.IsolatedAsyncioTestCase):
             response = session.get.return_value.__aenter__.return_value
             response.status = 429
             with self.assertRaises(SourceError) as caught:
-                await fetch('https://export.arxiv.org/api/query', xml=True)
+                await fetch('https://api.openalex.org/works')
             self.assertEqual(caught.exception.status, 429)
             self.assertEqual(str(caught.exception), 'Provider returned HTTP 429')
+
+    def arxiv_work(self):
+        return {'id': 'https://openalex.org/W123', 'display_name': 'Robot learning',
+                'publication_date': '2026-09-24', 'type': 'preprint',
+                'primary_location': {'source': {'id': 'https://openalex.org/S4306400194'},
+                                     'landing_page_url': 'https://arxiv.org/abs/2609.12345v2'},
+                'abstract_inverted_index': {'Full': [0], 'abstract': [1]},
+                'authorships': [{'author': {'display_name': 'Jane Doe'}}]}
+
+    async def test_arxiv_search_uses_filtered_openalex_and_opaque_pagination(self):
+        raw = self.arxiv_work()
+        with patch('app.services.feed_sources.openalex.fetch', AsyncMock(return_value={
+            'meta': {'next_cursor': 'next-openalex-cursor'}, 'results': [raw],
+        })) as fetch:
+            page = await ArxivSource().search(SearchRequest(query='robot learning', since=date(2026,6,1), until=date(2026,9,28), cursor='openalex-cursor', limit=12))
+        url, params = fetch.await_args.args
+        self.assertEqual(url, 'https://api.openalex.org/works')
+        self.assertIn('primary_location.source.id:S4306400194', params['filter'])
+        self.assertEqual(params['cursor'], 'openalex-cursor')
+        self.assertEqual(params['per_page'], 12)
+        paper = page.papers[0]
+        self.assertEqual(paper.id, 'arxiv:2609.12345')
+        self.assertEqual(paper.openalex_id, 'W123')
+        self.assertEqual(paper.sources, ['arxiv', 'openalex'])
+        self.assertEqual(paper.url, 'https://arxiv.org/abs/2609.12345')
+        self.assertEqual(paper.abstract, 'Full abstract')
+        self.assertEqual(paper.authors, ['Jane Doe'])
+        self.assertEqual(paper.published, '2026-09-24')
+        self.assertEqual(page.next_cursor, 'next-openalex-cursor')
+        self.assertTrue(identity_keys(paper) & identity_keys(OpenAlexSource.parse(raw)))
+
+    async def test_arxiv_skips_unverified_records_without_losing_next_page(self):
+        raw = self.arxiv_work()
+        raw['primary_location']['landing_page_url'] = None
+        other = self.arxiv_work()
+        other['primary_location']['source']['id'] = 'https://openalex.org/S999'
+        with patch('app.services.feed_sources.openalex.fetch', AsyncMock(return_value={
+            'meta': {'next_cursor': 'next'}, 'results': [raw, other],
+        })):
+            page = await ArxivSource().search(SearchRequest(query='robot learning', since=date(2026,6,1), until=date(2026,9,28)))
+        self.assertEqual(page.papers, [])
+        self.assertEqual(page.next_cursor, 'next')
+
+    async def test_arxiv_get_uses_openalex_and_preserves_canonical_id(self):
+        with patch('app.services.feed_sources.arxiv.fetch', AsyncMock(return_value={'results': [self.arxiv_work()]})) as fetch:
+            paper = await ArxivSource().get('https://arxiv.org/abs/2609.12345v2')
+            self.assertIsNone(await ArxivSource().get('not-an-id'))
+        fetch.assert_awaited_once()
+        url, params = fetch.await_args.args
+        self.assertEqual(url, 'https://api.openalex.org/works')
+        self.assertIn('doi:https://doi.org/10.48550/arxiv.2609.12345', params['filter'])
+        self.assertEqual(paper.id, 'arxiv:2609.12345')

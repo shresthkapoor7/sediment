@@ -97,7 +97,7 @@ def identity_keys(paper: Paper) -> set[str]:
     return keys
 
 
-async def fetch(url: str, params: dict | None = None, *, xml: bool = False):
+async def fetch(url: str, params: dict | None = None):
     try:
         async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=18, connect=5),
                                          headers={'User-Agent': 'Sediment/0.1 (research discovery)'}) as session:
@@ -109,7 +109,6 @@ async def fetch(url: str, params: dict | None = None, *, xml: bool = False):
                 async for chunk in response.content.iter_chunked(65536):
                     body.extend(chunk)
                     if len(body) > 4_000_000: raise SourceError('Provider response too large')
-                if xml: return body.decode('utf-8')
                 import json
                 return json.loads(body)
     except asyncio.TimeoutError:

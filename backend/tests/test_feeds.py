@@ -215,7 +215,7 @@ class FeedTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNotNone(result['cursor'])
         self.assertFalse(repo.rows['u']['streams'][0]['done'])
         provider_releases = [call.args for call in repo.release.await_args_list if call.args[0] == 'provider:arxiv']
-        self.assertEqual(provider_releases[0][2], 60)
+        self.assertEqual(provider_releases, [])
 
     async def test_arxiv_outage_without_cached_matches_is_clear_and_preserves_state(self):
         repo = Repo(); source = Source(); source.name = 'arxiv'
@@ -225,8 +225,8 @@ class FeedTests(unittest.IsolatedAsyncioTestCase):
         old = copy.deepcopy(repo.rows['u'])
         repo.cache_rows.clear()
         for failure, message in [
-            (SourceError('Provider request timed out'), 'couldn’t reach arXiv'),
-            (SourceError('Provider returned HTTP 429', status=429), 'reset time'),
+            (SourceError('Provider request timed out'), 'from OpenAlex'),
+            (SourceError('Provider returned HTTP 429', status=429), 'from OpenAlex'),
         ]:
             with self.subTest(failure=str(failure)):
                 source.search = AsyncMock(side_effect=failure)
@@ -245,3 +245,38 @@ class FeedTests(unittest.IsolatedAsyncioTestCase):
         bad.search.assert_awaited_once()
         self.assertEqual(result['warnings'], ['arxiv'])
         self.assertTrue(result['papers'])
+
+    async def test_old_arxiv_streams_restart_without_losing_cards_or_revision(self):
+        from app.services.feed_sources.arxiv import ArxivSource
+        repo = Repo(); old_source = Source(); old_source.name = 'arxiv'
+        initial = await FeedService(repo, [old_source]).mutate('u', 'interests', 'robot learning')
+        repo.rows['u']['papers'] = repo.rows['u']['papers'][:5]
+        repo.rows['u']['streams'][0].update(cursor='48', done=True)
+        source = ArxivSource()
+        source.search = AsyncMock(return_value=SearchPage(papers=[paper(i) for i in range(5, 29)], next_cursor='opaque-next'))
+        service = FeedService(repo, [source])
+        selected = await service.mutate('u', 'source', source='arxiv')
+        self.assertIsNone(source.search.await_args.args[0].cursor)
+        self.assertEqual(selected['revision'], initial['revision'])
+        self.assertEqual(selected['papers'][:5], initial['papers'][:5])
+        self.assertEqual(repo.rows['u']['streams'][0]['cursor_version'], source.cursor_version)
+        second = await service.mutate('u', 'more', cursor=selected['cursor'], source='arxiv')
+        self.assertFalse({p['id'] for p in selected['papers']} & {p['id'] for p in second['papers']})
+        source.search.assert_awaited_once()
+        # The next upstream request continues the new opaque cursor, not Atom offsets.
+        await service.mutate('u', 'more', cursor=second['cursor'], source='arxiv')
+        self.assertEqual(source.search.await_args.args[0].cursor, 'opaque-next')
+
+    async def test_old_arxiv_query_cache_is_not_reused(self):
+        import hashlib
+        from app.services.feed_sources.arxiv import ArxivSource
+        from app.services.feed_sources.base import SearchRequest
+        repo = Repo(); source = ArxivSource()
+        request = SearchRequest(query='robot learning', since=date(2026,6,1), until=date(2026,9,28))
+        old_key = hashlib.sha256((source.name + request.model_dump_json()).encode()).hexdigest()
+        repo.cache_rows[old_key] = SearchPage(papers=[], next_cursor='24')
+        source.search = AsyncMock(return_value=SearchPage(papers=[paper(1)]))
+        result = await FeedService(repo, [source]).source_page(source, request)
+        self.assertEqual(len(result.papers), 1)
+        source.search.assert_awaited_once()
+        self.assertEqual(repo.locks, set())

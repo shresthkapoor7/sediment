@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import base64
 import hashlib
 import hmac
@@ -79,7 +78,7 @@ def merge_papers(existing: list[Paper], incoming: list[Paper]) -> list[Paper]:
             combined.openalex_id = combined.openalex_id or candidate.openalex_id
             combined.sources = list(dict.fromkeys([*combined.sources, *candidate.sources]))
             combined.topics = list(dict.fromkeys([*combined.topics, *candidate.topics]))[:12]
-            # The preprint's initial submission date wins over later indexing or feature dates.
+            # Prefer earlier preprint dates when merging later indexed copies.
             if candidate.arxiv_id and candidate.preprint and candidate.published:
                 combined.published = min(filter(None, [combined.published, candidate.published]))
             combined.preprint = combined.preprint or candidate.preprint
@@ -177,25 +176,11 @@ class FeedService:
         return self.response(user, await self.repo.get(user))
 
     async def source_page(self, source, request):
-        key = hashlib.sha256((source.name + request.model_dump_json()).encode()).hexdigest()
+        namespace = getattr(source, 'cache_namespace', source.name)
+        key = hashlib.sha256((namespace + request.model_dump_json()).encode()).hexdigest()
         cached = await self.repo.cached(key)
         if cached is not None: return cached
-        token = str(uuid.uuid4())
-        if source.name == 'arxiv':
-            # A deployment-wide lease enforces arXiv's single-connection policy.
-            acquired = False
-            for _ in range(8):
-                if await self.repo.claim('provider:arxiv', token, 30): acquired = True; break
-                await asyncio.sleep(1)
-            if not acquired: raise SourceError('arXiv is busy; try again shortly')
-        cooldown = 4
-        try:
-            page = await source.search(request)
-        except SourceError as error:
-            if error.status == 429: cooldown = 60
-            raise
-        finally:
-            if source.name == 'arxiv': await self.repo.release('provider:arxiv', token, cooldown)
+        page = await source.search(request)
         await self.repo.cache(key, source.name, page)
         return page
 
@@ -203,10 +188,15 @@ class FeedService:
         existing = [Paper.model_validate(p) for p in state['papers'] if p is not None]
         candidates = []
         warnings = set()
-        rate_limited = set()
         fetched = successful = 0
         deadline = time.monotonic() + 110
         sources = {provider.name: provider for provider in self.sources}
+        for stream in state['streams']:
+            version = getattr(sources.get(stream['source']), 'cursor_version', None)
+            if version and stream.get('cursor_version') != version:
+                # Restart only the upstream stream; retain cards, revision and
+                # stable client pagination when upgrading existing feeds.
+                stream.update(cursor=None, done=False, cursor_version=version)
         # Round-robin prevents the first provider consuming the whole request budget.
         while sum(matches_source(p, source) for p in merge_papers(existing, candidates)) < needed and fetched < MAX_FETCHES and len(state['papers']) < MAX_PAPERS:
             active = [s for s in state['streams'] if not s['done'] and s['source'] not in warnings and (source == 'all' or s['source'] == source)]
@@ -221,7 +211,6 @@ class FeedService:
                     page = await self.source_page(sources[stream['source']], request)
                 except SourceError as error:
                     logger.warning('Feed provider %s unavailable: %s', stream['source'], error)
-                    if error.status == 429: rate_limited.add(stream['source'])
                     warnings.add(stream['source']); continue
                 successful += 1
                 stream['done'] = page.next_cursor is None or page.next_cursor == stream['cursor']
@@ -230,9 +219,7 @@ class FeedService:
                                   state['since'] <= p.published <= state['until'] and relevance(p, state['queries']) >= .65)
         if fetched and not successful and not any(matches_source(p, source) for p in existing):
             if source == 'arxiv':
-                detail = ('arXiv rate-limited a request. We don’t have a reset time.'
-                          if source in rate_limited else 'We couldn’t reach arXiv. We don’t know when it will respond.')
-                raise HTTPException(503, detail + ' Other sources are still available.')
+                raise HTTPException(503, 'Couldn’t load arXiv papers from OpenAlex. Your existing feed is unchanged; please retry.')
             raise HTTPException(503, 'Paper sources are temporarily unavailable. Your existing feed is unchanged; please retry.')
         merged = merge_papers(existing, candidates)
         # Preserve the displayed prefix so an offset cursor never skips cards when
