@@ -143,7 +143,7 @@ export default function FeedsPage() {
 
   return <div className={styles.page}>
     <PageHeader title="Feeds" />
-    <main className={styles.main}>
+    <main className={`${styles.main} ${!feed?.interests ? styles.mainEmpty : ""}`}>
       <section className={styles.intro}>
         <div className={styles.eyebrow}><span /> A little closer to your next idea</div>
         <h1>Follow your curiosity.</h1>
@@ -159,7 +159,6 @@ export default function FeedsPage() {
         </form> : <div className={styles.applied}><p>{feed.interests}</p><button disabled={disabled} onClick={() => setEditing(true)}>Edit interests</button></div>}
       </section>}
       <p className={styles.status} role="status">{status}{pending && pending !== "restore" && " This can take a moment."}</p>
-      {feed && !feed.interests && <section className={styles.welcome}><h2>Your next discovery starts here.</h2><p>Add your interests above to build a feed of recent research.</p></section>}
       {feed?.interests && <section className={styles.feed} aria-labelledby="feed-heading" aria-busy={!!pending}>
         <div className={styles.feedHeading}><div><h2 id="feed-heading">{savedOnly ? "Saved in this feed" : "Your feed"}</h2><p>{feed.refreshedAt ? `Last checked ${new Date(feed.refreshedAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}. ` : ""}Refresh when you’re ready for more.</p></div><button className={styles.secondary} disabled={disabled || editing} onClick={() => void update("refresh")}>{pending === "refresh" ? "Refreshing…" : "Refresh feed"}</button></div>
         {!!feed.warnings.length && <p className={styles.warning} role="status">{feed.warnings.map(value => sourceLabels[value]).join(", ")} couldn’t be reached. Showing available papers; try refreshing later.</p>}
