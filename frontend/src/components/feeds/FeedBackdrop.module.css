@@ -1,0 +1,21 @@
+.backdrop { position: absolute; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; user-select: none; mask-image: linear-gradient(transparent, #000 15%, #000 85%, transparent); }
+.rail { position: absolute; top: 50%; left: max(24px, calc(50% - 720px)); width: 220px; display: flex; flex-direction: column; gap: 28px; transform: translateY(-48%); opacity: .42; }
+.rail + .rail { left: auto; right: max(24px, calc(50% - 720px)); transform: translateY(-54%); }
+.card { --tilt: -7deg; overflow: hidden; border: 1px solid var(--border); border-radius: 10px; background: var(--node-bg); box-shadow: 0 8px 24px #00000005; animation: drift 19s ease-in-out infinite alternate; }
+.card img { display: block; width: 100%; height: 112px; object-fit: cover; opacity: .65; filter: saturate(.6); }
+:global([data-theme="dark"]) .card img { filter: invert(1) hue-rotate(180deg) saturate(.4); }
+.body { padding: 16px; }
+.body span { display: block; margin-bottom: 13px; color: var(--text-secondary); font-size: 12px; font-weight: 500; }
+.body i { display: block; height: 4px; width: 92%; margin-top: 7px; border-radius: 2px; background: var(--border); }
+.body i:nth-of-type(2) { width: 78%; }
+.body i:last-child { width: 48%; }
+.card:nth-child(2) { --tilt: 5deg; width: 194px; margin-left: 18px; animation-duration: 23s; animation-delay: -9s; }
+.card:nth-child(2) img { display: none; }
+.card:nth-child(3) { --tilt: -3deg; width: 206px; animation-duration: 21s; animation-delay: -15s; }
+.rail + .rail .card { --tilt: 6deg; animation-delay: -7s; }
+.rail + .rail .card:nth-child(2) { --tilt: -5deg; margin-left: 0; animation-delay: -17s; }
+.rail + .rail .card:nth-child(3) { --tilt: 3deg; margin-left: 14px; animation-delay: -3s; }
+@keyframes drift { from { transform: translateY(-12px) rotate(var(--tilt)); } to { transform: translateY(12px) rotate(calc(var(--tilt) + 2deg)); } }
+@media (max-width: 1200px) { .rail { left: -42px; opacity: .25; } .rail + .rail { right: -42px; } }
+@media (max-width: 1000px) { .backdrop { display: none; } }
+@media (prefers-reduced-motion: reduce) { .card { animation: none; transform: rotate(var(--tilt)); } }

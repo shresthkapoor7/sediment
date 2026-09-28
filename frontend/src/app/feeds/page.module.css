@@ -1,6 +1,6 @@
 .page { display: flex; flex-direction: column; height: 100dvh; overflow-y: auto; background: var(--bg-primary); }
 .main { width: 100%; flex-shrink: 0; max-width: 1304px; margin: 0 auto; padding: 64px 40px 32px; }
-.mainEmpty { flex: 1 0 auto; display: flex; flex-direction: column; justify-content: center; padding-top: 40px; padding-bottom: 40px; }
+.main.mainEmpty { position: relative; isolation: isolate; max-width: none; flex: 1 0 auto; display: flex; flex-direction: column; justify-content: center; padding-top: 40px; padding-bottom: 40px; }
 .mainEmpty .interests { width: 100%; margin-bottom: 0; }
 .intro { text-align: center; }
 .intro h1 { font-size: clamp(32px, 4vw, 48px); line-height: 1.15; letter-spacing: -.055em; font-weight: 550; margin: 18px 0 16px; }
@@ -56,7 +56,7 @@
 .page button:focus-visible, .page a:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
 @media (min-width: 1500px) { .main { max-width: 1500px; } .masonry { --column-count: 4; } }
 @media (max-width: 1000px) { .masonry { --column-count: 2; } }
-@media (max-width: 640px) { .main { padding: 40px 20px 20px; } .mainEmpty { padding-block: 32px; } .interests { padding: 18px; margin-bottom: 40px; } .formBottom { align-items: flex-start; flex-direction: column; } .primary { width: 100%; } .feedHeading { align-items: flex-start; flex-direction: column; gap: 12px; } .masonry { --column-count: 1; } .toolbar { gap: 6px; } .toolbar button { padding: 8px; } .applied { align-items: flex-start; flex-direction: column; gap: 12px; } }
+@media (max-width: 640px) { .main { padding: 40px 20px 20px; } .main.mainEmpty { padding-block: 32px; } .interests { padding: 18px; margin-bottom: 40px; } .formBottom { align-items: flex-start; flex-direction: column; } .primary { width: 100%; } .feedHeading { align-items: flex-start; flex-direction: column; gap: 12px; } .masonry { --column-count: 1; } .toolbar { gap: 6px; } .toolbar button { padding: 8px; } .applied { align-items: flex-start; flex-direction: column; gap: 12px; } }
 
 .actions { display: flex; align-items: center; gap: 8px; }
 .secondary { border: 1px solid var(--border); background: var(--node-bg); color: var(--text-primary); padding: 10px 14px; font-size: 12px; border-radius: 7px; white-space: nowrap; }

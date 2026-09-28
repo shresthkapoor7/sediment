@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { FeedBackdrop } from "@/components/feeds/FeedBackdrop";
 import { FeedPaperDetail } from "@/components/feeds/FeedPaperDetail";
 import { FeedPaperImage } from "@/components/feeds/FeedPaperImage";
 import { useFeedBookmarks } from "@/lib/feed-bookmarks";
@@ -144,6 +145,7 @@ export default function FeedsPage() {
   return <div className={styles.page}>
     <PageHeader title="Feeds" />
     <main className={`${styles.main} ${!feed?.interests ? styles.mainEmpty : ""}`}>
+      {!feed?.interests && <FeedBackdrop />}
       <section className={styles.intro}>
         <h1>Follow your curiosity.</h1>
         <p>The papers you care about, in one place.<br />Tell us what you’re exploring. Make room for something new.</p>
