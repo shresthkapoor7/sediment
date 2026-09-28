@@ -357,13 +357,18 @@ export async function openChatSession(
   return response.json();
 }
 
-export function getOrCreateAnonymousUserId(): string {
-  const existing = window.localStorage.getItem(SEDIMENT_USER_ID_KEY);
-  if (existing) return existing;
+let memoryAnonymousUserId: string | null = null;
 
-  const userId = crypto.randomUUID();
-  window.localStorage.setItem(SEDIMENT_USER_ID_KEY, userId);
-  return userId;
+export function getOrCreateAnonymousUserId(): string {
+  if (memoryAnonymousUserId) return memoryAnonymousUserId;
+  try {
+    const existing = window.localStorage.getItem(SEDIMENT_USER_ID_KEY);
+    if (existing) return (memoryAnonymousUserId = existing);
+  } catch { /* Restricted browser storage: retain an ID for this page session. */ }
+  memoryAnonymousUserId = crypto.randomUUID();
+  try { window.localStorage.setItem(SEDIMENT_USER_ID_KEY, memoryAnonymousUserId); }
+  catch { /* The in-memory ID remains stable until the page is reloaded. */ }
+  return memoryAnonymousUserId;
 }
 
 export async function registerAnonymousUser(userId: string): Promise<void> {

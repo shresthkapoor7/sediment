@@ -3,13 +3,13 @@ from __future__ import annotations
 import asyncio
 import logging
 from typing import Literal, Optional
-from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Request, Response
-from pydantic import BaseModel, Field
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from pydantic import BaseModel, ConfigDict, Field
 
 from ..db.supabase import SupabaseAPIError, SupabaseConfigError
 from ..services.feeds import FeedService
+from ..services.feed_identity import issue_feed_credential, require_feed_actor
 from ..services.usage_limiter import limiter
 from .search import get_request_ip
 
@@ -18,25 +18,33 @@ logger = logging.getLogger(__name__)
 
 
 class FeedRequest(BaseModel):
-    userId: UUID
+    model_config = ConfigDict(extra='forbid')
     action: Literal['interests', 'refresh', 'more', 'source']
     source: Literal['all', 'arxiv', 'huggingface', 'openalex'] = 'all'
     interests: Optional[str] = Field(default=None, min_length=1, max_length=600)
     cursor: Optional[str] = Field(default=None, max_length=300)
 
 
+@router.post('/feed-session')
+async def create_feed_session(response: Response):
+    response.headers['Cache-Control'] = 'no-store'
+    return {'token': issue_feed_credential()}
+
+
 @router.get('/feeds')
-async def get_feed(userId: UUID, response: Response):
+async def get_feed(request: Request, response: Response, actor: str = Depends(require_feed_actor)):
     response.headers['Cache-Control'] = 'no-store'
     try:
-        return await FeedService().read(str(userId))
+        if 'userId' in request.query_params:
+            raise HTTPException(400, 'Feed identity is determined by the session credential.')
+        return await FeedService().read(actor)
     except (SupabaseAPIError, SupabaseConfigError):
         logger.warning('Feed persistence unavailable')
         raise HTTPException(503, 'Feed storage is unavailable. Please try again later.') from None
 
 
 @router.post('/feeds')
-async def update_feed(body: FeedRequest, request: Request, response: Response):
+async def update_feed(body: FeedRequest, request: Request, response: Response, actor: str = Depends(require_feed_actor)):
     response.headers['Cache-Control'] = 'no-store'
     if body.action == 'interests' and not (body.interests or '').strip():
         raise HTTPException(400, 'Describe your research interests first.')
@@ -46,7 +54,7 @@ async def update_feed(body: FeedRequest, request: Request, response: Response):
         raise HTTPException(400, 'Refresh and interest changes apply to all sources.')
     try:
         await limiter.claim_request(get_request_ip(request), 'feeds')
-        return await asyncio.wait_for(FeedService().mutate(str(body.userId), body.action, body.interests, body.cursor, body.source), timeout=165)
+        return await asyncio.wait_for(FeedService().mutate(actor, body.action, body.interests, body.cursor, body.source), timeout=165)
     except (SupabaseAPIError, SupabaseConfigError):
         logger.warning('Feed persistence unavailable')
         raise HTTPException(503, 'Feed storage is unavailable. Please try again later.') from None

@@ -24,7 +24,7 @@ function getBackendUrl(pathname: string, search: string): string {
   return `${getBackendBaseUrl()}${pathname}${search}`;
 }
 
-export async function proxyJsonRequest(request: NextRequest, backendPath: string): Promise<NextResponse> {
+export async function proxyJsonRequest(request: NextRequest, backendPath: string, forwardAuthorization = false): Promise<NextResponse> {
   const body = await request.text();
   let upstreamResponse: Response;
   try {
@@ -32,6 +32,7 @@ export async function proxyJsonRequest(request: NextRequest, backendPath: string
       method: request.method,
       headers: {
         "Content-Type": request.headers.get("content-type") || "application/json",
+        ...(forwardAuthorization && request.headers.has("authorization") ? { Authorization: request.headers.get("authorization")! } : {}),
       },
       body,
       cache: "no-store",
@@ -53,11 +54,12 @@ export async function proxyJsonRequest(request: NextRequest, backendPath: string
   });
 }
 
-export async function proxyGetRequest(request: NextRequest, backendPath: string): Promise<NextResponse> {
+export async function proxyGetRequest(request: NextRequest, backendPath: string, forwardAuthorization = false): Promise<NextResponse> {
   let upstreamResponse: Response;
   try {
     upstreamResponse = await fetch(getBackendUrl(backendPath, request.nextUrl.search), {
       method: request.method,
+      headers: forwardAuthorization && request.headers.has("authorization") ? { Authorization: request.headers.get("authorization")! } : {},
       cache: "no-store",
     });
   } catch (error) {

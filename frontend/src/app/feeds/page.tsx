@@ -7,7 +7,7 @@ import { useFeedBookmarks } from "@/lib/feed-bookmarks";
 import { useEffect, useRef, useState } from "react";
 import { BalancedMasonry } from "@/components/feeds/BalancedMasonry";
 import { PageHeader } from "@/components/PageHeader";
-import { APIError, getOrCreateAnonymousUserId } from "@/lib/api";
+import { APIError } from "@/lib/api";
 import { Feed, FeedAction, FeedFilter, FeedPaper, fetchFeed, sourceLabels, feedPaperPath } from "@/lib/feeds-api";
 import styles from "./page.module.css";
 
@@ -28,7 +28,6 @@ export default function FeedsPage() {
   const [needsReload, setNeedsReload] = useState(false);
   const [restoreKey, setRestoreKey] = useState(0);
   const views = useRef<Partial<Record<FeedFilter, Feed>>>({});
-  const user = useRef("");
   const busy = useRef(false);
   const request = useRef<AbortController | null>(null);
 
@@ -37,8 +36,7 @@ export default function FeedsPage() {
     request.current = controller;
     async function restore() {
       try {
-        user.current = getOrCreateAnonymousUserId();
-        const result = await fetchFeed(user.current, undefined, controller.signal);
+        const result = await fetchFeed(undefined, controller.signal);
         if (controller.signal.aborted) return;
         views.current = { all: result };
         setSource("all");
@@ -94,7 +92,7 @@ export default function FeedsPage() {
     setPending(action);
     setError("");
     try {
-      const result = await fetchFeed(user.current, {
+      const result = await fetchFeed({
         action,
         source: action === "more" || action === "source" ? selectedSource : "all",
         ...(action === "interests" ? { interests: interests.trim() } : {}),
@@ -126,7 +124,7 @@ export default function FeedsPage() {
     } catch (err) {
       if (!controller.signal.aborted) {
         setError(err instanceof Error ? err.message : "Couldn’t update your feed. Please try again.");
-        if (err instanceof APIError && err.status === 409) setNeedsReload(true);
+        if (err instanceof APIError && (err.status === 409 || err.status === 401)) setNeedsReload(true);
       }
     } finally {
       busy.current = false;
