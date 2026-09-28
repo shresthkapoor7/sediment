@@ -142,7 +142,7 @@ export default function FeedsPage() {
   const disabled = pending !== null || needsReload;
   const status = pending === "restore" ? "Restoring your feed…" : pending === "more" ? "Finding more papers…" : pending === "refresh" ? "Checking for recent papers…" : pending === "interests" ? "Finding papers for your interests…" : pending === "source" ? "Loading papers from this source…" : "";
 
-  return <div className={styles.page}>
+  return <div className={`feeds-shell ${styles.page}`}>
     <PageHeader title="Feeds" />
     <main className={`${styles.main} ${!feed?.interests ? styles.mainEmpty : ""}`}>
       {!feed?.interests && <FeedBackdrop />}

@@ -50,7 +50,7 @@ export function FeedPaperDetail({ paper, intercepted = false, missing = false, l
       </article> : <div className={styles.empty}><h1 id="paper-detail-title">{loading ? "Loading paper…" : missing ? "Paper not found" : "Couldn’t load this paper"}</h1><p role="status">{loading ? "Opening the saved paper details." : missing ? "This paper is no longer available in the feed library." : "Please try again in a moment."}</p>{!loading && !missing && <button onClick={() => router.refresh()}>Try again</button>}<button onClick={close}>Back to feed</button></div>}
     </div>
   );
-  return intercepted ? <dialog ref={dialog} className={styles.dialog} aria-labelledby="paper-detail-title" onKeyDown={event => {
+  return intercepted ? <dialog ref={dialog} className={`feeds-shell ${styles.dialog}`} aria-labelledby="paper-detail-title" onKeyDown={event => {
       if (event.key !== "Tab") return;
       const controls = Array.from(event.currentTarget.querySelectorAll<HTMLElement>('button:not([disabled]), a[href], [tabindex="0"]'));
       const first = controls[0];
@@ -58,5 +58,5 @@ export function FeedPaperDetail({ paper, intercepted = false, missing = false, l
       if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
       else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
     }} onCancel={event => { event.preventDefault(); close(); }} onClick={event => { if (event.target === event.currentTarget) close(); }}>
-    {content}</dialog> : <main className={styles.page} aria-labelledby="paper-detail-title"><div className={styles.standalone}>{content}</div></main>;
+    {content}</dialog> : <main className={`feeds-shell ${styles.page}`} aria-labelledby="paper-detail-title"><div className={styles.standalone}>{content}</div></main>;
 }
