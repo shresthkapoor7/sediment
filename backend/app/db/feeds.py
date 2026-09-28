@@ -40,7 +40,12 @@ class FeedRepository:
     async def cached(self, key: str) -> SearchPage | None:
         row = await self.db._request('GET', '/rest/v1/feed_query_cache?key=eq.' + key + '&select=*',
                                      expect_single=True, allow_empty=True)
-        if not row or datetime.fromisoformat(row['expires_at'].replace('Z', '+00:00')) <= datetime.now(timezone.utc):
+        if not row: return None
+        # Postgres omits trailing fractional zeros; Python 3.9 fromisoformat
+        # rejects some of those valid timestamps (for example, five digits).
+        expires = row['expires_at']
+        timestamp_format = '%Y-%m-%dT%H:%M:%S' + ('.%f' if '.' in expires else '') + '%z'
+        if datetime.strptime(expires, timestamp_format) <= datetime.now(timezone.utc):
             return None
         ids = row['paper_ids']
         if not ids: return SearchPage(papers=[], next_cursor=row['next_cursor'])
