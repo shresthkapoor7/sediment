@@ -3,8 +3,6 @@
 .mainEmpty { flex: 1 0 auto; display: flex; flex-direction: column; justify-content: center; padding-top: 40px; padding-bottom: 40px; }
 .mainEmpty .interests { width: 100%; margin-bottom: 0; }
 .intro { text-align: center; }
-.eyebrow { display: flex; align-items: center; justify-content: center; gap: 8px; color: var(--text-secondary); font-size: 11px; letter-spacing: .06em; }
-.eyebrow > span { width: 5px; height: 5px; border-radius: 50%; background: var(--accent); }
 .intro h1 { font-size: clamp(32px, 4vw, 48px); line-height: 1.15; letter-spacing: -.055em; font-weight: 550; margin: 18px 0 16px; }
 .intro > p { font-size: 14px; line-height: 1.8; color: var(--text-secondary); }
 .interests { max-width: 740px; margin: 32px auto 64px; padding: 22px 24px 16px; background: var(--node-bg); border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--node-shadow); transition: border-color .12s ease, box-shadow .12s ease; }

@@ -145,7 +145,6 @@ export default function FeedsPage() {
     <PageHeader title="Feeds" />
     <main className={`${styles.main} ${!feed?.interests ? styles.mainEmpty : ""}`}>
       <section className={styles.intro}>
-        <div className={styles.eyebrow}><span /> A little closer to your next idea</div>
         <h1>Follow your curiosity.</h1>
         <p>The papers you care about, in one place.<br />Tell us what you’re exploring. Make room for something new.</p>
       </section>
