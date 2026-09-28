@@ -1,4 +1,4 @@
-.backdrop { --radius: clamp(210px, 18vw, 320px); --center: min(clamp(-70px, calc(20vw - 288px), 70px), calc(50% - 490px - var(--radius))); position: absolute; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; user-select: none; mask-image: linear-gradient(transparent, #000 15%, #000 85%, transparent); }
+.backdrop { --radius: clamp(180px, 15vw, 270px); --center: min(clamp(-90px, calc(20vw - 318px), 40px), calc(50% - 520px - var(--radius))); position: absolute; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; user-select: none; mask-image: linear-gradient(transparent, #000 15%, #000 85%, transparent); }
 .orbit { position: absolute; top: 50%; left: var(--center); width: calc(var(--radius) * 2); height: calc(var(--radius) * 2); transform: translate(-50%, -50%); opacity: .42; }
 .orbit + .orbit { left: auto; right: var(--center); transform: translate(50%, -50%); }
 .wheel { width: 100%; height: 100%; animation: revolve 140s linear infinite; }
@@ -7,11 +7,11 @@
 .counter { animation: revolve 140s linear infinite reverse; }
 .orbit + .orbit .wheel { animation-direction: reverse; animation-delay: -20s; }
 .orbit + .orbit .counter { animation-direction: normal; animation-delay: -20s; }
-.card { --tilt: -6deg; position: absolute; width: 180px; transform: translate(-50%, -50%) rotate(var(--tilt)); overflow: hidden; border: 1px solid var(--border); border-radius: 10px; background: var(--node-bg); box-shadow: 0 8px 24px #00000005; }
-.card img { display: block; width: 100%; height: 100px; object-fit: cover; opacity: .65; filter: saturate(.6); }
+.card { --tilt: -6deg; position: absolute; width: 220px; transform: translate(-50%, -50%) rotate(var(--tilt)); overflow: hidden; border: 1px solid var(--border); border-radius: 10px; background: var(--node-bg); box-shadow: 0 8px 24px #00000005; }
+.card img { display: block; width: 100%; height: 122px; object-fit: cover; opacity: .65; filter: saturate(.6); }
 :global([data-theme="dark"]) .card img { filter: invert(1) hue-rotate(180deg) saturate(.4); }
-.body { padding: 14px; }
-.body span { display: block; margin-bottom: 13px; color: var(--text-secondary); font-size: 11px; font-weight: 500; }
+.body { padding: 17px; }
+.body span { display: block; margin-bottom: 13px; color: var(--text-secondary); font-size: 12px; font-weight: 500; }
 .body i { display: block; height: 4px; width: 92%; margin-top: 7px; border-radius: 2px; background: var(--border); }
 .body i:nth-of-type(2) { width: 78%; }
 .body i:last-child { width: 48%; }

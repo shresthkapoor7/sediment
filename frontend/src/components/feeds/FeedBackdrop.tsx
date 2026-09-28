@@ -27,7 +27,7 @@ export function FeedBackdrop() {
             <div className={styles.card}>
               {/* Decorative local SVGs need no image transformation service. */}
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={`/feed-illustrations/${topic.image}.svg`} alt="" width="180" height="100" />
+              <img src={`/feed-illustrations/${topic.image}.svg`} alt="" width="220" height="122" />
               <div className={styles.body}><span>{topic.name}</span><i /><i /><i /></div>
             </div>
           </div>
