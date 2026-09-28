@@ -203,6 +203,7 @@ class FeedService:
         existing = [Paper.model_validate(p) for p in state['papers'] if p is not None]
         candidates = []
         warnings = set()
+        rate_limited = set()
         fetched = successful = 0
         deadline = time.monotonic() + 110
         sources = {provider.name: provider for provider in self.sources}
@@ -220,6 +221,7 @@ class FeedService:
                     page = await self.source_page(sources[stream['source']], request)
                 except SourceError as error:
                     logger.warning('Feed provider %s unavailable: %s', stream['source'], error)
+                    if error.status == 429: rate_limited.add(stream['source'])
                     warnings.add(stream['source']); continue
                 successful += 1
                 stream['done'] = page.next_cursor is None or page.next_cursor == stream['cursor']
@@ -228,7 +230,9 @@ class FeedService:
                                   state['since'] <= p.published <= state['until'] and relevance(p, state['queries']) >= .65)
         if fetched and not successful and not any(matches_source(p, source) for p in existing):
             if source == 'arxiv':
-                raise HTTPException(503, 'arXiv is temporarily unavailable. Please try again in a minute.', headers={'Retry-After': '60'})
+                detail = ('arXiv rate-limited a request. We don’t have a reset time.'
+                          if source in rate_limited else 'We couldn’t reach arXiv. We don’t know when it will respond.')
+                raise HTTPException(503, detail + ' Other sources are still available.')
             raise HTTPException(503, 'Paper sources are temporarily unavailable. Your existing feed is unchanged; please retry.')
         merged = merge_papers(existing, candidates)
         # Preserve the displayed prefix so an offset cursor never skips cards when

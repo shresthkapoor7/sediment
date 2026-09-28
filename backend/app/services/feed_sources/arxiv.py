@@ -23,7 +23,7 @@ class ArxivSource:
         # holds a database lease so this remains serialized across API workers.
         async with _lock:
             if time.monotonic() < _blocked_until:
-                raise SourceError('arXiv is rate limited; retry in a minute', status=429)
+                raise SourceError('arXiv requests paused after a rate-limit response', status=429)
             await asyncio.sleep(max(0, 3.1 - (time.monotonic() - _last_request)))
             try:
                 return await fetch('https://export.arxiv.org/api/query', params, xml=True)

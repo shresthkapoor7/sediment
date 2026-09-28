@@ -224,13 +224,19 @@ class FeedTests(unittest.IsolatedAsyncioTestCase):
         repo.rows['u']['papers'] = []
         old = copy.deepcopy(repo.rows['u'])
         repo.cache_rows.clear()
-        source.search = AsyncMock(side_effect=SourceError('Provider request timed out'))
-        with self.assertRaises(HTTPException) as caught:
-            await service.mutate('u', 'source', source='arxiv')
-        self.assertEqual(caught.exception.status_code, 503)
-        self.assertIn('arXiv', caught.exception.detail)
-        self.assertEqual(caught.exception.headers['Retry-After'], '60')
-        self.assertEqual(repo.rows['u'], old)
+        for failure, message in [
+            (SourceError('Provider request timed out'), 'couldn’t reach arXiv'),
+            (SourceError('Provider returned HTTP 429', status=429), 'reset time'),
+        ]:
+            with self.subTest(failure=str(failure)):
+                source.search = AsyncMock(side_effect=failure)
+                with self.assertRaises(HTTPException) as caught:
+                    await service.mutate('u', 'source', source='arxiv')
+                self.assertEqual(caught.exception.status_code, 503)
+                self.assertIn(message, caught.exception.detail)
+                self.assertNotIn('minute', caught.exception.detail)
+                self.assertNotIn('Retry-After', caught.exception.headers or {})
+                self.assertEqual(repo.rows['u'], old)
 
     async def test_failed_provider_is_not_retried_for_each_interest_in_one_update(self):
         good = Source(); bad = Source(); bad.name = 'arxiv'
