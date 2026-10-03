@@ -9,7 +9,7 @@ import { useEffect, useRef, useState } from "react";
 import { BalancedMasonry } from "@/components/feeds/BalancedMasonry";
 import { PageHeader } from "@/components/PageHeader";
 import { APIError } from "@/lib/api";
-import { Feed, FeedAction, FeedFilter, FeedPaper, fetchFeed, sourceLabels, feedPaperPath } from "@/lib/feeds-api";
+import { Feed, FeedAction, FeedDomain, domainLabels, FeedFilter, FeedPaper, fetchFeed, sourceLabels, feedPaperPath } from "@/lib/feeds-api";
 import styles from "./page.module.css";
 
 function dateLabel(value: string | null) {
@@ -20,6 +20,7 @@ export default function FeedsPage() {
   const [openedPaper, setOpenedPaper] = useState<FeedPaper | null>(null);
   const [feed, setFeed] = useState<Feed | null>(null);
   const [interests, setInterests] = useState("");
+  const [domain, setDomain] = useState<FeedDomain>("general");
   const [editing, setEditing] = useState(false);
   const [source, setSource] = useState<FeedFilter>("all");
   const { saved, toggle } = useFeedBookmarks();
@@ -28,7 +29,6 @@ export default function FeedsPage() {
   const [error, setError] = useState("");
   const [needsReload, setNeedsReload] = useState(false);
   const [restoreKey, setRestoreKey] = useState(0);
-  const views = useRef<Partial<Record<FeedFilter, Feed>>>({});
   const busy = useRef(false);
   const request = useRef<AbortController | null>(null);
 
@@ -39,10 +39,10 @@ export default function FeedsPage() {
       try {
         const result = await fetchFeed(undefined, controller.signal);
         if (controller.signal.aborted) return;
-        views.current = { all: result };
         setSource("all");
         setFeed(result);
         setInterests(result.interests);
+        setDomain(result.domain);
         setEditing(!result.interests);
         setNeedsReload(false);
         setError("");
@@ -80,13 +80,6 @@ export default function FeedsPage() {
 
   async function update(action: FeedAction, selectedSource: FeedFilter = source) {
     if (busy.current || pending || !feed || needsReload) return;
-    if (action === "source" && views.current[selectedSource]) {
-      setFeed(views.current[selectedSource]!);
-      setSource(selectedSource);
-      setSavedOnly(false);
-      setError("");
-      return;
-    }
     busy.current = true;
     const controller = new AbortController();
     request.current = controller;
@@ -96,7 +89,7 @@ export default function FeedsPage() {
       const result = await fetchFeed({
         action,
         source: action === "more" || action === "source" ? selectedSource : "all",
-        ...(action === "interests" ? { interests: interests.trim() } : {}),
+        ...(action === "interests" ? { interests: interests.trim(), domain } : {}),
         ...(action === "more" && feed.cursor ? { cursor: feed.cursor } : {}),
       }, controller.signal);
       if (controller.signal.aborted) return;
@@ -106,18 +99,16 @@ export default function FeedsPage() {
         const papers = new Map(feed.papers.map(paper => [paper.id, paper]));
         result.papers.forEach(paper => papers.set(paper.id, paper));
         const next = { ...result, papers: [...papers.values()] };
-        views.current[selectedSource] = next;
         setFeed(next);
       } else if (action === "source") {
         if (result.revision !== feed.revision) throw new APIError("Your feed changed in another tab. Reload your feed.", 409);
-        views.current[selectedSource] = result;
         setFeed(result);
         setSource(selectedSource);
         setSavedOnly(false);
       } else {
-        views.current = { all: result };
         setFeed(result);
         setInterests(result.interests);
+        setDomain(result.domain);
         setEditing(false);
         setSource("all");
         setSavedOnly(false);
@@ -154,17 +145,25 @@ export default function FeedsPage() {
       {feed && <section className={styles.interests} aria-label="Your research interests">
         <div className={styles.interestHeading}>{editing ? <label htmlFor="interests">What are you interested in?</label> : <strong>Your interests</strong>}<span>Saved for this browser</span></div>
         {editing ? <form onSubmit={event => { event.preventDefault(); void update("interests"); }}>
+          <div className={styles.domainField}>
+            <label htmlFor="research-domain">Your field</label>
+            <select id="research-domain" value={domain} onChange={event => setDomain(event.target.value as FeedDomain)} disabled={disabled} aria-describedby="domain-help">
+              {(Object.keys(domainLabels) as FeedDomain[]).map(value => <option key={value} value={value}>{domainLabels[value]}</option>)}
+            </select>
+            <span id="domain-help">Tailors the papers and sources in your feed.</span>
+          </div>
           <textarea id="interests" value={interests} onChange={event => setInterests(event.target.value)} placeholder="Machine learning, the neuroscience of memory, climate science…" maxLength={600} rows={2} required disabled={disabled} aria-describedby="interest-help" />
-          <div className={styles.formBottom}><span id="interest-help">Add up to three topics, separated by commas.</span><div className={styles.actions}>{feed.interests && <button type="button" className={styles.secondary} disabled={disabled} onClick={() => { setInterests(feed.interests); setEditing(false); }}>Cancel</button>}<button className={styles.primary} disabled={!interests.trim() || disabled} type="submit">{pending === "interests" ? "Finding papers…" : feed.interests ? "Update interests" : "Create my feed"}</button></div></div>
+          <div className={styles.formBottom}><span id="interest-help">Add up to three topics, separated by commas.</span><div className={styles.actions}>{feed.interests && <button type="button" className={styles.secondary} disabled={disabled} onClick={() => { setInterests(feed.interests); setDomain(feed.domain); setEditing(false); }}>Cancel</button>}<button className={styles.primary} disabled={!interests.trim() || disabled} type="submit">{pending === "interests" ? "Finding papers…" : feed.interests ? "Update interests" : "Create my feed"}</button></div></div>
           <div className={styles.suggestions}><span>Try</span>{["Machine learning", "Neuroscience", "Climate science"].map(topic => <button key={topic} type="button" disabled={disabled} onClick={() => setInterests(current => (current ? `${current.replace(/[., ]+$/, "")}, ${topic.toLowerCase()}` : topic).slice(0, 600))}>{topic} <span aria-hidden="true">+</span></button>)}</div>
-        </form> : <div className={styles.applied}><p>{feed.interests}</p><button disabled={disabled} onClick={() => setEditing(true)}>Edit interests</button></div>}
+        </form> : <div className={styles.applied}><p><span className={styles.domainLabel}>{domainLabels[feed.domain]}</span>{feed.interests}</p><button disabled={disabled} onClick={() => setEditing(true)}>Edit interests</button></div>}
       </section>}
       <p className={styles.status} role="status">{status}{pending && pending !== "restore" && " This can take a moment."}</p>
       {feed?.interests && <section className={styles.feed} aria-labelledby="feed-heading" aria-busy={!!pending}>
         <div className={styles.feedHeading}><div><h2 id="feed-heading">{savedOnly ? "Saved in this feed" : "Your feed"}</h2><p>{feed.refreshedAt ? `Last checked ${new Date(feed.refreshedAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}. ` : ""}Refresh when you’re ready for more.</p></div><button className={styles.secondary} disabled={disabled || editing} onClick={() => void update("refresh")}>{pending === "refresh" ? "Refreshing…" : "Refresh feed"}</button></div>
         {!!feed.warnings.length && <p className={styles.warning} role="status">{feed.warnings.map(value => sourceLabels[value]).join(", ")} couldn’t be reached. Showing available papers; try refreshing later.</p>}
-        <div className={styles.toolbar}><div className={styles.filters} aria-label="Filter by source">{(["all", "arxiv", "huggingface", "openalex"] as const).map(value => <button key={value} aria-pressed={source === value} disabled={disabled || editing} onClick={() => void update("source", value)} className={source === value ? styles.active : ""}>{value === "all" ? "All papers" : sourceLabels[value]}</button>)}</div><button className={`${styles.savedFilter} ${savedOnly ? styles.active : ""}`} aria-pressed={savedOnly} onClick={() => setSavedOnly(value => !value)}>Saved <span>{feed.papers.filter(paper => saved.includes(paper.id)).length}</span></button></div>
-        {source === "arxiv" && <p className={styles.warning}>arXiv papers via OpenAlex. New submissions may take time to appear.</p>}
+        <div className={styles.toolbar}><div className={styles.filters} aria-label="Filter by source">{(["all", ...feed.availableSources] as FeedFilter[]).map(value => <button key={value} aria-pressed={source === value} disabled={disabled || editing} onClick={() => void update("source", value)} className={source === value ? styles.active : ""}>{value === "all" ? "All papers" : sourceLabels[value]}</button>)}</div><button className={`${styles.savedFilter} ${savedOnly ? styles.active : ""}`} aria-pressed={savedOnly} onClick={() => setSavedOnly(value => !value)}>Saved <span>{feed.papers.filter(paper => saved.includes(paper.id)).length}</span></button></div>
+        {(["arxiv", "biorxiv", "medrxiv"] as FeedFilter[]).includes(source) && <p className={styles.warning}>{sourceLabels[source as keyof typeof sourceLabels]} papers via OpenAlex. New submissions may take time to appear.</p>}
+        {source === "huggingface" && <p className={styles.warning}>Hugging Face via OpenAlex. This source primarily indexes datasets, so matching research papers may be unavailable.</p>}
         <div className={styles.resultCount} role="status">{visible.length} of {feed.papers.length} loaded papers <span>Recent research</span></div>
         <BalancedMasonry className={styles.masonry}>
           {visible.map(paper => <article className={styles.card} key={paper.id}>
@@ -180,7 +179,7 @@ export default function FeedsPage() {
         </BalancedMasonry>
         {!visible.length && <div className={styles.empty}><h3>{savedOnly ? "Keep something for later." : "No matching papers yet."}</h3><p>{savedOnly ? "Papers you save from this feed will appear here." : source !== "all" ? "Try another source or load more papers." : "Try broader interests, or check for more results below."}</p>{(source !== "all" || savedOnly) && <button disabled={disabled || editing} onClick={() => { setSavedOnly(false); void update("source", "all"); }}>Show all papers</button>}</div>}
         {feed.cursor && <div className={styles.loadMore}><button className={styles.secondary} disabled={disabled || editing} onClick={() => void update("more")}>{pending === "more" ? "Loading…" : "Load more papers"}</button></div>}
-        <p className={styles.endnote}>{feed.cursor ? "Up to 12 new papers at a time." : "You’re caught up with the available results. Refresh later or edit your interests."}<br />Topic illustrations are decorative. Open a paper for its full abstract and original source.</p>
+        <p className={styles.endnote}>{feed.cursor ? (source === "all" ? "Up to 10 papers per source at a time, with duplicates combined." : "Up to 10 new papers at a time.") : "You’re caught up with the available results. Refresh later or edit your interests."}<br />Topic illustrations are decorative. Open a paper for its full abstract and original source.</p>
       </section>}
     </main>
     {openedPaper && <FeedPaperDetail paper={openedPaper} intercepted />}

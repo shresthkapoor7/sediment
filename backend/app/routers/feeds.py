@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from ..db.supabase import SupabaseAPIError, SupabaseConfigError
 from ..services.feeds import FeedService
+from ..services.feed_domains import Domain
 from ..services.feed_identity import issue_feed_credential, require_feed_actor
 from ..services.usage_limiter import limiter
 from .search import get_request_ip
@@ -20,7 +21,8 @@ logger = logging.getLogger(__name__)
 class FeedRequest(BaseModel):
     model_config = ConfigDict(extra='forbid')
     action: Literal['interests', 'refresh', 'more', 'source']
-    source: Literal['all', 'arxiv', 'huggingface', 'openalex'] = 'all'
+    domain: Optional[Domain] = None
+    source: Literal['all', 'arxiv', 'huggingface', 'openalex', 'biorxiv', 'medrxiv', 'journals', 'repositories'] = 'all'
     interests: Optional[str] = Field(default=None, min_length=1, max_length=600)
     cursor: Optional[str] = Field(default=None, max_length=300)
 
@@ -48,13 +50,15 @@ async def update_feed(body: FeedRequest, request: Request, response: Response, a
     response.headers['Cache-Control'] = 'no-store'
     if body.action == 'interests' and not (body.interests or '').strip():
         raise HTTPException(400, 'Describe your research interests first.')
+    if body.action != 'interests' and body.domain is not None:
+        raise HTTPException(400, 'Use Edit interests to change your domain.')
     if body.action != 'interests' and body.interests is not None:
         raise HTTPException(400, 'Use Edit interests to change your interests.')
     if body.action in ('interests', 'refresh') and body.source != 'all':
         raise HTTPException(400, 'Refresh and interest changes apply to all sources.')
     try:
         await limiter.claim_request(get_request_ip(request), 'feeds')
-        return await asyncio.wait_for(FeedService().mutate(actor, body.action, body.interests, body.cursor, body.source), timeout=165)
+        return await asyncio.wait_for(FeedService().mutate(actor, body.action, body.interests, body.cursor, body.source, **({"domain": body.domain} if body.domain is not None else {})), timeout=165)
     except (SupabaseAPIError, SupabaseConfigError):
         logger.warning('Feed persistence unavailable')
         raise HTTPException(503, 'Feed storage is unavailable. Please try again later.') from None

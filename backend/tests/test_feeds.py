@@ -30,7 +30,7 @@ class Source:
     async def search(self, request):
         self.calls += 1
         start = int(request.cursor or '0')
-        return SearchPage(papers=[paper(i) for i in range(start, start+24)], next_cursor=str(start+24) if start<48 else None)
+        return SearchPage(papers=[paper(i).model_copy(update={'sources': [self.name]}) for i in range(start, start+24)], next_cursor=str(start+24) if start<48 else None)
 
 
 class FeedTests(unittest.IsolatedAsyncioTestCase):
@@ -42,7 +42,7 @@ class FeedTests(unittest.IsolatedAsyncioTestCase):
     async def test_pagination_cache_reload_and_idempotent_cursor(self):
         source=Source(); repo=Repo(); service=FeedService(repo,[source])
         first=await service.mutate('u','interests','robot learning')
-        self.assertEqual(len(first['papers']),12)
+        self.assertEqual(len(first['papers']),10)
         second=await service.mutate('u','more',cursor=first['cursor'])
         self.assertEqual(source.calls,1)
         self.assertFalse({p['id'] for p in first['papers']} & {p['id'] for p in second['papers']})
@@ -51,7 +51,7 @@ class FeedTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(first['papers'],(await FeedService(repo,[source]).read('u'))['papers'])
         third=await service.mutate('u','more',cursor=second['cursor'])
         self.assertEqual(source.calls,2)
-        self.assertEqual(len(third['papers']),12)
+        self.assertEqual(len(third['papers']),10)
 
     async def test_edit_invalidates_old_cursor(self):
         service=FeedService(Repo(),[Source()])
@@ -71,7 +71,7 @@ class FeedTests(unittest.IsolatedAsyncioTestCase):
     async def test_partial_failure_returns_results_and_warning(self):
         good=Source(); bad=Source(); bad.name='openalex'; bad.search=AsyncMock(side_effect=SourceError('offline'))
         result=await FeedService(Repo(),[good,bad]).mutate('u','interests','robot learning')
-        self.assertEqual(len(result['papers']),12)
+        self.assertEqual(len(result['papers']),10)
         self.assertEqual(result['warnings'],['openalex'])
 
     def test_merge_cross_source_transitive_and_enrichment(self):
@@ -143,7 +143,7 @@ class FeedTests(unittest.IsolatedAsyncioTestCase):
         state['papers']=[paper(i).model_copy(update={'sources':['openalex'] if i<30 else ['arxiv'] if i<36 else ['huggingface']}).model_dump() for i in range(42)]
         state['streams']=[]
         first=await service.read('u')
-        self.assertTrue(all(p['sources']==['openalex'] for p in first['papers']))
+        self.assertEqual(len(first['papers']),10)
         arxiv=await service.mutate('u','source',source='arxiv')
         hf=await service.mutate('u','source',source='huggingface')
         self.assertEqual(len(arxiv['papers']),6)
@@ -161,7 +161,7 @@ class FeedTests(unittest.IsolatedAsyncioTestCase):
         selected=await service.mutate('u','source',source='arxiv')
         second=await service.mutate('u','more',cursor=selected['cursor'],source='arxiv')
         third=await service.mutate('u','more',cursor=second['cursor'],source='arxiv')
-        self.assertEqual(len(third['papers']),12)
+        self.assertEqual(len(third['papers']),10)
         self.assertFalse({p['id'] for p in selected['papers']} & {p['id'] for p in second['papers']})
         hf.search.assert_not_awaited()
         with self.assertRaises(HTTPException):
@@ -173,12 +173,12 @@ class FeedTests(unittest.IsolatedAsyncioTestCase):
         repo=Repo(); source=Source(); source.name='arxiv'; service=FeedService(repo,[source])
         await service.mutate('u','interests','robot learning')
         state=repo.rows['u']
-        state['papers']=[paper(i).model_copy(update={'sources':['arxiv'] if i<12 else ['openalex']}).model_dump() for i in range(13)]
+        state['papers']=[paper(i).model_copy(update={'sources':['arxiv'] if i<10 else ['openalex']}).model_dump() for i in range(11)]
         selected=await service.mutate('u','source',source='arxiv')
         # A later arXiv record links the OpenAlex paper already in the snapshot.
-        source.search=AsyncMock(return_value=SearchPage(papers=[paper(12)]))
+        source.search=AsyncMock(return_value=SearchPage(papers=[paper(10)]))
         more=await service.mutate('u','more',cursor=selected['cursor'],source='arxiv')
-        self.assertEqual([p['id'] for p in more['papers']],[paper(12).id])
+        self.assertEqual([p['id'] for p in more['papers']],[paper(10).id])
         self.assertIsNone(more['cursor'])
 
     async def test_paper_details_merge_cached_sources_without_search(self):
@@ -280,3 +280,23 @@ class FeedTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(result.papers), 1)
         source.search.assert_awaited_once()
         self.assertEqual(repo.locks, set())
+
+    async def test_native_huggingface_stream_restarts_with_openalex_cursor(self):
+        from app.services.feed_sources.huggingface import HuggingFaceSource
+        repo = Repo()
+        await FeedService(repo, [Source()]).mutate('u', 'interests', 'robot learning')
+        state = repo.rows['u']
+        state['papers'] = [paper(0).model_copy(update={'sources': ['huggingface']}).model_dump()]
+        state['streams'][0].update(done=True, cursor=None)
+        revision = state['revision']
+        source = HuggingFaceSource()
+        source.search = AsyncMock(return_value=SearchPage(papers=[
+            paper(i).model_copy(update={'sources': ['huggingface']}) for i in range(1, 24)
+        ], next_cursor='openalex-next'))
+        result = await FeedService(repo, [source]).mutate('u', 'source', source='huggingface')
+        self.assertEqual(len(result['papers']), 10)
+        self.assertEqual(result['revision'], revision)
+        self.assertEqual(result['papers'][0]['id'], paper(0).id)
+        self.assertIsNone(source.search.await_args.args[0].cursor)
+        self.assertEqual(repo.rows['u']['streams'][0]['cursor'], 'openalex-next')
+        self.assertEqual(repo.rows['u']['streams'][0]['cursor_version'], source.cursor_version)

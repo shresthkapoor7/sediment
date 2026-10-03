@@ -11,7 +11,9 @@ from urllib.parse import urlparse
 import aiohttp
 from pydantic import BaseModel, Field
 
-Source = Literal['arxiv', 'huggingface', 'openalex']
+from ..feed_domains import Domain
+
+Source = Literal['arxiv', 'huggingface', 'openalex', 'biorxiv', 'medrxiv', 'journals', 'repositories']
 
 
 class Paper(BaseModel):
@@ -32,6 +34,7 @@ class Paper(BaseModel):
 
 
 class SearchRequest(BaseModel):
+    domain: Domain = 'general'
     query: str = Field(min_length=1, max_length=300)
     since: date
     until: date

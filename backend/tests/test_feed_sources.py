@@ -12,16 +12,39 @@ class FeedSourcesTests(unittest.IsolatedAsyncioTestCase):
     def test_cross_source_identifiers(self):
         self.assertEqual(arxiv_id('https://arxiv.org/pdf/2401.12345v3.pdf'), '2401.12345')
         self.assertEqual(doi_id('https://doi.org/10.1234/ABC'), '10.1234/abc')
-        hf = HuggingFaceSource.parse({'paper': {'id': '2401.12345', 'title': 'A study'}})
+        hf = HuggingFaceSource.parse({**self.hf_work(), 'doi': 'https://doi.org/10.48550/arxiv.2401.12345'})
         oa = OpenAlexSource.parse({'id': 'https://openalex.org/W123', 'doi': 'https://doi.org/10.48550/arXiv.2401.12345'})
         self.assertTrue(identity_keys(hf) & identity_keys(oa))
 
 
-    async def test_hf_uses_paper_date_not_feature_date(self):
-        rows = [{'paper': {'id': '2401.12345', 'publishedAt': '2024-01-01', 'title': 'Old'}, 'publishedAt': '2026-09-26'}]
-        with patch('app.services.feed_sources.huggingface.fetch', AsyncMock(return_value=rows)):
-            result = await HuggingFaceSource().search(SearchRequest(query='AI', since=date(2026,9,1), until=date(2026,9,27)))
-        self.assertEqual(result.papers, [])
+    def hf_work(self):
+        return {'id': 'https://openalex.org/W456', 'display_name': 'Robot learning',
+                'publication_date': '2026-09-24',
+                'primary_location': {'source': {'id': 'https://openalex.org/S7407051994', 'type': 'repository'},
+                                     'landing_page_url': 'https://huggingface.co/papers/2609.12345'}}
+
+    async def test_hf_search_uses_openalex_filters_and_pagination(self):
+        with patch('app.services.feed_sources.openalex.fetch', AsyncMock(return_value={
+            'meta': {'next_cursor': 'next'}, 'results': [self.hf_work()],
+        })) as fetch:
+            page = await HuggingFaceSource().search(SearchRequest(query='robot learning', domain='ai',
+                since=date(2026,9,1), until=date(2026,9,27), cursor='opaque', limit=12))
+        url, params = fetch.await_args.args
+        self.assertEqual(url, 'https://api.openalex.org/works')
+        for value in ['primary_location.source.id:S7407051994', 'primary_location.source.type:repository',
+                      'primary_topic.field.id:17', 'from_publication_date:2026-09-01']:
+            self.assertIn(value, params['filter'])
+        self.assertEqual(params['cursor'], 'opaque')
+        self.assertEqual(page.next_cursor, 'next')
+        self.assertEqual(page.papers[0].id, 'openalex:W456')
+        self.assertIn('huggingface', page.papers[0].sources)
+        self.assertEqual(page.papers[0].url, 'https://huggingface.co/papers/2609.12345')
+
+    async def test_hf_lookup_uses_openalex_and_rejects_other_sources(self):
+        with patch('app.services.feed_sources.openalex.fetch', AsyncMock(return_value=self.hf_work())) as fetch:
+            self.assertEqual((await HuggingFaceSource().get('W456')).openalex_id, 'W456')
+        self.assertEqual(fetch.await_args.args[0], 'https://api.openalex.org/works/W456')
+        self.assertIsNone(HuggingFaceSource.parse(self.arxiv_work()))
 
     def test_title_alone_does_not_merge(self):
         a = Paper(id='a', title='An identical title about machine learning', authors=['Jane'], url='https://example.org')
@@ -30,15 +53,15 @@ class FeedSourcesTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_malformed_source_envelope_is_a_provider_failure(self):
         request=SearchRequest(query='robotics', since=date(2026,9,1), until=date(2026,9,27))
-        with patch('app.services.feed_sources.huggingface.fetch', AsyncMock(return_value={'error':'unavailable'})):
+        with patch('app.services.feed_sources.openalex.fetch', AsyncMock(return_value={'error':'unavailable'})):
             with self.assertRaises(SourceError): await HuggingFaceSource().search(request)
         with patch('app.services.feed_sources.openalex.fetch', AsyncMock(return_value=[])):
             with self.assertRaises(SourceError): await OpenAlexSource().search(request)
 
     async def test_malformed_record_does_not_hide_usable_results(self):
         request=SearchRequest(query='robotics', since=date(2026,9,1), until=date(2026,9,27))
-        rows=[None, {'paper':{'id':'2609.12345','title':'Robot learning','publishedAt':'2026-09-27','authors':None}}]
-        with patch('app.services.feed_sources.huggingface.fetch', AsyncMock(return_value=rows)):
+        rows={'meta': {}, 'results': [None, self.hf_work()]}
+        with patch('app.services.feed_sources.openalex.fetch', AsyncMock(return_value=rows)):
             result=await HuggingFaceSource().search(request)
         self.assertEqual(len(result.papers),1)
 

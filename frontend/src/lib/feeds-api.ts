@@ -1,6 +1,8 @@
 import { APIError } from "./api";
 
-export type FeedSource = "arxiv" | "huggingface" | "openalex";
+export type FeedDomain = "ai" | "biomed" | "math_physics" | "general";
+export const domainLabels: Record<FeedDomain, string> = { ai: "AI & computer science", biomed: "Biology & medicine", math_physics: "Math & physics", general: "All fields" };
+export type FeedSource = "arxiv" | "huggingface" | "openalex" | "biorxiv" | "medrxiv" | "journals" | "repositories";
 export type FeedFilter = FeedSource | "all";
 export type FeedPaper = {
   id: string;
@@ -19,6 +21,8 @@ export type FeedPaper = {
   preprint: boolean;
 };
 export type Feed = {
+  domain: FeedDomain;
+  availableSources: FeedSource[];
   source: FeedFilter;
   interests: string;
   queries: string[];
@@ -29,7 +33,7 @@ export type Feed = {
   revision: string | null;
 };
 export type FeedAction = "interests" | "refresh" | "more" | "source";
-export const sourceLabels: Record<FeedSource, string> = { arxiv: "arXiv", huggingface: "Hugging Face", openalex: "OpenAlex" };
+export const sourceLabels: Record<FeedSource, string> = { arxiv: "arXiv", huggingface: "Hugging Face", openalex: "OpenAlex", biorxiv: "bioRxiv", medrxiv: "medRxiv", journals: "Journals", repositories: "Repositories" };
 const base = process.env.NEXT_PUBLIC_USE_API_PROXY === "true" ? "" : (process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000");
 
 const sessionKey = "sediment_feed_session";
@@ -58,7 +62,7 @@ async function feedCredential(): Promise<string> {
   return sessionRequest;
 }
 
-export async function fetchFeed(update?: { action: FeedAction; source?: FeedFilter; interests?: string; cursor?: string }, signal?: AbortSignal): Promise<Feed> {
+export async function fetchFeed(update?: { action: FeedAction; source?: FeedFilter; domain?: FeedDomain; interests?: string; cursor?: string }, signal?: AbortSignal): Promise<Feed> {
   const send = async () => fetch(`${base}/api/feeds`, {
     method: update ? "POST" : "GET",
     headers: { Authorization: `Bearer ${await feedCredential()}`, ...(update ? { "Content-Type": "application/json" } : {}) },
