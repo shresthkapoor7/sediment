@@ -23,7 +23,7 @@ export default function FeedsPage() {
   const [domain, setDomain] = useState<FeedDomain>("general");
   const [editing, setEditing] = useState(false);
   const [source, setSource] = useState<FeedFilter>("all");
-  const { saved, toggle } = useFeedBookmarks();
+  const { saved, papers: savedPapers, unresolved, retryRestore, toggle } = useFeedBookmarks();
   const [savedOnly, setSavedOnly] = useState(false);
   const [pending, setPending] = useState<FeedAction | "restore" | null>("restore");
   const [error, setError] = useState("");
@@ -124,12 +124,12 @@ export default function FeedsPage() {
     }
   }
 
-  function toggleSaved(id: string) {
-    try { toggle(id); }
+  function toggleSaved(paper: FeedPaper) {
+    try { toggle(paper); }
     catch { setError("This browser couldn’t save the bookmark. Please try again."); }
   }
 
-  const visible = (feed?.papers || []).filter(paper => !savedOnly || saved.includes(paper.id));
+  const visible = savedOnly ? savedPapers : (feed?.papers || []);
   const disabled = pending !== null || needsReload;
   const status = pending === "restore" ? "Restoring your feed…" : pending === "more" ? "Finding more papers…" : pending === "refresh" ? "Checking for recent papers…" : pending === "interests" ? "Finding papers for your interests…" : pending === "source" ? "Loading papers from this source…" : "";
 
@@ -159,12 +159,13 @@ export default function FeedsPage() {
       </section>}
       <p className={styles.status} role="status">{status}{pending && pending !== "restore" && " This can take a moment."}</p>
       {feed?.interests && <section className={styles.feed} aria-labelledby="feed-heading" aria-busy={!!pending}>
-        <div className={styles.feedHeading}><div><h2 id="feed-heading">{savedOnly ? "Saved in this feed" : "Your feed"}</h2><p>{feed.refreshedAt ? `Last checked ${new Date(feed.refreshedAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}. ` : ""}Refresh when you’re ready for more.</p></div><button className={styles.secondary} disabled={disabled || editing} onClick={() => void update("refresh")}>{pending === "refresh" ? "Refreshing…" : "Refresh feed"}</button></div>
-        {!!feed.warnings.length && <p className={styles.warning} role="status">{feed.warnings.map(value => sourceLabels[value]).join(", ")} couldn’t be reached. Showing available papers; try refreshing later.</p>}
-        <div className={styles.toolbar}><div className={styles.filters} aria-label="Filter by source">{(["all", ...feed.availableSources] as FeedFilter[]).map(value => <button key={value} aria-pressed={source === value} disabled={disabled || editing} onClick={() => void update("source", value)} className={source === value ? styles.active : ""}>{value === "all" ? "All papers" : sourceLabels[value]}</button>)}</div><button className={`${styles.savedFilter} ${savedOnly ? styles.active : ""}`} aria-pressed={savedOnly} onClick={() => setSavedOnly(value => !value)}>Saved <span>{feed.papers.filter(paper => saved.includes(paper.id)).length}</span></button></div>
-        {(["arxiv", "biorxiv", "medrxiv"] as FeedFilter[]).includes(source) && <p className={styles.warning}>{sourceLabels[source as keyof typeof sourceLabels]} papers via OpenAlex. New submissions may take time to appear.</p>}
-        {source === "huggingface" && <p className={styles.warning}>Hugging Face via OpenAlex. This source primarily indexes datasets, so matching research papers may be unavailable.</p>}
-        <div className={styles.resultCount} role="status">{visible.length} of {feed.papers.length} loaded papers <span>Recent research</span></div>
+        <div className={styles.feedHeading}><div><h2 id="feed-heading">{savedOnly ? "Saved papers" : "Your feed"}</h2><p>{feed.refreshedAt ? `Last checked ${new Date(feed.refreshedAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}. ` : ""}Refresh when you’re ready for more.</p></div><button className={styles.secondary} disabled={disabled || editing} onClick={() => void update("refresh")}>{pending === "refresh" ? "Refreshing…" : "Refresh feed"}</button></div>
+        {!savedOnly && !!feed.warnings.length && <p className={styles.warning} role="status">{feed.warnings.map(value => sourceLabels[value]).join(", ")} couldn’t be reached. Showing available papers; try refreshing later.</p>}
+        <div className={styles.toolbar}><div className={styles.filters} aria-label="Filter by source">{(["all", ...feed.availableSources] as FeedFilter[]).map(value => <button key={value} aria-pressed={!savedOnly && source === value} disabled={disabled || editing} onClick={() => void update("source", value)} className={!savedOnly && source === value ? styles.active : ""}>{value === "all" ? "All papers" : sourceLabels[value]}</button>)}</div><button className={`${styles.savedFilter} ${savedOnly ? styles.active : ""}`} aria-pressed={savedOnly} onClick={() => setSavedOnly(value => !value)}>Saved <span>{saved.length}</span></button></div>
+        {!savedOnly && (["arxiv", "biorxiv", "medrxiv"] as FeedFilter[]).includes(source) && <p className={styles.warning}>{sourceLabels[source as keyof typeof sourceLabels]} papers via OpenAlex. New submissions may take time to appear.</p>}
+        {!savedOnly && source === "huggingface" && <p className={styles.warning}>Hugging Face via OpenAlex. This source primarily indexes datasets, so matching research papers may be unavailable.</p>}
+        <div className={styles.resultCount} role="status">{savedOnly ? `${visible.length} saved papers` : `${visible.length} of ${feed.papers.length} loaded papers`} <span>{savedOnly ? "Across all topics and fields" : "Recent research"}</span></div>
+        {savedOnly && unresolved.length > 0 && <p className={styles.warning} role="status">Restoring {unresolved.length} previously saved {unresolved.length === 1 ? "paper" : "papers"}. If they don’t appear, <button onClick={retryRestore}>retry restoration</button>.</p>}
         <BalancedMasonry className={styles.masonry}>
           {visible.map(paper => <article className={styles.card} key={paper.id}>
             <FeedPaperImage paper={paper} className={styles.figure} />
@@ -173,13 +174,13 @@ export default function FeedsPage() {
               <h3><Link className={styles.paperLink} href={feedPaperPath(paper)} scroll={false} prefetch={false} onClick={event => { if (event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) { event.preventDefault(); openPaper(paper); } }}>{paper.title}</Link></h3>
               {!!paper.authors.length && <p className={styles.authors}>{paper.authors.slice(0, 3).join(", ")}{paper.authors.length > 3 ? " & collaborators" : ""}</p>}
               {paper.abstract && <p data-preview className={styles.summary}>{paper.abstract}</p>}
-              <div className={styles.cardFooter}><span>{paper.sources.map(value => sourceLabels[value]).join(" · ")}{paper.preprint && <small>Preprint</small>}</span><button aria-label={`${saved.includes(paper.id) ? "Unsave" : "Save"} ${paper.title}`} aria-pressed={saved.includes(paper.id)} onClick={() => toggleSaved(paper.id)}><svg width="15" height="17" viewBox="0 0 16 18" fill={saved.includes(paper.id) ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.3" aria-hidden="true"><path d="M3 2h10v14l-5-3-5 3z" /></svg>{saved.includes(paper.id) ? "Saved" : "Save"}</button></div>
+              <div className={styles.cardFooter}><span>{paper.sources.map(value => sourceLabels[value]).join(" · ")}{paper.preprint && <small>Preprint</small>}</span><button aria-label={`${saved.includes(paper.id) ? "Unsave" : "Save"} ${paper.title}`} aria-pressed={saved.includes(paper.id)} onClick={() => toggleSaved(paper)}><svg width="15" height="17" viewBox="0 0 16 18" fill={saved.includes(paper.id) ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.3" aria-hidden="true"><path d="M3 2h10v14l-5-3-5 3z" /></svg>{saved.includes(paper.id) ? "Saved" : "Save"}</button></div>
             </div>
           </article>)}
         </BalancedMasonry>
-        {!visible.length && <div className={styles.empty}><h3>{savedOnly ? "Keep something for later." : "No matching papers yet."}</h3><p>{savedOnly ? "Papers you save from this feed will appear here." : source !== "all" ? "Try another source or load more papers." : "Try broader interests, or check for more results below."}</p>{(source !== "all" || savedOnly) && <button disabled={disabled || editing} onClick={() => { setSavedOnly(false); void update("source", "all"); }}>Show all papers</button>}</div>}
-        {feed.cursor && <div className={styles.loadMore}><button className={styles.secondary} disabled={disabled || editing} onClick={() => void update("more")}>{pending === "more" ? "Loading…" : "Load more papers"}</button></div>}
-        <p className={styles.endnote}>{feed.cursor ? (source === "all" ? "Up to 10 papers per source at a time, with duplicates combined." : "Up to 10 new papers at a time.") : "You’re caught up with the available results. Refresh later or edit your interests."}<br />Topic illustrations are decorative. Open a paper for its full abstract and original source.</p>
+        {!visible.length && <div className={styles.empty}><h3>{savedOnly ? "Keep something for later." : "No matching papers yet."}</h3><p>{savedOnly ? "Papers you save stay here across topics and fields in this browser." : source !== "all" ? "Try another source or load more papers." : "Try broader interests, or check for more results below."}</p>{(source !== "all" || savedOnly) && <button disabled={disabled || editing} onClick={() => { setSavedOnly(false); void update("source", "all"); }}>Show all papers</button>}</div>}
+        {!savedOnly && feed.cursor && <div className={styles.loadMore}><button className={styles.secondary} disabled={disabled || editing} onClick={() => void update("more")}>{pending === "more" ? "Loading…" : "Load more papers"}</button></div>}
+        <p className={styles.endnote}>{savedOnly ? "Saved in this browser, across all your topics and fields." : feed.cursor ? (source === "all" ? "Up to 10 papers per source at a time, with duplicates combined." : "Up to 10 new papers at a time.") : "You’re caught up with the available results. Refresh later or edit your interests."}<br />Topic illustrations are decorative. Open a paper for its full abstract and original source.</p>
       </section>}
     </main>
     {openedPaper && <FeedPaperDetail paper={openedPaper} intercepted />}
