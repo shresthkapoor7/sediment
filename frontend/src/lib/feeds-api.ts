@@ -69,10 +69,10 @@ export async function fetchFeed(update?: { action: FeedAction; source?: FeedFilt
     signal,
   });
   let response = await send();
-  if (response.status === 401 && !update) {
+  if (response.status === 401) {
     credential = null;
     try { localStorage.removeItem(sessionKey); } catch { /* Memory fallback remains available. */ }
-    response = await send();
+    if (!update) response = await send();
   }
   if (!response.ok) {
     const data = await response.json().catch(() => null);

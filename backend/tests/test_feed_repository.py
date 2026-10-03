@@ -20,7 +20,8 @@ class FeedCacheTimestampTests(unittest.IsolatedAsyncioTestCase):
             ('2026-09-28T01:25:21Z', True),
             ('2026-09-27T21:25:20.15444-04:00', True),
         ]
-        repo = FeedRepository()
+        with patch('app.db.feeds.SupabaseClient'):
+            repo = FeedRepository()
         for timestamp, valid in timestamps:
             with self.subTest(timestamp=timestamp):
                 repo.db._request = AsyncMock(return_value={
