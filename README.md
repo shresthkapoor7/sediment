@@ -104,7 +104,7 @@ Implementation: [lineage orchestration](backend/app/services/lineage.py), [OpenA
 
 ### Personalized feeds
 
-Feeds combine Hugging Face Papers, arXiv, and OpenAlex metadata around browser-saved interests. The page starts empty, then supports manual refresh and deduplicated 12-paper pagination. It uses tagged local illustrations without downloading papers or running per-paper AI calls. See [feed setup, API behavior, and provider adapters](docs/feeds.md), including the required database migration.
+Feeds combine Hugging Face Papers, arXiv, and OpenAlex metadata around browser-saved interests. The page starts empty, then supports manual refresh and deduplicated pagination of up to 10 papers per source (up to 30 in All papers with three sources). It uses tagged local illustrations without downloading papers or running per-paper AI calls. See [feed setup, API behavior, and provider adapters](docs/feeds.md), including the required database migration.
 
 ### Research agent
 
