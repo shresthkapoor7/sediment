@@ -5,7 +5,8 @@ from fastapi import HTTPException
 from app.services.feeds import FeedService
 from app.services.feed_domains import DOMAIN_SOURCES
 from app.services.feed_sources.base import SearchRequest, SearchPage, SourceError
-from app.services.feed_sources.openalex import BioRxivSource, MedRxivSource, JournalSource, RepositorySource, OpenAlexSource
+from app.services.feed_sources.openalex import OpenAlexSource
+from app.services.feed_sources.adapters import BioRxivSource, MedRxivSource, JournalSource, RepositorySource
 from test_feeds import Repo, paper
 
 

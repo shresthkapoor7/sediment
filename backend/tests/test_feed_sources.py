@@ -3,8 +3,8 @@ from datetime import date
 from unittest.mock import AsyncMock, patch
 
 from app.services.feed_sources.base import Paper, SearchRequest, arxiv_id, doi_id, identity_keys, SourceError
-from app.services.feed_sources.arxiv import ArxivSource
-from app.services.feed_sources.huggingface import HuggingFaceSource
+from app.services.feed_sources.adapters import ArxivSource
+from app.services.feed_sources.adapters import HuggingFaceSource
 from app.services.feed_sources.openalex import OpenAlexSource
 
 
@@ -122,7 +122,7 @@ class FeedSourcesTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(page.next_cursor, 'next')
 
     async def test_arxiv_get_uses_openalex_and_preserves_canonical_id(self):
-        with patch('app.services.feed_sources.arxiv.fetch', AsyncMock(return_value={'results': [self.arxiv_work()]})) as fetch:
+        with patch('app.services.feed_sources.adapters.fetch', AsyncMock(return_value={'results': [self.arxiv_work()]})) as fetch:
             paper = await ArxivSource().get('https://arxiv.org/abs/2609.12345v2')
             self.assertIsNone(await ArxivSource().get('not-an-id'))
         fetch.assert_awaited_once()

@@ -247,7 +247,7 @@ class FeedTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(result['papers'])
 
     async def test_old_arxiv_streams_restart_without_losing_cards_or_revision(self):
-        from app.services.feed_sources.arxiv import ArxivSource
+        from app.services.feed_sources.adapters import ArxivSource
         repo = Repo(); old_source = Source(); old_source.name = 'arxiv'
         initial = await FeedService(repo, [old_source]).mutate('u', 'interests', 'robot learning')
         repo.rows['u']['papers'] = repo.rows['u']['papers'][:5]
@@ -269,7 +269,7 @@ class FeedTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_old_arxiv_query_cache_is_not_reused(self):
         import hashlib
-        from app.services.feed_sources.arxiv import ArxivSource
+        from app.services.feed_sources.adapters import ArxivSource
         from app.services.feed_sources.base import SearchRequest
         repo = Repo(); source = ArxivSource()
         request = SearchRequest(query='robot learning', since=date(2026,6,1), until=date(2026,9,28))
@@ -282,7 +282,7 @@ class FeedTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(repo.locks, set())
 
     async def test_native_huggingface_stream_restarts_with_openalex_cursor(self):
-        from app.services.feed_sources.huggingface import HuggingFaceSource
+        from app.services.feed_sources.adapters import HuggingFaceSource
         repo = Repo()
         await FeedService(repo, [Source()]).mutate('u', 'interests', 'robot learning')
         state = repo.rows['u']

@@ -35,7 +35,7 @@ No cron, background ingestion, PDF downloads, or per-paper AI calls run. Identic
 
 ## Providers and future tools
 
-The independent adapters live in [`backend/app/services/feed_sources`](../backend/app/services/feed_sources):
+The shared OpenAlex client lives in [`openalex.py`](../backend/app/services/feed_sources/openalex.py). All source-specific adapters—arXiv, Hugging Face, bioRxiv, medRxiv, Journals, and Repositories—live together in [`adapters.py`](../backend/app/services/feed_sources/adapters.py):
 
 | Provider | Use | Continuation |
 | --- | --- | --- |

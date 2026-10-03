@@ -14,9 +14,8 @@ from fastapi import HTTPException
 from ..config import settings
 from ..db.feeds import FeedRepository
 from .feed_sources.base import Paper, SearchRequest, SourceError, identity_keys, arxiv_id
-from .feed_sources.arxiv import ArxivSource
-from .feed_sources.huggingface import HuggingFaceSource
-from .feed_sources.openalex import OpenAlexSource, BioRxivSource, MedRxivSource, JournalSource, RepositorySource
+from .feed_sources.openalex import OpenAlexSource
+from .feed_sources.adapters import ArxivSource, HuggingFaceSource, BioRxivSource, MedRxivSource, JournalSource, RepositorySource
 from .feed_domains import DOMAIN_SOURCES
 
 logger = logging.getLogger(__name__)

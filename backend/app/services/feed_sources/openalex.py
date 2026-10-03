@@ -78,23 +78,3 @@ class OpenAlexSource:
         papers = parse_records([await fetch('https://api.openalex.org/works/' + identifier,
                                {'api_key': settings.openalex_api_key} if settings.openalex_api_key else {})], self.parse)
         return papers[0] if papers else None
-
-
-class BioRxivSource(OpenAlexSource):
-    name = 'biorxiv'
-    source_filter = 'primary_location.source.id:' + '|'.join(BIORXIV_SOURCE_IDS) + ',primary_location.source.type:repository'
-
-
-class MedRxivSource(OpenAlexSource):
-    name = 'medrxiv'
-    source_filter = 'primary_location.source.id:' + '|'.join(MEDRXIV_SOURCE_IDS) + ',primary_location.source.type:repository'
-
-
-class JournalSource(OpenAlexSource):
-    name = 'journals'
-    source_filter = 'primary_location.source.type:journal'
-
-
-class RepositorySource(OpenAlexSource):
-    name = 'repositories'
-    source_filter = 'primary_location.source.type:repository'
