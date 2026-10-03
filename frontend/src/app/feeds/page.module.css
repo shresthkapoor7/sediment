@@ -99,5 +99,3 @@
 .domainField select:focus-visible { background: var(--accent-soft); text-decoration: underline; text-underline-offset: 3px; }
 .domainField span { font-size: 11px; color: var(--text-secondary); }
 .domainLabel { display: block; font-size: 13px; color: var(--text-secondary); margin-bottom: 6px; }
-
-.figure figcaption { padding: 7px 16px; font-size: 9px; color: var(--text-secondary); }

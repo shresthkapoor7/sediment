@@ -14,6 +14,5 @@ export function FeedPaperImage({ paper, className }: { paper: FeedPaper; classNa
     {/* Provider thumbnails and local SVGs need no image transformation service. */}
     {/* eslint-disable-next-line @next/next/no-img-element */}
     <img src={src} alt="" loading="lazy" referrerPolicy="no-referrer" onError={() => setFailed(current => [...current, src])} />
-    <figcaption>{src === thumbnail ? "Paper thumbnail · Hugging Face" : "Topic illustration"}</figcaption>
   </figure>;
 }
