@@ -1018,6 +1018,7 @@ details[open] > .chat-trace-summary::before {
 }
 
 html[data-theme="dark"] .landing-shell,
+html[data-theme="dark"] .feeds-shell,
 html[data-theme="dark"] .canvas-shell,
 html[data-theme="dark"] .graph-loading-shell {
   --accent: #4B8BF4;
@@ -1028,10 +1029,21 @@ html[data-theme="dark"] .graph-loading-shell {
 }
 
 html[data-theme="dark"] .canvas-shell,
+html[data-theme="dark"] .feeds-shell,
 html[data-theme="dark"] .graph-loading-shell {
   --bg-primary: #0A0D10;
   --bg-canvas: #0A0D10;
   --canvas-dot: #1B2330;
+}
+
+/* Feed surfaces follow the landing search field and suggestion palette. */
+html[data-theme="dark"] .feeds-shell {
+  --node-bg: #101419;
+  --bg-secondary: #11161C;
+  --bg-tertiary: #151B22;
+  --border: #252D36;
+  --node-border: #252D36;
+  --border-hover: #34404D;
 }
 
 html[data-theme="dark"] .landing-hero-shell {

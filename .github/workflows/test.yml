@@ -34,6 +34,11 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: Test feed state and session recovery
+        run: |
+          node scripts/test-feeds-api.mjs
+          node scripts/test-feed-bookmarks.mjs
+
       - name: Build
         run: npm run build
 

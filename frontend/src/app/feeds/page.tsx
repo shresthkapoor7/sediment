@@ -1,71 +1,190 @@
 "use client";
 
-import { useState } from "react";
+import Link from "next/link";
+import { FeedBackdrop } from "@/components/feeds/FeedBackdrop";
+import { FeedPaperDetail } from "@/components/feeds/FeedPaperDetail";
+import { FeedPaperImage } from "@/components/feeds/FeedPaperImage";
+import { useFeedBookmarks } from "@/lib/feed-bookmarks";
+import { useEffect, useRef, useState } from "react";
+import { BalancedMasonry } from "@/components/feeds/BalancedMasonry";
 import { PageHeader } from "@/components/PageHeader";
+import { APIError } from "@/lib/api";
+import { Feed, FeedAction, FeedDomain, domainLabels, FeedFilter, FeedPaper, fetchFeed, sourceLabels, feedPaperPath } from "@/lib/feeds-api";
 import styles from "./page.module.css";
 
-const topics = ["All papers", "Machine learning", "Neuroscience", "Climate science"];
-const papers = [
-  { id: 1, topic: "Machine learning", title: "Teaching models to reason beyond their training data", authors: "A. Chen, M. Patel & collaborators", summary: "What happens when a model encounters a problem it has never seen? A closer look at compositional reasoning, and the gap between remembering an answer and finding one.", note: "Explores how reasoning emerges from smaller, reusable skills.", figure: "network", age: "2 hours ago" },
-  { id: 2, topic: "Neuroscience", title: "A shared language for biological and artificial neural networks", authors: "L. Rivera & S. Park", summary: "Comparing representations across brains and models reveals surprising similarities in how both organize visual information.", age: "4 hours ago" },
-  { id: 3, topic: "Climate science", title: "Learning the rhythm of a changing ocean", authors: "E. Morgan, J. Liu & collaborators", summary: "A data-driven approach to understanding ocean temperature variability across timescales, from seasonal cycles to long-term shifts.", figure: "waves", age: "5 hours ago" },
-  { id: 4, topic: "Machine learning", title: "Small models, longer horizons", authors: "R. Shah & T. Wilson", summary: "Rethinking the relationship between model size and planning. This study explores how structured memory can help compact models tackle longer tasks.", note: "A different perspective on scaling: better memory, rather than more parameters.", age: "6 hours ago" },
-  { id: 5, topic: "Neuroscience", title: "How the brain decides what to remember", authors: "K. James & collaborators", summary: "New perspectives on the interplay between attention, novelty, and memory consolidation.", figure: "waves", age: "8 hours ago" },
-  { id: 6, topic: "Machine learning", title: "Making uncertainty useful in scientific discovery", authors: "D. Kim, A. Singh & collaborators", summary: "Scientific models should know when they might be wrong. An exploration of uncertainty-aware learning for choosing more informative experiments.", age: "10 hours ago" },
-  { id: 7, topic: "Climate science", title: "Local signals in a global climate", authors: "N. Brooks & M. Costa", summary: "Connecting global simulations with regional observations to better understand extreme weather. A framework for preserving local detail without losing the bigger picture.", note: "Bridges physical simulation and machine learning.", age: "12 hours ago" },
-  { id: 8, topic: "Neuroscience", title: "The geometry of learning", authors: "S. Rao & collaborators", summary: "Following the changing shape of neural representations as new skills become familiar.", figure: "network", age: "1 day ago" },
-  { id: 9, topic: "Machine learning", title: "Retrieval as a tool for better scientific questions", authors: "P. Ellis & H. Zhang", summary: "Beyond finding relevant documents: using connections across the literature to surface questions that have yet to be asked.", age: "1 day ago" },
-];
-
-function Figure({ kind }: { kind: string }) {
-  return <div className={`${styles.figure} ${kind === "waves" ? styles.waves : ""}`} aria-hidden="true">
-    <svg viewBox="0 0 320 150" fill="none">
-      {kind === "waves" ? Array.from({ length: 7 }, (_, i) => <path key={i} d={`M-10 ${40 + i * 12} C50 ${-25 + i * 16} 85 ${145 - i * 5} 155 ${65 + i * 9} S255 ${15 + i * 12} 335 ${65 + i * 10}`} stroke="currentColor" strokeWidth="1.2" opacity={0.3 + i * 0.09} />) : <>
-        {[45, 80, 115].flatMap((y, i) => [30, 60, 90, 120].map((end, j) => <path key={`${i}-${j}`} d={`M70 ${y} L160 ${end} L250 ${45 + (j % 3) * 35}`} stroke="currentColor" opacity=".22" />))}
-        {[70, 160, 250].flatMap((x, i) => (i === 1 ? [30, 60, 90, 120] : [45, 80, 115]).map(y => <circle key={`${x}-${y}`} cx={x} cy={y} r="5" fill="var(--bg-primary)" stroke="currentColor" strokeWidth="1.5" />))}
-      </>}
-    </svg><span>{kind === "waves" ? "Patterns across timescales" : "Connections worth exploring"}</span>
-  </div>;
+function dateLabel(value: string | null) {
+  return value ? new Date(`${value.slice(0, 10)}T12:00:00Z`).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" }) : "Date unavailable";
 }
 
 export default function FeedsPage() {
+  const [openedPaper, setOpenedPaper] = useState<FeedPaper | null>(null);
+  const [feed, setFeed] = useState<Feed | null>(null);
   const [interests, setInterests] = useState("");
-  const [applied, setApplied] = useState("");
-  const [topic, setTopic] = useState("All papers");
-  const [saved, setSaved] = useState<number[]>([]);
+  const [domain, setDomain] = useState<FeedDomain>("general");
+  const [editing, setEditing] = useState(false);
+  const [source, setSource] = useState<FeedFilter>("all");
+  const { saved, papers: savedPapers, unresolved, retryRestore, toggle } = useFeedBookmarks();
   const [savedOnly, setSavedOnly] = useState(false);
-  const [editing, setEditing] = useState(true);
-  const visible = papers.filter(p => (topic === "All papers" || p.topic === topic) && (!savedOnly || saved.includes(p.id)));
+  const [pending, setPending] = useState<FeedAction | "restore" | null>("restore");
+  const [error, setError] = useState("");
+  const [needsReload, setNeedsReload] = useState(false);
+  const [restoreKey, setRestoreKey] = useState(0);
+  const busy = useRef(false);
+  const request = useRef<AbortController | null>(null);
 
-  return <div className={styles.page}>
+  useEffect(() => {
+    const controller = new AbortController();
+    request.current = controller;
+    async function restore() {
+      try {
+        const result = await fetchFeed(undefined, controller.signal);
+        if (controller.signal.aborted) return;
+        setSource("all");
+        setFeed(result);
+        setInterests(result.interests);
+        setDomain(result.domain);
+        setEditing(!result.interests);
+        setNeedsReload(false);
+        setError("");
+      } catch (err) {
+        if (!controller.signal.aborted) setError(err instanceof Error ? err.message : "Couldn’t restore your feed.");
+      } finally {
+        if (!controller.signal.aborted) setPending(null);
+      }
+    }
+    void restore();
+    return () => { controller.abort(); request.current?.abort(); };
+  }, [restoreKey]);
+
+  useEffect(() => {
+    function restoreOverlay() {
+      const paper = window.history.state?.sedimentFeedPaper as FeedPaper | undefined;
+      setOpenedPaper(paper && feedPaperPath(paper) === window.location.pathname ? paper : null);
+    }
+    window.addEventListener("popstate", restoreOverlay);
+    return () => window.removeEventListener("popstate", restoreOverlay);
+  }, []);
+
+  function openPaper(paper: FeedPaper) {
+    // Native history keeps this feed, its loaded pages, and scroll position
+    // mounted. The same URL has a server-rendered route for direct visits.
+    window.history.pushState({ sedimentFeedPaper: paper }, "", feedPaperPath(paper));
+    setOpenedPaper(paper);
+  }
+
+  function reload() {
+    setPending("restore");
+    setError("");
+    setRestoreKey(key => key + 1);
+  }
+
+  async function update(action: FeedAction, selectedSource: FeedFilter = source) {
+    if (busy.current || pending || !feed || needsReload) return;
+    busy.current = true;
+    const controller = new AbortController();
+    request.current = controller;
+    setPending(action);
+    setError("");
+    try {
+      const result = await fetchFeed({
+        action,
+        source: action === "more" || action === "source" ? selectedSource : "all",
+        ...(action === "interests" ? { interests: interests.trim(), domain } : {}),
+        ...(action === "more" && feed.cursor ? { cursor: feed.cursor } : {}),
+      }, controller.signal);
+      if (controller.signal.aborted) return;
+      if (action === "more") {
+        if (result.revision !== feed.revision || result.source !== selectedSource) throw new APIError("Your interests changed in another tab. Reload your feed.", 409);
+        // Merge repeated responses defensively without rendering duplicate cards.
+        const papers = new Map(feed.papers.map(paper => [paper.id, paper]));
+        result.papers.forEach(paper => papers.set(paper.id, paper));
+        const next = { ...result, papers: [...papers.values()] };
+        setFeed(next);
+      } else if (action === "source") {
+        if (result.revision !== feed.revision) throw new APIError("Your feed changed in another tab. Reload your feed.", 409);
+        setFeed(result);
+        setSource(selectedSource);
+        setSavedOnly(false);
+      } else {
+        setFeed(result);
+        setInterests(result.interests);
+        setDomain(result.domain);
+        setEditing(false);
+        setSource("all");
+        setSavedOnly(false);
+      }
+    } catch (err) {
+      if (!controller.signal.aborted) {
+        setError(err instanceof Error ? err.message : "Couldn’t update your feed. Please try again.");
+        if (err instanceof APIError && (err.status === 409 || err.status === 401)) setNeedsReload(true);
+      }
+    } finally {
+      busy.current = false;
+      if (!controller.signal.aborted) setPending(null);
+    }
+  }
+
+  function toggleSaved(paper: FeedPaper) {
+    try { toggle(paper); }
+    catch { setError("This browser couldn’t save the bookmark. Please try again."); }
+  }
+
+  const visible = savedOnly ? savedPapers : (feed?.papers || []);
+  const disabled = pending !== null || needsReload;
+  const status = pending === "restore" ? "Restoring your feed…" : pending === "more" ? "Finding more papers…" : pending === "refresh" ? "Checking for recent papers…" : pending === "interests" ? "Finding papers for your interests…" : pending === "source" ? "Loading papers from this source…" : "";
+
+  return <div className={`feeds-shell ${styles.page}`}>
     <PageHeader title="Feeds" />
-    <main className={styles.main}>
+    <main className={`${styles.main} ${!feed?.interests && !savedOnly ? styles.mainEmpty : ""}`}>
+      {!feed?.interests && !savedOnly && <FeedBackdrop />}
       <section className={styles.intro}>
-        <div className={styles.eyebrow}><span /> A little closer to your next idea</div>
         <h1>Follow your curiosity.</h1>
         <p>The papers you care about, in one place.<br />Tell us what you’re exploring. Make room for something new.</p>
       </section>
-      <section className={styles.interests} aria-label="Your research interests">
-        <div className={styles.interestHeading}><label htmlFor="interests">What are you interested in?</label><span>Feeds preview</span></div>
-        {editing ? <form onSubmit={e => { e.preventDefault(); if (interests.trim()) { setApplied(interests.trim()); setEditing(false); } }}>
-          <textarea id="interests" value={interests} onChange={e => setInterests(e.target.value)} placeholder="I’m curious about how AI learns, the neuroscience of memory, and our changing climate…" maxLength={600} rows={2} required />
-          <div className={styles.formBottom}><span>Follow a field, a question, or a very specific rabbit hole.</span><button className={styles.primary} disabled={!interests.trim()} type="submit">{applied ? "Update interests" : "Create my feed"}</button></div>
-          <div className={styles.suggestions}><span>Try</span>{["Machine learning", "Neuroscience", "Climate science"].map(t => <button key={t} type="button" onClick={() => setInterests(current => current ? `${current.replace(/[., ]+$/, "")}, ${t.toLowerCase()}` : t)}>{t} <span aria-hidden="true">+</span></button>)}</div>
-        </form> : <div className={styles.applied}><p id="interests">{applied}</p><button onClick={() => setEditing(true)}>Edit interests</button></div>}
-      </section>
-      <section className={styles.feed} aria-labelledby="feed-heading">
-        <div className={styles.feedHeading}><div><h2 id="feed-heading">{savedOnly ? "Saved papers" : applied ? "Your feed" : "A few things to get curious about"}</h2><p>{applied ? "Your interests are set for this preview. Explore the sample collection below." : "A glimpse of what your reading list could look like."}</p></div><span className={styles.preview}>Sample papers · UI preview</span></div>
-        <div className={styles.toolbar}><div className={styles.filters} aria-label="Filter by topic">{topics.map(t => <button key={t} aria-pressed={topic === t} onClick={() => setTopic(t)} className={topic === t ? styles.active : ""}>{t}</button>)}</div><button className={`${styles.savedFilter} ${savedOnly ? styles.active : ""}`} aria-pressed={savedOnly} onClick={() => setSavedOnly(v => !v)}>Saved <span>{saved.length}</span></button></div>
-        <div className={styles.resultCount} role="status">{visible.length} sample papers <span>Newest first</span></div>
-        <div className={styles.masonry}>
-          {visible.map(p => <article className={styles.card} key={p.id}>
-            {p.figure && <Figure kind={p.figure} />}
-            <div className={styles.cardBody}><div className={styles.cardMeta}><span data-topic={p.topic}>{p.topic}</span><span>{p.age}</span></div><h3>{p.title}</h3><p className={styles.authors}>{p.authors}</p><p className={styles.summary}>{p.summary}</p>{p.note && <div className={styles.note}><span>Why it’s interesting</span><p>{p.note}</p></div>}<div className={styles.cardFooter}><span>Illustrative paper</span><button aria-label={`${saved.includes(p.id) ? "Unsave" : "Save"} ${p.title}`} aria-pressed={saved.includes(p.id)} onClick={() => setSaved(v => v.includes(p.id) ? v.filter(id => id !== p.id) : [...v, p.id])}><svg width="15" height="17" viewBox="0 0 16 18" fill={saved.includes(p.id) ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.3" aria-hidden="true"><path d="M3 2h10v14l-5-3-5 3z" /></svg>{saved.includes(p.id) ? "Saved" : "Save"}</button></div></div>
+      {error && <div className={styles.error} role="alert"><p>{error}</p>{(!feed || needsReload) && <button disabled={!!pending} onClick={reload}>Reload feed</button>}</div>}
+      {feed && <section className={styles.interests} aria-label="Your research interests">
+        <div className={styles.interestHeading}>{editing ? <label htmlFor="interests">What are you interested in?</label> : <strong>Your interests</strong>}<span>Saved for this browser</span></div>
+        {editing ? <form onSubmit={event => { event.preventDefault(); void update("interests"); }}>
+          <div className={styles.domainField}>
+            <label htmlFor="research-domain">Your field</label>
+            <select id="research-domain" value={domain} onChange={event => setDomain(event.target.value as FeedDomain)} disabled={disabled} aria-describedby="domain-help">
+              {(Object.keys(domainLabels) as FeedDomain[]).map(value => <option key={value} value={value}>{domainLabels[value]}</option>)}
+            </select>
+            <span id="domain-help">Tailors the papers and sources in your feed.</span>
+          </div>
+          <textarea id="interests" value={interests} onChange={event => setInterests(event.target.value)} placeholder="Machine learning, the neuroscience of memory, climate science…" maxLength={600} rows={2} required disabled={disabled} aria-describedby="interest-help" />
+          <div className={styles.formBottom}><span id="interest-help">Add up to three topics, separated by commas.</span><div className={styles.actions}>{feed.interests && <button type="button" className={styles.secondary} disabled={disabled} onClick={() => { setInterests(feed.interests); setDomain(feed.domain); setEditing(false); }}>Cancel</button>}<button className={styles.primary} disabled={!interests.trim() || disabled} type="submit">{pending === "interests" ? "Finding papers…" : feed.interests ? "Update interests" : "Create my feed"}</button></div></div>
+          <div className={styles.suggestions}><span>Try</span>{["Machine learning", "Neuroscience", "Climate science"].map(topic => <button key={topic} type="button" disabled={disabled} onClick={() => setInterests(current => (current ? `${current.replace(/[., ]+$/, "")}, ${topic.toLowerCase()}` : topic).slice(0, 600))}>{topic} <span aria-hidden="true">+</span></button>)}</div>
+        </form> : <div className={styles.applied}><p><span className={styles.domainLabel}>{domainLabels[feed.domain]}</span>{feed.interests}</p><button disabled={disabled} onClick={() => setEditing(true)}>Edit interests</button></div>}
+      </section>}
+      <p className={styles.status} role="status">{status}{pending && pending !== "restore" && " This can take a moment."}</p>
+      <section className={styles.feed} aria-label={savedOnly ? "Saved papers" : "Paper library"} aria-busy={!savedOnly && !!pending}>
+        {(feed?.interests || savedOnly) && <div className={styles.feedHeading}><div><h2 id="feed-heading">{savedOnly ? "Saved papers" : "Your feed"}</h2><p>{savedOnly ? "Your saved papers, across all topics and fields." : feed?.refreshedAt ? `Last checked ${new Date(feed.refreshedAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}. ` : ""}{!savedOnly && "Refresh when you’re ready for more."}</p></div>{feed?.interests && <button className={styles.secondary} disabled={disabled || editing} onClick={() => void update("refresh")}>{pending === "refresh" ? "Refreshing…" : "Refresh feed"}</button>}</div>}
+        {!savedOnly && !!feed?.interests && !!feed.warnings.length && <p className={styles.warning} role="status">{feed.warnings.map(value => sourceLabels[value]).join(", ")} couldn’t be reached. Showing available papers; try refreshing later.</p>}
+        <div className={styles.toolbar}>{feed?.interests && <div className={styles.filters} aria-label="Filter by source">{(["all", ...feed.availableSources] as FeedFilter[]).map(value => <button key={value} aria-pressed={!savedOnly && source === value} disabled={disabled || editing} onClick={() => void update("source", value)} className={!savedOnly && source === value ? styles.active : ""}>{value === "all" ? "All papers" : sourceLabels[value]}</button>)}</div>}<button className={`${styles.savedFilter} ${savedOnly ? styles.active : ""}`} aria-pressed={savedOnly} onClick={() => setSavedOnly(value => !value)}>Saved <span>{saved.length}</span></button></div>
+        {(feed?.interests || savedOnly) && <>
+        {!savedOnly && (["arxiv", "biorxiv", "medrxiv"] as FeedFilter[]).includes(source) && <p className={styles.warning}>{sourceLabels[source as keyof typeof sourceLabels]} papers via OpenAlex. New submissions may take time to appear.</p>}
+        {!savedOnly && source === "huggingface" && <p className={styles.warning}>Hugging Face via OpenAlex. This source primarily indexes datasets, so matching research papers may be unavailable.</p>}
+        <div className={styles.resultCount} role="status">{savedOnly ? `${visible.length} saved papers` : `${visible.length} of ${feed?.papers.length || 0} loaded papers`} <span>{savedOnly ? "Across all topics and fields" : "Recent research"}</span></div>
+        {savedOnly && unresolved.length > 0 && <p className={styles.warning} role="status">Restoring {unresolved.length} previously saved {unresolved.length === 1 ? "paper" : "papers"}. If they don’t appear, <button onClick={retryRestore}>retry restoration</button>.</p>}
+        <BalancedMasonry className={styles.masonry}>
+          {visible.map(paper => <article className={styles.card} key={paper.id}>
+            <FeedPaperImage paper={paper} className={styles.figure} />
+            <div className={styles.cardBody}>
+              <div className={styles.cardMeta}><span>{paper.topics[0] || (paper.preprint ? "Preprint" : "Research paper")}</span><time dateTime={paper.published || undefined}>{dateLabel(paper.published)}</time></div>
+              <h3><Link className={styles.paperLink} href={feedPaperPath(paper)} scroll={false} prefetch={false} onClick={event => { if (event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) { event.preventDefault(); openPaper(paper); } }}>{paper.title}</Link></h3>
+              {!!paper.authors.length && <p className={styles.authors}>{paper.authors.slice(0, 3).join(", ")}{paper.authors.length > 3 ? " & collaborators" : ""}</p>}
+              {paper.abstract && <p data-preview className={styles.summary}>{paper.abstract}</p>}
+              <div className={styles.cardFooter}><span>{paper.sources.map(value => sourceLabels[value]).join(" · ")}{paper.preprint && <small>Preprint</small>}</span><button aria-label={`${saved.includes(paper.id) ? "Unsave" : "Save"} ${paper.title}`} aria-pressed={saved.includes(paper.id)} onClick={() => toggleSaved(paper)}><svg width="15" height="17" viewBox="0 0 16 18" fill={saved.includes(paper.id) ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.3" aria-hidden="true"><path d="M3 2h10v14l-5-3-5 3z" /></svg>{saved.includes(paper.id) ? "Saved" : "Save"}</button></div>
+            </div>
           </article>)}
-        </div>
-        {!visible.length && <div className={styles.empty}><h3>Room for your next discovery.</h3><p>{savedOnly ? "Save a paper to keep it here during this visit." : "Choose another topic to explore more papers."}</p><button onClick={() => { setSavedOnly(false); setTopic("All papers"); }}>Explore sample papers</button></div>}
-        <p className={styles.endnote}>A preview of a more personal way to explore research.<br />Live paper discovery is coming later.</p>
+        </BalancedMasonry>
+        {!visible.length && <div className={styles.empty}><h3>{savedOnly ? "Keep something for later." : "No matching papers yet."}</h3><p>{savedOnly ? "Papers you save stay here across topics and fields in this browser." : source !== "all" ? "Try another source or load more papers." : "Try broader interests, or check for more results below."}</p>{feed?.interests && (source !== "all" || savedOnly) && <button disabled={disabled || editing} onClick={() => { setSavedOnly(false); void update("source", "all"); }}>Show all papers</button>}</div>}
+        {!savedOnly && feed?.interests && feed.cursor && <div className={styles.loadMore}><button className={styles.secondary} disabled={disabled || editing} onClick={() => void update("more")}>{pending === "more" ? "Loading…" : "Load more papers"}</button></div>}
+        <p className={styles.endnote}>{savedOnly ? "Saved in this browser, across all your topics and fields." : feed?.cursor ? (source === "all" ? "Up to 10 papers per source at a time, with duplicates combined." : "Up to 10 new papers at a time.") : "You’re caught up with the available results. Refresh later or edit your interests."}<br />Topic illustrations are decorative. Open a paper for its full abstract and original source.</p>
+        </>}
       </section>
     </main>
+    {openedPaper && <FeedPaperDetail paper={openedPaper} intercepted />}
   </div>;
 }

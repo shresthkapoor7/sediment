@@ -24,7 +24,8 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    const stored = localStorage.getItem("sediment-theme");
+    let stored: string | null = null;
+    try { stored = localStorage.getItem("sediment-theme"); } catch { /* Use the default theme when storage is blocked. */ }
     if (stored === "light" || stored === "dark") {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- Hydrate the persisted theme preference.
       setTheme(stored);
@@ -35,7 +36,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (mounted) {
       document.documentElement.setAttribute("data-theme", theme);
-      localStorage.setItem("sediment-theme", theme);
+      try { localStorage.setItem("sediment-theme", theme); } catch { /* Theme changes still work in memory. */ }
     }
   }, [theme, mounted]);
 
@@ -48,9 +49,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       {/* Lazy-load only DOM animation features (no layout/drag used) so the full
           framer-motion feature bundle stays out of the initial JS. */}
       <LazyMotion features={domAnimation} strict>
-        <div style={{ visibility: mounted ? "visible" : "hidden" }}>
-          {children}
-        </div>
+        {children}
       </LazyMotion>
     </ThemeContext.Provider>
   );
