@@ -62,7 +62,7 @@
 .actions { display: flex; align-items: center; gap: 8px; }
 .secondary { border: 1px solid var(--border); background: var(--node-bg); color: var(--text-primary); padding: 10px 14px; font-size: 12px; border-radius: 7px; white-space: nowrap; }
 .page button:disabled { cursor: not-allowed; opacity: .5; }
-.status { text-align: center; font-size: 12px; line-height: 1.8; color: var(--text-secondary); margin: 16px 0; }
+.status { display: flex; align-items: center; justify-content: center; gap: 14px; text-align: left; font-size: 12px; line-height: 1.8; color: var(--text-secondary); margin: 16px 0; }
 .status:empty { display: none; }
 .error { max-width: 740px; margin: 24px auto; border: 1px solid var(--border); background: var(--bg-secondary); padding: 16px; border-radius: 8px; font-size: 13px; line-height: 1.7; }
 .error button { color: var(--accent); background: none; padding-top: 10px; }
@@ -100,3 +100,18 @@
 .domainField select:focus-visible { background: var(--accent-soft); text-decoration: underline; text-underline-offset: 3px; }
 .domainField span { font-size: 11px; color: var(--text-secondary); }
 .domainLabel { display: block; font-size: 13px; color: var(--text-secondary); margin-bottom: 6px; }
+
+.statusHint { display: block; font-size: 11px; color: var(--text-tertiary); }
+.searchAnimation { position: relative; flex: 0 0 34px; width: 34px; height: 36px; }
+.searchAnimation > span { position: absolute; left: 8px; top: 6px; width: 18px; height: 24px; border: 1px solid var(--accent); border-radius: 3px; background: var(--bg-primary); animation: searchingPapers 2.4s ease-in-out infinite; }
+.searchAnimation > span::after { content: ""; position: absolute; left: 4px; right: 4px; top: 7px; height: 5px; border-top: 1px solid currentColor; border-bottom: 1px solid currentColor; color: var(--accent); opacity: .6; }
+.searchAnimation > span:nth-child(1) { --paper-x: -5px; --paper-angle: -14deg; animation-delay: -.8s; }
+.searchAnimation > span:nth-child(2) { --paper-x: 5px; --paper-angle: 14deg; animation-delay: -.4s; }
+.searchAnimation > span:nth-child(3) { --paper-x: 0px; --paper-angle: 0deg; }
+@keyframes searchingPapers {
+  0%, 100% { transform: translate(var(--paper-x), 2px) rotate(var(--paper-angle)); opacity: .55; }
+  50% { transform: translate(var(--paper-x), -4px) rotate(var(--paper-angle)); opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .searchAnimation > span { animation: none; transform: translateX(var(--paper-x)) rotate(var(--paper-angle)); }
+}
