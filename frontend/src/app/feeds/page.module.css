@@ -29,6 +29,7 @@
 .feedHeading h2 { font-size: 20px; font-weight: 550; letter-spacing: -.035em; }
 .feedHeading p { color: var(--text-secondary); font-size: 12px; margin-top: 8px; line-height: 1.6; }
 .toolbar { margin-top: 24px; padding-bottom: 18px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; gap: 12px; }
+.toolbar.savedToolbar { border-bottom: 0; padding-bottom: 0; justify-content: center; }
 .filters { display: flex; gap: 6px; flex-wrap: wrap; }
 .toolbar button { border: 1px solid transparent; background: transparent; color: var(--text-secondary); padding: 8px 12px; border-radius: 6px; font-size: 11px; }
 .toolbar button.active { background: var(--text-primary); color: var(--bg-primary); }
