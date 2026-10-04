@@ -16,6 +16,14 @@ export function PaperStage({ papers, onRemove, onClear, onOpen }: {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [closing, setClosing] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const activeIndex = Math.max(0, papers.findIndex(paper => paper.id === activeId));
+  const activePaper = papers[activeIndex];
+  function move(direction: number) {
+    const paper = papers[activeIndex + direction];
+    if (paper) setActiveId(paper.id);
+  }
   const [origin, setOrigin] = useState<CSSProperties>({});
 
   useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
@@ -50,7 +58,10 @@ export function PaperStage({ papers, onRemove, onClear, onOpen }: {
       </span>
       <span className={styles.dockLabel}>Marked <span>{papers.length}</span></span>
     </button>}
-    <dialog ref={dialog} className={styles.dialog} style={origin} data-closing={closing || undefined} aria-labelledby="marked-papers-title" onCancel={event => { event.preventDefault(); minimize(); }} onClick={event => { if (event.target === event.currentTarget) minimize(); }}>
+    <dialog ref={dialog} className={styles.dialog} style={origin} data-closing={closing || undefined} aria-labelledby="marked-papers-title" onKeyDown={event => {
+      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
+      if (event.key === "ArrowRight" || event.key === "ArrowLeft") { event.preventDefault(); move(event.key === "ArrowRight" ? 1 : -1); }
+    }} onCancel={event => { event.preventDefault(); minimize(); }} onClick={event => { if (event.target === event.currentTarget) minimize(); }}>
       <div className={styles.surface}>
         <header className={styles.header}>
           <div><h2 id="marked-papers-title">Marked papers <span>{papers.length}</span></h2><p>A collection for this visit.</p></div>
@@ -59,19 +70,32 @@ export function PaperStage({ papers, onRemove, onClear, onOpen }: {
             <button autoFocus onClick={() => minimize()} aria-label="Minimize marked papers"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="M4 9h10" /></svg></button>
           </div>
         </header>
-        <div className={styles.papers}>
-          {papers.map((paper, index) => <article key={paper.id} className={styles.paper} style={{ "--order": Math.min(index, 8) } as CSSProperties}>
+        <div className={styles.viewport}>
+        <div className={styles.papers} style={{ "--active": activeIndex } as CSSProperties}>
+          {papers.map((paper, index) => <article key={paper.id} className={styles.paper} data-active={index === activeIndex} aria-label={paper.title} onFocus={() => setActiveId(paper.id)} onClick={() => setActiveId(paper.id)}>
             <FeedPaperImage paper={paper} className={styles.figure} />
             <div className={styles.paperBody}>
               <span className={styles.topic}>{paper.topics[0] || "Research paper"}</span>
-              <h3><button onClick={() => minimize(() => onOpen(paper))}>{paper.title}</button></h3>
+              <h3><button onClick={() => setActiveId(paper.id)}>{paper.title}</button></h3>
               <p className={styles.authors}>{paper.authors.slice(0, 3).join(", ")}</p>
               <p className={styles.abstract}>{paper.abstract || "Open this paper for its source and details."}</p>
-              <div className={styles.paperActions}><button onClick={() => minimize(() => onOpen(paper))}>Open paper ↗</button><button onClick={() => onRemove(paper)} aria-label={`Unmark ${paper.title}`}>Unmark</button></div>
+              <div className={styles.paperActions}><button onClick={() => minimize(() => onOpen(paper))}>Open paper ↗</button><button onClick={event => { event.stopPropagation(); if (paper.id === activePaper?.id) setActiveId((papers[index + 1] || papers[index - 1])?.id || null); onRemove(paper); }} aria-label={`Unmark ${paper.title}`}>Unmark</button></div>
             </div>
           </article>)}
-          {!papers.length && <p className={styles.empty}>No marked papers. Mark a paper beside Save to collect it here.</p>}
         </div>
+        </div>
+        {activePaper ? <>
+          <nav className={styles.navigation} aria-label="Browse marked papers">
+            <button aria-label="Previous paper" disabled={activeIndex === 0} onClick={() => move(-1)}>←</button>
+            <span role="status" aria-live="polite">{activeIndex + 1} / {papers.length}<span className={styles.srOnly}>: {activePaper.title}</span></span>
+            <button aria-label="Next paper" disabled={activeIndex === papers.length - 1} onClick={() => move(1)}>→</button>
+          </nav>
+          <div className={styles.composer}>
+            <label htmlFor="paper-question">Ask AI <span>about this paper</span></label>
+            <input id="paper-question" placeholder="What would you like to know?" value={drafts[activePaper.id] || ""} onChange={event => setDrafts(current => ({ ...current, [activePaper.id]: event.target.value }))} aria-describedby="paper-question-note" />
+            <span id="paper-question-note">AI answers coming next.</span>
+          </div>
+        </> : <p className={styles.empty}>No marked papers. Mark a paper beside Save to collect it here.</p>}
       </div>
     </dialog>
   </>;
