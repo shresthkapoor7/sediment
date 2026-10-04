@@ -71,3 +71,6 @@ logs/
 
 # Optional isolated Ragas evaluation environment
 .venv-ragas/
+
+# Local search-agent implementation plan
+/search-agent.md

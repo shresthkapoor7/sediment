@@ -115,3 +115,10 @@
 @media (prefers-reduced-motion: reduce) {
   .searchAnimation > span { animation: none; transform: translateX(var(--paper-x)) rotate(var(--paper-angle)); }
 }
+
+.selectionBar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; margin: 14px 0; font-size: 11px; color: var(--text-secondary); }
+.selectionBar > div { display: flex; gap: 8px; }
+.selectionBar button { min-height: 36px; padding: 6px 10px; border-radius: 6px; background: transparent; color: var(--text-secondary); font-size: 11px; }
+.selectionBar button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); }
+.card.cardSelected { border-color: var(--accent); box-shadow: inset 3px 0 0 var(--accent); }
+.cardSelection { display: flex; justify-content: flex-end; margin: -12px -6px 8px; }
