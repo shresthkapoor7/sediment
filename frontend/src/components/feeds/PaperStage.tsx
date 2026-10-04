@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import type { FeedPaper } from "@/lib/feeds-api";
+import { LogoMark } from "@/components/LogoMark";
 import { FeedPaperImage } from "./FeedPaperImage";
 import styles from "./PaperStage.module.css";
 
@@ -45,6 +46,11 @@ export function PaperStage({ papers, onRemove, onClear, onOpen }: {
 
   function minimize(after?: () => void) {
     if (timer.current) return;
+    // Gather from the current visual positions, including a mid-scroll dismissal.
+    viewport.current?.querySelectorAll<HTMLElement>("article").forEach((card, index) => {
+      const rect = card.getBoundingClientRect();
+      card.style.setProperty("--gather-x", `${window.innerWidth / 2 - rect.left - rect.width / 2 + (index - activeIndex) * 5}px`);
+    });
     setClosing(true);
     timer.current = setTimeout(() => {
       dialog.current?.close();
@@ -53,7 +59,7 @@ export function PaperStage({ papers, onRemove, onClear, onOpen }: {
       timer.current = null;
       trigger.current?.focus();
       after?.();
-    }, window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 260);
+    }, window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 640);
   }
 
   return <>
@@ -87,7 +93,7 @@ export function PaperStage({ papers, onRemove, onClear, onOpen }: {
           if (papers[nearest]) setActiveId(papers[nearest].id);
         }}>
         <div className={styles.papers}>
-          {papers.map((paper, index) => <article key={paper.id} className={styles.paper} data-active={index === activeIndex} aria-label={paper.title} onFocus={() => focusPaper(index)} onClick={() => focusPaper(index)}>
+          {papers.map((paper, index) => <article key={paper.id} className={styles.paper} data-active={index === activeIndex} style={{ "--pile-index": index - activeIndex, zIndex: papers.length - Math.abs(index - activeIndex) } as CSSProperties} aria-label={paper.title} onFocus={() => focusPaper(index)} onClick={() => focusPaper(index)}>
             <FeedPaperImage paper={paper} className={styles.figure} />
             <div className={styles.paperBody}>
               <span className={styles.topic}>{paper.topics[0] || "Research paper"}</span>
@@ -106,6 +112,7 @@ export function PaperStage({ papers, onRemove, onClear, onOpen }: {
           </nav>}
         </div>
         {activePaper ? <div className={styles.composer}>
+            <span className={styles.agentLogo} aria-hidden="true"><LogoMark width="20" height="20" /></span>
             <input id="paper-question" placeholder="Ask feeds agent" aria-label="Ask feeds agent about this paper" value={drafts[activePaper.id] || ""} onChange={event => setDrafts(current => ({ ...current, [activePaper.id]: event.target.value }))} />
           </div> : <p className={styles.empty}>No marked papers. Mark a paper beside Save to collect it here.</p>}
       </div>

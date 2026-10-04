@@ -100,3 +100,23 @@
 @media (max-width: 640px) { .surface { padding-block: 20px; } }
 .surface { grid-template-columns: minmax(0, 1fr); min-width: 0; }
 .carousel, .viewport { min-width: 0; width: 100%; }
+
+.composer { position: relative; }
+.composer .agentLogo { position: absolute; left: 18px; top: 50%; transform: translateY(-50%); display: flex; color: var(--accent); pointer-events: none; }
+.composer input { padding-left: 50px; }
+/* Bring a pile out of the dock, then spread its individual cards. Reverse on close. */
+.dialog[open], .dialog[data-closing] { animation: none; }
+.dialog[open] .carousel { animation: pileArrive .34s cubic-bezier(.16, 1, .3, 1) both; }
+.dialog[open] .paper { --pile-x: calc(var(--pile-index) * (var(--card-width) + var(--card-gap) - 5px) * -1); animation: cardsUnfold .38s .22s cubic-bezier(.22, 1, .36, 1) both; }
+.dialog[open] .header, .dialog[open] .composer, .dialog[open] .navigation { animation: backdropIn .2s .4s both; }
+.dialog[data-closing] .paper { animation: cardsGather .34s cubic-bezier(.4, 0, .2, 1) both; }
+.dialog[data-closing] .carousel { animation: pileDepart .3s .34s cubic-bezier(.4, 0, .8, .4) both; }
+.dialog[data-closing] .header, .dialog[data-closing] .composer, .dialog[data-closing] .navigation { animation: backdropIn .15s reverse both; }
+.dialog[data-closing]::backdrop { animation: backdropIn .3s .34s reverse both; }
+@keyframes pileArrive { from { opacity: 0; transform: translate(var(--stage-x), var(--stage-y)) scale(.12); } to { opacity: 1; transform: none; } }
+@keyframes cardsUnfold { from { transform: translateX(var(--pile-x)) translateY(calc(var(--pile-index) * 3px)) rotate(calc(var(--pile-index) * 2deg)); filter: none; } to { transform: none; } }
+@keyframes cardsGather { to { transform: translateX(var(--gather-x, var(--pile-x))) translateY(calc(var(--pile-index) * 3px)) rotate(calc(var(--pile-index) * 2deg)); filter: none; } }
+@keyframes pileDepart { from { opacity: 1; transform: none; } to { opacity: 0; transform: translate(var(--stage-x), var(--stage-y)) scale(.12); } }
+@media (prefers-reduced-motion: reduce) {
+  .dialog[open] .carousel, .dialog[open] .paper, .dialog[open] .header, .dialog[open] .composer, .dialog[open] .navigation, .dialog[data-closing]::backdrop { animation: none; }
+}
