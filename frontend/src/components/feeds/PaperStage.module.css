@@ -120,3 +120,7 @@
 @media (prefers-reduced-motion: reduce) {
   .dialog[open] .carousel, .dialog[open] .paper, .dialog[open] .header, .dialog[open] .composer, .dialog[open] .navigation, .dialog[data-closing]::backdrop { animation: none; }
 }
+
+/* Contain card stacking so navigation always stays above the entire deck. */
+.viewport { position: relative; z-index: 0; }
+.navigation { z-index: 1; }
