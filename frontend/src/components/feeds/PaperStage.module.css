@@ -85,7 +85,7 @@
 .navigation { position: absolute; inset: 0 22px; display: flex; justify-content: space-between; align-items: center; margin: 0; pointer-events: none; }
 .navigation button { pointer-events: auto; display: grid; place-items: center; width: 40px; height: 40px; box-shadow: 0 2px 8px #0002; }
 .paperActions .openPaper { display: flex; justify-content: space-between; gap: 24px; min-width: 140px; padding: 10px 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg-secondary); color: var(--text-primary); font-weight: 500; }
-.composer { margin: 48px auto 8px; padding: 0; border: 0; background: transparent; }
+.composer { margin: 72px auto 8px; padding: 0; border: 0; background: transparent; }
 .composer input { margin: 0; width: 100%; padding: 16px 20px; border: 1px solid var(--border); border-radius: 18px; background: var(--node-bg); outline: none; box-shadow: none; }
 .composer input:focus-visible { outline: none; box-shadow: none; border-color: var(--border-hover); border-radius: 18px; }
-@media (max-width: 640px) { .navigation { inset-inline: 6px; } .navigation button { width: 32px; height: 32px; } .composer { margin-top: 40px; } }
+@media (max-width: 640px) { .navigation { inset-inline: 6px; } .navigation button { width: 32px; height: 32px; } .composer { margin-top: 64px; } }
