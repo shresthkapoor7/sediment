@@ -98,3 +98,5 @@
 .viewport { padding-block: 18px; }
 .composer { grid-row: 3; align-self: end; margin: 0 auto; }
 @media (max-width: 640px) { .surface { padding-block: 20px; } }
+.surface { grid-template-columns: minmax(0, 1fr); min-width: 0; }
+.carousel, .viewport { min-width: 0; width: 100%; }
