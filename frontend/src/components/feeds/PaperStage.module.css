@@ -1,0 +1,45 @@
+.dock { position: fixed; z-index: 15; right: 18px; top: 45%; display: flex; flex-direction: column; align-items: center; gap: 12px; width: 100px; padding: 14px 6px 10px; border: 0; border-radius: 12px; background: color-mix(in srgb, var(--bg-primary) 85%, transparent); backdrop-filter: blur(12px); color: var(--text-secondary); cursor: pointer; animation: dockIn .3s ease-out; }
+.stack { position: relative; display: block; width: 64px; height: 78px; }
+.miniPaper { position: absolute; inset: 0; display: flex; flex-direction: column; gap: 5px; padding: 10px 8px; border: 1px solid var(--border-hover); border-radius: 5px; background: var(--node-bg); box-shadow: 0 4px 12px #0002; transform: translate(calc(var(--sheet) * -5px), calc(var(--sheet) * 4px)) rotate(calc(var(--sheet) * -7deg)); animation: sheetIn .3s ease-out; }
+.miniPaper > span { font-size: 7px; line-height: 1.4; text-align: left; color: var(--text-primary); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.miniPaper i { height: 2px; background: var(--border); width: 100%; }
+.miniPaper i:last-child { width: 60%; }
+.dockLabel { display: flex; align-items: center; gap: 7px; font-size: 10px; }
+.dockLabel > span { color: var(--accent); }
+.dock:hover .stack { transform: translateY(-3px); }
+.stack { transition: transform .2s ease; }
+.dialog { position: fixed; inset: 0; margin: auto; width: min(1000px, calc(100vw - 80px)); max-width: none; max-height: calc(100dvh - 96px); padding: 0; border: 1px solid var(--border); border-radius: 18px; background: var(--bg-primary); color: var(--text-primary); box-shadow: 0 30px 100px #0005; overflow: auto; overscroll-behavior: contain; }
+.dialog[open] { animation: stageExpand .36s cubic-bezier(.16, 1, .3, 1) both; }
+.dialog::backdrop { background: #0005; backdrop-filter: blur(10px); animation: backdropIn .3s ease both; }
+.dialog[data-closing] { animation: stageMinimize .26s cubic-bezier(.4, 0, .8, .4) both; pointer-events: none; }
+.dialog[data-closing]::backdrop { animation: backdropIn .26s ease reverse both; }
+.surface { padding: 24px; }
+.header { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 24px; }
+.header h2 { font-size: 18px; font-weight: 550; letter-spacing: -.025em; }
+.header h2 span { margin-left: 8px; color: var(--text-tertiary); font-size: 12px; }
+.header p { margin-top: 6px; font-size: 11px; color: var(--text-secondary); }
+.actions { display: flex; gap: 12px; align-items: center; }
+.actions button, .paperActions button { display: inline-flex; align-items: center; justify-content: center; min-height: 32px; padding: 6px 8px; background: transparent; color: var(--text-secondary); font-size: 11px; border-radius: 5px; cursor: pointer; }
+.actions button:hover, .paperActions button:hover { background: var(--bg-secondary); color: var(--text-primary); }
+.papers { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr)); gap: 18px; align-items: start; }
+.paper { min-width: 0; border: 1px solid var(--border); border-radius: 10px; background: var(--node-bg); overflow: hidden; animation: paperIn .35s ease both; animation-delay: calc(var(--order) * 25ms); }
+.paperBody { padding: 20px; }
+.figure { margin: 0; background: var(--bg-secondary); border-bottom: 1px solid var(--border); }
+.figure img { display: block; width: 100%; height: 140px; object-fit: contain; }
+.topic { color: var(--accent); font-size: 10px; }
+.paper h3 { margin-top: 12px; font-size: 18px; font-weight: 550; line-height: 1.4; letter-spacing: -.025em; }
+.paper h3 button { text-align: left; font: inherit; color: inherit; background: transparent; cursor: pointer; overflow-wrap: anywhere; }
+.authors { margin-top: 10px; color: var(--text-tertiary); font-size: 11px; line-height: 1.6; }
+.abstract { margin-top: 16px; font-size: 12px; line-height: 1.8; color: var(--text-secondary); display: -webkit-box; -webkit-line-clamp: 6; -webkit-box-orient: vertical; overflow: hidden; }
+.paperActions { display: flex; justify-content: space-between; margin-top: 18px; }
+.paperActions button:first-child { color: var(--accent); }
+.empty { padding: 48px 16px; text-align: center; font-size: 13px; color: var(--text-secondary); }
+.dialog button:focus-visible, .dock:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+@keyframes stageExpand { from { opacity: 0; transform: translate(var(--stage-x, 40vw), var(--stage-y, 0px)) scale(.08); } to { opacity: 1; transform: translate(0, 0) scale(1); } }
+@keyframes stageMinimize { from { opacity: 1; transform: translate(0, 0) scale(1); } to { opacity: 0; transform: translate(var(--stage-x, 40vw), var(--stage-y, 0px)) scale(.08); } }
+@keyframes backdropIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes dockIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
+@keyframes sheetIn { from { opacity: 0; translate: 0 12px; } to { opacity: 1; translate: 0 0; } }
+@keyframes paperIn { from { opacity: 0; translate: 0 12px; } to { opacity: 1; translate: 0 0; } }
+@media (max-width: 640px) { .dock { top: auto; bottom: 18px; right: 12px; width: 76px; gap: 6px; } .stack { width: 44px; height: 54px; } .miniPaper { padding: 6px; gap: 3px; } .miniPaper > span { font-size: 6px; } .dialog { width: calc(100vw - 24px); max-height: calc(100dvh - 40px); border-radius: 14px; } .surface { padding: 18px; } .header { align-items: flex-start; } }
+@media (prefers-reduced-motion: reduce) { .dock, .miniPaper, .dialog[open], .dialog[data-closing], .dialog::backdrop, .dialog[data-closing]::backdrop, .paper { animation: none; } .stack { transition: none; } }

@@ -1,4 +1,1 @@
-.control { position: relative; z-index: 2; display: inline-flex; align-items: center; gap: 7px; min-height: 36px; padding: 4px 6px; cursor: pointer; color: var(--text-secondary); font-size: 11px; }
-.control input { width: 15px; height: 15px; margin: 0; accent-color: var(--accent); cursor: pointer; }
-.control:has(input:checked) { color: var(--accent); }
-.control input:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.control { position: relative; z-index: 2; }
