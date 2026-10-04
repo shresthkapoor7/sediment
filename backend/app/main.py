@@ -10,7 +10,7 @@ from starlette.datastructures import Headers
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from .config import settings
-from .routers import changelog, chat, clarify, expand, paper_access, persistence, search, usage
+from .routers import feeds, changelog, chat, clarify, expand, paper_access, persistence, search, usage
 from .services.paper_ingestion import shutdown_paper_parse_executor
 
 logger = logging.getLogger(__name__)
@@ -183,6 +183,7 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
     logger.exception("Unhandled error on %s", request.url.path, exc_info=exc)
     return JSONResponse(status_code=500, content={"detail": "Internal server error."})
 
+app.include_router(feeds.router, prefix="/api")
 app.include_router(changelog.router, prefix="/api")
 app.include_router(clarify.router, prefix="/api")
 app.include_router(search.router, prefix="/api")
