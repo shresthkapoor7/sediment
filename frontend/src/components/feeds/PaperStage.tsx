@@ -106,7 +106,7 @@ export function PaperStage({ papers, onRemove, onClear, onOpen }: {
           </nav>}
         </div>
         {activePaper ? <div className={styles.composer}>
-            <input id="paper-question" placeholder="Ask AI" aria-label="Ask AI about this paper" value={drafts[activePaper.id] || ""} onChange={event => setDrafts(current => ({ ...current, [activePaper.id]: event.target.value }))} />
+            <input id="paper-question" placeholder="Ask feeds agent" aria-label="Ask feeds agent about this paper" value={drafts[activePaper.id] || ""} onChange={event => setDrafts(current => ({ ...current, [activePaper.id]: event.target.value }))} />
           </div> : <p className={styles.empty}>No marked papers. Mark a paper beside Save to collect it here.</p>}
       </div>
     </dialog>

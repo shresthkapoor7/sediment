@@ -176,7 +176,7 @@ export default function FeedsPage() {
         {!savedOnly && source === "huggingface" && <p className={styles.warning}>Hugging Face via OpenAlex. This source primarily indexes datasets, so matching research papers may be unavailable.</p>}
         <div className={styles.resultCount} role="status">{savedOnly ? `${visible.length} saved papers` : `${visible.length} of ${feed?.papers.length || 0} loaded papers`} <span>{savedOnly ? "Across all topics and fields" : "Recent research"}</span></div>
         {savedOnly && unresolved.length > 0 && <p className={styles.warning} role="status">Restoring {unresolved.length} previously saved {unresolved.length === 1 ? "paper" : "papers"}. If they don’t appear, <button onClick={retryRestore}>retry restoration</button>.</p>}
-        <BalancedMasonry className={styles.masonry}>
+        <BalancedMasonry className={styles.masonry} items={visible}>
           {visible.map(paper => <article className={`${styles.card} ${selection.has(paper.id) ? styles.cardMarked : ""}`} key={paper.id}>
             <FeedPaperImage paper={paper} className={styles.figure} />
             <div className={styles.cardBody}>
