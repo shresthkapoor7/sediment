@@ -75,3 +75,17 @@
 .srOnly { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 @media (max-width: 640px) { .dialog { --card-width: min(310px, calc(100vw - 64px)); --card-gap: 16px; width: 100vw; max-height: calc(100dvh - 20px); } .surface { padding: 10px 0; } .header { padding: 0 20px; margin-bottom: 10px; } .figure img { height: 90px; } }
 @media (prefers-reduced-motion: reduce) { .papers, .paper { transition: none; } }
+
+.carousel { position: relative; }
+.viewport { overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; scrollbar-width: none; }
+.viewport::-webkit-scrollbar { display: none; }
+.papers { position: relative; width: max-content; margin: 0; padding-inline: calc((100vw - var(--card-width)) / 2); transform: none; transition: none; }
+.paper { scroll-snap-align: center; opacity: 1; filter: blur(1.5px); transition: filter .25s, border-color .25s; }
+.paper[data-active="true"] { filter: none; }
+.navigation { position: absolute; inset: 0 22px; display: flex; justify-content: space-between; align-items: center; margin: 0; pointer-events: none; }
+.navigation button { pointer-events: auto; display: grid; place-items: center; width: 40px; height: 40px; box-shadow: 0 2px 8px #0002; }
+.paperActions .openPaper { display: flex; justify-content: space-between; gap: 24px; min-width: 140px; padding: 10px 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg-secondary); color: var(--text-primary); font-weight: 500; }
+.composer { margin: 32px auto 8px; padding: 0; border: 0; background: transparent; }
+.composer input { margin: 0; width: 100%; padding: 16px 20px; border: 1px solid var(--border); border-radius: 18px; background: var(--node-bg); outline: none; box-shadow: none; }
+.composer input:focus-visible { outline: none; box-shadow: none; border-color: var(--border-hover); border-radius: 18px; }
+@media (max-width: 640px) { .navigation { inset-inline: 6px; } .navigation button { width: 32px; height: 32px; } .composer { margin-top: 24px; } }
