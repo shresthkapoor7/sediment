@@ -16,12 +16,26 @@ export function PaperStage({ papers, onRemove, onClear, onOpen }: {
   const viewport = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [chatMode, setChatMode] = useState(false);
+  const [messages, setMessages] = useState<{ text: string; paper: string }[]>([]);
+  const chatLog = useRef<HTMLDivElement>(null);
   const [closing, setClosing] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const activeIndex = Math.max(0, papers.findIndex(paper => paper.id === activeId));
   const activePaper = papers[activeIndex];
+  function askAgent(event: React.FormEvent) {
+    event.preventDefault();
+    const text = activePaper && drafts[activePaper.id]?.trim();
+    if (!text || !activePaper) return;
+    setMessages(current => [...current, { text, paper: activePaper.title }]);
+    setDrafts(current => ({ ...current, [activePaper.id]: "" }));
+    setChatMode(true);
+  }
+  useEffect(() => {
+    if (chatLog.current) chatLog.current.scrollTop = chatLog.current.scrollHeight;
+  }, [messages]);
   function focusPaper(index: number, smooth = true) {
     const paper = papers[index];
     const scroller = viewport.current;
@@ -71,7 +85,8 @@ export function PaperStage({ papers, onRemove, onClear, onOpen }: {
       </span>
       <span className={styles.dockLabel}>Marked <span>{papers.length}</span></span>
     </button>}
-    <dialog ref={dialog} className={styles.dialog} style={origin} data-closing={closing || undefined} aria-labelledby="marked-papers-title" onKeyDown={event => {
+    <dialog ref={dialog} className={styles.dialog} style={origin} data-closing={closing || undefined} data-chat={chatMode || undefined} aria-labelledby="marked-papers-title" onKeyDown={event => {
+      if (chatMode) return;
       if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
       if (event.key === "ArrowRight" || event.key === "ArrowLeft") { event.preventDefault(); move(event.key === "ArrowRight" ? 1 : -1); }
     }} onCancel={event => { event.preventDefault(); minimize(); }} onClick={event => { if (event.target === event.currentTarget) minimize(); }}>
@@ -85,6 +100,7 @@ export function PaperStage({ papers, onRemove, onClear, onOpen }: {
         </header>
         <div className={styles.carousel}>
         <div ref={viewport} className={styles.viewport} onScroll={() => {
+          if (chatMode) return;
           const scroller = viewport.current;
           const cards = scroller?.querySelectorAll<HTMLElement>("article");
           if (!scroller || !cards?.length) return;
@@ -93,7 +109,7 @@ export function PaperStage({ papers, onRemove, onClear, onOpen }: {
           if (papers[nearest]) setActiveId(papers[nearest].id);
         }}>
         <div className={styles.papers}>
-          {papers.map((paper, index) => <article key={paper.id} className={styles.paper} data-active={index === activeIndex} style={{ "--pile-index": index - activeIndex, zIndex: papers.length - Math.abs(index - activeIndex) } as CSSProperties} aria-label={paper.title} onFocus={() => focusPaper(index)} onClick={() => focusPaper(index)}>
+          {papers.map((paper, index) => <article key={paper.id} className={styles.paper} data-active={index === activeIndex} style={{ "--pile-index": index - activeIndex, zIndex: papers.length - Math.abs(index - activeIndex) } as CSSProperties} aria-label={paper.title} inert={chatMode && index !== activeIndex} onFocus={() => { if (!chatMode) focusPaper(index); }} onClick={() => { if (!chatMode) focusPaper(index); }}>
             <FeedPaperImage paper={paper} className={styles.figure} />
             <div className={styles.paperBody}>
               <span className={styles.topic}>{paper.topics[0] || "Research paper"}</span>
@@ -111,10 +127,17 @@ export function PaperStage({ papers, onRemove, onClear, onOpen }: {
             <button aria-label="Next paper" disabled={activeIndex === papers.length - 1} onClick={() => move(1)}><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m10 6 6 6-6 6" /></svg></button>
           </nav>}
         </div>
-        {activePaper ? <div className={styles.composer}>
+        {chatMode && <section className={styles.chat} aria-label="Feeds agent conversation">
+          <div className={styles.chatHeading}><div><LogoMark width="20" height="20" /><h2>Feeds agent</h2></div><button type="button" onClick={() => { setChatMode(false); requestAnimationFrame(() => focusPaper(activeIndex, false)); }}>Back to papers</button></div>
+          <div ref={chatLog} className={styles.chatLog} role="log" aria-live="polite" aria-label="Your messages">
+            {messages.map((message, index) => <div key={index} className={styles.message}><span>{message.paper}</span><p>{message.text}</p></div>)}
+          </div>
+        </section>}
+        {activePaper ? <form className={styles.composer} onSubmit={askAgent}>
             <span className={styles.agentLogo} aria-hidden="true"><LogoMark width="20" height="20" /></span>
             <input id="paper-question" placeholder="Ask feeds agent" aria-label="Ask feeds agent about this paper" value={drafts[activePaper.id] || ""} onChange={event => setDrafts(current => ({ ...current, [activePaper.id]: event.target.value }))} />
-          </div> : <p className={styles.empty}>No marked papers. Mark a paper beside Save to collect it here.</p>}
+            <button className={styles.send} type="submit" aria-label="Send message" disabled={!drafts[activePaper.id]?.trim()}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 19V5m-6 6 6-6 6 6" /></svg></button>
+          </form> : <p className={styles.empty}>No marked papers. Mark a paper beside Save to collect it here.</p>}
       </div>
     </dialog>
   </>;
