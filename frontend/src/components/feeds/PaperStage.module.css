@@ -128,13 +128,13 @@
 .send { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: var(--text-primary); color: var(--bg-primary); border: 0; cursor: pointer; }
 .send:disabled { opacity: .3; cursor: default; }
 .composer input { padding-right: 54px; }
-.dialog[data-chat] .carousel { animation: none; transform: translateX(-27vw); transition: transform .55s cubic-bezier(.22, 1, .36, 1); }
+.dialog[data-chat] .carousel { --chat-position: translateX(-27vw); transform: var(--chat-position); animation: stackToChat .48s .42s cubic-bezier(.22, 1, .36, 1) both; }
 .dialog[data-chat] .viewport { overflow: clip; }
-.dialog[data-chat] .paper { animation: none; transform: translateX(calc(var(--stack-offset) * (var(--card-width) + var(--card-gap)) + var(--stack-depth) * 5px)) translateY(calc(var(--stack-depth) * 5px)) rotate(calc(var(--stack-depth) * 2deg)) scale(.92); filter: none; transition: transform .55s cubic-bezier(.22, 1, .36, 1); }
+.dialog[data-chat] .paper { animation: none; transform: translateX(calc(var(--stack-offset) * (var(--card-width) + var(--card-gap)) + var(--stack-depth) * 5px)) translateY(calc(var(--stack-depth) * 5px)) rotate(calc(var(--stack-depth) * 2deg)) scale(.92); filter: none; transition: transform .4s cubic-bezier(.22, 1, .36, 1); }
 .dialog[data-chat] .paper:not([data-active="true"]) { pointer-events: none; }
 .dialog[data-chat] .navigation, .dialog[data-chat] .paperActions { visibility: hidden; }
 .dialog[data-chat] .header { max-width: none; padding-inline: 40px; }
-.chat { position: absolute; right: 6vw; top: 112px; bottom: 120px; width: 45vw; display: flex; flex-direction: column; min-height: 0; animation: chatArrive .4s .15s both; }
+.chat { position: absolute; right: 6vw; top: 112px; bottom: 120px; width: 45vw; display: flex; flex-direction: column; min-height: 0; animation: chatArrive .3s .65s both; }
 .chatHeading { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-bottom: 24px; }
 .chatHeading > div { display: flex; align-items: center; gap: 10px; }
 .chatHeading svg { color: var(--accent); }
@@ -144,13 +144,13 @@
 .message { width: fit-content; max-width: 90%; margin: 0 0 20px auto; padding: 16px 20px; background: color-mix(in srgb, var(--node-bg) 90%, transparent); border: 1px solid var(--border); border-radius: 18px 18px 4px 18px; }
 .message > span { display: block; max-width: 360px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--text-secondary); font-size: 10px; margin-bottom: 8px; }
 .message p { font-size: 14px; line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere; }
-.dialog[data-chat] .composer { position: absolute; right: 6vw; bottom: 32px; width: 45vw; animation: none; }
+.dialog[data-chat] .composer { position: absolute; right: 6vw; bottom: 32px; width: 45vw; animation: chatArrive .3s .65s both; }
 .dialog[data-chat][data-closing] .carousel { animation: pileDepartFromChat .3s .34s both; }
 .dialog[data-chat][data-closing] .chat { animation: backdropIn .15s reverse both; }
 @keyframes chatArrive { from { opacity: 0; translate: 24px 0; } to { opacity: 1; translate: 0 0; } }
 @keyframes pileDepartFromChat { from { opacity: 1; transform: translateX(-27vw); } to { opacity: 0; transform: translate(var(--stage-x), var(--stage-y)) scale(.12); } }
 @media (max-width: 700px) {
-  .dialog[data-chat] .carousel { transform: translateY(-22dvh) scale(.32); pointer-events: none; }
+  .dialog[data-chat] .carousel { --chat-position: translateY(-22dvh) scale(.32); pointer-events: none; }
   .chat { top: 39dvh; bottom: 100px; right: 20px; width: calc(100% - 40px); }
   .dialog[data-chat] .composer { bottom: 20px; right: 20px; width: calc(100% - 40px); }
   .dialog[data-chat] .header { padding-inline: 20px; }
@@ -162,3 +162,6 @@
 .cycleCard { position: absolute; inset: 0; z-index: 2; width: 100%; height: 100%; background: transparent; border: 0; border-radius: inherit; cursor: pointer; }
 .dialog .cycleCard:focus-visible { outline-offset: -4px; }
 @media (max-width: 700px) { .dialog[data-chat] .carousel { pointer-events: auto; } }
+
+@keyframes stackToChat { from { transform: none; } to { transform: var(--chat-position); } }
+@media (prefers-reduced-motion: reduce) { .dialog[data-chat] .carousel, .dialog[data-chat] .composer { animation: none; } }
