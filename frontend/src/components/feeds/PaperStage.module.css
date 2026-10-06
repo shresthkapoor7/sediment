@@ -130,7 +130,7 @@
 .composer input { padding-right: 54px; }
 .dialog[data-chat] .carousel { animation: none; transform: translateX(-27vw); transition: transform .55s cubic-bezier(.22, 1, .36, 1); }
 .dialog[data-chat] .viewport { overflow: clip; }
-.dialog[data-chat] .paper { animation: none; transform: translateX(calc(var(--stack-offset) * (var(--card-width) + var(--card-gap)) + var(--stack-depth) * 5px)) translateY(calc(var(--stack-depth) * 5px)) rotate(calc(var(--stack-depth) * 2deg)); filter: none; transition: transform .55s cubic-bezier(.22, 1, .36, 1); }
+.dialog[data-chat] .paper { animation: none; transform: translateX(calc(var(--stack-offset) * (var(--card-width) + var(--card-gap)) + var(--stack-depth) * 5px)) translateY(calc(var(--stack-depth) * 5px)) rotate(calc(var(--stack-depth) * 2deg)) scale(.92); filter: none; transition: transform .55s cubic-bezier(.22, 1, .36, 1); }
 .dialog[data-chat] .paper:not([data-active="true"]) { pointer-events: none; }
 .dialog[data-chat] .navigation, .dialog[data-chat] .paperActions { visibility: hidden; }
 .dialog[data-chat] .header { max-width: none; padding-inline: 40px; }
