@@ -16,6 +16,7 @@ export function PaperStage({ papers, onRemove, onClear, onOpen }: {
   const viewport = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [stackAnchor, setStackAnchor] = useState(0);
   const [chatMode, setChatMode] = useState(false);
   const [messages, setMessages] = useState<{ text: string; paper: string }[]>([]);
   const chatLog = useRef<HTMLDivElement>(null);
@@ -31,6 +32,7 @@ export function PaperStage({ papers, onRemove, onClear, onOpen }: {
     if (!text || !activePaper) return;
     setMessages(current => [...current, { text, paper: activePaper.title }]);
     setDrafts(current => ({ ...current, [activePaper.id]: "" }));
+    if (!chatMode) setStackAnchor(activeIndex);
     setChatMode(true);
   }
   useEffect(() => {
@@ -55,7 +57,7 @@ export function PaperStage({ papers, onRemove, onClear, onOpen }: {
     setClosing(false);
     setExpanded(true);
     dialog.current?.showModal();
-    requestAnimationFrame(() => focusPaper(activeIndex, false));
+    if (!chatMode) requestAnimationFrame(() => focusPaper(activeIndex, false));
   }
 
   function minimize(after?: () => void) {
@@ -109,7 +111,12 @@ export function PaperStage({ papers, onRemove, onClear, onOpen }: {
           if (papers[nearest]) setActiveId(papers[nearest].id);
         }}>
         <div className={styles.papers}>
-          {papers.map((paper, index) => <article key={paper.id} className={styles.paper} data-active={index === activeIndex} style={{ "--pile-index": index - activeIndex, zIndex: papers.length - Math.abs(index - activeIndex) } as CSSProperties} aria-label={paper.title} inert={chatMode && index !== activeIndex} onFocus={() => { if (!chatMode) focusPaper(index); }} onClick={() => { if (!chatMode) focusPaper(index); }}>
+          {papers.map((paper, index) => <article key={paper.id} className={styles.paper} data-active={index === activeIndex} style={{ "--pile-index": index - activeIndex, "--stack-offset": stackAnchor - index, "--stack-depth": (index - activeIndex + papers.length) % papers.length, zIndex: chatMode ? papers.length - (index - activeIndex + papers.length) % papers.length : papers.length - Math.abs(index - activeIndex) } as CSSProperties} aria-label={paper.title} inert={chatMode && index !== activeIndex} onFocus={() => { if (!chatMode) focusPaper(index); }} onClick={() => { if (!chatMode) focusPaper(index); }}>
+            {chatMode && index === activeIndex && papers.length > 1 && <button type="button" className={styles.cycleCard} aria-label="Next paper in stack" onClick={event => {
+              event.stopPropagation();
+              setActiveId(papers[(activeIndex + 1) % papers.length].id);
+              requestAnimationFrame(() => dialog.current?.querySelector<HTMLButtonElement>(`button[aria-label="Next paper in stack"]`)?.focus({ preventScroll: true }));
+            }} />}
             <FeedPaperImage paper={paper} className={styles.figure} />
             <div className={styles.paperBody}>
               <span className={styles.topic}>{paper.topics[0] || "Research paper"}</span>
