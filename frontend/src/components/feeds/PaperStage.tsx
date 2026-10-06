@@ -101,6 +101,7 @@ export function PaperStage({ papers, onRemove, onClear, onOpen }: {
           </div>
         </header>
         <div className={styles.carousel}>
+        {chatMode && activePaper && <span className={styles.stackCount} role="status" aria-live="polite" aria-label={`Paper ${activeIndex + 1} of ${papers.length}`}>{activeIndex + 1} / {papers.length}</span>}
         <div ref={viewport} className={styles.viewport} onScroll={() => {
           if (chatMode) return;
           const scroller = viewport.current;

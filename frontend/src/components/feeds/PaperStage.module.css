@@ -165,3 +165,6 @@
 
 @keyframes stackToChat { from { transform: none; } to { transform: var(--chat-position); } }
 @media (prefers-reduced-motion: reduce) { .dialog[data-chat] .carousel, .dialog[data-chat] .composer { animation: none; } }
+
+.stackCount { position: absolute; top: -12px; left: 50%; transform: translateX(-50%); color: var(--text-secondary); font-size: 11px; font-variant-numeric: tabular-nums; letter-spacing: .06em; pointer-events: none; }
+@media (max-width: 700px) { .stackCount { font-size: 24px; top: -28px; } }
