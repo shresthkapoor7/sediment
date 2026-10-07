@@ -17,6 +17,7 @@ export function PaperStage({ papers, onRemove, onClear, onOpen }: {
   const trigger = useRef<HTMLButtonElement>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [stackAnchor, setStackAnchor] = useState(0);
+  const [gathering, setGathering] = useState(false);
   const [chatMode, setChatMode] = useState(false);
   const [messages, setMessages] = useState<{ text: string; paper: string }[]>([]);
   const chatLog = useRef<HTMLDivElement>(null);
@@ -32,7 +33,7 @@ export function PaperStage({ papers, onRemove, onClear, onOpen }: {
     if (!text || !activePaper) return;
     setMessages(current => [...current, { text, paper: activePaper.title }]);
     setDrafts(current => ({ ...current, [activePaper.id]: "" }));
-    if (!chatMode) setStackAnchor(activeIndex);
+    if (!chatMode) { setStackAnchor(activeIndex); setGathering(!window.matchMedia("(prefers-reduced-motion: reduce)").matches); }
     setChatMode(true);
   }
   useEffect(() => {
@@ -87,7 +88,7 @@ export function PaperStage({ papers, onRemove, onClear, onOpen }: {
       </span>
       <span className={styles.dockLabel}>Marked <span>{papers.length}</span></span>
     </button>}
-    <dialog ref={dialog} className={styles.dialog} style={origin} data-closing={closing || undefined} data-chat={chatMode || undefined} aria-labelledby="marked-papers-title" onKeyDown={event => {
+    <dialog ref={dialog} className={styles.dialog} style={origin} data-closing={closing || undefined} data-chat={chatMode || undefined} data-gathering={gathering || undefined} aria-labelledby="marked-papers-title" onKeyDown={event => {
       if (chatMode) return;
       if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
       if (event.key === "ArrowRight" || event.key === "ArrowLeft") { event.preventDefault(); move(event.key === "ArrowRight" ? 1 : -1); }
@@ -112,8 +113,8 @@ export function PaperStage({ papers, onRemove, onClear, onOpen }: {
           if (papers[nearest]) setActiveId(papers[nearest].id);
         }}>
         <div className={styles.papers}>
-          {papers.map((paper, index) => <article key={paper.id} className={styles.paper} data-active={index === activeIndex} style={{ "--pile-index": index - activeIndex, "--stack-offset": stackAnchor - index, "--stack-depth": (index - activeIndex + papers.length) % papers.length, zIndex: chatMode ? papers.length - (index - activeIndex + papers.length) % papers.length : papers.length - Math.abs(index - activeIndex) } as CSSProperties} aria-label={paper.title} inert={chatMode && index !== activeIndex} onFocus={() => { if (!chatMode) focusPaper(index); }} onClick={() => { if (!chatMode) focusPaper(index); }}>
-            {chatMode && index === activeIndex && papers.length > 1 && <button type="button" className={styles.cycleCard} aria-label="Next paper in stack" onClick={event => {
+          {papers.map((paper, index) => <article key={paper.id} className={styles.paper} onAnimationEnd={event => { if (event.target === event.currentTarget && gathering && chatMode) setGathering(false); }} data-active={index === activeIndex} style={{ "--pile-index": index - activeIndex, "--stack-offset": stackAnchor - index, "--stack-depth": (index - activeIndex + papers.length) % papers.length, zIndex: chatMode ? papers.length - (index - activeIndex + papers.length) % papers.length : papers.length - Math.abs(index - activeIndex) } as CSSProperties} aria-label={paper.title} inert={chatMode && index !== activeIndex} onFocus={() => { if (!chatMode) focusPaper(index); }} onClick={() => { if (!chatMode) focusPaper(index); }}>
+            {chatMode && index === activeIndex && papers.length > 1 && <button type="button" className={styles.cycleCard} disabled={gathering} aria-label="Next paper in stack" onClick={event => {
               event.stopPropagation();
               setActiveId(papers[(activeIndex + 1) % papers.length].id);
               requestAnimationFrame(() => dialog.current?.querySelector<HTMLButtonElement>(`button[aria-label="Next paper in stack"]`)?.focus({ preventScroll: true }));
@@ -136,7 +137,7 @@ export function PaperStage({ papers, onRemove, onClear, onOpen }: {
           </nav>}
         </div>
         {chatMode && <section className={styles.chat} aria-label="Feeds agent conversation">
-          <div className={styles.chatHeading}><div><LogoMark width="20" height="20" /><h2>Feeds agent</h2></div><button type="button" onClick={() => { setChatMode(false); requestAnimationFrame(() => focusPaper(activeIndex, false)); }}>Back to papers</button></div>
+          <div className={styles.chatHeading}><div><LogoMark width="20" height="20" /><h2>Feeds agent</h2></div><button type="button" onClick={() => { setChatMode(false); setGathering(false); requestAnimationFrame(() => focusPaper(activeIndex, false)); }}>Back to papers</button></div>
           <div ref={chatLog} className={styles.chatLog} role="log" aria-live="polite" aria-label="Your messages">
             {messages.map((message, index) => <div key={index} className={styles.message}><span>{message.paper}</span><p>{message.text}</p></div>)}
           </div>

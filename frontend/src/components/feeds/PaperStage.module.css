@@ -168,3 +168,11 @@
 
 .stackCount { position: absolute; top: -12px; left: 50%; transform: translateX(-50%); color: var(--text-secondary); font-size: 11px; font-variant-numeric: tabular-nums; letter-spacing: .06em; pointer-events: none; }
 @media (max-width: 700px) { .stackCount { font-size: 24px; top: -28px; } }
+
+/* An explicit animation avoids snapping when the prior unfold animation is removed. */
+.dialog[data-chat][data-gathering] .paper { animation: gatherForChat .8s cubic-bezier(.45, 0, .2, 1) both; transition: none; }
+@keyframes gatherForChat {
+  from { transform: none; }
+  to { transform: translateX(calc(var(--stack-offset) * (var(--card-width) + var(--card-gap)) + var(--stack-depth) * 5px)) translateY(calc(var(--stack-depth) * 5px)) rotate(calc(var(--stack-depth) * 2deg)) scale(.92); }
+}
+@media (prefers-reduced-motion: reduce) { .dialog[data-chat][data-gathering] .paper { animation: none; } }
