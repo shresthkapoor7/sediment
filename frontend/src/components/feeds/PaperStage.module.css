@@ -129,7 +129,7 @@
 .send:disabled { opacity: .3; cursor: default; }
 .composer textarea { padding-right: 54px; }
 .dialog[data-chat] .carousel { --chat-position: translateX(-27vw); transform: var(--chat-position); animation: stackToChat .6s .95s cubic-bezier(.22, 1, .36, 1) both; }
-.dialog[data-chat] .viewport { overflow: clip; }
+.dialog[data-chat] .viewport { overflow: clip; overflow-clip-margin: 160px; }
 .dialog[data-chat] .paper { animation: none; transform: translateX(calc(var(--stack-offset) * (var(--card-width) + var(--card-gap)) + var(--stack-depth) * 5px)) translateY(calc(var(--stack-depth) * 5px)) rotate(calc(var(--stack-depth) * 2deg)) scale(.92); filter: none; transition: transform .8s cubic-bezier(.45, 0, .2, 1); }
 .dialog[data-chat] .paper:not([data-active="true"]) { pointer-events: none; }
 .dialog[data-chat] .navigation, .dialog[data-chat] .paperActions { visibility: hidden; }
