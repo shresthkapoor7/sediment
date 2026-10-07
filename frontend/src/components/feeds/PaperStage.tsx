@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import type { FeedPaper } from "@/lib/feeds-api";
+import { PaperMentionInput, mentionedPapers } from "./PaperMentionInput";
 import { LogoMark } from "@/components/LogoMark";
 import { FeedPaperImage } from "./FeedPaperImage";
 import styles from "./PaperStage.module.css";
@@ -19,7 +20,7 @@ export function PaperStage({ papers, onRemove, onClear, onOpen }: {
   const [stackAnchor, setStackAnchor] = useState(0);
   const [gathering, setGathering] = useState(false);
   const [chatMode, setChatMode] = useState(false);
-  const [messages, setMessages] = useState<{ text: string; paper: string }[]>([]);
+  const [messages, setMessages] = useState<{ text: string; paper: string; paperIds: string[] }[]>([]);
   const chatLog = useRef<HTMLDivElement>(null);
   const [closing, setClosing] = useState(false);
   const [expanded, setExpanded] = useState(false);
@@ -27,11 +28,15 @@ export function PaperStage({ papers, onRemove, onClear, onOpen }: {
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const activeIndex = Math.max(0, papers.findIndex(paper => paper.id === activeId));
   const activePaper = papers[activeIndex];
+  const draft = activePaper ? drafts[activePaper.id] || "" : "";
+  const references = mentionedPapers(draft, papers);
+  const highlightedIds = draft.trim() ? references.map(paper => paper.id) : messages.at(-1)?.paperIds || [];
   function askAgent(event: React.FormEvent) {
     event.preventDefault();
     const text = activePaper && drafts[activePaper.id]?.trim();
     if (!text || !activePaper) return;
-    setMessages(current => [...current, { text, paper: activePaper.title }]);
+    const targets = references.length ? references : [activePaper];
+    setMessages(current => [...current, { text, paper: targets.map(paper => paper.title).join(" · "), paperIds: targets.map(paper => paper.id) }]);
     setDrafts(current => ({ ...current, [activePaper.id]: "" }));
     if (!chatMode) { setStackAnchor(activeIndex); setGathering(!window.matchMedia("(prefers-reduced-motion: reduce)").matches); }
     setChatMode(true);
@@ -113,12 +118,13 @@ export function PaperStage({ papers, onRemove, onClear, onOpen }: {
           if (papers[nearest]) setActiveId(papers[nearest].id);
         }}>
         <div className={styles.papers}>
-          {papers.map((paper, index) => <article key={paper.id} className={styles.paper} onAnimationEnd={event => { if (event.target === event.currentTarget && gathering && chatMode) setGathering(false); }} data-active={index === activeIndex} style={{ "--pile-index": index - activeIndex, "--stack-offset": stackAnchor - index, "--stack-depth": (index - activeIndex + papers.length) % papers.length, zIndex: chatMode ? papers.length - (index - activeIndex + papers.length) % papers.length : papers.length - Math.abs(index - activeIndex) } as CSSProperties} aria-label={paper.title} inert={chatMode && index !== activeIndex} onFocus={() => { if (!chatMode) focusPaper(index); }} onClick={() => { if (!chatMode) focusPaper(index); }}>
+          {papers.map((paper, index) => <article key={paper.id} className={styles.paper} onAnimationEnd={event => { if (event.target === event.currentTarget && gathering && chatMode) setGathering(false); }} data-mentioned={highlightedIds.includes(paper.id) || undefined} data-active={index === activeIndex} style={{ "--pile-index": index - activeIndex, "--stack-offset": stackAnchor - index, "--stack-depth": (index - activeIndex + papers.length) % papers.length, zIndex: chatMode ? papers.length - (index - activeIndex + papers.length) % papers.length : papers.length - Math.abs(index - activeIndex) } as CSSProperties} aria-label={paper.title} inert={chatMode && index !== activeIndex} onFocus={() => { if (!chatMode) focusPaper(index); }} onClick={() => { if (!chatMode) focusPaper(index); }}>
             {chatMode && index === activeIndex && papers.length > 1 && <button type="button" className={styles.cycleCard} disabled={gathering} aria-label="Next paper in stack" onClick={event => {
               event.stopPropagation();
               setActiveId(papers[(activeIndex + 1) % papers.length].id);
               requestAnimationFrame(() => dialog.current?.querySelector<HTMLButtonElement>(`button[aria-label="Next paper in stack"]`)?.focus({ preventScroll: true }));
             }} />}
+            {highlightedIds.includes(paper.id) && <span className={styles.mentionBadge}>Mentioned</span>}
             <FeedPaperImage paper={paper} className={styles.figure} />
             <div className={styles.paperBody}>
               <span className={styles.topic}>{paper.topics[0] || "Research paper"}</span>
@@ -144,7 +150,7 @@ export function PaperStage({ papers, onRemove, onClear, onOpen }: {
         </section>}
         {activePaper ? <form className={styles.composer} onSubmit={askAgent}>
             <span className={styles.agentLogo} aria-hidden="true"><LogoMark width="20" height="20" /></span>
-            <input id="paper-question" placeholder="Ask feeds agent" aria-label="Ask feeds agent about this paper" value={drafts[activePaper.id] || ""} onChange={event => setDrafts(current => ({ ...current, [activePaper.id]: event.target.value }))} />
+            <PaperMentionInput papers={papers} value={draft} onChange={value => setDrafts(current => ({ ...current, [activePaper.id]: value }))} />
             <button className={styles.send} type="submit" aria-label="Send message" disabled={!drafts[activePaper.id]?.trim()}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 19V5m-6 6 6-6 6 6" /></svg></button>
           </form> : <p className={styles.empty}>No marked papers. Mark a paper beside Save to collect it here.</p>}
       </div>
