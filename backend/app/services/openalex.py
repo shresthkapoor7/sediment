@@ -242,17 +242,17 @@ class OpenAlexClient:
         # Title search catches specific paper titles; broad search catches general concepts.
         title_params = {
             **self._base_params(),
-            "filter": f"display_name.search:{_filter_search_value(query)}",
+            "search.title": query,
             "per-page": str(limit),
             "select": SEARCH_SELECT,
-            "sort": "cited_by_count:desc",
         }
         broad_params = {
             **self._base_params(),
-            "filter": f"title_and_abstract.search:{_filter_search_value(query)}",
+            # Match the website's title/abstract/keyword search. Quoting the
+            # entire query here would accidentally require an exact phrase.
+            "search.title_abstract_keywords": query,
             "per-page": str(limit),
             "select": SEARCH_SELECT,
-            "sort": "cited_by_count:desc",
         }
 
         title_data, broad_data = await asyncio.gather(

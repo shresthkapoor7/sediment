@@ -1524,6 +1524,8 @@ Important:
 - If the user appears to have entered a paper title, preserve the title wording closely.
 - Do not generalize a paper title into loose topic keywords.
 - Do not append adjacent concepts that were not in the original query.
+- Options must be concise searchable research concepts, not long labels with lists of related topics.
+- Preserve established terms such as "chain-of-thought prompting"; avoid adding parenthetical explanations to search queries.
 
 Respond with JSON only:
 {{
