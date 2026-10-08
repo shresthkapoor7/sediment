@@ -20,6 +20,7 @@ export function ClarificationModal({ question, options, onSelect, onDismiss, all
 
   useEffect(() => {
     const previousFocus = document.activeElement;
+    const returnFocusContainer = returnFocusRef?.current;
     const dialog = dialogRef.current;
     if (!dialog) return;
     const focusableElements = () => Array.from(dialog.querySelectorAll<HTMLElement>(
@@ -53,7 +54,7 @@ export function ClarificationModal({ question, options, onSelect, onDismiss, all
       }
       // The search input can lose focus when disabled during the request.
       if (document.activeElement === document.body || dialog.contains(document.activeElement)) {
-        const trigger = returnFocusRef?.current;
+        const trigger = returnFocusContainer;
         (trigger?.querySelector<HTMLElement>("input, button") ?? trigger)?.focus({ preventScroll: true });
       }
     };
