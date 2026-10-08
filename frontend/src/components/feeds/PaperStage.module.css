@@ -53,7 +53,7 @@
 .viewport { overflow: hidden; padding: 8px 0 18px; }
 .papers { display: flex; gap: var(--card-gap); align-items: stretch; margin-left: calc(50% - var(--card-width) / 2); transform: translateX(calc(var(--active) * (var(--card-width) + var(--card-gap)) * -1)); transition: transform .38s cubic-bezier(.22, 1, .36, 1); }
 .paper { flex: 0 0 var(--card-width); width: var(--card-width); height: clamp(300px, 52dvh, 480px); display: flex; flex-direction: column; animation: none; opacity: .45; transition: opacity .3s, border-color .3s; cursor: pointer; }
-.paper[data-active="true"] { opacity: 1; border-color: var(--accent); box-shadow: 0 12px 28px #0003; }
+.paper[data-active="true"] { opacity: 1; border-color: var(--border-hover); box-shadow: 0 12px 28px #0003; }
 .paperBody { display: flex; flex-direction: column; min-height: 0; flex: 1; padding: 18px; }
 .figure { flex-shrink: 0; }
 .figure img { height: 110px; }
