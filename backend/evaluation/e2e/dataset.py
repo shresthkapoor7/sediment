@@ -22,7 +22,7 @@ for topic in MATH["topics"]:
     TOPICS[topic["id"]] = topic
 
 # Three atomic, independently sourced facts per topic. Keep a fixed denominator:
-# ContextRecall is called once per fact, so the judge cannot silently omit a fact.
+# Batched judgments require exactly one ordered verdict for each fact.
 FACTS = {
     "transformer": ["The Transformer uses attention without recurrent layers.",
                     "Sequence to Sequence Learning with Neural Networks uses an LSTM encoder-decoder.",
@@ -49,7 +49,7 @@ assert len(CASES) == len({c['id'] for c in CASES}) == 30
 assert {(c['topic'], c['workflow']) for c in CASES} == {
     (t, w) for t in TOPICS for w in WORKFLOWS}
 DATASET_SHA256 = hashlib.sha256(b"".join(p.read_bytes() for p in
-    (AI_PATH, MATH_PATH, MANIFEST, Path(__file__)))).hexdigest()
+    (AI_PATH, MATH_PATH, MANIFEST, Path(__file__), Path(__file__).with_name("regressions.py")))).hexdigest()
 
 
 def normalize_title(value):
