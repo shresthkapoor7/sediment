@@ -15,6 +15,7 @@ MICRO_USD_PER_USD = 1_000_000
 SEGMENTS = 10
 ANTHROPIC_WEB_SEARCH_MICRO_USD = 10_000
 _MODEL_PRICING_USD_PER_MILLION: dict[str, dict[str, float]] = {
+    "claude-haiku-5-5": {"input": 0.10, "output": 0.50},
     "claude-haiku-4-5-20251001": {"input": 1.00, "output": 5.00},
     "claude-3-5-haiku-20241022": {"input": 0.80, "output": 4.00},
     "claude-sonnet-4-6": {"input": 3.00, "output": 15.00},
@@ -88,8 +89,15 @@ class UsageLimiter:
 
         return result if isinstance(result, dict) else {}
 
-    async def record_usage(self, ip: str, input_tokens: int, output_tokens: int, model: str) -> dict:
-        cost_micro_usd = self.cost_micro_usd(input_tokens, output_tokens, model)
+    async def record_usage(
+        self, ip: str, input_tokens: int, output_tokens: int, model: str,
+        *, cache_creation_input_tokens: int = 0, cache_read_input_tokens: int = 0,
+    ) -> dict:
+        cost_micro_usd = self.cost_micro_usd(
+            input_tokens, output_tokens, model,
+            cache_creation_input_tokens=cache_creation_input_tokens,
+            cache_read_input_tokens=cache_read_input_tokens,
+        )
         return await self.record_fixed_cost(ip, cost_micro_usd, reason=f"llm:{model}")
 
     async def record_fixed_cost(self, ip: str, cost_micro_usd: int, *, reason: str = "provider") -> dict:
@@ -152,9 +160,17 @@ class UsageLimiter:
         }
 
     @staticmethod
-    def cost_micro_usd(input_tokens: int, output_tokens: int, model: str) -> int:
+    def cost_micro_usd(
+        input_tokens: int, output_tokens: int, model: str,
+        *, cache_creation_input_tokens: int = 0, cache_read_input_tokens: int = 0,
+    ) -> int:
         pricing = _MODEL_PRICING_USD_PER_MILLION.get(model, _DEFAULT_PRICING_USD_PER_MILLION)
-        cost_usd = (input_tokens * pricing["input"] + output_tokens * pricing["output"]) / 1_000_000
+        prompt_tokens = input_tokens + cache_creation_input_tokens + cache_read_input_tokens
+        if model == "claude-haiku-5-5" and prompt_tokens > 100_000:
+            pricing = {"input": 0.50, "output": 2.50}
+        # All current call sites use ephemeral caching with the default 5-minute TTL.
+        billable_input = input_tokens + 1.25 * cache_creation_input_tokens + 0.1 * cache_read_input_tokens
+        cost_usd = (billable_input * pricing["input"] + output_tokens * pricing["output"]) / 1_000_000
         return _usd_to_micro_usd(cost_usd)
 
     @staticmethod

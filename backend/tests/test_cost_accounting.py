@@ -25,10 +25,21 @@ class CostAccountingTests(unittest.IsolatedAsyncioTestCase):
             UsageLimiter.provider_cost_micro_usd(220, 0.02),
         )
 
+    def test_haiku_55_prices_entire_request_by_prompt_length(self) -> None:
+        self.assertEqual(UsageLimiter.cost_micro_usd(100_000, 1000, "claude-haiku-5-5"), 10_500)
+        self.assertEqual(UsageLimiter.cost_micro_usd(100_002, 1000, "claude-haiku-5-5"), 52_501)
+        self.assertEqual(UsageLimiter.cost_micro_usd(
+            2, 1000, "claude-haiku-5-5", cache_read_input_tokens=100_000,
+        ), 7_501)
+        self.assertEqual(UsageLimiter.cost_micro_usd(
+            0, 0, "claude-haiku-5-5", cache_creation_input_tokens=1000,
+        ), 125)
+
     async def test_web_search_result_records_fixed_fee(self) -> None:
         client = LLMClient(api_key="test-key", model="claude-test")
         response = SimpleNamespace(
-            usage=SimpleNamespace(input_tokens=10, output_tokens=5),
+            usage=SimpleNamespace(input_tokens=10, output_tokens=5,
+                                  cache_creation_input_tokens=20, cache_read_input_tokens=30),
             content=[SimpleNamespace(type="web_search_tool_result")],
         )
 
@@ -36,7 +47,10 @@ class CostAccountingTests(unittest.IsolatedAsyncioTestCase):
             with patch("app.services.llm.limiter.record_fixed_cost", AsyncMock()) as record_fixed:
                 await client._record_response_usage(response, "127.0.0.1")
 
-        record_usage.assert_awaited_once_with("127.0.0.1", 10, 5, "claude-test")
+        record_usage.assert_awaited_once_with(
+            "127.0.0.1", 10, 5, "claude-test",
+            cache_creation_input_tokens=20, cache_read_input_tokens=30,
+        )
         record_fixed.assert_awaited_once_with(
             "127.0.0.1",
             ANTHROPIC_WEB_SEARCH_MICRO_USD,

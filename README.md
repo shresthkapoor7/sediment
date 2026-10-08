@@ -208,7 +208,7 @@ When `NEXT_PUBLIC_USE_API_PROXY=true`, configure one of these server-only fronte
 | `TRUSTED_PROXY_CIDRS` | No | Comma-separated proxy CIDRs allowed to supply trusted client IP headers. Defaults to `100.0.0.0/8` for Railway-style proxy networks |
 | `OPENALEX_API_KEY` | No | OpenAlex API key (polite pool, optional) |
 | `OPENALEX_MAILTO` | No | Email for OpenAlex polite pool |
-| `LLM_MODEL` | No | Claude model ID (defaults to `claude-haiku-4-5-20251001`) |
+| `LLM_MODEL` | No | Claude model ID (defaults to `claude-haiku-5-5`) |
 
 ## Running Locally
 

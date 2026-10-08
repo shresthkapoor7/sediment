@@ -11,17 +11,33 @@ class OpenAlexSearchTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(_filter_search_value("attention, rnn"), '"attention, rnn"')
         self.assertEqual(_filter_search_value('say "hello"'), '"say \\"hello\\""')
 
-    async def test_search_quotes_comma_containing_concept_in_both_filters(self) -> None:
+    async def test_search_preserves_queries_without_forcing_phrase_matching(self) -> None:
         client = OpenAlexClient()
         client._session = object()  # type: ignore[assignment]
-        with patch("app.services.openalex._get", AsyncMock(side_effect=[{"results": []}, {"results": []}])) as get:
-            await client.search_papers("Attention is all you need, rnn and transformers", limit=5)
+        for query in [
+            "Psychology of well-being - life satisfaction and happiness research",
+            "Chain-of-thought prompting (language models)",
+            "Attention is all you need, rnn and transformers",
+            '\"chain of thought\" AND reasoning',
+        ]:
+            with self.subTest(query=query):
+                with patch("app.services.openalex._get", AsyncMock(return_value={"results": []})) as get:
+                    await client.search_papers(query, limit=5)
+                params = [call.args[2] for call in get.await_args_list]
+                self.assertEqual(params[0]["search.title"], query)
+                self.assertEqual(params[1]["search.title_abstract_keywords"], query)
+                for request in params:
+                    self.assertNotIn("filter", request)
+                    self.assertNotIn("sort", request)
 
-        filters = {call.args[2]["filter"] for call in get.await_args_list}
-        self.assertEqual(filters, {
-            'display_name.search:"Attention is all you need, rnn and transformers"',
-            'title_and_abstract.search:"Attention is all you need, rnn and transformers"',
-        })
+    async def test_broad_results_survive_empty_title_search(self) -> None:
+        client = OpenAlexClient()
+        client._session = object()  # type: ignore[assignment]
+        paper = {"openalexId": "W1", "title": "Chain-of-thought prompting"}
+        with patch("app.services.openalex._get", AsyncMock(side_effect=[
+            {"results": []}, {"results": [paper]},
+        ])), patch.object(client, "_normalize_work", side_effect=lambda work: work):
+            self.assertEqual(await client.search_papers("chain of thought language models"), [paper])
 
     async def test_related_paper_fallback_quotes_title_before_adding_year_filter(self) -> None:
         client = OpenAlexClient()
