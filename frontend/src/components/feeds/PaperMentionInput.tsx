@@ -25,9 +25,9 @@ export function PaperMentionInput({ value, onChange, papers }: { value: string; 
       const css = getComputedStyle(field);
       // scrollHeight includes padding, but not the border used by border-box sizing.
       const naturalHeight = field.scrollHeight + parseFloat(css.borderTopWidth) + parseFloat(css.borderBottomWidth);
-      field.style.height = `${Math.min(Math.ceil(naturalHeight), 180)}px`;
-      field.style.overflowY = naturalHeight > 180 ? "auto" : "hidden";
-      field.closest("dialog")?.style.setProperty("--composer-height", field.style.height);
+      field.style.height = `${Math.min(Math.ceil(naturalHeight), 148)}px`;
+      field.style.overflowY = naturalHeight > 148 ? "auto" : "hidden";
+      field.closest("dialog")?.style.setProperty("--composer-height", `${field.parentElement?.offsetHeight || field.offsetHeight}px`);
     }
     resize();
     const observer = new ResizeObserver(resize);
