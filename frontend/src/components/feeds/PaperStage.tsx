@@ -96,7 +96,7 @@ export function PaperStage({ papers, onRemove, onClear, onOpen }: {
       </span>
       <span className={styles.dockLabel}>Marked <span>{papers.length}</span></span>
     </button>}
-    <dialog ref={dialog} className={styles.dialog} style={origin} data-closing={closing || undefined} data-chat={chatMode || undefined} data-gathering={gathering || undefined} aria-labelledby="marked-papers-title" onKeyDown={event => {
+    <dialog ref={dialog} className={styles.dialog} style={{ ...origin, "--stack-anchor": stackAnchor } as CSSProperties} data-closing={closing || undefined} data-chat={chatMode || undefined} data-gathering={gathering || undefined} aria-labelledby="marked-papers-title" onKeyDown={event => {
       if (chatMode) return;
       if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
       if (event.key === "ArrowRight" || event.key === "ArrowLeft") { event.preventDefault(); move(event.key === "ArrowRight" ? 1 : -1); }

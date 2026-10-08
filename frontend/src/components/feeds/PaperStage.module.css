@@ -204,3 +204,6 @@
 .chatLog::-webkit-scrollbar-track { background: transparent; }
 .chatLog::-webkit-scrollbar-thumb { background: transparent; border-radius: 6px; }
 .chatLog[data-scrolling="true"]::-webkit-scrollbar-thumb { background: var(--text-tertiary); }
+
+/* Chat removes native scrolling; preserve its selected-card offset on the track. */
+.dialog[data-chat] .papers { transform: translateX(calc(var(--stack-anchor) * (var(--card-width) + var(--card-gap)) * -1)); }
