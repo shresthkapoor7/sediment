@@ -198,5 +198,9 @@
 .composer:focus-within { border-color: var(--border-hover); }
 .composer textarea, .composer textarea:focus-visible { padding: 0 8px 0 0; min-height: 20px; max-height: 148px; border: 0; border-radius: 0; background: transparent; scrollbar-width: thin; }
 
-.chatLog { scrollbar-width: none; }
-.chatLog::-webkit-scrollbar { display: none; }
+.chatLog { scrollbar-width: thin; scrollbar-color: transparent transparent; transition: scrollbar-color .2s ease; }
+.chatLog[data-scrolling="true"] { scrollbar-color: var(--text-tertiary) transparent; }
+.chatLog::-webkit-scrollbar { width: 6px; }
+.chatLog::-webkit-scrollbar-track { background: transparent; }
+.chatLog::-webkit-scrollbar-thumb { background: transparent; border-radius: 6px; }
+.chatLog[data-scrolling="true"]::-webkit-scrollbar-thumb { background: var(--text-tertiary); }

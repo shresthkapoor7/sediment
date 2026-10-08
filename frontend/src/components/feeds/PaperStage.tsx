@@ -22,6 +22,9 @@ export function PaperStage({ papers, onRemove, onClear, onOpen }: {
   const [chatMode, setChatMode] = useState(false);
   const [messages, setMessages] = useState<{ text: string; paper: string; paperIds: string[] }[]>([]);
   const chatLog = useRef<HTMLDivElement>(null);
+  const scrollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [chatScrolling, setChatScrolling] = useState(false);
+  useEffect(() => () => { if (scrollTimer.current) clearTimeout(scrollTimer.current); }, []);
   const [closing, setClosing] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -144,7 +147,11 @@ export function PaperStage({ papers, onRemove, onClear, onOpen }: {
         </div>
         {chatMode && <section className={styles.chat} aria-label="Feeds agent conversation">
           <div className={styles.chatHeading}><div><LogoMark width="20" height="20" /><h2>Feeds agent</h2></div><button type="button" onClick={() => { setChatMode(false); setGathering(false); requestAnimationFrame(() => focusPaper(activeIndex, false)); }}>Back to papers</button></div>
-          <div ref={chatLog} className={styles.chatLog} role="log" aria-live="polite" aria-label="Your messages">
+          <div ref={chatLog} className={styles.chatLog} data-scrolling={chatScrolling || undefined} onScroll={() => {
+            setChatScrolling(true);
+            if (scrollTimer.current) clearTimeout(scrollTimer.current);
+            scrollTimer.current = setTimeout(() => setChatScrolling(false), 800);
+          }} role="log" aria-live="polite" aria-label="Your messages">
             {messages.map((message, index) => <div key={index} className={styles.message}><span>{message.paper}</span><p>{message.text}</p></div>)}
           </div>
         </section>}
