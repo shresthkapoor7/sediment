@@ -77,7 +77,7 @@ Use the existing `backend/.env` or shell environment:
 ANTHROPIC_API_KEY=your-anthropic-key
 OPENAI_API_KEY=your-openai-key
 # Optional; otherwise uses the application default.
-LLM_MODEL=claude-haiku-4-5-20251001
+LLM_MODEL=claude-haiku-5-5
 ```
 
 No OpenAlex, Supabase, or Ragas account credentials are needed. Usage persistence

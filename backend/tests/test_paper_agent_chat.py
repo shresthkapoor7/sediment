@@ -53,7 +53,7 @@ class FakeStream:
 
 class PaperAgentChatTests(unittest.IsolatedAsyncioTestCase):
     async def test_deep_trace_agent_researches_before_submitting_a_trace(self) -> None:
-        client = LLMClient(api_key="test-key", model="claude-test")
+        client = LLMClient(api_key="test-key", model="claude-haiku-5-5")
         search = SimpleNamespace(
             content=[FakeBlock(
                 type="tool_use",
@@ -82,6 +82,8 @@ class PaperAgentChatTests(unittest.IsolatedAsyncioTestCase):
             usage=SimpleNamespace(input_tokens=14, output_tokens=7),
         )
         client.client.messages.create = AsyncMock(side_effect=[search, references, finish])
+        thinking = FakeBlock(type="thinking", thinking="", signature="unchanged-signature")
+        search.content.insert(0, thinking)
         tool_names: list[str] = []
         proposal = {"seedPaperId": "W3", "papers": [{"openalexId": "W3"}], "traceNotes": []}
 
@@ -104,6 +106,8 @@ class PaperAgentChatTests(unittest.IsolatedAsyncioTestCase):
             "finish_deep_trace",
         ])
         self.assertEqual(result, proposal)
+        replay = client.client.messages.create.await_args.kwargs["messages"][1]["content"]
+        self.assertEqual(replay[0], thinking.model_dump())
 
     async def test_deep_trace_agent_requires_a_final_submission_on_its_last_turn(self) -> None:
         client = LLMClient(api_key="test-key", model="claude-test")

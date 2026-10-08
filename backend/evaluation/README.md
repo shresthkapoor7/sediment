@@ -56,7 +56,7 @@ Use the backend environment with `requirements.txt` installed. In `backend/.env`
 ANTHROPIC_API_KEY=your-anthropic-key
 OPENAI_API_KEY=your-openai-key
 # Optional: otherwise uses the application's default Claude model.
-LLM_MODEL=claude-haiku-4-5-20251001
+LLM_MODEL=claude-haiku-5-5
 ```
 
 Both keys are required. The OpenAI project needs access to `gpt-6-astra`; no model

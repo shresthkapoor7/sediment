@@ -542,6 +542,16 @@ class LLMClient:
         self.client = AsyncAnthropic(api_key=api_key)
         self.model = model
 
+    def _generation_options(self, max_tokens: int, *, agentic: bool = False) -> dict:
+        if self.model != "claude-haiku-5-5":
+            return {"max_tokens": max_tokens}
+        # Leave room for adaptive thinking as well as the final JSON/tool call.
+        return {
+            "max_tokens": max(max_tokens, 8192 if agentic else 4096),
+            "thinking": {"type": "adaptive"},
+            "output_config": {"effort": "medium" if agentic else "low"},
+        }
+
     async def trace_lineage_agentic(
         self,
         concept: str,
@@ -851,7 +861,7 @@ Answer the question directly in 2-5 sentences. Do not propose timeline expansion
         messages = _conversation_messages(history or [], prompt)
         response = await self.client.messages.create(
             model=self.model,
-            max_tokens=1024,
+            **self._generation_options(1024),
             cache_control={"type": "ephemeral"},
             messages=messages,
         )
@@ -1291,7 +1301,7 @@ Rules:
         if text_emitter is None:
             return await self.client.messages.create(
                 model=self.model,
-                max_tokens=max_tokens,
+                **self._generation_options(max_tokens, agentic=True),
                 cache_control={"type": "ephemeral"},
                 messages=messages,
                 tools=_tools_with_cache_breakpoint(tools),
@@ -1300,7 +1310,7 @@ Rules:
 
         async with self.client.messages.stream(
             model=self.model,
-            max_tokens=max_tokens,
+            **self._generation_options(max_tokens, agentic=True),
             cache_control={"type": "ephemeral"},
             messages=messages,
             tools=_tools_with_cache_breakpoint(tools),
@@ -1315,7 +1325,11 @@ Rules:
         input_tokens = getattr(response.usage, "input_tokens", 0)
         output_tokens = getattr(response.usage, "output_tokens", 0)
         try:
-            await limiter.record_usage(ip, input_tokens, output_tokens, self.model)
+            await limiter.record_usage(
+                ip, input_tokens, output_tokens, self.model,
+                cache_creation_input_tokens=getattr(response.usage, "cache_creation_input_tokens", 0) or 0,
+                cache_read_input_tokens=getattr(response.usage, "cache_read_input_tokens", 0) or 0,
+            )
             web_search_count = _web_search_result_count(response)
             if web_search_count:
                 await limiter.record_fixed_cost(
@@ -1564,30 +1578,14 @@ OR:
     ):
         resp = await self.client.messages.create(
             model=self.model,
-            max_tokens=1024,
+            **self._generation_options(1024),
             cache_control={"type": "ephemeral"},
             messages=_conversation_messages(history or [], prompt),
         )
-        input_tokens = getattr(resp.usage, "input_tokens", 0)
-        output_tokens = getattr(resp.usage, "output_tokens", 0)
-        try:
-            await limiter.record_usage(
-                ip,
-                input_tokens,
-                output_tokens,
-                self.model,
-            )
-        except Exception as e:
-            logger.warning(
-                "Usage recording failed for ip=%r model=%r input_tokens=%r output_tokens=%r",
-                ip,
-                self.model,
-                input_tokens,
-                output_tokens,
-                exc_info=e,
-            )
-
-        raw = resp.content[0].text.strip()
+        await self._record_response_usage(resp, ip)
+        if getattr(resp, "stop_reason", None) in {"refusal", "max_tokens", "model_context_window_exceeded"}:
+            raise LLMParseError(f"JSON response stopped: {resp.stop_reason}")
+        raw = _message_text(resp).strip()
         if raw.startswith("```"):
             raw = raw.split("```")[1]
             if raw.startswith("json"):
@@ -1596,7 +1594,7 @@ OR:
         try:
             return json.loads(raw.strip())
         except (json.JSONDecodeError, ValueError) as e:
-            logger.error("Failed to parse LLM response: %s\nRaw: %s", e, resp.content[0].text)
+            logger.error("Failed to parse LLM response: %s\nRaw: %s", e, raw)
             raise LLMParseError(f"Invalid JSON from model: {e}") from e
 
 
