@@ -1,5 +1,8 @@
 # Mathematics lineage evaluation with Ragas
 
+For the manual, budgeted local workflow with durable capture/replay, use the
+[current lineage runner](../e2e/README.md). This historical suite is not the recommended paid entrypoint.
+
 For the main evaluation use the [30-case API suite](../e2e/README.md). It corrects
 the context split: faithfulness uses actual generation inputs, context recall uses
 live retrieved evidence, and scientific correctness uses an independent reference.
