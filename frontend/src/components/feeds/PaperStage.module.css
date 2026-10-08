@@ -1,0 +1,209 @@
+.dock { position: fixed; z-index: 15; right: 18px; top: 45%; display: flex; flex-direction: column; align-items: center; gap: 12px; width: 100px; padding: 14px 6px 10px; border: 0; border-radius: 12px; background: color-mix(in srgb, var(--bg-primary) 85%, transparent); backdrop-filter: blur(12px); color: var(--text-secondary); cursor: pointer; animation: dockIn .3s ease-out; }
+.stack { position: relative; display: block; width: 64px; height: 78px; }
+.miniPaper { position: absolute; inset: 0; display: flex; flex-direction: column; gap: 5px; padding: 10px 8px; border: 1px solid var(--border-hover); border-radius: 5px; background: var(--node-bg); box-shadow: 0 4px 12px #0002; transform: translate(calc(var(--sheet) * -5px), calc(var(--sheet) * 4px)) rotate(calc(var(--sheet) * -7deg)); animation: sheetIn .3s ease-out; }
+.miniPaper > span { font-size: 7px; line-height: 1.4; text-align: left; color: var(--text-primary); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.miniPaper i { height: 2px; background: var(--border); width: 100%; }
+.miniPaper i:last-child { width: 60%; }
+.dockLabel { display: flex; align-items: center; gap: 7px; font-size: 10px; }
+.dockLabel > span { color: var(--accent); }
+.dock:hover .stack { transform: translateY(-3px); }
+.stack { transition: transform .2s ease; }
+.dialog { position: fixed; inset: 0; margin: auto; width: min(1000px, calc(100vw - 80px)); max-width: none; max-height: calc(100dvh - 96px); padding: 0; border: 1px solid var(--border); border-radius: 18px; background: var(--bg-primary); color: var(--text-primary); box-shadow: 0 30px 100px #0005; overflow: auto; overscroll-behavior: contain; }
+.dialog[open] { animation: stageExpand .36s cubic-bezier(.16, 1, .3, 1) both; }
+.dialog::backdrop { background: #0005; backdrop-filter: blur(10px); animation: backdropIn .3s ease both; }
+.dialog[data-closing] { animation: stageMinimize .26s cubic-bezier(.4, 0, .8, .4) both; pointer-events: none; }
+.dialog[data-closing]::backdrop { animation: backdropIn .26s ease reverse both; }
+.surface { padding: 24px; }
+.header { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 24px; }
+.header h2 { font-size: 18px; font-weight: 550; letter-spacing: -.025em; }
+.header h2 span { margin-left: 8px; color: var(--text-tertiary); font-size: 12px; }
+.header p { margin-top: 6px; font-size: 11px; color: var(--text-secondary); }
+.actions { display: flex; gap: 12px; align-items: center; }
+.actions button, .paperActions button { display: inline-flex; align-items: center; justify-content: center; min-height: 32px; padding: 6px 8px; background: transparent; color: var(--text-secondary); font-size: 11px; border-radius: 5px; cursor: pointer; }
+.actions button:hover, .paperActions button:hover { background: var(--bg-secondary); color: var(--text-primary); }
+.papers { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr)); gap: 18px; align-items: start; }
+.paper { min-width: 0; border: 1px solid var(--border); border-radius: 10px; background: var(--node-bg); overflow: hidden; animation: paperIn .35s ease both; animation-delay: calc(var(--order) * 25ms); }
+.paperBody { padding: 20px; }
+.figure { margin: 0; background: var(--bg-secondary); border-bottom: 1px solid var(--border); }
+.figure img { display: block; width: 100%; height: 140px; object-fit: contain; }
+.topic { color: var(--accent); font-size: 10px; }
+.paper h3 { margin-top: 12px; font-size: 18px; font-weight: 550; line-height: 1.4; letter-spacing: -.025em; }
+.paper h3 button { text-align: left; font: inherit; color: inherit; background: transparent; cursor: pointer; overflow-wrap: anywhere; }
+.authors { margin-top: 10px; color: var(--text-tertiary); font-size: 11px; line-height: 1.6; }
+.abstract { margin-top: 16px; font-size: 12px; line-height: 1.8; color: var(--text-secondary); display: -webkit-box; -webkit-line-clamp: 6; -webkit-box-orient: vertical; overflow: hidden; }
+.paperActions { display: flex; justify-content: space-between; margin-top: 18px; }
+.paperActions button:first-child { color: var(--accent); }
+.empty { padding: 48px 16px; text-align: center; font-size: 13px; color: var(--text-secondary); }
+.dialog button:focus-visible, .dock:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+@keyframes stageExpand { from { opacity: 0; transform: translate(var(--stage-x, 40vw), var(--stage-y, 0px)) scale(.08); } to { opacity: 1; transform: translate(0, 0) scale(1); } }
+@keyframes stageMinimize { from { opacity: 1; transform: translate(0, 0) scale(1); } to { opacity: 0; transform: translate(var(--stage-x, 40vw), var(--stage-y, 0px)) scale(.08); } }
+@keyframes backdropIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes dockIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
+@keyframes sheetIn { from { opacity: 0; translate: 0 12px; } to { opacity: 1; translate: 0 0; } }
+@keyframes paperIn { from { opacity: 0; translate: 0 12px; } to { opacity: 1; translate: 0 0; } }
+@media (max-width: 640px) { .dock { top: auto; bottom: 18px; right: 12px; width: 76px; gap: 6px; } .stack { width: 44px; height: 54px; } .miniPaper { padding: 6px; gap: 3px; } .miniPaper > span { font-size: 6px; } .dialog { width: calc(100vw - 24px); max-height: calc(100dvh - 40px); border-radius: 14px; } .surface { padding: 18px; } .header { align-items: flex-start; } }
+@media (prefers-reduced-motion: reduce) { .dock, .miniPaper, .dialog[open], .dialog[data-closing], .dialog::backdrop, .dialog[data-closing]::backdrop, .paper { animation: none; } .stack { transition: none; } }
+
+/* Cards float directly above the feed, without a enclosing panel. */
+.dialog { --card-width: 350px; --card-gap: 24px; width: 100vw; max-height: calc(100dvh - 32px); border: 0; border-radius: 0; background: transparent; box-shadow: none; overflow-x: hidden; }
+.dock { background: transparent; backdrop-filter: none; }
+.surface { padding: 12px 0; }
+.header { max-width: 780px; margin: 0 auto 20px; padding: 0 24px; }
+.header > div > p { display: none; }
+.viewport { overflow: hidden; padding: 8px 0 18px; }
+.papers { display: flex; gap: var(--card-gap); align-items: stretch; margin-left: calc(50% - var(--card-width) / 2); transform: translateX(calc(var(--active) * (var(--card-width) + var(--card-gap)) * -1)); transition: transform .38s cubic-bezier(.22, 1, .36, 1); }
+.paper { flex: 0 0 var(--card-width); width: var(--card-width); height: clamp(300px, 52dvh, 480px); display: flex; flex-direction: column; animation: none; opacity: .45; transition: opacity .3s, border-color .3s; cursor: pointer; }
+.paper[data-active="true"] { opacity: 1; border-color: var(--border-hover); box-shadow: 0 12px 28px #0003; }
+.paperBody { display: flex; flex-direction: column; min-height: 0; flex: 1; padding: 18px; }
+.figure { flex-shrink: 0; }
+.figure img { height: 110px; }
+.topic { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; flex-shrink: 0; }
+.paper h3 { font-size: 17px; flex-shrink: 0; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.authors { display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; flex-shrink: 0; }
+.abstract { min-height: 0; overflow: hidden; margin-top: 12px; }
+.paperActions { margin-top: auto; padding-top: 12px; flex-shrink: 0; }
+.navigation { display: flex; justify-content: center; align-items: center; gap: 20px; margin: 0 0 14px; }
+.navigation button { width: 36px; height: 36px; background: var(--node-bg); border: 1px solid var(--border); border-radius: 50%; color: var(--text-primary); cursor: pointer; font-size: 18px; }
+.navigation button:disabled { opacity: .3; cursor: default; }
+.navigation > span { font-size: 11px; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+.composer { width: min(480px, calc(100% - 40px)); margin: 0 auto; padding: 14px 18px; border: 1px solid var(--border); border-radius: 14px; background: var(--node-bg); }
+.composer label { display: block; font-size: 12px; font-weight: 500; }
+.composer label span { color: var(--text-secondary); font-weight: 400; margin-left: 4px; }
+.composer textarea { display: block; width: 100%; margin: 10px 0; padding: 6px 0; font: inherit; font-size: 13px; background: transparent; color: var(--text-primary); border: 0; }
+.composer textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 2px; }
+.composer > span { color: var(--text-tertiary); font-size: 10px; }
+.srOnly { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+@media (max-width: 640px) { .dialog { --card-width: min(310px, calc(100vw - 64px)); --card-gap: 16px; width: 100vw; max-height: calc(100dvh - 20px); } .surface { padding: 10px 0; } .header { padding: 0 20px; margin-bottom: 10px; } .figure img { height: 90px; } }
+@media (prefers-reduced-motion: reduce) { .papers, .paper { transition: none; } }
+
+.carousel { position: relative; }
+.viewport { overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; scrollbar-width: none; }
+.viewport::-webkit-scrollbar { display: none; }
+.papers { position: relative; width: max-content; margin: 0; padding-inline: calc((100vw - var(--card-width)) / 2); transform: none; transition: none; }
+.paper { scroll-snap-align: center; opacity: 1; filter: blur(1.5px); transition: filter .25s, border-color .25s; }
+.paper[data-active="true"] { filter: none; }
+.navigation { position: absolute; inset: 0 22px; display: flex; justify-content: space-between; align-items: center; margin: 0; pointer-events: none; }
+.navigation button { pointer-events: auto; display: grid; place-items: center; width: 40px; height: 40px; box-shadow: 0 2px 8px #0002; }
+.paperActions .openPaper { display: flex; justify-content: space-between; gap: 24px; min-width: 140px; padding: 10px 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg-secondary); color: var(--text-primary); font-weight: 500; }
+.composer { margin: 0 auto; padding: 0; border: 0; background: transparent; }
+.composer textarea { margin: 0; width: 100%; padding: 16px 20px; border: 1px solid var(--border); border-radius: 18px; background: var(--node-bg); outline: none; box-shadow: none; }
+.composer textarea:focus-visible { outline: none; box-shadow: none; border-color: var(--border-hover); border-radius: 18px; }
+@media (max-width: 640px) { .navigation { inset-inline: 6px; } .navigation button { width: 32px; height: 32px; } }
+
+/* Keep the papers centered independently of the bottom composer. */
+.dialog { height: 100dvh; max-height: 100dvh; }
+.surface { min-height: 560px; height: 100%; display: grid; grid-template-rows: minmax(60px, 1fr) auto minmax(80px, 1fr); padding: 32px 0; box-sizing: border-box; }
+.header { width: 100%; align-self: start; margin: 0 auto; }
+.carousel { grid-row: 2; }
+.viewport { padding-block: 18px; }
+.composer { grid-row: 3; align-self: end; margin: 0 auto; }
+@media (max-width: 640px) { .surface { padding-block: 20px; } }
+.surface { grid-template-columns: minmax(0, 1fr); min-width: 0; }
+.carousel, .viewport { min-width: 0; width: 100%; }
+
+.composer { position: relative; }
+.composer .agentLogo { position: absolute; left: 18px; top: 50%; transform: translateY(-50%); display: flex; color: var(--accent); pointer-events: none; }
+.composer textarea { padding-left: 50px; }
+/* Bring a pile out of the dock, then spread its individual cards. Reverse on close. */
+.dialog[open], .dialog[data-closing] { animation: none; }
+.dialog[open] .carousel { animation: pileArrive .34s cubic-bezier(.16, 1, .3, 1) both; }
+.dialog[open] .paper { --pile-x: calc(var(--pile-index) * (var(--card-width) + var(--card-gap) - 5px) * -1); animation: cardsUnfold .38s .22s cubic-bezier(.22, 1, .36, 1) both; }
+.dialog[open] .header, .dialog[open] .composer, .dialog[open] .navigation { animation: backdropIn .2s .4s both; }
+.dialog[data-closing] .paper { animation: cardsGather .34s cubic-bezier(.4, 0, .2, 1) both; }
+.dialog[data-closing] .carousel { animation: pileDepart .3s .34s cubic-bezier(.4, 0, .8, .4) both; }
+.dialog[data-closing] .header, .dialog[data-closing] .composer, .dialog[data-closing] .navigation { animation: backdropIn .15s reverse both; }
+.dialog[data-closing]::backdrop { animation: backdropIn .3s .34s reverse both; }
+@keyframes pileArrive { from { opacity: 0; transform: translate(var(--stage-x), var(--stage-y)) scale(.12); } to { opacity: 1; transform: none; } }
+@keyframes cardsUnfold { from { transform: translateX(var(--pile-x)) translateY(calc(var(--pile-index) * 3px)) rotate(calc(var(--pile-index) * 2deg)); filter: none; } to { transform: none; } }
+@keyframes cardsGather { to { transform: translateX(var(--gather-x, var(--pile-x))) translateY(calc(var(--pile-index) * 3px)) rotate(calc(var(--pile-index) * 2deg)); filter: none; } }
+@keyframes pileDepart { from { opacity: 1; transform: none; } to { opacity: 0; transform: translate(var(--stage-x), var(--stage-y)) scale(.12); } }
+@media (prefers-reduced-motion: reduce) {
+  .dialog[open] .carousel, .dialog[open] .paper, .dialog[open] .header, .dialog[open] .composer, .dialog[open] .navigation, .dialog[data-closing]::backdrop { animation: none; }
+}
+
+/* Contain card stacking so navigation always stays above the entire deck. */
+.viewport { position: relative; z-index: 0; }
+.navigation { z-index: 1; }
+
+.send { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: var(--text-primary); color: var(--bg-primary); border: 0; cursor: pointer; }
+.send:disabled { opacity: .3; cursor: default; }
+.composer textarea { padding-right: 54px; }
+.dialog[data-chat] .carousel { --chat-position: translateX(-27vw); transform: var(--chat-position); animation: stackToChat .6s .95s cubic-bezier(.22, 1, .36, 1) both; }
+.dialog[data-chat] .viewport { overflow: clip; overflow-clip-margin: 160px; }
+.dialog[data-chat] .paper { animation: none; transform: translateX(calc(var(--stack-offset) * (var(--card-width) + var(--card-gap)) + var(--stack-depth) * 5px)) translateY(calc(var(--stack-depth) * 5px)) rotate(calc(var(--stack-depth) * 2deg)) scale(.92); filter: none; transition: transform .8s cubic-bezier(.45, 0, .2, 1); }
+.dialog[data-chat] .paper:not([data-active="true"]) { pointer-events: none; }
+.dialog[data-chat] .navigation, .dialog[data-chat] .paperActions { visibility: hidden; }
+.dialog[data-chat] .header { max-width: none; padding-inline: 40px; }
+.chat { position: absolute; right: 6vw; top: 112px; bottom: 120px; width: 45vw; display: flex; flex-direction: column; min-height: 0; animation: chatArrive .4s 1.15s both; }
+.chatHeading { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-bottom: 24px; }
+.chatHeading > div { display: flex; align-items: center; gap: 10px; }
+.chatHeading svg { color: var(--accent); }
+.chatHeading h2 { font-size: 16px; font-weight: 500; }
+.chatHeading button { padding: 8px 10px; background: transparent; color: var(--text-secondary); font-size: 11px; cursor: pointer; }
+.chatLog { overflow-y: auto; overscroll-behavior: contain; flex: 1; padding: 4px 4px 20px; }
+.message { width: fit-content; max-width: 90%; margin: 0 0 20px auto; padding: 16px 20px; background: color-mix(in srgb, var(--node-bg) 90%, transparent); border: 1px solid var(--border); border-radius: 18px 18px 4px 18px; }
+.message > span { display: block; max-width: 360px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--text-secondary); font-size: 10px; margin-bottom: 8px; }
+.message p { font-size: 14px; line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere; }
+.dialog[data-chat] .composer { position: absolute; right: 6vw; bottom: 32px; width: 45vw; animation: chatArrive .4s 1.15s both; }
+.dialog[data-chat][data-closing] .carousel { animation: pileDepartFromChat .3s .34s both; }
+.dialog[data-chat][data-closing] .chat { animation: backdropIn .15s reverse both; }
+@keyframes chatArrive { from { opacity: 0; translate: 24px 0; } to { opacity: 1; translate: 0 0; } }
+@keyframes pileDepartFromChat { from { opacity: 1; transform: translateX(-27vw); } to { opacity: 0; transform: translate(var(--stage-x), var(--stage-y)) scale(.12); } }
+@media (max-width: 700px) {
+  .dialog[data-chat] .carousel { --chat-position: translateY(-22dvh) scale(.32); pointer-events: none; }
+  .chat { top: 39dvh; bottom: 100px; right: 20px; width: calc(100% - 40px); }
+  .dialog[data-chat] .composer { bottom: 20px; right: 20px; width: calc(100% - 40px); }
+  .dialog[data-chat] .header { padding-inline: 20px; }
+  .chatHeading { padding-bottom: 12px; }
+}
+@media (prefers-reduced-motion: reduce) { .dialog[data-chat] .carousel, .dialog[data-chat] .paper { transition: none; } .chat, .dialog[data-chat][data-closing] .carousel { animation: none; } }
+
+.dialog[data-chat] .paper { position: relative; }
+.cycleCard { position: absolute; inset: 0; z-index: 2; width: 100%; height: 100%; background: transparent; border: 0; border-radius: inherit; cursor: pointer; }
+.dialog .cycleCard:focus-visible { outline-offset: -4px; }
+@media (max-width: 700px) { .dialog[data-chat] .carousel { pointer-events: auto; } }
+
+@keyframes stackToChat { from { transform: none; } to { transform: var(--chat-position); } }
+@media (prefers-reduced-motion: reduce) { .dialog[data-chat] .carousel, .dialog[data-chat] .composer { animation: none; } }
+
+.stackCount { position: absolute; top: -12px; left: 50%; transform: translateX(-50%); color: var(--text-secondary); font-size: 11px; font-variant-numeric: tabular-nums; letter-spacing: .06em; pointer-events: none; }
+@media (max-width: 700px) { .stackCount { font-size: 24px; top: -28px; } }
+
+/* An explicit animation avoids snapping when the prior unfold animation is removed. */
+.dialog[data-chat][data-gathering] .paper { animation: gatherForChat .8s cubic-bezier(.45, 0, .2, 1) both; transition: none; }
+@keyframes gatherForChat {
+  from { transform: none; }
+  to { transform: translateX(calc(var(--stack-offset) * (var(--card-width) + var(--card-gap)) + var(--stack-depth) * 5px)) translateY(calc(var(--stack-depth) * 5px)) rotate(calc(var(--stack-depth) * 2deg)) scale(.92); }
+}
+@media (prefers-reduced-motion: reduce) { .dialog[data-chat][data-gathering] .paper { animation: none; } }
+
+.mentionMenu { position: absolute; bottom: calc(100% + 10px); left: 0; right: 0; max-height: 240px; overflow-y: auto; padding: 6px; border: 1px solid var(--border); border-radius: 12px; background: var(--node-bg); box-shadow: 0 8px 30px #0002; z-index: 10; }
+.mentionMenu button { display: block; width: 100%; padding: 10px 12px; text-align: left; background: transparent; color: var(--text-primary); font-size: 12px; border-radius: 7px; cursor: pointer; }
+.mentionMenu button[aria-selected="true"], .mentionMenu button:hover { background: var(--accent-soft); }
+.mentionMenu > span { display: block; padding: 12px; font-size: 12px; color: var(--text-secondary); }
+.paper { position: relative; }
+.paper[data-mentioned="true"] { border-color: var(--accent); }
+.paper[data-mentioned="true"]::after { content: ""; position: absolute; inset: 0; border: 1px solid var(--accent); border-radius: 9px; z-index: 3; pointer-events: none; }
+.mentionBadge { position: absolute; right: 10px; top: 10px; z-index: 1; padding: 4px 7px; border-radius: 5px; background: var(--node-bg); color: var(--accent); border: 1px solid var(--border); font-size: 10px; }
+
+.composer textarea { resize: none; min-height: 52px; max-height: 180px; line-height: 20px; overflow-y: auto; overflow-wrap: anywhere; box-sizing: border-box; }
+.composer .agentLogo { top: 26px; }
+.send { top: auto; bottom: 10px; transform: none; }
+
+.chat { bottom: calc(var(--composer-height, 52px) + 64px); }
+@media (max-width: 700px) { .chat { bottom: calc(var(--composer-height, 52px) + 40px); } }
+
+/* Keep scrolling inside the rounded shell, away from its edges and controls. */
+.composer { padding: 16px 54px 16px 50px; border: 1px solid var(--border); border-radius: 18px; background: var(--node-bg); }
+.composer:focus-within { border-color: var(--border-hover); }
+.composer textarea, .composer textarea:focus-visible { padding: 0 8px 0 0; min-height: 20px; max-height: 148px; border: 0; border-radius: 0; background: transparent; scrollbar-width: thin; }
+
+.chatLog { scrollbar-width: thin; scrollbar-color: transparent transparent; transition: scrollbar-color .2s ease; }
+.chatLog[data-scrolling="true"] { scrollbar-color: var(--text-tertiary) transparent; }
+.chatLog::-webkit-scrollbar { width: 6px; }
+.chatLog::-webkit-scrollbar-track { background: transparent; }
+.chatLog::-webkit-scrollbar-thumb { background: transparent; border-radius: 6px; }
+.chatLog[data-scrolling="true"]::-webkit-scrollbar-thumb { background: var(--text-tertiary); }
+
+/* Chat removes native scrolling; preserve its selected-card offset on the track. */
+.dialog[data-chat] .papers { transform: translateX(calc(var(--stack-anchor) * (var(--card-width) + var(--card-gap)) * -1)); }

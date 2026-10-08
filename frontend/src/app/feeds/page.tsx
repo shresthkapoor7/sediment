@@ -1,6 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { usePaperSelection } from "@/lib/paper-selection";
+import { PaperSelectionControl } from "@/components/feeds/PaperSelectionControl";
+import { PaperStage } from "@/components/feeds/PaperStage";
 import { FeedBackdrop } from "@/components/feeds/FeedBackdrop";
 import { FeedPaperDetail } from "@/components/feeds/FeedPaperDetail";
 import { FeedPaperImage } from "@/components/feeds/FeedPaperImage";
@@ -24,6 +27,7 @@ export default function FeedsPage() {
   const [editing, setEditing] = useState(false);
   const [source, setSource] = useState<FeedFilter>("all");
   const { saved, papers: savedPapers, unresolved, retryRestore, toggle } = useFeedBookmarks();
+  const selection = usePaperSelection();
   const [savedOnly, setSavedOnly] = useState(false);
   const [pending, setPending] = useState<FeedAction | "restore" | null>("restore");
   const [error, setError] = useState("");
@@ -172,15 +176,15 @@ export default function FeedsPage() {
         {!savedOnly && source === "huggingface" && <p className={styles.warning}>Hugging Face via OpenAlex. This source primarily indexes datasets, so matching research papers may be unavailable.</p>}
         <div className={styles.resultCount} role="status">{savedOnly ? `${visible.length} saved papers` : `${visible.length} of ${feed?.papers.length || 0} loaded papers`} <span>{savedOnly ? "Across all topics and fields" : "Recent research"}</span></div>
         {savedOnly && unresolved.length > 0 && <p className={styles.warning} role="status">Restoring {unresolved.length} previously saved {unresolved.length === 1 ? "paper" : "papers"}. If they don’t appear, <button onClick={retryRestore}>retry restoration</button>.</p>}
-        <BalancedMasonry className={styles.masonry}>
-          {visible.map(paper => <article className={styles.card} key={paper.id}>
+        <BalancedMasonry className={styles.masonry} items={visible}>
+          {visible.map(paper => <article className={`${styles.card} ${selection.has(paper.id) ? styles.cardMarked : ""}`} key={paper.id}>
             <FeedPaperImage paper={paper} className={styles.figure} />
             <div className={styles.cardBody}>
               <div className={styles.cardMeta}><span>{paper.topics[0] || (paper.preprint ? "Preprint" : "Research paper")}</span><time dateTime={paper.published || undefined}>{dateLabel(paper.published)}</time></div>
               <h3><Link className={styles.paperLink} href={feedPaperPath(paper)} scroll={false} prefetch={false} onClick={event => { if (event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) { event.preventDefault(); openPaper(paper); } }}>{paper.title}</Link></h3>
               {!!paper.authors.length && <p className={styles.authors}>{paper.authors.slice(0, 3).join(", ")}{paper.authors.length > 3 ? " & collaborators" : ""}</p>}
               {paper.abstract && <p data-preview className={styles.summary}>{paper.abstract}</p>}
-              <div className={styles.cardFooter}><span>{paper.sources.map(value => sourceLabels[value]).join(" · ")}{paper.preprint && <small>Preprint</small>}</span><button aria-label={`${saved.includes(paper.id) ? "Unsave" : "Save"} ${paper.title}`} aria-pressed={saved.includes(paper.id)} onClick={() => toggleSaved(paper)}><svg width="15" height="17" viewBox="0 0 16 18" fill={saved.includes(paper.id) ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.3" aria-hidden="true"><path d="M3 2h10v14l-5-3-5 3z" /></svg>{saved.includes(paper.id) ? "Saved" : "Save"}</button></div>
+              <div className={styles.cardFooter}><span>{paper.sources.map(value => sourceLabels[value]).join(" · ")}{paper.preprint && <small>Preprint</small>}</span><div className={styles.cardActions}><PaperSelectionControl title={paper.title} selected={selection.has(paper.id)} onToggle={() => selection.toggle(paper)} /><button aria-label={`${saved.includes(paper.id) ? "Unsave" : "Save"} ${paper.title}`} aria-pressed={saved.includes(paper.id)} onClick={() => toggleSaved(paper)}><svg width="15" height="17" viewBox="0 0 16 18" fill={saved.includes(paper.id) ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.3" aria-hidden="true"><path d="M3 2h10v14l-5-3-5 3z" /></svg>{saved.includes(paper.id) ? "Saved" : "Save"}</button></div></div>
             </div>
           </article>)}
         </BalancedMasonry>
@@ -190,6 +194,7 @@ export default function FeedsPage() {
         </>}
       </section>
     </main>
+    <PaperStage papers={selection.papers} onRemove={selection.toggle} onClear={selection.clear} onOpen={openPaper} />
     {openedPaper && <FeedPaperDetail paper={openedPaper} intercepted />}
   </div>;
 }
