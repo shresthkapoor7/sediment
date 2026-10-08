@@ -916,6 +916,23 @@ export default function Home() {
         )}
       </AnimatePresence>
 
+      <AnimatePresence>
+        {disambiguation.length > 0 && !isSearching && (
+          <ClarificationModal
+            key="seed-paper-modal"
+            question="Which paper would you like to start from?"
+            options={disambiguation.map((candidate) => ({
+              value: candidate.openalexId,
+              label: candidate.title,
+              description: String(candidate.year ?? "Unknown year"),
+            }))}
+            allowCustomQuery={false}
+            onSelect={handleSeedChoice}
+            onDismiss={() => setDisambiguation([])}
+          />
+        )}
+      </AnimatePresence>
+
       {/* Main content */}
       <div style={{ flex: 1, position: "relative", overflow: "hidden" }}>
         <AnimatePresence>
@@ -1635,65 +1652,7 @@ export default function Home() {
                     </m.div>
                   )}
 
-                  {disambiguation.length > 0 && (
-                    <m.div
-                      initial={{ opacity: 0, y: 6 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      style={{
-                        marginTop: "1rem",
-                        padding: "0.875rem",
-                        borderRadius: "1rem",
-                        border: "0.0625rem solid var(--border)",
-                        background: "var(--bg-secondary)",
-                        maxWidth: "32.5rem",
-                        width: "100%",
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: "0.625rem",
-                      }}
-                    >
-                      <p
-                        style={{
-                          fontSize: "0.75rem",
-                          color: "var(--text-tertiary)",
-                          fontFamily: "var(--font-mono), monospace",
-                          letterSpacing: "0.03em",
-                        }}
-                      >
-                        pick the intended seed paper
-                      </p>
-                      {disambiguation.map((candidate) => (
-                        <button
-                          key={candidate.openalexId}
-                          onClick={() => handleSeedChoice(candidate.openalexId)}
-                          style={{
-                            textAlign: "left",
-                            padding: "0.75rem 0.875rem",
-                            borderRadius: "0.75rem",
-                            border: "0.0625rem solid var(--border)",
-                            background: "var(--bg-primary)",
-                            cursor: "pointer",
-                            color: "var(--text-primary)",
-                          }}
-                        >
-                          <div
-                            style={{ fontSize: "0.8125rem", fontWeight: 600 }}
-                          >
-                            {candidate.title}
-                          </div>
-                          <div
-                            style={{
-                              fontSize: "0.6875rem",
-                              color: "var(--text-tertiary)",
-                              marginTop: "0.25rem",
-                            }}
-                          >
-                            {candidate.year ?? "Unknown year"}
-                          </div>
-                        </button>
-                      ))}
-                    </m.div>
-                  )}
+
                 </div>
 
                 <m.div

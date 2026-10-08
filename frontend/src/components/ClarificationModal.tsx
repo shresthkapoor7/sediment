@@ -5,17 +5,19 @@ import { m } from "framer-motion";
 
 interface Props {
   question: string;
-  options: string[];
+  options: (string | { value: string; label: string; description?: string })[];
+  allowCustomQuery?: boolean;
   onSelect: (query: string) => void;
   onDismiss: () => void;
 }
 
-export function ClarificationModal({ question, options, onSelect, onDismiss }: Props) {
+export function ClarificationModal({ question, options, onSelect, onDismiss, allowCustomQuery = true }: Props) {
   const [customValue, setCustomValue] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+  const firstOptionRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
-    inputRef.current?.focus();
+    (inputRef.current ?? firstOptionRef.current)?.focus();
   }, []);
 
   useEffect(() => {
@@ -66,6 +68,8 @@ export function ClarificationModal({ question, options, onSelect, onDismiss }: P
         style={{
           width: "100%",
           maxWidth: "30rem",
+          maxHeight: "calc(100dvh - 3rem)",
+          overflowY: "auto",
           background: "var(--bg-primary)",
           border: "0.0625rem solid var(--border)",
           borderRadius: "0.5rem",
@@ -130,10 +134,15 @@ export function ClarificationModal({ question, options, onSelect, onDismiss }: P
           {/* Option chips */}
           {options.length > 0 && (
             <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-              {options.map((option) => (
+              {options.map((option, index) => {
+                const value = typeof option === "string" ? option : option.value;
+                const label = typeof option === "string" ? option : option.label;
+                const description = typeof option === "string" ? undefined : option.description;
+                return (
                 <button
-                  key={option}
-                  onClick={() => onSelect(option)}
+                  key={value}
+                  ref={index === 0 ? firstOptionRef : undefined}
+                  onClick={() => onSelect(value)}
                   style={{
                     textAlign: "left",
                     padding: "0.6875rem 0.875rem",
@@ -164,12 +173,17 @@ export function ClarificationModal({ question, options, onSelect, onDismiss }: P
                   <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, opacity: 0.5 }}>
                     <path d="M1 6h10M7 2l4 4-4 4" />
                   </svg>
-                  {option}
+                  <span>
+                    {label}
+                    {description && <span style={{ display: "block", marginTop: "0.25rem", color: "var(--text-tertiary)", fontSize: "0.75rem", fontWeight: 400 }}>{description}</span>}
+                  </span>
                 </button>
-              ))}
+              );
+              })}
             </div>
           )}
 
+          {allowCustomQuery && <>
           {/* Divider */}
           <div style={{ display: "flex", alignItems: "center", gap: "0.625rem" }}>
             <div style={{ flex: 1, height: "0.0625rem", background: "var(--border)" }} />
@@ -224,6 +238,7 @@ export function ClarificationModal({ question, options, onSelect, onDismiss }: P
               Trace
             </button>
           </form>
+          </>}
       </m.div>
     </m.div>
   );
