@@ -902,6 +902,7 @@ export default function Home() {
         {clarification?.needsClarification && (
           <ClarificationModal
             key="clarification-modal"
+            returnFocusRef={landingSearchRef}
             question={
               clarification.question ??
               "What research area are you interested in?"
@@ -920,6 +921,7 @@ export default function Home() {
         {disambiguation.length > 0 && !isSearching && (
           <ClarificationModal
             key="seed-paper-modal"
+            returnFocusRef={landingSearchRef}
             question="Which paper would you like to start from?"
             options={disambiguation.map((candidate) => ({
               value: candidate.openalexId,

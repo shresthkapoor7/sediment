@@ -1,24 +1,63 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import { m } from "framer-motion";
 
 interface Props {
   question: string;
   options: (string | { value: string; label: string; description?: string })[];
   allowCustomQuery?: boolean;
+  returnFocusRef?: RefObject<HTMLElement | null>;
   onSelect: (query: string) => void;
   onDismiss: () => void;
 }
 
-export function ClarificationModal({ question, options, onSelect, onDismiss, allowCustomQuery = true }: Props) {
+export function ClarificationModal({ question, options, onSelect, onDismiss, allowCustomQuery = true, returnFocusRef }: Props) {
   const [customValue, setCustomValue] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const firstOptionRef = useRef<HTMLButtonElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    (inputRef.current ?? firstOptionRef.current)?.focus();
-  }, []);
+    const previousFocus = document.activeElement;
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+    const focusableElements = () => Array.from(dialog.querySelectorAll<HTMLElement>(
+      'button:not(:disabled), input:not(:disabled), textarea:not(:disabled), select:not(:disabled), a[href], [tabindex]:not([tabindex="-1"])',
+    )).filter((element) => element.tabIndex >= 0 && element.getClientRects().length > 0);
+    const containTab = (event: KeyboardEvent) => {
+      if (event.key !== "Tab") return;
+      const elements = focusableElements();
+      const first = elements[0];
+      const last = elements[elements.length - 1];
+      if (!first || !last) {
+        event.preventDefault();
+        dialog.focus();
+      } else if (!dialog.contains(document.activeElement)) {
+        event.preventDefault();
+        (event.shiftKey ? last : first).focus();
+      } else if (event.shiftKey && (document.activeElement === first || document.activeElement === dialog)) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    (inputRef.current ?? firstOptionRef.current ?? dialog).focus({ preventScroll: true });
+    document.addEventListener("keydown", containTab);
+    return () => {
+      document.removeEventListener("keydown", containTab);
+      if (previousFocus instanceof HTMLElement && previousFocus.isConnected) {
+        previousFocus.focus({ preventScroll: true });
+      }
+      // The search input can lose focus when disabled during the request.
+      if (document.activeElement === document.body || dialog.contains(document.activeElement)) {
+        const trigger = returnFocusRef?.current;
+        (trigger?.querySelector<HTMLElement>("input, button") ?? trigger)?.focus({ preventScroll: true });
+      }
+    };
+  }, [returnFocusRef]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -62,6 +101,8 @@ export function ClarificationModal({ question, options, onSelect, onDismiss, all
         exit={{ opacity: 0, y: 16, scale: 0.97 }}
         transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
         role="dialog"
+        ref={dialogRef}
+        tabIndex={-1}
         aria-modal="true"
         aria-labelledby="clarify-question"
         onClick={(e) => e.stopPropagation()}
@@ -200,7 +241,6 @@ export function ClarificationModal({ question, options, onSelect, onDismiss, all
               value={customValue}
               onChange={(e) => setCustomValue(e.target.value)}
               placeholder="e.g. attention mechanism in transformers"
-              autoFocus
               style={{
                 flex: 1,
                 height: "2.25rem",
