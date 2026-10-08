@@ -90,8 +90,9 @@ Claude calls per case. Limits are 4 target calls per standard trace, 10 per deep
 trace (including any fallback), and 1 per notes-only case: **at most 44 Claude
 calls and 8 Astra calls**. Normal deep traces can finish sooner. SDK retries are
 disabled. Target calls have a 90-second client timeout, and each complete trace
-has a 360-second timeout. Target output limits remain production defaults
-(1,024 tokens for JSON calls; 1,600 per deep-agent iteration). Each judge call
+has a 360-second timeout. Target output limits use production defaults for
+`claude-haiku-5-5`: at least 4,096 tokens for JSON calls and 8,192 per deep-agent
+iteration, as set by `_generation_options`. Each judge call
 has a 120-second total timeout and a 4,096-output-token limit. These are bounds,
 not a dollar budget.
 
