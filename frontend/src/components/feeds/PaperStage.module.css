@@ -197,3 +197,6 @@
 .composer { padding: 16px 54px 16px 50px; border: 1px solid var(--border); border-radius: 18px; background: var(--node-bg); }
 .composer:focus-within { border-color: var(--border-hover); }
 .composer textarea, .composer textarea:focus-visible { padding: 0 8px 0 0; min-height: 20px; max-height: 148px; border: 0; border-radius: 0; background: transparent; scrollbar-width: thin; }
+
+.chatLog { scrollbar-width: none; }
+.chatLog::-webkit-scrollbar { display: none; }
