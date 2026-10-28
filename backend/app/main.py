@@ -95,7 +95,8 @@ class RequestSizeMiddleware:
         async def receive_with_cached_body():
             nonlocal body_delivered
             if body_delivered:
-                return {"type": "http.disconnect"}
+                # Defer to the real channel so streaming responses only see actual client disconnects.
+                return await receive()
             body_delivered = True
             return {"type": "http.request", "body": body, "more_body": False}
 
