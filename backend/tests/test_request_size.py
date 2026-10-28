@@ -3,7 +3,7 @@ from __future__ import annotations
 import unittest
 from unittest.mock import AsyncMock, patch
 
-from app.main import app, settings
+from app.main import RequestSizeMiddleware, app, settings
 
 
 class RequestSizeMiddlewareTests(unittest.IsolatedAsyncioTestCase):
@@ -99,6 +99,33 @@ class RequestSizeMiddlewareTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(messages[0]["status"], 404)
         db.get_graph.assert_awaited_once()
+
+    async def test_receive_after_cached_body_defers_to_client_channel(self) -> None:
+        upstream = [
+            {"type": "http.request", "body": b"{}", "more_body": False},
+            {"type": "http.disconnect"},
+        ]
+        upstream_calls = 0
+        received: list[dict] = []
+
+        async def receive() -> dict:
+            nonlocal upstream_calls
+            upstream_calls += 1
+            return upstream.pop(0)
+
+        async def inner_app(scope, inner_receive, send) -> None:
+            received.append(await inner_receive())
+            received.append(await inner_receive())
+
+        await RequestSizeMiddleware(inner_app)(
+            {"type": "http", "method": "POST", "path": "/api/chat/global/stream", "headers": []},
+            receive,
+            AsyncMock(),
+        )
+
+        self.assertEqual(received[0]["body"], b"{}")
+        self.assertEqual(received[1]["type"], "http.disconnect")
+        self.assertEqual(upstream_calls, 2)
 
 
 if __name__ == "__main__":
