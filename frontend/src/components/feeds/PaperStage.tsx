@@ -64,6 +64,23 @@ export function PaperStage({ papers, onRemove, onClear, onOpen }: {
     scroller.scrollTo({ left: cards[index].offsetLeft - cards[0].offsetLeft, behavior: smooth && !window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "smooth" : "instant" });
   }
   function move(direction: number) { focusPaper(activeIndex + direction); }
+  const focusFrame = useRef<number | null>(null);
+  function syncFocusBlur() {
+    focusFrame.current = null;
+    const scroller = viewport.current;
+    const cards = scroller ? Array.from(scroller.querySelectorAll<HTMLElement>("article")) : [];
+    if (!scroller || !cards.length) return;
+    // Read every position before writing so the loop does not force repeated layouts.
+    const center = scroller.scrollLeft + scroller.clientWidth / 2;
+    const step = cards.length > 1 ? cards[1].offsetLeft - cards[0].offsetLeft : cards[0].offsetWidth;
+    const distances = cards.map(card => Math.min(1, Math.abs(card.offsetLeft + card.offsetWidth / 2 - center) / step));
+    cards.forEach((card, index) => card.style.setProperty("--focus-distance", distances[index].toFixed(3)));
+  }
+  function scheduleFocusBlur() {
+    if (focusFrame.current === null) focusFrame.current = requestAnimationFrame(syncFocusBlur);
+  }
+  useEffect(() => { if (expanded) scheduleFocusBlur(); });
+  useEffect(() => () => { if (focusFrame.current !== null) cancelAnimationFrame(focusFrame.current); }, []);
   const [origin, setOrigin] = useState<CSSProperties>({});
 
   useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
@@ -121,6 +138,7 @@ export function PaperStage({ papers, onRemove, onClear, onOpen }: {
         {chatMode && activePaper && <span className={styles.stackCount} role="status" aria-live="polite" aria-label={`Paper ${activeIndex + 1} of ${papers.length}`}>{activeIndex + 1} / {papers.length}</span>}
         <div ref={viewport} className={styles.viewport} onScroll={() => {
           if (chatMode) return;
+          scheduleFocusBlur();
           const scroller = viewport.current;
           const cards = scroller?.querySelectorAll<HTMLElement>("article");
           if (!scroller || !cards?.length) return;

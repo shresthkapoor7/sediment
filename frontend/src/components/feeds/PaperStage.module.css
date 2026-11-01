@@ -80,8 +80,9 @@
 .viewport { overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; scrollbar-width: none; }
 .viewport::-webkit-scrollbar { display: none; }
 .papers { position: relative; width: max-content; margin: 0; padding-inline: calc((100vw - var(--card-width)) / 2); transform: none; transition: none; }
-.paper { scroll-snap-align: center; opacity: 1; filter: blur(1.5px); transition: filter .25s, border-color .25s; }
-.paper[data-active="true"] { filter: none; }
+/* --focus-distance is scroll-linked (0 centered, 1 one card away) so blur eases with the swipe instead of flipping. */
+.paper { scroll-snap-align: center; opacity: 1; filter: blur(calc(var(--focus-distance, 1) * 1.5px)); transition: border-color .25s, box-shadow .25s; }
+.paper[data-active="true"] { --focus-distance: 0; }
 .navigation { position: absolute; inset: 0 22px; display: flex; justify-content: space-between; align-items: center; margin: 0; pointer-events: none; }
 .navigation button { pointer-events: auto; display: grid; place-items: center; width: 40px; height: 40px; box-shadow: 0 2px 8px #0002; }
 .paperActions .openPaper { display: flex; justify-content: space-between; gap: 24px; min-width: 140px; padding: 10px 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg-secondary); color: var(--text-primary); font-weight: 500; }
