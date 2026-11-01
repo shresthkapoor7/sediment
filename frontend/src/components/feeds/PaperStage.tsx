@@ -54,6 +54,7 @@ export function PaperStage({ papers, onRemove, onClear, onOpen }: {
     setStackAnchor(0);
     setMessages([]);
   }
+  if (!papers.length && Object.keys(drafts).length) setDrafts({});
   function focusPaper(index: number, smooth = true) {
     const paper = papers[index];
     const scroller = viewport.current;
