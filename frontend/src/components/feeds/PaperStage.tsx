@@ -47,6 +47,13 @@ export function PaperStage({ papers, onRemove, onClear, onOpen }: {
   useEffect(() => {
     if (chatLog.current) chatLog.current.scrollTop = chatLog.current.scrollHeight;
   }, [messages]);
+  // An emptied collection ends the conversation; newly marked papers start fresh.
+  if (!papers.length && (chatMode || gathering || stackAnchor || messages.length)) {
+    setChatMode(false);
+    setGathering(false);
+    setStackAnchor(0);
+    setMessages([]);
+  }
   function focusPaper(index: number, smooth = true) {
     const paper = papers[index];
     const scroller = viewport.current;
