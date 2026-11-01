@@ -115,3 +115,6 @@
 @media (prefers-reduced-motion: reduce) {
   .searchAnimation > span { animation: none; transform: translateX(var(--paper-x)) rotate(var(--paper-angle)); }
 }
+
+.cardActions { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+.card.cardMarked { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }

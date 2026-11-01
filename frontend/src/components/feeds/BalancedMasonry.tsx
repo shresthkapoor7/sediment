@@ -3,7 +3,7 @@
 import { ReactNode, useLayoutEffect, useRef } from "react";
 
 /** Natural card sizes, with bounded previews adjusted to a shared column bottom. */
-export function BalancedMasonry({ children, className }: { children: ReactNode; className: string }) {
+export function BalancedMasonry({ children, className, items }: { children: ReactNode; className: string; items: readonly unknown[] }) {
   const container = useRef<HTMLDivElement>(null);
 
   useLayoutEffect(() => {
@@ -117,7 +117,9 @@ export function BalancedMasonry({ children, className }: { children: ReactNode; 
       root.removeEventListener("load", schedule, true);
       root.removeEventListener("error", schedule, true);
     };
-  }, [children]);
+  // Selection and bookmark controls rerender children without changing the papers.
+  // Remeasuring then can trigger browser scroll anchoring during temporary sizes.
+  }, [items]);
 
   return <div ref={container} className={className}>{children}</div>;
 }
