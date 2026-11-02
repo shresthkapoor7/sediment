@@ -1138,172 +1138,60 @@ html[data-theme="dark"] .changelog-page {
   gap: 1.5rem;
 }
 
-.landing-hero-grid {
+/* Home backdrop — a faint ASCII ridge behind the hero. A brighter copy of the same glyphs is
+   revealed in a soft circle around the pointer. */
+.landing-ascii {
+  --mx: 50%;
+  --my: 30%;
+  --glow: 0;
   position: absolute;
   inset: 0;
-  z-index: -2;
-  opacity: 0.28;
-  background-image:
-    linear-gradient(to right, color-mix(in srgb, var(--border) 72%, transparent) 1px, transparent 1px),
-    linear-gradient(to bottom, color-mix(in srgb, var(--border) 58%, transparent) 1px, transparent 1px);
-  background-size: 4rem 4rem;
-  -webkit-mask-image: linear-gradient(to bottom, transparent, black 12%, black 60%, transparent);
-  mask-image: linear-gradient(to bottom, transparent, black 12%, black 60%, transparent);
-}
-
-/* Sediment strata — horizontal layers that accumulate toward the base,
-   aligned to the grid and taking over as the grid fades out at the bottom. */
-.landing-hero-shell::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: -1;
+  z-index: 0;
+  overflow: hidden;
   pointer-events: none;
-  background-image: repeating-linear-gradient(
-    to bottom,
-    color-mix(in srgb, var(--border) 82%, transparent) 0,
-    color-mix(in srgb, var(--border) 82%, transparent) 0.0625rem,
-    transparent 0.0625rem,
-    transparent 4rem
-  );
-  -webkit-mask-image: linear-gradient(to bottom, transparent 46%, rgba(0, 0, 0, 0.4) 72%, rgba(0, 0, 0, 0.9) 100%);
-  mask-image: linear-gradient(to bottom, transparent 46%, rgba(0, 0, 0, 0.4) 72%, rgba(0, 0, 0, 0.9) 100%);
+  user-select: none;
 }
 
-/* Lineage graph — ghosted nodes and citation edges converging inward from
-   both sides, a live preview of what Sediment builds. Hidden behind the
-   centred content via a radial mask, revealed in the empty margins. */
-.landing-hero-graph {
+.landing-ascii-art {
+  --ascii-scale: 0.7;
+  position: absolute;
+  bottom: -6vh;
+  right: 0;
+  /* size to the text, not the box: a shrink-to-fit width would cap at the container and clip the
+     art from the right, which shows its blank left edge on narrow screens */
+  width: max-content;
+  margin: 0;
+  font-family: var(--font-mono), ui-monospace, monospace;
+  /* 180 columns of 0.6em glyphs span the width, 71 rows span the height; at scale 1 the ridge
+     covers the box, so scale down to leave room, anchored to the bottom right */
+  font-size: max(calc(0.926vw * var(--ascii-scale)), calc(1.408vh * var(--ascii-scale)));
+  line-height: 1;
+  /* widen the columns (never the height) so the 180 columns reach at least the full width */
+  letter-spacing: max(0px, calc(100vw / 180 - 0.6em));
+  white-space: pre;
+  color: var(--text-primary);
+  opacity: 0.13;
+  /* fade the edges so the ridge dissolves into the page */
+  -webkit-mask-image: radial-gradient(90% 85% at 60% 85%, #000 45%, transparent 100%);
+  mask-image: radial-gradient(90% 85% at 60% 85%, #000 45%, transparent 100%);
+}
+
+.landing-ascii-lit {
   position: absolute;
   inset: 0;
-  z-index: -1;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-  overflow: visible;
-  -webkit-mask-image: radial-gradient(68% 116% at 50% 44%, transparent 33%, rgba(0, 0, 0, 0.55) 60%, black 86%);
-  mask-image: radial-gradient(68% 116% at 50% 44%, transparent 33%, rgba(0, 0, 0, 0.55) 60%, black 86%);
+  opacity: calc(var(--glow) * 0.9);
+  transition: opacity 0.6s;
+  -webkit-mask-image: radial-gradient(200px circle at var(--mx) var(--my), #000, transparent);
+  mask-image: radial-gradient(200px circle at var(--mx) var(--my), #000, transparent);
 }
 
-.landing-hero-graph-edge {
-  fill: none;
-  stroke: var(--edge-color);
-  stroke-width: 1.1;
-  vector-effect: non-scaling-stroke;
+.landing-ascii-lit .landing-ascii-art {
+  opacity: 0.32;
 }
 
-.landing-hero-graph-edge.is-accent {
-  stroke: color-mix(in srgb, var(--accent) 55%, var(--edge-color));
-}
-
-.landing-hero-graph-glyph {
-  fill: none;
-  stroke: var(--border-hover);
-  stroke-width: 1.3;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  vector-effect: non-scaling-stroke;
-}
-
-.landing-hero-graph-glyph.is-accent {
-  stroke: color-mix(in srgb, var(--accent) 60%, var(--border-hover));
-}
-
-.landing-hero-graph-glyph-dot {
-  fill: var(--border-hover);
-}
-
-.landing-hero-graph-glyph-dot.is-accent {
-  fill: var(--accent);
-}
-
-.landing-hero-graph-node {
-  fill: var(--border-hover);
-}
-
-.landing-hero-graph-node.is-accent {
-  fill: var(--accent);
-}
-
-.landing-hero-graph-card {
-  fill: var(--node-bg);
-  stroke: var(--border-hover);
-  stroke-width: 1;
-  vector-effect: non-scaling-stroke;
-}
-
-.landing-hero-graph-card.is-accent {
-  stroke: var(--accent);
-}
-
-.landing-hero-graph-year {
-  fill: var(--text-tertiary);
-  font-family: var(--font-mono), monospace;
-  font-size: 15px;
-  letter-spacing: 0.06em;
-}
-
-/* Marginalia — faint field-note remarks and mini note cards */
-.landing-hero-graph-remark {
-  fill: var(--text-tertiary);
-  font-family: var(--font-mono), monospace;
-  font-size: 13px;
-  letter-spacing: 0.02em;
-}
-
-.landing-hero-graph-remark.is-accent {
-  fill: color-mix(in srgb, var(--accent) 68%, var(--text-tertiary));
-}
-
-.landing-hero-graph-note {
-  fill: var(--node-bg);
-  stroke: var(--border-hover);
-  stroke-width: 1;
-  vector-effect: non-scaling-stroke;
-}
-
-.landing-hero-graph-note-bar {
-  fill: var(--accent);
-}
-
-.landing-hero-graph-note-bar.is-amber {
-  fill: var(--cat-amber);
-}
-
-.landing-hero-graph-note-bar.is-green {
-  fill: var(--cat-green);
-}
-
-.landing-hero-graph-note-bar.is-rose {
-  fill: var(--cat-rose);
-}
-
-.landing-hero-graph-eq {
-  fill: color-mix(in srgb, var(--text-secondary) 42%, var(--text-tertiary));
-  font-family: var(--font-serif), serif;
-  font-style: italic;
-  font-size: 26px;
-  letter-spacing: 0.01em;
-}
-
-.landing-hero-graph-eq.is-accent {
-  fill: color-mix(in srgb, var(--accent) 60%, var(--text-tertiary));
-}
-
-.landing-hero-graph-note-line {
-  fill: var(--border-hover);
-}
-
-.landing-hero-graph-note-tag {
-  fill: var(--text-tertiary);
-  font-family: var(--font-mono), monospace;
-  font-size: 9px;
-  letter-spacing: 0.14em;
-}
-
-@media (max-width: 60rem) {
-  .landing-hero-graph {
-    display: none;
+@media (prefers-reduced-motion: reduce) {
+  .landing-ascii-lit {
+    transition: none;
   }
 }
 
@@ -2361,10 +2249,6 @@ html[data-theme="dark"] .changelog-page {
 
   .landing-hero-content {
     gap: 1.5rem;
-  }
-
-  .landing-hero-grid {
-    background-size: 2.5rem 2.5rem;
   }
 
   .landing-hero-title {
