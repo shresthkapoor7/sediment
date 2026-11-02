@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useRef, type CSSProperties } from "react";
 import { m, AnimatePresence, useReducedMotion } from "framer-motion";
 import { SearchInput } from "@/components/SearchInput";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -10,6 +10,7 @@ import { LoadingLogoMark, LogoMark } from "@/components/LogoMark";
 import { AppHeader } from "@/components/AppHeader";
 import { AsciiBackdrop } from "@/components/AsciiBackdrop";
 import { LandingBrain } from "@/components/LandingBrain";
+import { GitHubMark } from "@/components/GitHubMark";
 
 // Graph view + clarification modal are never shown on the landing page — load their
 // chunks (which pull in the chat panel, paper reader, react-markdown and KaTeX) on demand.
@@ -1444,8 +1445,21 @@ export default function Home() {
                       </span>
                     </h1>
                     <p className="landing-hero-description">
-                      Start with a concept or paper. Sediment maps the ideas,
-                      citations, and breakthroughs that made it possible.
+                      Sediment is an{" "}
+                      <a className="landing-brand" href={GITHUB_REPO_URL} target="_blank" rel="noreferrer">
+                        <GitHubMark className="landing-brand-icon" />
+                        open-source
+                      </a>
+                      , AI-powered research workspace. Explore papers, trace citation lineage, and synthesize
+                      breakthroughs on an infinite canvas, with data from{" "}
+                      <a className="landing-brand" href="https://openalex.org" target="_blank" rel="noreferrer">
+                        <span
+                          className="landing-brand-icon landing-brand-mask"
+                          style={{ "--icon": "url(/openalex.svg)" } as CSSProperties}
+                        />
+                        OpenAlex
+                      </a>
+                      .
                     </p>
                   </m.div>
 

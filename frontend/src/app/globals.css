@@ -1268,7 +1268,7 @@ html[data-theme="dark"] .changelog-page {
   position: relative;
   z-index: 1;
   width: 100%;
-  max-width: 45rem;
+  max-width: 50rem;
   transform: translateY(1.5rem);
   display: flex;
   flex-direction: column;
@@ -1335,7 +1335,7 @@ html[data-theme="dark"] .changelog-page {
 }
 
 .landing-hero-copy {
-  max-width: 43rem;
+  max-width: 50rem;
   text-align: center;
 }
 
@@ -1413,16 +1413,43 @@ html[data-theme="dark"] .changelog-page {
 }
 
 .landing-hero-description {
-  max-width: 30rem;
-  margin: 1.375rem auto 0;
+  max-width: 50rem;
+  margin: 1rem auto 0;
   color: var(--text-secondary);
-  font-size: 1rem;
-  line-height: 1.55;
-  letter-spacing: -0.01em;
+  font-size: clamp(14.5px, 1.3vw, 16.5px);
+  line-height: 1.65;
+  text-wrap: balance;
+}
+
+/* product names carry their mark inline and read brighter than the copy around them */
+.landing-brand {
+  color: var(--text-primary);
+  white-space: nowrap;
+  transition: color 0.15s;
+}
+
+a.landing-brand:hover {
+  color: var(--text-secondary);
+}
+
+.landing-brand-icon {
+  display: inline-block;
+  flex-shrink: 0;
+  width: 0.92em;
+  height: 0.92em;
+  margin-right: 0.3em;
+  vertical-align: -0.14em;
+}
+
+.landing-brand-mask {
+  background: currentColor;
+  -webkit-mask: var(--icon) no-repeat center / contain;
+  mask: var(--icon) no-repeat center / contain;
 }
 
 .landing-search-zone {
   width: 100%;
+  max-width: 45rem;
   display: flex;
   flex-direction: column;
   align-items: center;
