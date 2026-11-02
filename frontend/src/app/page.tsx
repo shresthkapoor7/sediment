@@ -22,6 +22,11 @@ const ClarificationModal = dynamic(
   () => import("@/components/ClarificationModal").then((mod) => mod.ClarificationModal),
   { ssr: false },
 );
+// The feed under the hero is below the fold — keep it off the critical path.
+const FeedsView = dynamic(
+  () => import("@/components/feeds/FeedsView").then((mod) => mod.FeedsView),
+  { ssr: false },
+);
 import {
   APIError,
   APP_VERSION,
@@ -1472,6 +1477,7 @@ export default function Home() {
                       isSearching={isSearching || isExpanding || isClarifying}
                       traceMode={traceMode}
                       onTraceModeChange={setTraceMode}
+                      showExamples={false}
                     />
                   </div>
 
@@ -1508,6 +1514,9 @@ export default function Home() {
                 </m.div>
               </section>
 
+              <section className="landing-feed" aria-label="Paper feed">
+                <FeedsView embedded />
+              </section>
             </m.div>
           ) : isSearching || isRestoring || isClarifying ? (
             /* Loading state */

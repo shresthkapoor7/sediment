@@ -15,9 +15,11 @@ interface SearchInputProps {
   isSearching: boolean;
   traceMode: "standard" | "deep";
   onTraceModeChange: (mode: "standard" | "deep") => void;
+  /** The example chips and the trace-mode selector under the field. */
+  showExamples?: boolean;
 }
 
-export function SearchInput({ onSearch, isSearching, traceMode, onTraceModeChange }: SearchInputProps) {
+export function SearchInput({ onSearch, isSearching, traceMode, onTraceModeChange, showExamples = true }: SearchInputProps) {
   const [query, setQuery] = useState("");
   const [modeOpen, setModeOpen] = useState(false);
 
@@ -142,6 +144,7 @@ export function SearchInput({ onSearch, isSearching, traceMode, onTraceModeChang
       </div>
 
       {/* Examples */}
+      {showExamples && (
       <m.div
         className="trace-search-examples"
         initial={{ opacity: 0 }}
@@ -335,6 +338,7 @@ export function SearchInput({ onSearch, isSearching, traceMode, onTraceModeChang
           </AnimatePresence>
         </div>
       </m.div>
+      )}
     </m.form>
   );
 }

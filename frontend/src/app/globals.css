@@ -1101,6 +1101,8 @@ html[data-theme="dark"] .landing-shell:not(.graph-loading-shell) {
   .landing-hero-shell {
     justify-content: flex-start;
     padding-top: clamp(8rem, 20vh, 13rem);
+    /* stop short of the full height so the top of the feed peeks in as a scroll cue */
+    min-height: calc(100% - 8rem);
   }
 
   .landing-hero-content {
@@ -1445,6 +1447,15 @@ a.landing-brand:hover {
   background: currentColor;
   -webkit-mask: var(--icon) no-repeat center / contain;
   mask: var(--icon) no-repeat center / contain;
+}
+
+/* The feed under the hero: the Feeds view, sitting in the home palette. */
+.landing-feed {
+  width: 100%;
+  max-width: 71.25rem;
+  margin: 0 auto;
+  padding: 0 2rem 6rem;
+  box-sizing: border-box;
 }
 
 .landing-search-zone {
