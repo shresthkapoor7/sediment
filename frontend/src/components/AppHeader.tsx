@@ -478,53 +478,6 @@ export function AppHeader({
               </Link>
             )}
 
-            {!timelineData && (
-              <Link className="app-header-labeled-action feeds-nav-link" href="/discovery" aria-label="Discovery" title="Discovery">
-                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" aria-hidden="true"><path d="M5 8h3M8 4v8M8 4h3M8 12h3" /><rect x="1" y="6" width="4" height="4" rx=".75" /><rect x="11" y="2" width="4" height="4" rx=".75" /><rect x="11" y="10" width="4" height="4" rx=".75" /></svg>
-                <span className="app-header-action-label">Discovery <span className="feeds-new">New</span></span>
-              </Link>
-            )}
-
-            {!timelineData && (
-              <Link
-                className="app-header-labeled-action"
-                href="/changelog"
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.375rem",
-                  padding: "0 0.75rem",
-                  height: "2rem",
-                  boxSizing: "border-box",
-                  background: "none",
-                  border: "0.0625rem solid var(--border)",
-                  borderRadius: "0.4375rem",
-                  color: "var(--text-secondary)",
-                  fontSize: "0.75rem",
-                  fontFamily: "var(--font-sans), sans-serif",
-                  fontWeight: 500,
-                  textDecoration: "none",
-                  transitionProperty: "border-color, color, background",
-                  transitionDuration: "0.15s",
-                }}
-              >
-                <svg
-                  width="13"
-                  height="13"
-                  viewBox="0 0 16 16"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M3 2.5h7l3 3v8H3z" />
-                  <path d="M10 2.5v3h3M5.5 8h5M5.5 10.5h5" />
-                </svg>
-                <span className="app-header-action-label">Changelog</span>
-              </Link>
-            )}
-
             {/* Credits indicator */}
             <div
               className="app-header-credit"
@@ -627,8 +580,8 @@ export function AppHeader({
               </div>
             </div>
 
-            {/* Settings / graph session actions */}
-            <div style={{ position: "relative" }}>
+            {/* Graph session actions (Settings is hidden on the home screen) */}
+            <div style={{ position: "relative", display: timelineData ? undefined : "none" }}>
               <button
                 className={`app-header-labeled-action${timelineData ? " app-header-graph-icon-action" : ""}`}
                 onClick={() => {
@@ -903,50 +856,6 @@ export function AppHeader({
                 )}
               </button>
             )}
-
-            <a
-              className="app-header-labeled-action app-header-github-action"
-              href={GITHUB_REPO_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label="View on GitHub"
-              style={{
-                display: timelineData ? "none" : "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                width: "2rem",
-                height: "2rem",
-                borderRadius: "0.4375rem",
-                border: "0.0625rem solid var(--border)",
-                color: "var(--text-secondary)",
-                transition: "border-color 0.15s, color 0.15s",
-                flexShrink: 0,
-              }}
-              onMouseEnter={(e) => {
-                (e.currentTarget as HTMLAnchorElement).style.borderColor =
-                  "var(--accent)";
-                (e.currentTarget as HTMLAnchorElement).style.color =
-                  "var(--accent)";
-              }}
-              onMouseLeave={(e) => {
-                (e.currentTarget as HTMLAnchorElement).style.borderColor =
-                  "var(--border)";
-                (e.currentTarget as HTMLAnchorElement).style.color =
-                  "var(--text-secondary)";
-              }}
-            >
-              <svg
-                width="15"
-                height="15"
-                viewBox="0 0 24 24"
-                fill="currentColor"
-              >
-                <path d="M12 2C6.477 2 2 6.477 2 12c0 4.418 2.865 8.166 6.839 9.489.5.092.682-.217.682-.482 0-.237-.009-.868-.013-1.703-2.782.604-3.369-1.342-3.369-1.342-.454-1.155-1.11-1.463-1.11-1.463-.908-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.831.092-.646.35-1.086.636-1.336-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.029-2.683-.103-.253-.446-1.27.098-2.647 0 0 .84-.269 2.75 1.025A9.578 9.578 0 0 1 12 6.836a9.59 9.59 0 0 1 2.504.337c1.909-1.294 2.747-1.025 2.747-1.025.546 1.377.203 2.394.1 2.647.64.699 1.028 1.592 1.028 2.683 0 3.842-2.339 4.687-4.566 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.741 0 .267.18.578.688.48C19.138 20.163 22 16.418 22 12c0-5.523-4.477-10-10-10z" />
-              </svg>
-              {!timelineData && (
-                <span className="app-header-action-label">GitHub</span>
-              )}
-            </a>
           </div>
 
           {/* Always-visible: theme toggle + mobile hamburger */}
