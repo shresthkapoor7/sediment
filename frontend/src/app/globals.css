@@ -1343,15 +1343,73 @@ html[data-theme="dark"] .changelog-page {
   margin: 0;
   color: var(--text-primary);
   font-family: var(--font-sans), sans-serif;
-  font-size: clamp(2rem, 3.6vw, 3.25rem);
+  font-size: clamp(1.75rem, 4.8vw, 2.75rem);
   font-weight: 600;
   letter-spacing: -0.035em;
-  line-height: 1.04;
+  line-height: 1.12;
+  text-wrap: balance;
 }
 
-.landing-hero-title em {
-  color: var(--text-secondary);
-  font-style: normal;
+/* One line once there is room, centered even when wider than its column, as muzzle's headline;
+   narrower screens wrap into balanced lines. */
+@media (min-width: 43.75rem) {
+  .landing-hero-title {
+    position: relative;
+    left: 50%;
+    width: max-content;
+    transform: translateX(-50%);
+    white-space: nowrap;
+  }
+}
+
+/* keeps the last word, the tree and the period together when the headline wraps */
+.landing-title-tail {
+  white-space: nowrap;
+}
+
+/* The hemispheres draw in, then the folds light up one after another shortly after load, like
+   muzzle's switch flipping on. The resting style is the lit state, so with reduced motion (or no
+   animation) it simply shows lit. */
+.landing-brain {
+  display: inline-block;
+  width: 0.95em;
+  height: 0.81em;
+  margin: 0 0.04em;
+  vertical-align: -0.1em;
+  overflow: visible;
+  color: var(--text-primary);
+  filter: drop-shadow(0 0 0.2em color-mix(in srgb, var(--text-primary) 40%, transparent));
+  animation: landing-brain-glow 0.8s ease 1.2s both;
+}
+
+.landing-brain-line {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 1 2;
+  animation: landing-brain-line 0.5s ease var(--delay, 1s) both;
+}
+
+@keyframes landing-brain-line {
+  from {
+    stroke-dashoffset: 1;
+    stroke: var(--text-tertiary);
+  }
+}
+
+@keyframes landing-brain-glow {
+  from {
+    filter: drop-shadow(0 0 0 transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-brain,
+  .landing-brain-line {
+    animation: none;
+  }
 }
 
 .landing-hero-description {

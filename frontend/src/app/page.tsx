@@ -9,6 +9,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { LoadingLogoMark, LogoMark } from "@/components/LogoMark";
 import { AppHeader } from "@/components/AppHeader";
 import { AsciiBackdrop } from "@/components/AsciiBackdrop";
+import { LandingBrain } from "@/components/LandingBrain";
 
 // Graph view + clarification modal are never shown on the landing page — load their
 // chunks (which pull in the chat panel, paper reader, react-markdown and KaTeX) on demand.
@@ -1437,9 +1438,10 @@ export default function Home() {
                     className="landing-hero-copy"
                   >
                     <h1 className="landing-hero-title">
-                      Follow the work
-                      <br />
-                      <em>beneath the work.</em>
+                      Canvas for modern{" "}
+                      <span className="landing-title-tail">
+                        research <LandingBrain />.
+                      </span>
                     </h1>
                     <p className="landing-hero-description">
                       Start with a concept or paper. Sediment maps the ideas,
