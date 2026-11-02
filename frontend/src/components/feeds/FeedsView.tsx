@@ -7,6 +7,7 @@ import { PaperStage } from "@/components/feeds/PaperStage";
 import { FeedBackdrop } from "@/components/feeds/FeedBackdrop";
 import { FeedPaperDetail } from "@/components/feeds/FeedPaperDetail";
 import { FeedPaperImage } from "@/components/feeds/FeedPaperImage";
+import { InterestsMenu } from "@/components/feeds/InterestsMenu";
 import { useFeedBookmarks } from "@/lib/feed-bookmarks";
 import { useEffect, useRef, useState } from "react";
 import { BalancedMasonry } from "@/components/feeds/BalancedMasonry";
@@ -149,7 +150,7 @@ export function FeedsView({ embedded = false }: { embedded?: boolean }) {
       </section>}
       {error && <div className={styles.error} role="alert"><p>{error}</p>{(!feed || needsReload) && <button disabled={!!pending} onClick={reload}>Reload feed</button>}</div>}
       {feed && <section className={styles.interests} aria-label="Your research interests">
-        <div className={styles.interestHeading}>{editing ? <label htmlFor="interests">What are you interested in?</label> : <strong>Your interests</strong>}</div>
+        <div className={styles.interestHeading}>{editing ? <label htmlFor="interests">What are you interested in?</label> : <InterestsMenu />}</div>
         {editing ? <form onSubmit={event => { event.preventDefault(); void update("interests"); }}>
           <textarea id="interests" value={interests} onChange={event => setInterests(event.target.value)} placeholder="Machine learning, the neuroscience of memory, climate science…" maxLength={600} rows={2} required disabled={disabled} aria-describedby="interest-help" />
           <div className={styles.formBottom}><span id="interest-help">Add up to three topics, separated by commas.</span><div className={styles.actions}>{feed.interests && <button type="button" className={styles.secondary} disabled={disabled} onClick={() => { setInterests(feed.interests); setDomain(feed.domain); setEditing(false); }}>Cancel</button>}<button className={styles.primary} disabled={!interests.trim() || disabled} type="submit">{pending === "interests" ? "Finding papers…" : feed.interests ? "Update interests" : "Create my feed"}</button></div></div>
