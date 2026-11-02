@@ -4,7 +4,6 @@ import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useState, useCallback, useEffect, useRef, type CSSProperties } from "react";
 import { m, AnimatePresence, useReducedMotion } from "framer-motion";
-import { SearchInput } from "@/components/SearchInput";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { LoadingLogoMark, LogoMark } from "@/components/LogoMark";
 import { AppHeader } from "@/components/AppHeader";
@@ -1410,6 +1409,9 @@ export default function Home() {
           )}
         </AnimatePresence>
 
+        {/* Fixed behind the scrolling home page, so the feed scrolls over the ridge */}
+        {!timelineData && !isSearching && !isRestoring && <AsciiBackdrop />}
+
         <AnimatePresence mode="wait">
           {!timelineData && !isSearching && !isRestoring ? (
             /* Landing state */
@@ -1431,8 +1433,6 @@ export default function Home() {
               }}
             >
               <section className="landing-hero-shell">
-                <AsciiBackdrop />
-
                 <div className="landing-hero-content">
                   <m.div
                     initial={{ opacity: 0, y: 16 }}
@@ -1467,19 +1467,6 @@ export default function Home() {
                       .
                     </p>
                   </m.div>
-
-                  <div
-                    ref={landingSearchRef}
-                    className="landing-search-zone"
-                  >
-                    <SearchInput
-                      onSearch={handleSearch}
-                      isSearching={isSearching || isExpanding || isClarifying}
-                      traceMode={traceMode}
-                      onTraceModeChange={setTraceMode}
-                      showExamples={false}
-                    />
-                  </div>
 
                   {!!searchError && (
                     <m.div

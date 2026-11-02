@@ -999,6 +999,7 @@ details[open] > .chat-trace-summary::before {
 }
 
 .landing-scroll-root {
+  z-index: 1;
   overflow-y: auto;
   overflow-x: hidden;
   scroll-behavior: smooth;
@@ -1046,13 +1047,12 @@ html[data-theme="dark"] .feeds-shell {
   --border-hover: #34404D;
 }
 
-html[data-theme="dark"] .landing-hero-shell {
-  background-color: #0d0d0d;
-}
 
 /* Home screen palette — deep black and white (light mode inverts), no chroma. Scoped to the
    landing state so the graph, feeds and loading screens keep the app's blue accent. */
 .landing-shell:not(.graph-loading-shell) {
+  /* the hero no longer paints the page, so the shell does (the backdrop sits between) */
+  background: var(--bg-primary);
   --font-sans: var(--font-geist-sans), system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
   /* body resolves --font-sans at the root (Inter), so set the family here for inherited text too;
      the cv/ss sets that body turns on are Inter's */
@@ -1098,11 +1098,11 @@ html[data-theme="dark"] .landing-shell:not(.graph-loading-shell) {
 /* Home layout, after muzzle: a quiet full-width bar (logo left, links right) and a hero that sits
    near the top. Desktop only; the mobile dock and hero keep their own layout. */
 @media (min-width: 40.0625rem) {
+  /* just the headline and description; the feed starts right after them */
   .landing-hero-shell {
     justify-content: flex-start;
-    padding-top: clamp(8rem, 20vh, 13rem);
-    /* stop short of the full height so the top of the feed peeks in as a scroll cue */
-    min-height: calc(100% - 8rem);
+    min-height: 0;
+    padding: clamp(8rem, 20vh, 13rem) 1.5rem 3rem;
   }
 
   .landing-hero-content {
@@ -2455,11 +2455,12 @@ a.landing-brand:hover {
     color: var(--accent) !important;
   }
 
-  /* Keep the first action visible without crowding the scroll cue. */
+  /* Headline first, then the feed straight after it. */
   .landing-hero-shell {
-    min-height: 100%;
+    justify-content: flex-start;
+    min-height: 0;
     gap: 1.5rem;
-    padding: 3.25rem 1rem 5.5rem;
+    padding: 6rem 1rem 2rem;
   }
 
   .landing-hero-content {
