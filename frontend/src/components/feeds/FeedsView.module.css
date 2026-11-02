@@ -3,20 +3,21 @@
    column and padding take over. */
 .embedded { width: 100%; }
 .embedded .main { max-width: none; padding: 0 0 32px; }
-.embedded .interests { margin: 0 auto 48px; }
 .main { width: 100%; flex-shrink: 0; max-width: 1304px; margin: 0 auto; padding: 64px 40px 32px; }
 .main.mainEmpty { position: relative; isolation: isolate; max-width: none; flex: 1 0 auto; display: flex; flex-direction: column; justify-content: center; padding-top: 40px; padding-bottom: 40px; }
 .mainEmpty .interests { width: 100%; margin-bottom: 0; }
 .intro { text-align: center; }
 .intro h1 { font-size: clamp(32px, 4vw, 48px); line-height: 1.15; letter-spacing: -.055em; font-weight: 550; margin: 18px 0 16px; }
 .intro > p { font-size: 14px; line-height: 1.8; color: var(--text-secondary); }
-.interests { position: relative; max-width: 740px; margin: 32px auto 64px; padding: 20px 22px 16px; background: var(--node-bg); border: 1px solid var(--border); border-radius: 14px; transition: border-color .15s ease, box-shadow .15s ease; }
+.interests { max-width: 740px; margin: 32px auto 64px; padding: 20px 22px 16px; background: var(--node-bg); border: 1px solid var(--border); border-radius: 14px; transition: border-color .15s ease, box-shadow .15s ease; }
 .interests:has(.applied) { display: flex; align-items: center; gap: 16px; padding: 10px 10px 10px 20px; }
 .interests:has(.applied) .interestHeading { flex: none; }
 .interests:has(textarea:focus) { border-color: color-mix(in srgb, var(--accent) 35%, var(--border)); box-shadow: 0 0 0 .1875rem var(--accent-soft); }
 .interests textarea:focus { outline: none; }
 .interestHeading { display: flex; justify-content: space-between; align-items: center; gap: 12px; font-size: 12px; }
 .interestHeading label { font-size: 14px; font-weight: 500; letter-spacing: -.01em; }
+.interestHeading strong { font-family: var(--font-mono), monospace; font-size: 10px; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; color: var(--text-tertiary); white-space: nowrap; }
+.interestHeading strong::after { content: "|"; content: "|" / ""; margin-left: 16px; font-family: var(--font-sans), sans-serif; font-size: 14px; font-weight: 400; letter-spacing: 0; color: color-mix(in srgb, var(--text-tertiary) 55%, transparent); }
 
 .interests textarea { display: block; width: 100%; resize: vertical; min-height: 80px; margin: 14px 0; background: transparent; color: var(--text-primary); font: inherit; font-size: 15px; line-height: 1.7; padding: 4px; border-radius: 4px; }
 .interests textarea::placeholder { color: var(--text-tertiary); }
@@ -123,20 +124,33 @@
 .card.cardMarked { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
 @media (max-width: 640px) { .interests:has(.applied) { flex-direction: column; align-items: flex-start; gap: 10px; padding: 14px 16px; } .applied { width: 100%; } .applied p { flex-wrap: wrap; gap: 8px; } }
 
-/* "Your interests" doubles as a menu for where a canvas could start; the entries are placeholders. */
+/* Start bar (home): pick where to start from, then one field and one button that follow the choice. */
+.start { position: relative; display: flex; align-items: center; gap: 16px; max-width: 740px; margin: 0 auto 48px; padding: 10px 10px 10px 20px; background: var(--node-bg); border: 1px solid var(--border); border-radius: 14px; transition: border-color .15s ease, box-shadow .15s ease; }
+.start:has(input:focus) { border-color: color-mix(in srgb, var(--accent) 35%, var(--border)); box-shadow: 0 0 0 .1875rem var(--accent-soft); }
+/* open: the list hangs from the label as part of the bar (shared left edge, the bar's bottom border is the seam) */
+.start:has(.menu) { border-color: var(--border-hover); border-bottom-left-radius: 0; }
+.startMessage { flex: 1; min-width: 0; margin: 0; font-size: 14px; line-height: 1.5; color: var(--text-secondary); }
+.startInput { flex: 1; min-width: 0; padding: 8px 0; border: 0; color: var(--text-primary); font: inherit; font-size: 14px; }
+/* the bar shows focus itself, so the global input outline stays off */
+.start .startInput, .start .startInput:focus, .start .startInput:focus-visible { outline: none; box-shadow: none; background: transparent; -webkit-appearance: none; appearance: none; }
+.startInput::placeholder { color: var(--text-tertiary); }
+.startAction { flex: none; height: 36px; padding: 0 16px; border: 1px solid var(--accent); border-radius: 9px; background: var(--accent); color: var(--on-accent); font-size: 13px; font-weight: 500; white-space: nowrap; transition: opacity .15s, background .15s, color .15s, border-color .15s; }
+.startAction:hover:not(:disabled) { opacity: .88; }
+.embedded .startAction:disabled { opacity: 1; cursor: default; background: transparent; border-color: var(--border); color: var(--text-tertiary); }
+@media (max-width: 640px) { .start { flex-wrap: wrap; gap: 10px; padding: 12px 14px; } .start .menuWrap::after { display: none; } .startAction { order: 1; margin-left: auto; } .startMessage, .startInput { order: 2; flex: 1 1 100%; } }
+
+/* the "Start from" menu (a disclosure list, not a placeholder any more) */
 .menuWrap { display: flex; align-items: center; }
 .menuWrap::after { content: "|"; content: "|" / ""; margin-left: 10px; font-size: 14px; color: color-mix(in srgb, var(--text-tertiary) 55%, transparent); }
 .menuWrap .menuTrigger { display: inline-flex; align-items: center; gap: 6px; margin-left: -8px; padding: 6px 8px; border-radius: 6px; background: none; font-family: var(--font-mono), monospace; font-size: 10px; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; color: var(--text-tertiary); white-space: nowrap; transition: color .15s; }
-.menuWrap .menuTrigger:hover, .menuWrap .menuTrigger[aria-expanded="true"] { color: var(--text-primary); }
-.menuTrigger svg { transition: transform .15s; }
+.menuLead { color: var(--text-secondary); }
+.menuValue { color: var(--text-primary); }
+.menuWrap .menuTrigger:hover svg, .menuWrap .menuTrigger[aria-expanded="true"] svg { color: var(--text-primary); }
+.menuTrigger svg { transition: transform .15s, color .15s; }
 .menuTrigger[aria-expanded="true"] svg { transform: rotate(180deg); }
-/* open: the list hangs from the label as part of the bar (shared left edge, the bar's bottom border is the seam) */
-.interests:has(.menu) { border-color: var(--border-hover); border-bottom-left-radius: 0; }
-.menu { position: absolute; z-index: 20; top: calc(100% + 1px); left: -1px; width: max-content; margin: 0; padding: 0; list-style: none; background: var(--node-bg); border: 1px solid var(--border-hover); border-top: 0; border-radius: 0 0 14px 14px; box-shadow: 0 20px 40px -12px rgba(0, 0, 0, .45); overflow: hidden; animation: menuIn .14s ease-out; }
+.menu { position: absolute; z-index: 20; top: calc(100% + 1px); left: -1px; min-width: 10rem; width: max-content; margin: 0; padding: 0; list-style: none; background: var(--node-bg); border: 1px solid var(--border-hover); border-top: 0; border-radius: 0 0 14px 14px; box-shadow: 0 20px 40px -12px rgba(0, 0, 0, .45); overflow: hidden; animation: menuIn .14s ease-out; }
 .menu li + li { border-top: 1px solid var(--border); }
-.menuWrap .menuItem { display: flex; align-items: center; gap: 12px; width: 100%; padding: 13px 20px; border-radius: 0; background: none; color: var(--text-secondary); font-size: 14px; text-align: left; transition: background .12s, color .12s; }
-.menuWrap .menuItem:hover { background: var(--bg-tertiary); color: var(--text-primary); }
-.menuItem svg { flex: none; color: var(--text-tertiary); transition: color .12s; }
-.menuWrap .menuItem:hover svg { color: var(--text-primary); }
+.menuWrap .menuItem { display: flex; align-items: center; width: 100%; padding: 15px 20px; border-radius: 0; background: none; color: var(--text-primary); font-family: var(--font-mono), monospace; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; text-align: left; transition: background .12s; }
+.menuWrap .menuItem:hover { background: var(--bg-tertiary); }
 @keyframes menuIn { from { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .menu { animation: none; } }

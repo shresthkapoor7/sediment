@@ -7,7 +7,7 @@ import { PaperStage } from "@/components/feeds/PaperStage";
 import { FeedBackdrop } from "@/components/feeds/FeedBackdrop";
 import { FeedPaperDetail } from "@/components/feeds/FeedPaperDetail";
 import { FeedPaperImage } from "@/components/feeds/FeedPaperImage";
-import { InterestsMenu } from "@/components/feeds/InterestsMenu";
+import { StartBar, type StartMode } from "@/components/feeds/StartBar";
 import { useFeedBookmarks } from "@/lib/feed-bookmarks";
 import { useEffect, useRef, useState } from "react";
 import { BalancedMasonry } from "@/components/feeds/BalancedMasonry";
@@ -22,7 +22,12 @@ function dateLabel(value: string | null) {
 
 /** The Feeds experience. `embedded` drops the page chrome (header, intro, backdrop) so it can sit
  *  inside another page, such as the home screen. */
-export function FeedsView({ embedded = false }: { embedded?: boolean }) {
+export function FeedsView({ embedded = false, onSearch, searching }: {
+  embedded?: boolean;
+  /** Runs a search from the start bar (embedded only). */
+  onSearch?: (query: string) => void;
+  searching?: boolean;
+}) {
   const [openedPaper, setOpenedPaper] = useState<FeedPaper | null>(null);
   const [feed, setFeed] = useState<Feed | null>(null);
   const [interests, setInterests] = useState("");
@@ -31,6 +36,7 @@ export function FeedsView({ embedded = false }: { embedded?: boolean }) {
   const [source, setSource] = useState<FeedFilter>("all");
   const { saved, papers: savedPapers, unresolved, retryRestore, toggle } = useFeedBookmarks();
   const selection = usePaperSelection();
+  const [startMode, setStartMode] = useState<StartMode | null>(null);
   const [savedOnly, setSavedOnly] = useState(false);
   const [pending, setPending] = useState<FeedAction | "restore" | null>("restore");
   const [error, setError] = useState("");
@@ -85,21 +91,22 @@ export function FeedsView({ embedded = false }: { embedded?: boolean }) {
     setRestoreKey(key => key + 1);
   }
 
-  async function update(action: FeedAction, selectedSource: FeedFilter = source) {
-    if (busy.current || pending || !feed || needsReload) return;
+  async function update(action: FeedAction, selectedSource: FeedFilter = source, interestsOverride?: string): Promise<boolean> {
+    if (busy.current || pending || !feed || needsReload) return false;
     busy.current = true;
     const controller = new AbortController();
     request.current = controller;
     setPending(action);
     setError("");
+    let ok = false;
     try {
       const result = await fetchFeed({
         action,
         source: action === "more" || action === "source" ? selectedSource : "all",
-        ...(action === "interests" ? { interests: interests.trim(), domain } : {}),
+        ...(action === "interests" ? { interests: (interestsOverride ?? interests).trim(), domain } : {}),
         ...(action === "more" && feed.cursor ? { cursor: feed.cursor } : {}),
       }, controller.signal);
-      if (controller.signal.aborted) return;
+      if (controller.signal.aborted) return false;
       if (action === "more") {
         if (result.revision !== feed.revision || result.source !== selectedSource) throw new APIError("Your interests changed in another tab. Reload your feed.", 409);
         // Merge repeated responses defensively without rendering duplicate cards.
@@ -120,6 +127,7 @@ export function FeedsView({ embedded = false }: { embedded?: boolean }) {
         setSource("all");
         setSavedOnly(false);
       }
+      ok = true;
     } catch (err) {
       if (!controller.signal.aborted) {
         setError(err instanceof Error ? err.message : "Couldn’t update your feed. Please try again.");
@@ -129,6 +137,7 @@ export function FeedsView({ embedded = false }: { embedded?: boolean }) {
       busy.current = false;
       if (!controller.signal.aborted) setPending(null);
     }
+    return ok;
   }
 
   function toggleSaved(paper: FeedPaper) {
@@ -149,14 +158,27 @@ export function FeedsView({ embedded = false }: { embedded?: boolean }) {
         <p>The papers you care about, in one place.<br />Tell us what you’re exploring. Make room for something new.</p>
       </section>}
       {error && <div className={styles.error} role="alert"><p>{error}</p>{(!feed || needsReload) && <button disabled={!!pending} onClick={reload}>Reload feed</button>}</div>}
-      {feed && <section className={styles.interests} aria-label="Your research interests">
-        <div className={styles.interestHeading}>{editing ? <label htmlFor="interests">What are you interested in?</label> : <InterestsMenu />}</div>
+      {feed && (embedded ? <StartBar
+        mode={startMode ?? (feed.interests ? "feed" : "blank")}
+        onModeChange={setStartMode}
+        markedCount={selection.papers.length}
+        disabled={disabled}
+        adding={pending === "interests"}
+        searching={searching}
+        onSearch={onSearch}
+        onAddInterests={async text => {
+          const ok = await update("interests", "all", text);
+          if (ok) setStartMode("feed");
+          return ok;
+        }}
+      /> : <section className={styles.interests} aria-label="Your research interests">
+        <div className={styles.interestHeading}>{editing ? <label htmlFor="interests">What are you interested in?</label> : <strong>Your interests</strong>}</div>
         {editing ? <form onSubmit={event => { event.preventDefault(); void update("interests"); }}>
           <textarea id="interests" value={interests} onChange={event => setInterests(event.target.value)} placeholder="Machine learning, the neuroscience of memory, climate science…" maxLength={600} rows={2} required disabled={disabled} aria-describedby="interest-help" />
           <div className={styles.formBottom}><span id="interest-help">Add up to three topics, separated by commas.</span><div className={styles.actions}>{feed.interests && <button type="button" className={styles.secondary} disabled={disabled} onClick={() => { setInterests(feed.interests); setDomain(feed.domain); setEditing(false); }}>Cancel</button>}<button className={styles.primary} disabled={!interests.trim() || disabled} type="submit">{pending === "interests" ? "Finding papers…" : feed.interests ? "Update interests" : "Create my feed"}</button></div></div>
           <div className={styles.suggestions}><span>Try</span>{["Machine learning", "Neuroscience", "Climate science"].map(topic => <button key={topic} type="button" disabled={disabled} onClick={() => setInterests(current => (current ? `${current.replace(/[., ]+$/, "")}, ${topic.toLowerCase()}` : topic).slice(0, 600))}>{topic} <span aria-hidden="true">+</span></button>)}</div>
         </form> : <div className={styles.applied}><p>{feed.interests}</p><button disabled={disabled} onClick={() => setEditing(true)}>Edit interests</button></div>}
-      </section>}
+      </section>)}
       <div className={styles.status} role="status" aria-live="polite" aria-atomic="true">
         {status && <>
           <span className={styles.searchAnimation} aria-hidden="true"><span /><span /><span /></span>

@@ -1502,7 +1502,7 @@ export default function Home() {
               </section>
 
               <section className="landing-feed" aria-label="Paper feed">
-                <FeedsView embedded />
+                <FeedsView embedded onSearch={handleSearch} searching={isClarifying} />
               </section>
             </m.div>
           ) : isSearching || isRestoring || isClarifying ? (
