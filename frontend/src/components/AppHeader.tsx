@@ -405,7 +405,7 @@ export function AppHeader({
             {!timelineData && (
               <m.button
                 type="button"
-                className="app-header-labeled-action"
+                className="app-header-labeled-action app-header-home-brand"
                 initial={{ opacity: 0, y: -4 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.25 }}
@@ -428,7 +428,7 @@ export function AppHeader({
 
             {!timelineData && (
               <m.button
-                className="app-header-labeled-action"
+                className="app-header-labeled-action app-header-workspaces"
                 initial={{ opacity: 0, y: -4 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.25 }}
@@ -454,28 +454,8 @@ export function AppHeader({
                     "border-color 0.15s, color 0.15s, background 0.15s",
                 }}
               >
-                <svg
-                  width="13"
-                  height="13"
-                  viewBox="0 0 16 16"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M2.5 3.5h11M2.5 8h11M2.5 12.5h11" />
-                  <path d="M4.5 3.5v9" opacity="0.35" />
-                </svg>
-                <span className="app-header-action-label">History</span>
+                <span className="app-header-action-label">Workspaces</span>
               </m.button>
-            )}
-
-            {!timelineData && (
-              <Link className="app-header-labeled-action feeds-nav-link" href="/feeds" aria-label="Feeds" title="Feeds">
-                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" aria-hidden="true"><rect x="2" y="2" width="5" height="7" rx="1" /><rect x="9" y="2" width="5" height="4" rx="1" /><rect x="2" y="11" width="5" height="3" rx="1" /><rect x="9" y="8" width="5" height="6" rx="1" /></svg>
-                <span className="app-header-action-label">Feeds</span>
-              </Link>
             )}
 
             {/* Credits indicator */}
@@ -880,11 +860,8 @@ export function AppHeader({
                 <span className="app-header-action-label app-header-sediment-label">Sediment</span>
               </button>
             )}
-            {!timelineData && (
-              <ThemeToggle
-                showLabel
-                className="app-header-labeled-action"
-              />
+            {!timelineData && mobile && (
+              <ThemeToggle className="app-header-labeled-action" />
             )}
 
             {timelineData && (

@@ -1095,6 +1095,75 @@ html[data-theme="dark"] .landing-shell:not(.graph-loading-shell) {
   --node-border: #2b2b2b;
 }
 
+/* Home layout, after muzzle: a quiet full-width bar (logo left, links right) and a hero that sits
+   near the top. Desktop only; the mobile dock and hero keep their own layout. */
+@media (min-width: 40.0625rem) {
+  .landing-hero-shell {
+    justify-content: flex-start;
+    padding-top: clamp(8rem, 20vh, 13rem);
+  }
+
+  .landing-hero-content {
+    transform: none;
+  }
+
+  .app-header-landing {
+    min-height: 4rem !important;
+    padding: 0 !important;
+  }
+
+  .app-header-landing .app-header-actions {
+    position: relative;
+    left: auto;
+    transform: none;
+    width: 100%;
+    max-width: 71.25rem;
+    height: 4rem;
+    margin: 0 auto;
+    padding: 0 2rem;
+    box-sizing: border-box;
+    gap: 0.5rem !important;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    backdrop-filter: none;
+  }
+
+  /* left: logo tile + wordmark; the rest is pushed right */
+  .app-header-landing .app-header-home-brand {
+    order: 0;
+    margin-right: auto;
+    gap: 0.625rem !important;
+    padding: 0 !important;
+  }
+
+  .app-header-landing .app-header-home-brand > .app-header-sediment-icon {
+    color: var(--text-primary);
+  }
+
+  .app-header-landing .app-header-home-brand .app-header-sediment-label {
+    font-size: 1rem !important;
+    font-weight: 600 !important;
+    letter-spacing: -0.01em;
+  }
+
+  /* right: the credits ring, then Workspaces */
+  .app-header-landing .app-header-credit { order: 1; margin-left: 0; }
+  .app-header-landing .app-header-workspaces { order: 2; }
+
+  .app-header-landing .app-header-workspaces {
+    background: transparent !important;
+    color: var(--text-tertiary) !important;
+    font-size: 0.8125rem !important;
+  }
+
+  .app-header-landing .app-header-workspaces:hover {
+    background: transparent !important;
+    color: var(--text-primary) !important;
+  }
+}
+
 html[data-theme="dark"] .landing-shell .trace-search-field {
   background: #111111 !important;
   border-color: #2b2b2b !important;
