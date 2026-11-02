@@ -81,7 +81,7 @@
 .empty { padding: 72px 16px; text-align: center; }
 .empty h3 { font-weight: 500; }
 .empty p { margin: 12px 0 20px; font-size: 13px; color: var(--text-secondary); }
-.endnote { text-align: center; color: var(--text-secondary); font-size: 11px; line-height: 1.9; margin: 36px 0 16px; }
+.endnote { text-align: center; color: var(--text-secondary); font-size: 11px; line-height: 1.9; margin: 16px 0 0; }
 .page button:focus-visible, .page a:focus-visible, .embedded button:focus-visible, .embedded a:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
 @media (min-width: 1500px) { .main { max-width: 1500px; } }
 @media (max-width: 640px) { .main { padding: 40px 20px 20px; } .main.mainEmpty { padding-block: 32px; } .interests { padding: 18px; margin-bottom: 40px; } .formBottom { align-items: flex-start; flex-direction: column; } .primary { width: 100%; } .feedHeading { align-items: flex-start; flex-direction: column; gap: 12px; } .applied { align-items: flex-start; flex-direction: column; gap: 12px; } }

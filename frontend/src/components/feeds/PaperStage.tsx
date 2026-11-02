@@ -74,12 +74,16 @@ export function PaperStage({ papers, onRemove, onClear, onOpen }: {
     const center = scroller.scrollLeft + scroller.clientWidth / 2;
     const step = cards.length > 1 ? cards[1].offsetLeft - cards[0].offsetLeft : cards[0].offsetWidth;
     const distances = cards.map(card => Math.min(1, Math.abs(card.offsetLeft + card.offsetWidth / 2 - center) / step));
+    const nearest = cards.reduce((best, card, index) =>
+      Math.abs(card.offsetLeft + card.offsetWidth / 2 - center) <
+      Math.abs(cards[best].offsetLeft + cards[best].offsetWidth / 2 - center) ? index : best, 0);
     cards.forEach((card, index) => card.style.setProperty("--focus-distance", distances[index].toFixed(3)));
+    if (papers[nearest]) setActiveId(current => current === papers[nearest].id ? current : papers[nearest].id);
   }
   function scheduleFocusBlur() {
     if (focusFrame.current === null) focusFrame.current = requestAnimationFrame(syncFocusBlur);
   }
-  useEffect(() => { if (expanded) scheduleFocusBlur(); });
+  useEffect(() => { if (expanded && !chatMode) scheduleFocusBlur(); }, [expanded, chatMode, papers]);
   useEffect(() => () => { if (focusFrame.current !== null) cancelAnimationFrame(focusFrame.current); }, []);
   const [origin, setOrigin] = useState<CSSProperties>({});
 
@@ -139,15 +143,10 @@ export function PaperStage({ papers, onRemove, onClear, onOpen }: {
         <div ref={viewport} className={styles.viewport} onScroll={() => {
           if (chatMode) return;
           scheduleFocusBlur();
-          const scroller = viewport.current;
-          const cards = scroller?.querySelectorAll<HTMLElement>("article");
-          if (!scroller || !cards?.length) return;
-          let nearest = 0;
-          cards.forEach((card, index) => { if (Math.abs(card.offsetLeft - cards[0].offsetLeft - scroller.scrollLeft) < Math.abs(cards[nearest].offsetLeft - cards[0].offsetLeft - scroller.scrollLeft)) nearest = index; });
-          if (papers[nearest]) setActiveId(papers[nearest].id);
+
         }}>
         <div className={styles.papers}>
-          {papers.map((paper, index) => <article key={paper.id} className={styles.paper} onAnimationEnd={event => { if (event.target === event.currentTarget && gathering && chatMode) setGathering(false); }} data-mentioned={highlightedIds.includes(paper.id) || undefined} data-active={index === activeIndex} style={{ "--pile-index": index - activeIndex, "--stack-offset": stackAnchor - index, "--stack-depth": (index - activeIndex + papers.length) % papers.length, zIndex: chatMode ? papers.length - (index - activeIndex + papers.length) % papers.length : papers.length - Math.abs(index - activeIndex) } as CSSProperties} aria-label={paper.title} inert={chatMode && index !== activeIndex} onFocus={() => { if (!chatMode) focusPaper(index); }} onClick={() => { if (!chatMode) focusPaper(index); }}>
+          {papers.map((paper, index) => <article key={paper.id} className={styles.paper} onAnimationEnd={event => { if (event.target === event.currentTarget && gathering && chatMode) setGathering(false); }} data-mentioned={highlightedIds.includes(paper.id) || undefined} data-active={index === activeIndex} style={{ "--pile-index": index - activeIndex, "--stack-offset": stackAnchor - index, "--stack-depth": (index - activeIndex + papers.length) % papers.length, zIndex: chatMode ? papers.length - (index - activeIndex + papers.length) % papers.length : papers.length - Math.abs(index - activeIndex) } as CSSProperties} aria-label={paper.title} inert={chatMode && index !== activeIndex} onFocus={event => { if (!chatMode && !event.currentTarget.contains(event.relatedTarget as Node | null)) focusPaper(index); }} onClick={() => { if (!chatMode) focusPaper(index); }}>
             {chatMode && index === activeIndex && papers.length > 1 && <button type="button" className={styles.cycleCard} disabled={gathering} aria-label="Next paper in stack" onClick={event => {
               event.stopPropagation();
               setActiveId(papers[(activeIndex + 1) % papers.length].id);

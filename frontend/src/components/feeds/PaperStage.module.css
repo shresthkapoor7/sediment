@@ -77,7 +77,7 @@
 @media (prefers-reduced-motion: reduce) { .papers, .paper { transition: none; } }
 
 .carousel { position: relative; }
-.viewport { overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; scrollbar-width: none; }
+.viewport { overflow-x: auto; overflow-y: hidden; scroll-snap-type: x proximity; overscroll-behavior-x: contain; scrollbar-width: none; overflow-anchor: none; }
 .viewport::-webkit-scrollbar { display: none; }
 .papers { position: relative; width: max-content; margin: 0; padding-inline: calc((100vw - var(--card-width)) / 2); transform: none; transition: none; }
 /* --focus-distance is scroll-linked (0 centered, 1 one card away) so blur eases with the swipe instead of flipping. */

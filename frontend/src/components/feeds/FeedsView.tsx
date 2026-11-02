@@ -56,7 +56,10 @@ export function FeedsView({ embedded = false, ready = true, onSearch, searching 
     request.current = controller;
     async function restore() {
       try {
-        const result = await fetchFeed(undefined, controller.signal);
+        let result = await fetchFeed(undefined, controller.signal);
+        if (!result.interests && !controller.signal.aborted) {
+          result = await fetchFeed({ action: "interests", source: "all", domain: "ai", interests: "Artificial intelligence, machine learning, large language models" }, controller.signal);
+        }
         if (controller.signal.aborted) return;
         setSource("all");
         setShown(PAGE);
@@ -175,7 +178,7 @@ export function FeedsView({ embedded = false, ready = true, onSearch, searching 
         <p>The papers you care about, in one place.<br />Tell us what you’re exploring. Make room for something new.</p>
       </section>}
       {error && <div className={styles.error} role="alert"><p>{error}</p>{(!feed || needsReload) && <button disabled={!!pending} onClick={reload}>Reload feed</button>}</div>}
-      {embedded ? <StartBar
+      {embedded && !editing ? <StartBar
         mode={startMode ?? (feed && !feed.interests ? "blank" : "feed")}
         onModeChange={setStartMode}
         markedCount={selection.papers.length}
@@ -191,7 +194,7 @@ export function FeedsView({ embedded = false, ready = true, onSearch, searching 
       /> : feed && <section className={styles.interests} aria-label="Your research interests">
         <div className={styles.interestHeading}>{editing ? <label htmlFor="interests">What are you interested in?</label> : <strong>Your interests</strong>}</div>
         {editing ? <form onSubmit={event => { event.preventDefault(); void update("interests"); }}>
-          <textarea id="interests" value={interests} onChange={event => setInterests(event.target.value)} placeholder="Machine learning, the neuroscience of memory, climate science…" maxLength={600} rows={2} required disabled={disabled} aria-describedby="interest-help" />
+          <textarea autoFocus id="interests" value={interests} onChange={event => setInterests(event.target.value)} placeholder="Machine learning, the neuroscience of memory, climate science…" maxLength={600} rows={2} required disabled={disabled} aria-describedby="interest-help" />
           <div className={styles.formBottom}><span id="interest-help">Add up to three topics, separated by commas.</span><div className={styles.actions}>{feed.interests && <button type="button" className={styles.secondary} disabled={disabled} onClick={() => { setInterests(feed.interests); setDomain(feed.domain); setEditing(false); }}>Cancel</button>}<button className={styles.primary} disabled={!interests.trim() || disabled} type="submit">{pending === "interests" ? "Finding papers…" : feed.interests ? "Update interests" : "Create my feed"}</button></div></div>
           <div className={styles.suggestions}><span>Try</span>{["Machine learning", "Neuroscience", "Climate science"].map(topic => <button key={topic} type="button" disabled={disabled} onClick={() => setInterests(current => (current ? `${current.replace(/[., ]+$/, "")}, ${topic.toLowerCase()}` : topic).slice(0, 600))}>{topic} <span aria-hidden="true">+</span></button>)}</div>
         </form> : <div className={styles.applied}><p>{feed.interests}</p><button disabled={disabled} onClick={() => setEditing(true)}>Edit interests</button></div>}
@@ -212,9 +215,9 @@ export function FeedsView({ embedded = false, ready = true, onSearch, searching 
             </h2>
             {(savedOnly || feed?.refreshedAt) && <p>{savedOnly ? "Your saved papers, across all topics and fields." : `Last checked ${new Date(feed!.refreshedAt!).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}.`}</p>}
           </div>
-          {feed?.interests && !savedOnly && <button type="button" className={styles.iconButton} aria-label="Refresh feed" title="Refresh feed" data-busy={pending === "refresh" || undefined} disabled={disabled || editing} onClick={() => void update("refresh")}>
+          {feed?.interests && !savedOnly && <div className={styles.actions}><button type="button" className={styles.iconButton} aria-label="Edit interests" title="Edit interests" aria-expanded={editing} disabled={disabled} onClick={() => setEditing(current => !current)}><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m10 3 3 3M3 10l7.5-7.5a2.1 2.1 0 0 1 3 3L6 13l-4 1 1-4Z" /></svg></button><button type="button" className={styles.iconButton} aria-label="Refresh feed" title="Refresh feed" data-busy={pending === "refresh" || undefined} disabled={disabled || editing} onClick={() => void update("refresh")}>
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9" /><path d="M13.5 2.5v3h-3" /></svg>
-          </button>}
+          </button></div>}
         </div>
         {!savedOnly && !!feed?.interests && !!feed.warnings.length && <p className={styles.warning} role="status">{feed.warnings.map(value => sourceLabels[value]).join(", ")} couldn’t be reached. Showing available papers; try refreshing later.</p>}
         {(feed?.interests || savedOnly) && <>
@@ -235,7 +238,7 @@ export function FeedsView({ embedded = false, ready = true, onSearch, searching 
         </div>
         {!visible.length && <div className={styles.empty}><h3>{savedOnly ? "Keep something for later." : "No matching papers yet."}</h3><p>{savedOnly ? "Papers you save stay here across topics and fields in this browser." : source !== "all" ? "Try another source or load more papers." : "Try broader interests, or check for more results below."}</p>{feed?.interests && (source !== "all" || savedOnly) && <button disabled={disabled || editing} onClick={() => { setSavedOnly(false); void update("source", "all"); }}>Show all papers</button>}</div>}
         {moreAvailable && <div className={styles.loadMore}><button className={styles.secondary} disabled={disabled || editing} onClick={() => void loadMore()}>{pending === "more" ? "Loading…" : "Load more papers"}</button></div>}
-        <p className={styles.endnote}>{savedOnly ? "Saved in this browser, across all your topics and fields." : moreAvailable ? (source === "all" ? "10 papers at a time, with duplicates combined." : "Up to 10 new papers at a time.") : "You’re caught up with the available results. Refresh later or edit your interests."}<br />Topic illustrations are decorative. Open a paper for its full abstract and original source.</p>
+        <p className={styles.endnote}>{savedOnly ? "Saved in this browser, across all your topics and fields." : moreAvailable ? (source === "all" ? "" : "Up to 10 new papers at a time.") : "You’re caught up with the available results. Refresh later or edit your interests."}{(savedOnly || !moreAvailable || source !== "all") && <br />}Topic illustrations are decorative. Open a paper for its full abstract and original source.</p>
         </>}
       </section>
     </main>
