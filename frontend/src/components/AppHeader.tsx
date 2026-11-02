@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { m, AnimatePresence } from "framer-motion";
 import { LogoMark } from "@/components/LogoMark";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -213,27 +213,12 @@ export function AppHeader({
   cancelGraphTitleEdit,
   runSearch,
 }: AppHeaderProps) {
-  // Compaction state lives here so scrolling the landing page (or toggling the
-  // graph dock) only re-renders the header — not the whole page tree.
-  const [isLandingHeaderCompact, setIsLandingHeaderCompact] = useState(false);
+  // Compaction state lives here so toggling the graph dock only re-renders the
+  // header — not the whole page tree. The home header never collapses: it scrolls
+  // away with the page.
   // Home header: credits sit collapsed as a ring until clicked open into the bar meter.
   const [creditsExpanded, setCreditsExpanded] = useState(false);
   const [isGraphHeaderCompact, setIsGraphHeaderCompact] = useState(false);
-
-  useEffect(() => {
-    // On the graph view the landing scroll container is gone — keep it expanded.
-    // Depending on the element itself (passed as state) means this re-attaches
-    // exactly when the landing container mounts, regardless of timelineData.
-    if (timelineData || !landingScrollEl) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- Reset state when the landing scroll container is absent.
-      setIsLandingHeaderCompact(false);
-      return;
-    }
-    const onScroll = () => setIsLandingHeaderCompact(landingScrollEl.scrollTop > 48);
-    onScroll();
-    landingScrollEl.addEventListener("scroll", onScroll, { passive: true });
-    return () => landingScrollEl.removeEventListener("scroll", onScroll);
-  }, [timelineData, landingScrollEl]);
 
   // Apply is a no-op unless the draft differs from the active settings.
   const settingsChanged =
@@ -244,7 +229,7 @@ export function AppHeader({
 
   return (
       <m.header
-        className={`app-header${!timelineData ? " app-header-landing" : ""}${timelineData ? " app-header-graph" : ""}${(!timelineData && isLandingHeaderCompact) || (timelineData && isGraphHeaderCompact) ? " app-header-compact" : ""}`}
+        className={`app-header${!timelineData ? " app-header-landing" : ""}${timelineData ? " app-header-graph" : ""}${timelineData && isGraphHeaderCompact ? " app-header-compact" : ""}`}
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}

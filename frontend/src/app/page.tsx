@@ -10,6 +10,8 @@ import { AppHeader } from "@/components/AppHeader";
 import { AsciiBackdrop } from "@/components/AsciiBackdrop";
 import { LandingBrain } from "@/components/LandingBrain";
 import { GitHubMark } from "@/components/GitHubMark";
+import { FeedsView } from "@/components/feeds/FeedsView";
+import { whenIdle } from "@/lib/when-idle";
 
 // Graph view + clarification modal are never shown on the landing page — load their
 // chunks (which pull in the chat panel, paper reader, react-markdown and KaTeX) on demand.
@@ -19,11 +21,6 @@ const TimelineCanvas = dynamic(
 );
 const ClarificationModal = dynamic(
   () => import("@/components/ClarificationModal").then((mod) => mod.ClarificationModal),
-  { ssr: false },
-);
-// The feed under the hero is below the fold — keep it off the critical path.
-const FeedsView = dynamic(
-  () => import("@/components/feeds/FeedsView").then((mod) => mod.FeedsView),
   { ssr: false },
 );
 import {
@@ -176,13 +173,26 @@ export default function Home() {
   }, []);
 
   const refreshCredits = useCallback(() => {
-    void fetchUsage()
+    return fetchUsage()
       .then((data) => setCredits(data.segments))
       .catch(() => undefined);
   }, []);
 
+  // The feed waits for the top of the page: credits first (they sit in the top bar), then the
+  // browser going idle. A slow usage call never holds the feed back for more than a few seconds.
+  const [feedReady, setFeedReady] = useState(false);
   useEffect(() => {
-    refreshCredits();
+    let cancelled = false;
+    let started = false;
+    let cancelIdle = () => {};
+    const start = () => {
+      if (started) return;
+      started = true;
+      cancelIdle = whenIdle(() => { if (!cancelled) setFeedReady(true); });
+    };
+    const fallback = window.setTimeout(start, 3000);
+    void refreshCredits().then(() => { window.clearTimeout(fallback); start(); });
+    return () => { cancelled = true; window.clearTimeout(fallback); cancelIdle(); };
   }, [refreshCredits]);
 
   useEffect(() => {
@@ -831,6 +841,52 @@ export default function Home() {
     setNeverShowDeleteConfirmationAgain(false);
   }, []);
 
+  // The home screen shows the header inside its scroll container, so it scrolls away with the page.
+  const showLandingView = !timelineData && !isSearching && !isRestoring;
+  const appHeader = (
+    <AppHeader
+      timelineData={timelineData}
+      mobile={mobile}
+      searchedQuery={searchedQuery}
+      graphTitle={graphTitle}
+      graphTitleDraft={graphTitleDraft}
+      isEditingGraphTitle={isEditingGraphTitle}
+      canEditGraphTitle={canEditGraphTitle}
+      graphTitleInputRef={graphTitleInputRef}
+      isSearching={isSearching}
+      isExpanding={isExpanding}
+      historyOpen={historyOpen}
+      settingsOpen={settingsOpen}
+      settings={settings}
+      draftSettings={draftSettings}
+      defaultSettings={DEFAULT_SETTINGS}
+      sessionActionsOpen={sessionActionsOpen}
+      mobileMenuOpen={mobileMenuOpen}
+      globalChatOpen={globalChatOpen}
+      credits={credits}
+      showCreditsHint={showCreditsHint}
+      shareState={shareState}
+      selectedSeedOpenalexId={selectedSeedOpenalexId}
+      landingScrollEl={landingScrollEl}
+      setHistoryOpen={setHistoryOpen}
+      setSettingsOpen={setSettingsOpen}
+      setSettings={setSettings}
+      setDraftSettings={setDraftSettings}
+      setSessionActionsOpen={setSessionActionsOpen}
+      setMobileMenuOpen={setMobileMenuOpen}
+      setShowCreditsHint={setShowCreditsHint}
+      setGraphTitleDraft={setGraphTitleDraft}
+      handleReset={handleReset}
+      handleExport={handleExport}
+      handleShare={handleShare}
+      handleToggleGlobalChat={handleToggleGlobalChat}
+      startGraphTitleEdit={startGraphTitleEdit}
+      saveGraphTitle={saveGraphTitle}
+      cancelGraphTitleEdit={cancelGraphTitleEdit}
+      runSearch={runSearch}
+    />
+  );
+
   return (
     <div
       className={`app-shell${timelineData ? " canvas-shell" : " landing-shell"}${isSearching || isRestoring || isClarifying ? " graph-loading-shell" : ""}`}
@@ -841,48 +897,8 @@ export default function Home() {
         overflow: "hidden",
       }}
     >
-      {/* Top bar */}
-      <AppHeader
-        timelineData={timelineData}
-        mobile={mobile}
-        searchedQuery={searchedQuery}
-        graphTitle={graphTitle}
-        graphTitleDraft={graphTitleDraft}
-        isEditingGraphTitle={isEditingGraphTitle}
-        canEditGraphTitle={canEditGraphTitle}
-        graphTitleInputRef={graphTitleInputRef}
-        isSearching={isSearching}
-        isExpanding={isExpanding}
-        historyOpen={historyOpen}
-        settingsOpen={settingsOpen}
-        settings={settings}
-        draftSettings={draftSettings}
-        defaultSettings={DEFAULT_SETTINGS}
-        sessionActionsOpen={sessionActionsOpen}
-        mobileMenuOpen={mobileMenuOpen}
-        globalChatOpen={globalChatOpen}
-        credits={credits}
-        showCreditsHint={showCreditsHint}
-        shareState={shareState}
-        selectedSeedOpenalexId={selectedSeedOpenalexId}
-        landingScrollEl={landingScrollEl}
-        setHistoryOpen={setHistoryOpen}
-        setSettingsOpen={setSettingsOpen}
-        setSettings={setSettings}
-        setDraftSettings={setDraftSettings}
-        setSessionActionsOpen={setSessionActionsOpen}
-        setMobileMenuOpen={setMobileMenuOpen}
-        setShowCreditsHint={setShowCreditsHint}
-        setGraphTitleDraft={setGraphTitleDraft}
-        handleReset={handleReset}
-        handleExport={handleExport}
-        handleShare={handleShare}
-        handleToggleGlobalChat={handleToggleGlobalChat}
-        startGraphTitleEdit={startGraphTitleEdit}
-        saveGraphTitle={saveGraphTitle}
-        cancelGraphTitleEdit={cancelGraphTitleEdit}
-        runSearch={runSearch}
-      />
+      {/* Top bar: the home screen renders it inside the scrolling page instead, so it scrolls away */}
+      {!showLandingView && appHeader}
 
       {/* Clarification modal */}
       <AnimatePresence>
@@ -1432,6 +1448,7 @@ export default function Home() {
                 scrollBehavior: "smooth",
               }}
             >
+              {showLandingView && appHeader}
               <section className="landing-hero-shell">
                 <div className="landing-hero-content">
                   <m.div
@@ -1502,7 +1519,7 @@ export default function Home() {
               </section>
 
               <section className="landing-feed" aria-label="Paper feed">
-                <FeedsView embedded onSearch={handleSearch} searching={isClarifying} />
+                <FeedsView embedded ready={feedReady} onSearch={handleSearch} searching={isClarifying} />
               </section>
             </m.div>
           ) : isSearching || isRestoring || isClarifying ? (

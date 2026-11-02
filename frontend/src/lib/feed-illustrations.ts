@@ -22,17 +22,16 @@ export const feedIllustrations = [
   { id: "medicine", variants: ["heartbeat"], tags: ["medical", "medicine", "clinical", "health", "disease", "therapy"] },
 ] as const;
 
-export function illustrationFor(paper: { id: string; title: string; abstract: string; topics: string[] }): string | null {
+export function illustrationFor(paper: { id: string; title: string; abstract: string; topics: string[] }): string {
   const hash = [...paper.id].reduce((n, c) => (Math.imul(n, 31) + c.charCodeAt(0)) >>> 0, 0);
-  // A deliberate mix of illustrated and text-only cards, stable across refreshes.
-  if (hash % 4 === 0) return null;
   const matches = (text: string, tag: string) => new RegExp(`\\b${tag}(?:s|ing|al)?\\b`, "i").test(text);
   const ranked = feedIllustrations.map(item => ({ ...item, score: item.tags.reduce((score, tag) => score
     + (matches(paper.topics.join(" "), tag) ? 4 : 0)
     + (matches(paper.title, tag) ? 3 : 0)
     + (matches(paper.abstract, tag) ? 1 : 0), 0) })).filter(item => item.score > 0);
-  if (!ranked.length) return null;
-  const best = Math.max(...ranked.map(item => item.score));
-  const choices = ranked.filter(item => item.score === best).flatMap(item => [item.id, ...item.variants]);
+  // Every paper gets one: the best topic match, or a stable pick from the whole set when nothing matches.
+  const best = ranked.length ? Math.max(...ranked.map(item => item.score)) : 0;
+  const matched = ranked.length ? ranked.filter(item => item.score === best) : feedIllustrations;
+  const choices = matched.flatMap(item => [item.id, ...item.variants]);
   return `/feed-illustrations/${choices[hash % choices.length]}.svg`;
 }
