@@ -1436,16 +1436,6 @@ export default function Home() {
                     }}
                     className="landing-hero-copy"
                   >
-                    <m.p
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      transition={{ delay: 0.1, duration: 0.5 }}
-                      className="landing-eyebrow"
-                    >
-                      <span aria-hidden="true" />
-                      Research lineage explorer
-                      <span aria-hidden="true" />
-                    </m.p>
                     <h1 className="landing-hero-title">
                       Follow the work
                       <br />

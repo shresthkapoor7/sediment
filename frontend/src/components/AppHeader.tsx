@@ -474,7 +474,7 @@ export function AppHeader({
             {!timelineData && (
               <Link className="app-header-labeled-action feeds-nav-link" href="/feeds" aria-label="Feeds" title="Feeds">
                 <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" aria-hidden="true"><rect x="2" y="2" width="5" height="7" rx="1" /><rect x="9" y="2" width="5" height="4" rx="1" /><rect x="2" y="11" width="5" height="3" rx="1" /><rect x="9" y="8" width="5" height="6" rx="1" /></svg>
-                <span className="app-header-action-label">Feeds <span className="feeds-new">New</span></span>
+                <span className="app-header-action-label">Feeds</span>
               </Link>
             )}
 
@@ -1132,7 +1132,7 @@ export function AppHeader({
               {!timelineData && (
                 <Link className="feeds-nav-link feeds-mobile-link" href="/feeds" onClick={() => setMobileMenuOpen(false)}>
                   <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="var(--text-tertiary)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="2" y="2" width="5" height="7" rx="1" /><rect x="9" y="2" width="5" height="4" rx="1" /><rect x="2" y="11" width="5" height="3" rx="1" /><rect x="9" y="8" width="5" height="6" rx="1" /></svg>
-                  <span>Feeds</span><span className="feeds-new">New</span>
+                  <span>Feeds</span>
                 </Link>
               )}
 

@@ -1200,26 +1200,6 @@ html[data-theme="dark"] .changelog-page {
   text-align: center;
 }
 
-.landing-eyebrow {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-bottom: 1.25rem;
-  padding: 0.3125rem 0.625rem;
-  border: 0.0625rem solid var(--border);
-  border-radius: 0.125rem;
-  color: var(--text-secondary);
-  font-family: var(--font-mono), monospace;
-  font-size: 0.6875rem;
-  font-weight: 500;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.landing-eyebrow span {
-  display: none;
-}
-
 .landing-hero-title {
   margin: 0;
   color: var(--text-primary);

@@ -324,7 +324,6 @@ export function SearchInput({ onSearch, isSearching, traceMode, onTraceModeChang
                       <span>
                         <span style={{ display: "flex", alignItems: "center", gap: "0.4rem", fontSize: "0.9rem", fontWeight: 600 }}>
                           {label}
-                          {mode === "deep" && <span style={{ padding: "0.1rem 0.35rem", borderRadius: "0.125rem", background: "var(--accent-soft)", color: "var(--accent)", fontSize: "0.625rem", fontFamily: "var(--font-mono), monospace", letterSpacing: "0.04em" }}>NEW</span>}
                         </span>
                         <span style={{ display: "block", marginTop: "0.2rem", color: "var(--text-tertiary)", fontSize: "0.73rem", lineHeight: 1.35 }}>{description}</span>
                       </span>
