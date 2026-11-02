@@ -19,9 +19,6 @@ const ClarificationModal = dynamic(
   () => import("@/components/ClarificationModal").then((mod) => mod.ClarificationModal),
   { ssr: false },
 );
-// Landing scrollytelling demos are below the fold — code-split them out of the
-// initial chunk and off the critical path.
-const LandingDemos = dynamic(() => import("@/components/LandingDemos"), { ssr: false });
 import {
   APIError,
   APP_VERSION,
@@ -131,18 +128,16 @@ export default function Home() {
   const graphTitleRef = useRef("");
   const graphTitleEditCanceledRef = useRef(false);
   const isSavingGraphTitleRef = useRef(false);
-  const landingScrollRef = useRef<HTMLDivElement | null>(null);
   // Expose the landing scroll container to AppHeader as state (via a stable
   // callback ref) so the header can attach its own scroll listener the moment
   // the container mounts — keeping scroll-driven compaction out of Home's renders.
   const [landingScrollEl, setLandingScrollEl] = useState<HTMLDivElement | null>(null);
   const setLandingScrollRef = useCallback((node: HTMLDivElement | null) => {
-    landingScrollRef.current = node;
     setLandingScrollEl(node);
   }, []);
   const landingSearchRef = useRef<HTMLDivElement | null>(null);
   const savedGraphIdsRef = useRef<Set<string>>(new Set());
-  const { compact, mobile } = useLandingViewport();
+  const { mobile } = useLandingViewport();
 
   useEffect(() => {
     const title = graphTitle || searchedQuery;
@@ -567,21 +562,6 @@ export default function Home() {
     },
     [runSearch, searchedQuery],
   );
-
-  const handleScrollToSearch = useCallback(() => {
-    const container = landingScrollRef.current;
-    if (!container) return;
-
-    container.scrollTo({
-      top: 0,
-      behavior: "instant",
-    });
-
-    const input = landingSearchRef.current?.querySelector("input");
-    if (input instanceof HTMLInputElement) {
-      input.focus();
-    }
-  }, []);
 
   const handleReset = useCallback(() => {
     clarifyRequestIdRef.current += 1;
@@ -1666,11 +1646,6 @@ export default function Home() {
                 </m.div>
               </section>
 
-              <LandingDemos
-                containerRef={landingScrollRef}
-                compact={compact}
-                onScrollToSearch={handleScrollToSearch}
-              />
             </m.div>
           ) : isSearching || isRestoring || isClarifying ? (
             /* Loading state */
