@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Script from "next/script";
-import { Inter, Geist_Mono, Source_Serif_4 } from "next/font/google";
+import { Inter, Geist, Geist_Mono, Source_Serif_4 } from "next/font/google";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import "./globals.css";
 
@@ -10,6 +10,13 @@ const inter = Inter({
   display: "swap",
   style: ["normal", "italic"],
   axes: ["opsz"],
+});
+
+// The home screen's sans (see `.landing-shell` in globals.css); the rest of the app stays on Inter.
+const geistSans = Geist({
+  subsets: ["latin"],
+  variable: "--font-geist-sans",
+  display: "swap",
 });
 
 const geistMono = Geist_Mono({
@@ -45,7 +52,7 @@ export default function RootLayout({
     <html
       lang="en"
       data-theme="light"
-      className={`${inter.variable} ${geistMono.variable} ${sourceSerif.variable}`}
+      className={`${inter.variable} ${geistSans.variable} ${geistMono.variable} ${sourceSerif.variable}`}
       suppressHydrationWarning
     >
       <head>

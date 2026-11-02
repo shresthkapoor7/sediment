@@ -1047,29 +1047,74 @@ html[data-theme="dark"] .feeds-shell {
 }
 
 html[data-theme="dark"] .landing-hero-shell {
-  background-color: #0A0D10;
+  background-color: #0d0d0d;
+}
+
+/* Home screen palette — deep black and white (light mode inverts), no chroma. Scoped to the
+   landing state so the graph, feeds and loading screens keep the app's blue accent. */
+.landing-shell:not(.graph-loading-shell) {
+  --font-sans: var(--font-geist-sans), system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  /* body resolves --font-sans at the root (Inter), so set the family here for inherited text too;
+     the cv/ss sets that body turns on are Inter's */
+  font-family: var(--font-sans);
+  font-feature-settings: normal;
+  --bg-primary: #fafafa;
+  --bg-secondary: #f4f4f4;
+  --bg-tertiary: #ececec;
+  --bg-canvas: #fafafa;
+  --text-primary: #0f0f0f;
+  --text-secondary: #4a4a4a;
+  --text-tertiary: #8a8a8a;
+  --border: #e4e4e4;
+  --border-hover: #cfcfcf;
+  --accent: #0f0f0f;
+  --accent-hover: #000000;
+  --accent-soft: rgba(15, 15, 15, 0.06);
+  --accent-glow: rgba(15, 15, 15, 0.1);
+  --on-accent: #fafafa;
+  --node-bg: #ffffff;
+  --node-border: #e4e4e4;
+}
+
+html[data-theme="dark"] .landing-shell:not(.graph-loading-shell) {
+  --bg-primary: #0d0d0d;
+  --bg-secondary: #141414;
+  --bg-tertiary: #1c1c1c;
+  --bg-canvas: #0d0d0d;
+  --text-primary: #f2f2f2;
+  --text-secondary: #b4b4b4;
+  --text-tertiary: #767676;
+  --border: #2b2b2b;
+  --border-hover: #3d3d3d;
+  --accent: #f2f2f2;
+  --accent-hover: #ffffff;
+  --accent-soft: rgba(242, 242, 242, 0.08);
+  --accent-glow: rgba(242, 242, 242, 0.12);
+  --on-accent: #0d0d0d;
+  --node-bg: #111111;
+  --node-border: #2b2b2b;
 }
 
 html[data-theme="dark"] .landing-shell .trace-search-field {
-  background: #101419 !important;
-  border-color: #252D36 !important;
+  background: #111111 !important;
+  border-color: #2b2b2b !important;
 }
 
 html[data-theme="dark"] .landing-shell .trace-search-field:focus-within {
-  border-color: #43505F !important;
+  border-color: #5a5a5a !important;
   box-shadow: none !important;
 }
 
 html[data-theme="dark"] .landing-shell .trace-search-suggestion,
 html[data-theme="dark"] .landing-shell .trace-search-mode {
-  background: #11161C !important;
-  border-color: #252D36 !important;
+  background: #141414 !important;
+  border-color: #2b2b2b !important;
 }
 
 html[data-theme="dark"] .landing-shell .trace-search-suggestion:hover,
 html[data-theme="dark"] .landing-shell .trace-search-mode:hover {
-  background: #151B22 !important;
-  border-color: #34404D !important;
+  background: #1c1c1c !important;
+  border-color: #3d3d3d !important;
 }
 
 html[data-theme="dark"] .changelog-page {
@@ -1298,7 +1343,7 @@ html[data-theme="dark"] .changelog-page {
 }
 
 .landing-hero-title em {
-  color: var(--accent);
+  color: var(--text-secondary);
   font-style: normal;
 }
 
