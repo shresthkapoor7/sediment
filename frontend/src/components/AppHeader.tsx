@@ -216,6 +216,8 @@ export function AppHeader({
   // Compaction state lives here so scrolling the landing page (or toggling the
   // graph dock) only re-renders the header — not the whole page tree.
   const [isLandingHeaderCompact, setIsLandingHeaderCompact] = useState(false);
+  // Home header: credits sit collapsed as a ring until clicked open into the bar meter.
+  const [creditsExpanded, setCreditsExpanded] = useState(false);
   const [isGraphHeaderCompact, setIsGraphHeaderCompact] = useState(false);
 
   useEffect(() => {
@@ -460,12 +462,12 @@ export function AppHeader({
 
             {/* Credits indicator */}
             <div
-              className="app-header-credit"
+              className={`app-header-credit${creditsExpanded ? " app-header-credit-expanded" : ""}`}
               style={{ position: "relative" }}
               onMouseEnter={() => setShowCreditsHint(true)}
               onMouseLeave={() => setShowCreditsHint(false)}
             >
-              {showCreditsHint && (
+              {showCreditsHint && timelineData && (
                 <div
                   style={{
                     position: "absolute",
@@ -489,6 +491,15 @@ export function AppHeader({
                 </div>
               )}
               <div className="app-header-credit-indicator">
+                {!timelineData && (
+                  <button
+                    type="button"
+                    className="app-header-credit-toggle"
+                    onClick={() => setCreditsExpanded((open) => !open)}
+                    aria-expanded={creditsExpanded}
+                    aria-label={creditsExpanded ? "Collapse usage credits" : "Expand usage credits"}
+                  />
+                )}
                 <div className="app-header-credit-visual" aria-hidden="true">
                   <div
                     className="app-header-credit-bars"
