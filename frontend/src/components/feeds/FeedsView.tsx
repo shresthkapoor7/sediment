@@ -12,7 +12,7 @@ import { useEffect, useRef, useState } from "react";
 import { BalancedMasonry } from "@/components/feeds/BalancedMasonry";
 import { PageHeader } from "@/components/PageHeader";
 import { APIError } from "@/lib/api";
-import { Feed, FeedAction, FeedDomain, domainLabels, FeedFilter, FeedPaper, fetchFeed, sourceLabels, feedPaperPath } from "@/lib/feeds-api";
+import { Feed, FeedAction, FeedDomain, FeedFilter, FeedPaper, fetchFeed, sourceLabels, feedPaperPath } from "@/lib/feeds-api";
 import styles from "./FeedsView.module.css";
 
 function dateLabel(value: string | null) {
@@ -149,19 +149,12 @@ export function FeedsView({ embedded = false }: { embedded?: boolean }) {
       </section>}
       {error && <div className={styles.error} role="alert"><p>{error}</p>{(!feed || needsReload) && <button disabled={!!pending} onClick={reload}>Reload feed</button>}</div>}
       {feed && <section className={styles.interests} aria-label="Your research interests">
-        <div className={styles.interestHeading}>{editing ? <label htmlFor="interests">What are you interested in?</label> : <strong>Your interests</strong>}<span>Saved for this browser</span></div>
+        <div className={styles.interestHeading}>{editing ? <label htmlFor="interests">What are you interested in?</label> : <strong>Your interests</strong>}</div>
         {editing ? <form onSubmit={event => { event.preventDefault(); void update("interests"); }}>
-          <div className={styles.domainField}>
-            <label htmlFor="research-domain">Your field</label>
-            <select id="research-domain" value={domain} onChange={event => setDomain(event.target.value as FeedDomain)} disabled={disabled} aria-describedby="domain-help">
-              {(Object.keys(domainLabels) as FeedDomain[]).map(value => <option key={value} value={value}>{domainLabels[value]}</option>)}
-            </select>
-            <span id="domain-help">Tailors the papers and sources in your feed.</span>
-          </div>
           <textarea id="interests" value={interests} onChange={event => setInterests(event.target.value)} placeholder="Machine learning, the neuroscience of memory, climate science…" maxLength={600} rows={2} required disabled={disabled} aria-describedby="interest-help" />
           <div className={styles.formBottom}><span id="interest-help">Add up to three topics, separated by commas.</span><div className={styles.actions}>{feed.interests && <button type="button" className={styles.secondary} disabled={disabled} onClick={() => { setInterests(feed.interests); setDomain(feed.domain); setEditing(false); }}>Cancel</button>}<button className={styles.primary} disabled={!interests.trim() || disabled} type="submit">{pending === "interests" ? "Finding papers…" : feed.interests ? "Update interests" : "Create my feed"}</button></div></div>
           <div className={styles.suggestions}><span>Try</span>{["Machine learning", "Neuroscience", "Climate science"].map(topic => <button key={topic} type="button" disabled={disabled} onClick={() => setInterests(current => (current ? `${current.replace(/[., ]+$/, "")}, ${topic.toLowerCase()}` : topic).slice(0, 600))}>{topic} <span aria-hidden="true">+</span></button>)}</div>
-        </form> : <div className={styles.applied}><p><span className={styles.domainLabel}>{domainLabels[feed.domain]}</span>{feed.interests}</p><button disabled={disabled} onClick={() => setEditing(true)}>Edit interests</button></div>}
+        </form> : <div className={styles.applied}><p>{feed.interests}</p><button disabled={disabled} onClick={() => setEditing(true)}>Edit interests</button></div>}
       </section>}
       <div className={styles.status} role="status" aria-live="polite" aria-atomic="true">
         {status && <>

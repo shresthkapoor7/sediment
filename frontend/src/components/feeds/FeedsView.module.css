@@ -10,26 +10,33 @@
 .intro { text-align: center; }
 .intro h1 { font-size: clamp(32px, 4vw, 48px); line-height: 1.15; letter-spacing: -.055em; font-weight: 550; margin: 18px 0 16px; }
 .intro > p { font-size: 14px; line-height: 1.8; color: var(--text-secondary); }
-.interests { max-width: 740px; margin: 32px auto 64px; padding: 22px 24px 16px; background: var(--node-bg); border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--node-shadow); transition: border-color .12s ease, box-shadow .12s ease; }
+.interests { max-width: 740px; margin: 32px auto 64px; padding: 20px 22px 16px; background: var(--node-bg); border: 1px solid var(--border); border-radius: 14px; transition: border-color .15s ease, box-shadow .15s ease; }
+.interests:has(.applied) { display: flex; align-items: center; gap: 16px; padding: 10px 10px 10px 20px; }
+.interests:has(.applied) .interestHeading { flex: none; }
 .interests:has(textarea:focus) { border-color: color-mix(in srgb, var(--accent) 35%, var(--border)); box-shadow: 0 0 0 .1875rem var(--accent-soft); }
 .interests textarea:focus { outline: none; }
 .interestHeading { display: flex; justify-content: space-between; align-items: center; gap: 12px; font-size: 12px; }
-.interestHeading label { font-weight: 600; }
-.interestHeading > span { color: var(--text-secondary); font-size: 10px; border: 1px solid var(--border); border-radius: 4px; padding: 3px 6px; }
+.interestHeading label { font-size: 14px; font-weight: 500; letter-spacing: -.01em; }
+.interestHeading strong { font-family: var(--font-mono), monospace; font-size: 10px; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; color: var(--text-tertiary); white-space: nowrap; }
+.interestHeading strong::after { content: "|"; content: "|" / ""; margin-left: 16px; font-family: var(--font-sans), sans-serif; font-size: 14px; font-weight: 400; letter-spacing: 0; color: color-mix(in srgb, var(--text-tertiary) 55%, transparent); }
+
 .interests textarea { display: block; width: 100%; resize: vertical; min-height: 80px; margin: 14px 0; background: transparent; color: var(--text-primary); font: inherit; font-size: 15px; line-height: 1.7; padding: 4px; border-radius: 4px; }
 .interests textarea::placeholder { color: var(--text-tertiary); }
 .formBottom { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .formBottom > span { font-size: 11px; color: var(--text-secondary); }
 .page button, .embedded button { cursor: pointer; font-family: inherit; }
-.primary { flex-shrink: 0; background: var(--accent); color: var(--on-accent); border-radius: 7px; padding: 11px 16px; font-size: 12px; font-weight: 500; }
+.primary { flex-shrink: 0; height: 36px; background: var(--accent); color: var(--on-accent); border-radius: 9px; padding: 0 16px; font-size: 13px; font-weight: 500; transition: opacity .15s; }
 .primary:disabled { opacity: .45; cursor: not-allowed; }
 .suggestions { border-top: 1px solid var(--border); margin-top: 18px; padding-top: 14px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 10px; color: var(--text-secondary); }
 .suggestions > span { margin-right: 3px; }
-.suggestions button { background: var(--bg-secondary); color: var(--text-secondary); border: 1px solid var(--border); padding: 5px 8px; border-radius: 5px; font-size: 10px; }
+.suggestions button { background: transparent; color: var(--text-secondary); border: 1px solid var(--border); padding: 5px 11px; border-radius: 999px; font-size: 11px; transition: color .15s, border-color .15s; }
+.suggestions button:hover:not(:disabled) { color: var(--text-primary); border-color: var(--border-hover); }
 .suggestions button span { margin-left: 7px; }
-.applied { display: flex; align-items: center; gap: 24px; padding-top: 18px; }
-.applied p { flex: 1; font-size: 14px; line-height: 1.7; overflow-wrap: anywhere; }
-.applied button, .empty button { color: var(--accent); background: none; font-size: 12px; }
+.applied { flex: 1; min-width: 0; display: flex; align-items: center; gap: 16px; }
+.applied p { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; }
+.empty button { color: var(--accent); background: none; font-size: 12px; }
+.applied button { flex: none; padding: 8px 14px; border: 1px solid var(--border); border-radius: 9px; color: var(--text-secondary); font-size: 12px; transition: color .15s, border-color .15s; }
+.applied button:hover:not(:disabled) { color: var(--text-primary); border-color: var(--border-hover); }
 .feedHeading { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
 .feedHeading h2 { font-size: 20px; font-weight: 550; letter-spacing: -.035em; }
 .feedHeading p { color: var(--text-secondary); font-size: 12px; margin-top: 8px; line-height: 1.6; }
@@ -65,7 +72,7 @@
 @media (max-width: 640px) { .main { padding: 40px 20px 20px; } .main.mainEmpty { padding-block: 32px; } .interests { padding: 18px; margin-bottom: 40px; } .formBottom { align-items: flex-start; flex-direction: column; } .primary { width: 100%; } .feedHeading { align-items: flex-start; flex-direction: column; gap: 12px; } .masonry { --column-count: 1; } .toolbar { gap: 6px; } .toolbar button { padding: 8px; } .applied { align-items: flex-start; flex-direction: column; gap: 12px; } }
 
 .actions { display: flex; align-items: center; gap: 8px; }
-.secondary { border: 1px solid var(--border); background: var(--node-bg); color: var(--text-primary); padding: 10px 14px; font-size: 12px; border-radius: 7px; white-space: nowrap; }
+.secondary { height: 36px; border: 1px solid var(--border); background: transparent; color: var(--text-primary); padding: 0 14px; font-size: 13px; border-radius: 9px; white-space: nowrap; }
 .page button:disabled, .embedded button:disabled { cursor: not-allowed; opacity: .5; }
 .status { display: flex; align-items: center; justify-content: center; gap: 14px; text-align: left; font-size: 12px; line-height: 1.8; color: var(--text-secondary); margin: 16px 0; }
 .status:empty { display: none; }
@@ -98,13 +105,6 @@
 .cardFooter button { position: relative; z-index: 2; }
 .card:has(.paperLink:focus-visible) { outline: 2px solid var(--accent); outline-offset: 3px; }
 
-.domainField { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 14px 0 8px; font-size: 12px; }
-.domainField label { font-weight: 500; }
-.domainField select { max-width: 100%; font: inherit; color: var(--text-primary); background: transparent; border: 0; border-radius: 4px; padding: 5px 4px; cursor: pointer; }
-.domainField select:focus { outline: none; }
-.domainField select:focus-visible { background: var(--accent-soft); text-decoration: underline; text-underline-offset: 3px; }
-.domainField span { font-size: 11px; color: var(--text-secondary); }
-.domainLabel { display: block; font-size: 13px; color: var(--text-secondary); margin-bottom: 6px; }
 
 .statusHint { display: block; font-size: 11px; color: var(--text-tertiary); }
 .searchAnimation { position: relative; flex: 0 0 34px; width: 34px; height: 36px; }
@@ -123,3 +123,4 @@
 
 .cardActions { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
 .card.cardMarked { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
+@media (max-width: 640px) { .interests:has(.applied) { flex-direction: column; align-items: flex-start; gap: 10px; padding: 14px 16px; } .applied { width: 100%; } .applied p { flex-wrap: wrap; gap: 8px; } }
