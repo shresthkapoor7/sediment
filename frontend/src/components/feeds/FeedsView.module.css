@@ -38,15 +38,13 @@
 .applied button:hover:not(:disabled) { color: var(--text-primary); border-color: var(--border-hover); }
 .feedHeading { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
 .feedHeading h2 { font-size: 20px; font-weight: 550; letter-spacing: -.035em; }
-.feedHeading p { color: var(--text-secondary); font-size: 12px; margin-top: 8px; line-height: 1.6; }
-.toolbar { margin-top: 24px; padding-bottom: 18px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; gap: 12px; }
+.feedHeading p { color: color-mix(in srgb, var(--text-tertiary) 70%, transparent); font-size: 11px; margin-top: 6px; line-height: 1.5; }
+.toolbar { margin: 24px 0; padding-bottom: 18px; border-bottom: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 12px; }
 .toolbar.savedToolbar { border-bottom: 0; padding-bottom: 0; justify-content: center; }
-.filters { display: flex; gap: 6px; flex-wrap: wrap; }
 .toolbar button { border: 1px solid transparent; background: transparent; color: var(--text-secondary); padding: 8px 12px; border-radius: 6px; font-size: 11px; }
 .toolbar button.active { background: var(--text-primary); color: var(--bg-primary); }
 .savedFilter { white-space: nowrap; align-self: flex-start; }
 .savedFilter span { margin-left: 6px; opacity: .7; }
-.resultCount { display: flex; justify-content: space-between; margin: 18px 0; color: var(--text-secondary); font-size: 10px; }
 .masonry { --column-count: 3; position: relative; display: grid; grid-template-columns: repeat(var(--column-count), minmax(0, 1fr)); gap: 18px; }
 .masonry[data-balanced] { display: block; }
 .masonry[data-balanced] > .card { position: absolute; }
