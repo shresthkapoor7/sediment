@@ -154,3 +154,5 @@
 .menuWrap .menuItem:hover { background: var(--bg-tertiary); }
 @keyframes menuIn { from { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .menu { animation: none; } }
+
+.card h3 .paperLink { padding: 0; background: transparent; color: inherit; font: inherit; letter-spacing: inherit; text-align: left; }

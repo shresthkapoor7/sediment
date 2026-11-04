@@ -170,8 +170,8 @@ export function PaperStage({ papers, onRemove, onClear, onOpen }: {
             <button aria-label="Next paper" disabled={activeIndex === papers.length - 1} onClick={() => move(1)}><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m10 6 6 6-6 6" /></svg></button>
           </nav>}
         </div>
-        {chatMode && <section className={styles.chat} aria-label="Feeds agent conversation">
-          <div className={styles.chatHeading}><div><LogoMark width="20" height="20" /><h2>Feeds agent</h2></div><button type="button" onClick={() => { setChatMode(false); setGathering(false); requestAnimationFrame(() => focusPaper(activeIndex, false)); }}>Back to papers</button></div>
+        {chatMode && <section className={styles.chat} aria-label="Sediment conversation">
+          <div className={styles.chatHeading}><div><LogoMark width="20" height="20" /><h2>Sediment</h2></div><button type="button" onClick={() => { setChatMode(false); setGathering(false); requestAnimationFrame(() => focusPaper(activeIndex, false)); }}>Back to papers</button></div>
           <div ref={chatLog} className={styles.chatLog} data-scrolling={chatScrolling || undefined} onScroll={() => {
             setChatScrolling(true);
             if (scrollTimer.current) clearTimeout(scrollTimer.current);

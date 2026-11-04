@@ -12,14 +12,14 @@ function date(value: string) {
   return new Date(`${value.slice(0, 10)}T12:00:00Z`).toLocaleDateString(undefined, { dateStyle: "long", timeZone: "UTC" });
 }
 
-export function FeedPaperDetail({ paper, intercepted = false, missing = false, loading = false }: {
-  paper: FeedPaper | null; intercepted?: boolean; missing?: boolean; loading?: boolean;
+export function FeedPaperDetail({ paper, intercepted = false, missing = false, loading = false, onClose }: {
+  paper: FeedPaper | null; intercepted?: boolean; missing?: boolean; loading?: boolean; onClose?: () => void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const router = useRouter();
   const { saved, toggle } = useFeedBookmarks();
   const [error, setError] = useState("");
-  const close = () => intercepted ? router.back() : router.replace("/feeds");
+  const close = () => onClose ? onClose() : intercepted ? router.back() : router.replace("/feeds");
   useEffect(() => {
     if (!intercepted) return;
     const element = dialog.current;
@@ -50,7 +50,7 @@ export function FeedPaperDetail({ paper, intercepted = false, missing = false, l
       </article> : <div className={styles.empty}><h1 id="paper-detail-title">{loading ? "Loading paper…" : missing ? "Paper not found" : "Couldn’t load this paper"}</h1><p role="status">{loading ? "Opening the saved paper details." : missing ? "This paper is no longer available in the feed library." : "Please try again in a moment."}</p>{!loading && !missing && <button onClick={() => router.refresh()}>Try again</button>}<button onClick={close}>Back to feed</button></div>}
     </div>
   );
-  return intercepted ? <dialog ref={dialog} className={`feeds-shell ${styles.dialog}`} aria-labelledby="paper-detail-title" onKeyDown={event => {
+  return intercepted ? <dialog ref={dialog} className={`landing-shell ${styles.dialog}`} aria-labelledby="paper-detail-title" onKeyDown={event => {
       if (event.key !== "Tab") return;
       const controls = Array.from(event.currentTarget.querySelectorAll<HTMLElement>('button:not([disabled]), a[href], [tabindex="0"]'));
       const first = controls[0];

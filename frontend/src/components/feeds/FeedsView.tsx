@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { usePaperSelection } from "@/lib/paper-selection";
 import { PaperSelectionControl } from "@/components/feeds/PaperSelectionControl";
 import { PaperStage } from "@/components/feeds/PaperStage";
@@ -12,7 +11,7 @@ import { useFeedBookmarks } from "@/lib/feed-bookmarks";
 import { useEffect, useRef, useState } from "react";
 import { PageHeader } from "@/components/PageHeader";
 import { APIError } from "@/lib/api";
-import { Feed, FeedAction, FeedDomain, FeedFilter, FeedPaper, fetchFeed, sourceLabels, feedPaperPath } from "@/lib/feeds-api";
+import { Feed, FeedAction, FeedDomain, FeedFilter, FeedPaper, fetchFeed, sourceLabels } from "@/lib/feeds-api";
 import styles from "./FeedsView.module.css";
 
 function dateLabel(value: string | null) {
@@ -79,19 +78,7 @@ export function FeedsView({ embedded = false, ready = true, onSearch, searching 
     return () => { controller.abort(); request.current?.abort(); };
   }, [restoreKey, ready]);
 
-  useEffect(() => {
-    function restoreOverlay() {
-      const paper = window.history.state?.sedimentFeedPaper as FeedPaper | undefined;
-      setOpenedPaper(paper && feedPaperPath(paper) === window.location.pathname ? paper : null);
-    }
-    window.addEventListener("popstate", restoreOverlay);
-    return () => window.removeEventListener("popstate", restoreOverlay);
-  }, []);
-
   function openPaper(paper: FeedPaper) {
-    // Native history keeps this feed, its loaded pages, and scroll position
-    // mounted. The same URL has a server-rendered route for direct visits.
-    window.history.pushState({ sedimentFeedPaper: paper }, "", feedPaperPath(paper));
     setOpenedPaper(paper);
   }
 
@@ -229,7 +216,7 @@ export function FeedsView({ embedded = false, ready = true, onSearch, searching 
             <FeedPaperImage paper={paper} className={styles.figure} />
             <div className={styles.cardBody}>
               <div className={styles.cardMeta}><span>{paper.topics[0] || (paper.preprint ? "Preprint" : "Research paper")}</span><time dateTime={paper.published || undefined}>{dateLabel(paper.published)}</time></div>
-              <h3><Link className={styles.paperLink} href={feedPaperPath(paper)} scroll={false} prefetch={false} onClick={event => { if (event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) { event.preventDefault(); openPaper(paper); } }}>{paper.title}</Link></h3>
+              <h3><button type="button" className={styles.paperLink} onClick={() => openPaper(paper)}>{paper.title}</button></h3>
               {!!paper.authors.length && <p className={styles.authors}>{paper.authors.slice(0, 3).join(", ")}{paper.authors.length > 3 ? " & collaborators" : ""}</p>}
               {paper.abstract && <p data-preview className={styles.summary}>{paper.abstract}</p>}
               <div className={styles.cardFooter}><div className={styles.cardActions}><PaperSelectionControl title={paper.title} selected={selection.has(paper.id)} onToggle={() => selection.toggle(paper)} /><button aria-label={`${saved.includes(paper.id) ? "Unsave" : "Save"} ${paper.title}`} aria-pressed={saved.includes(paper.id)} onClick={() => toggleSaved(paper)}><svg width="15" height="17" viewBox="0 0 16 18" fill={saved.includes(paper.id) ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.3" aria-hidden="true"><path d="M3 2h10v14l-5-3-5 3z" /></svg>{saved.includes(paper.id) ? "Saved" : "Save"}</button></div></div>
@@ -243,6 +230,6 @@ export function FeedsView({ embedded = false, ready = true, onSearch, searching 
       </section>
     </main>
     <PaperStage papers={selection.papers} onRemove={selection.toggle} onClear={selection.clear} onOpen={openPaper} />
-    {openedPaper && <FeedPaperDetail paper={openedPaper} intercepted />}
+    {openedPaper && <FeedPaperDetail paper={openedPaper} intercepted onClose={() => setOpenedPaper(null)} />}
   </div>;
 }

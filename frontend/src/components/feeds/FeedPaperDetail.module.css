@@ -13,9 +13,9 @@
 .content h1 { margin-top: 16px; font-size: clamp(24px, 3vw, 34px); line-height: 1.25; letter-spacing: -.04em; font-weight: 550; overflow-wrap: anywhere; }
 .authors { margin-top: 18px; color: var(--text-secondary); font-size: 13px; line-height: 1.8; }
 .actions { display: flex; gap: 10px; flex-wrap: wrap; margin: 24px 0; }
-.actions a, .actions button, .empty button { display: inline-flex; gap: 8px; align-items: center; justify-content: center; border-radius: 7px; padding: 10px 14px; border: 1px solid var(--border); background: var(--node-bg); color: var(--text-primary); font-size: 12px; text-decoration: none; }
+.actions a, .actions button, .empty button { display: inline-flex; gap: 8px; align-items: center; justify-content: center; border-radius: 999px; padding: 10px 16px; border: 1px solid var(--border); background: var(--node-bg); color: var(--text-primary); font-size: 12px; text-decoration: none; }
 .actions .primary { background: var(--accent); color: var(--on-accent); border-color: transparent; }
-.actions button[aria-pressed="true"] { color: var(--accent); }
+.actions button[aria-pressed="true"] { color: var(--text-primary); }
 .figure { margin: 28px 0; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--bg-secondary); }
 .figure img { display: block; width: 100%; max-height: 360px; object-fit: contain; }
 :global(html[data-theme="light"]) .figure img[data-illustration] { filter: invert(1); }
@@ -40,3 +40,8 @@
 .standalone { max-width: 820px; margin: 0 auto; border: 1px solid var(--border); border-radius: 14px; background: var(--node-bg); color: var(--text-primary); }
 .standalone .header { border-radius: 14px 14px 0 0; }
 @media (max-width: 640px) { .page { padding: 12px 10px; } }
+
+.dialog { scrollbar-width: thin; scrollbar-color: var(--border-hover) transparent; }
+.figure:has(img[data-illustration]) { padding: 24px; background: transparent; }
+.figure img[data-illustration] { max-height: 240px; }
+.actions a:hover, .actions button:hover { border-color: var(--border-hover); }
