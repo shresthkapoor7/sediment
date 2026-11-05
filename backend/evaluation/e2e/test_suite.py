@@ -27,7 +27,10 @@ class EndToEndEvals(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         from dotenv import load_dotenv
         load_dotenv(Path(__file__).resolve().parents[2] / ".env")
-        for key in ("ANTHROPIC_API_KEY", "OPENAI_API_KEY"):
+        if not getattr(self, "budget", None):
+            raise RuntimeError("Use python -m evaluation.e2e.run with explicit provider budgets")
+        self.mode = getattr(self, "mode", "full")
+        for key in (("ANTHROPIC_API_KEY", "OPENAI_API_KEY") if self.mode == "full" else ("ANTHROPIC_API_KEY",)):
             self.assertTrue(os.environ.get(key, "").strip(), f"Set {key}")
         self.stack = ExitStack()
         self.addCleanup(self.stack.close)
@@ -48,8 +51,10 @@ class EndToEndEvals(unittest.IsolatedAsyncioTestCase):
         await self.target.client.close()
         self.target.client = AsyncAnthropic(api_key=os.environ["ANTHROPIC_API_KEY"], timeout=90, max_retries=0)
         self.addAsyncCleanup(self.target.client.close)
-        self.openai = AsyncOpenAI(api_key=os.environ["OPENAI_API_KEY"], timeout=120, max_retries=0)
-        self.addAsyncCleanup(self.openai.close)
+        self.openai = None
+        if self.mode == "full":
+            self.openai = AsyncOpenAI(api_key=os.environ["OPENAI_API_KEY"], timeout=120, max_retries=0)
+            self.addAsyncCleanup(self.openai.close)
         # Same application, prompts and real provider clients. Isolate only billing DB
         # writes and local quota accounting; do not modify production implementation.
         for router in (clarify, expand, search):
@@ -58,7 +63,7 @@ class EndToEndEvals(unittest.IsolatedAsyncioTestCase):
             self.stack.enter_context(patch.object(limiter, method, AsyncMock()))
         self.api = httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://evaluation")
         self.addAsyncCleanup(self.api.aclose)
-        self.judges = Judges(self.openai)
+        self.judges = Judges(self.openai, budget=self.budget, cache_dir=getattr(self, "cache_dir", None)) if self.openai else None
 
     async def request_graph(self, case, topic, capture, record):
         from app.config import settings
@@ -107,7 +112,7 @@ class EndToEndEvals(unittest.IsolatedAsyncioTestCase):
 
     async def evaluate_case(self, case):
         topic = TOPICS[case["topic"]]
-        capture = Capture(self.stack, self.target, TARGET_LIMITS[case["workflow"]])
+        capture = Capture(self.stack, self.target, TARGET_LIMITS[case["workflow"]], budget=self.budget)
         record = {"case": case["id"], "topic": case["topic"], "workflow": case["workflow"],
                   "dataset_sha256": DATASET_SHA256, "code_sha256": CODE_SHA256,
                   "target_model": self.target.model, "judge_model": JUDGE_MODEL,
@@ -124,9 +129,13 @@ class EndToEndEvals(unittest.IsolatedAsyncioTestCase):
             record["failures"].extend(failures)
             if record.get("selected_seed_id") and graph.get("seedPaperId") != record["selected_seed_id"]:
                 record["failures"].append("selected seed ID was changed")
-            phase = "judge"
-            record["failures"].extend(await self.judges.score(case, topic, graph, capture, record))
-            record["status"] = "failed" if record["failures"] else "passed"
+            if self.judges:
+                phase = "judge"
+                record["failures"].extend(await self.judges.score(case, topic, graph, capture, record))
+                record["status"] = "failed" if record["failures"] else "passed"
+            else:
+                record["status"] = "smoke_failed" if record["failures"] else "smoke_passed"
+                record["judge_status"] = "not_run"
         except AssertionError as exc:
             record["status"] = "failed"
             record["failures"].append(str(exc))
@@ -136,8 +145,9 @@ class EndToEndEvals(unittest.IsolatedAsyncioTestCase):
             # Traceback retained by unittest; avoid serializing provider exceptions/headers.
             raise
         finally:
-            emit("result", **record, **capture.snapshot(), judge_calls=self.judges.calls,
-                 judge_usage=self.judges.usage, judge_steps=self.judges.steps)
+            emit("result", **record, **capture.snapshot(), judge_calls=self.judges.calls if self.judges else 0,
+                 judge_usage=self.judges.usage if self.judges else [],
+                 judge_steps=self.judges.steps if self.judges else [])
         self.assertFalse(record["failures"], "; ".join(record["failures"]))
 
 

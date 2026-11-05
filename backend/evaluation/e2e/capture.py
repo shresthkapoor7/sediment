@@ -55,7 +55,7 @@ def stage_response(stage):
 
 
 class Capture:
-    def __init__(self, stack, target, target_limit):
+    def __init__(self, stack, target, target_limit, budget=None):
         self.stages, self.retrieval, self.requests, self.errors, self.usage = [], [], [], [], []
         self.target_limit, self.provider_calls = target_limit, 0
         self.current_stage = ContextVar("evaluation_stage", default=None)
@@ -69,13 +69,13 @@ class Capture:
             if len(self.requests) >= self.target_limit:
                 self.errors.append("target call budget exceeded")
                 raise RuntimeError(self.errors[-1])
-            request = deepcopy({k: kwargs[k] for k in ("model", "messages", "max_tokens") if k in kwargs})
+            request = deepcopy({k: kwargs[k] for k in ("model", "messages", "max_tokens", "thinking", "output_config", "tools", "tool_choice", "system", "cache_control") if k in kwargs})
             self.requests.append(request)
             stage = self.current_stage.get()
             if stage is not None:
                 stage["requests"].append(request)
             try:
-                result = await original_create(**kwargs)
+                result = await budget.call("anthropic", kwargs, lambda: original_create(**kwargs)) if budget else await original_create(**kwargs)
             except Exception as exc:
                 self.errors.append(f"target API: {type(exc).__name__}")
                 raise
@@ -136,6 +136,17 @@ class Capture:
                 self.errors.append(f"OpenAlex API: {type(exc).__name__}")
                 raise
         stack.enter_context(patch.object(openalex, "_get", get))
+
+    @classmethod
+    def from_snapshot(cls, row):
+        capture = cls.__new__(cls)
+        capture.stages = row.get("stages", [])
+        capture.retrieval = row.get("retrieval", [])
+        capture.requests = row.get("target_requests", [])
+        capture.errors = row.get("target_errors", [])
+        capture.usage = row.get("target_usage", [])
+        capture.provider_calls = row.get("openalex_calls", 0)
+        return capture
 
     def papers(self):
         # Keep different evidence versions, not only the first metadata-only hit.

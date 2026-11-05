@@ -1,5 +1,8 @@
 # Lineage and canvas-note evaluations
 
+For the manual, budgeted local workflow with durable capture/replay, use the
+[current lineage runner](e2e/README.md). This historical suite is not the recommended paid entrypoint.
+
 The main suite is now the [30-case API evaluation](e2e/README.md), covering AI
 and mathematics with explicit paper recall, context recall, stage-input
 faithfulness, and scientific correctness. Run it for the combined evaluation.

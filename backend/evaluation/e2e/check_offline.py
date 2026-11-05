@@ -21,6 +21,7 @@ os.environ.update(RUN_E2E_EVALS="1", RAGAS_DO_NOT_TRACK="true", ANTHROPIC_API_KE
                   OPENALEX_API_KEY="offline", SUPABASE_URL="", SUPABASE_SERVICE_ROLE_KEY="")
 import httpx
 import openai
+from evaluation.e2e.budget import Budget
 from evaluation.e2e.capture import json_after, stage_contexts
 from evaluation.e2e.dataset import CASES, TOPICS, normalize_title, paper
 from evaluation.e2e.test_suite import EndToEndEvals
@@ -65,7 +66,7 @@ async def provider_get(session, url, params):
         ids = query.split(':', 1)[1].split('|')
         results = [p for p in catalog if p['id'] in ids]
     else:
-        search = query.split(':', 1)[-1].strip('"')
+        search = params.get('search.title', params.get('search.title_abstract_keywords', query.split(':', 1)[-1].strip('"')))
         seed = catalog[0]
         if normalize_title(search) in {normalize_title(state['case']['query']), normalize_title(seed['title']), normalize_title(state['topic']['concept'])}:
             results = [seed, catalog[-1]]
@@ -120,6 +121,7 @@ async def target_create(self, **kwargs):
 
 
 async def judge_http(request):
+    state["judge_http_calls"] = state.get("judge_http_calls", 0) + 1
     payload = json.loads(request.content)
     assert payload['model'] == 'gpt-6-astra' and payload['store'] is False
     assert payload['max_completion_tokens'] == 4096 and 'max_tokens' not in payload
@@ -136,10 +138,11 @@ async def judge_http(request):
         state['nli_step'] += 1
         if state['fault'] == 'omitted_claim':
             answer['statements'].pop()
-    elif 'ContextRecallOutput' in serialized:
-        attributed = 0 if state['fault'] == 'context_recall' and state['recall_step'] == 0 else 1
-        answer = {'classifications': [dict(statement='Synthetic reference fact.', reason=reason, attributed=attributed)]}
-        state['recall_step'] += 1
+    elif 'FactVerdicts' in serialized:
+        answer = {'classifications': [dict(fact_id=i, reason=reason,
+            attributed=0 if state['fault'] == 'context_recall' and i == 0 else 1) for i in range(3)]}
+        if state['fault'] == 'omitted_fact':
+            answer['classifications'].pop()
     elif 'RubricScoreOutput' in serialized:
         answer = dict(score=2 if state['fault'] == 'correctness' else 5, feedback=reason)
     else:
@@ -159,6 +162,7 @@ def offline_openai(self, *args, **kwargs):
 async def run_case(case, fault=None):
     prepare(case, fault)
     test = EndToEndEvals('runTest')
+    test.budget = Budget({"anthropic": 1000, "openai": 1000})
     error = None
     with contextlib.redirect_stdout(io.StringIO()) as output:
         try:
@@ -191,13 +195,13 @@ async def run_case(case, fault=None):
         for metric in final['faithfulness']:
             assert metric['contexts'] and metric['steps']
         assert len(final['context_recall']['facts']) == 3
-        assert final['judge_calls'] in (6, 8)
+        assert final['judge_calls'] in (4, 6)
     else:
         assert error is not None, f'{fault} incorrectly passed'
         expected = {'faithfulness': 'faithfulness/', 'context_recall': 'context_recall=',
                     'correctness': 'scientific_correctness=', 'missing_foundation': 'lineage_paper_recall',
                     'reversed_edge': 'unverified direct-citation edges',
-                    'omitted_claim': 'omitted/changed claims', 'target_error': 'hidden by application fallback'}
+                    'omitted_claim': 'omitted/changed claims', 'omitted_fact': 'omitted, duplicated or reordered', 'target_error': 'hidden by application fallback'}
         assert expected[fault] in str(error), (fault, str(error))
     return final
 
@@ -219,6 +223,52 @@ def check_context_isolation():
         raise AssertionError('Prompt drift silently passed')
 
 
+async def check_local_runner():
+    from pathlib import Path
+    import tempfile
+    from evaluation.e2e.run import execute, read_results
+    from evaluation.e2e.dataset import DATASET_SHA256
+    case = CASES[0]
+    prepare(case)
+    with tempfile.TemporaryDirectory() as temporary:
+        root = Path(temporary)
+        generation = root / 'generation'
+        generation.mkdir()
+        args = SimpleNamespace(command='generate', source=None, skip_invalid=False, fresh_judges=False)
+        manifest = {'run_id':'offline-generation', 'limits': {'openai':0, 'anthropic':100},
+                    'cases':[case['id']], 'dataset_sha256':DATASET_SHA256}
+        with contextlib.redirect_stdout(io.StringIO()):
+            assert await execute(args, generation, manifest, [case], {}) == 0
+        source = read_results(generation / 'results.jsonl')
+        assert source[case['id']]['status'] == 'smoke_passed'
+        assert source[case['id']]['judge_calls'] == 0
+        original = (generation / 'results.jsonl').read_bytes()
+        with contextlib.redirect_stdout(io.StringIO()):
+            assert await execute(args, generation, manifest, [case], {}) == 0
+        assert original == (generation / 'results.jsonl').read_bytes(), 'resume reran completed generation'
+        args.command, args.source = 'judge', generation
+        manifest['limits'] = {'openai':100, 'anthropic':0}
+        for name in ('judge', 'cached-judge'):
+            destination = root / name
+            destination.mkdir()
+            with contextlib.redirect_stdout(io.StringIO()):
+                assert await execute(args, destination, manifest, [case], source) == 0
+            record = read_results(destination / 'results.jsonl')[case['id']]
+            assert record['target_calls'] == 0
+            if name == 'cached-judge':
+                assert record['judge_calls'] == 0, 'replay billed cached successful judge calls'
+        # Recover an already captured graph after interruption before result emission.
+        interrupted = root / 'interrupted'
+        interrupted.mkdir()
+        candidate = next(line for line in original.decode().splitlines() if json.loads(line)['event']=='candidate')
+        (interrupted / 'results.jsonl').write_text(candidate+'\n')
+        args.command = 'generate'
+        manifest['limits'] = {'openai':0, 'anthropic':0}
+        with contextlib.redirect_stdout(io.StringIO()):
+            assert await execute(args, interrupted, manifest, [case], {}) == 0
+        assert read_results(interrupted/'results.jsonl')[case['id']]['status'] == 'smoke_passed'
+
+
 async def main():
     from evaluation.e2e.report import summarize
     import tempfile
@@ -226,9 +276,10 @@ async def main():
     for case in CASES:
         rows.append(await run_case(case))
     for fault in ('faithfulness', 'context_recall', 'correctness', 'missing_foundation',
-                  'reversed_edge', 'omitted_claim', 'target_error'):
+                  'reversed_edge', 'omitted_claim', 'omitted_fact', 'target_error'):
         await run_case(CASES[0], fault)
     check_context_isolation()
+    await check_local_runner()
     with tempfile.TemporaryDirectory() as directory:
         path = os.path.join(directory, 'offline.jsonl')
         with open(path, 'w') as output:
@@ -240,7 +291,7 @@ async def main():
             output.write(json.dumps(rows[0]) + '\n')
         with contextlib.redirect_stdout(io.StringIO()):
             assert summarize(path) == 1, 'A partial run must not report overall success'
-    print('Passed: all 30 API scenarios; seven failure controls; context isolation and report checks. No live API calls. Synthetic scores are not app-quality results.')
+    print('Passed: all 30 API scenarios; eight failure controls; context isolation, local capture/replay/cache/resume and report checks. No live API calls. Synthetic scores are not app-quality results.')
 
 
 if __name__ == '__main__':
