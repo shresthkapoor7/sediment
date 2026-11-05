@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Script from "next/script";
 import { Inter, Geist, Geist_Mono, Source_Serif_4 } from "next/font/google";
 import { ThemeProvider } from "@/components/ThemeProvider";
+import { siteJsonLd } from "@/lib/jsonld";
 import "./globals.css";
 
 const inter = Inter({
@@ -69,6 +70,12 @@ export default function RootLayout({
                 document.documentElement.setAttribute('data-theme', t);
               })();
             `,
+          }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify(siteJsonLd).replace(/</g, "\\u003c"),
           }}
         />
       </head>
