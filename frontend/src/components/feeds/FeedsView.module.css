@@ -74,9 +74,10 @@
 .authors { font-size: 13px; line-height: 1.6; color: var(--text-secondary); margin-top: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .summary { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; font-size: 14px; line-height: 1.7; min-height: 5.1em; flex-shrink: 0; color: var(--text-secondary); margin-top: 14px; }
 .cardFooter { display: flex; align-items: center; gap: 12px; margin-top: auto; padding-top: 20px; }
-.cardFooter button { flex-shrink: 0; display: flex; gap: 6px; align-items: center; padding: 7px 12px; border: 1px solid var(--border); border-radius: 999px; background: none; color: var(--text-secondary); font-size: 12px; transition: color .15s, border-color .15s; }
-.cardFooter button:hover { color: var(--text-primary); border-color: var(--border-hover); }
-.cardFooter button[aria-pressed="true"] { color: var(--text-primary); border-color: var(--border-hover); }
+/* Same size, radius and weight as the buttons in the paper panel. */
+.cardFooter button { flex-shrink: 0; display: flex; gap: 8px; align-items: center; justify-content: center; height: 36px; padding: 0 16px; border: 1px solid var(--border); border-radius: 9px; background: none; color: var(--text-primary); font-size: 13px; font-weight: 500; transition: border-color .15s; }
+.cardFooter button:hover { border-color: var(--border-hover); }
+.cardFooter button[aria-pressed="true"] { border-color: var(--border-hover); }
 @media (max-width: 800px) { .card:has(.figure) .cardBody::after { display: none; } .card h3, .summary { min-height: 0; } .card, .card:has(img[data-illustration]) { grid-template-columns: minmax(0, 1fr); gap: 18px; padding: 20px; height: auto; grid-template-rows: none; } .card:has(img[data-illustration]) .cardBody { padding: 0; } .figure:has(img[data-illustration]) { grid-template-rows: none; } .figure img[data-illustration] { height: auto; aspect-ratio: 9 / 5; } .figure { grid-column: 1; } .cardBody { grid-row: 2; } .card h3 { font-size: 19px; } }
 .empty { padding: 72px 16px; text-align: center; }
 .empty h3 { font-weight: 500; }
@@ -155,4 +156,5 @@
 @keyframes menuIn { from { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .menu { animation: none; } }
 
-.card h3 .paperLink { padding: 0; background: transparent; color: inherit; font: inherit; letter-spacing: inherit; text-align: left; }
+/* The title is a button, so the 2-line clamp has to live on it, not on the h3 around it. */
+.card h3 .paperLink { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; max-width: 100%; padding: 0; background: transparent; color: inherit; font: inherit; letter-spacing: inherit; text-align: left; }
