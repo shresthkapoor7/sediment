@@ -42,7 +42,7 @@
 .laneStack { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
 .column { position: relative; display: flex; flex-direction: column; padding: 8px; border-radius: 14px; background: color-mix(in srgb, var(--bg-secondary) 55%, transparent); transition: background .15s; min-width: 0; }
 .columnOver { background: color-mix(in srgb, var(--bg-tertiary) 85%, transparent); }
-.columnHeader { display: flex; align-items: center; gap: 8px; height: 44px; padding: 0 6px 0 8px; box-sizing: border-box; }
+.columnHeader { display: flex; align-items: center; gap: 8px; height: 44px; padding: 0 8px; box-sizing: border-box; }
 /* The folder tile, the count and the delete button share one 24px tile with 7px corners. */
 .columnIcon, .pill, .columnHeader .iconButton { box-sizing: border-box; display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 7px; border: 0; flex: none; }
 .columnIcon { background: var(--bg-tertiary); color: var(--text-secondary); }
@@ -54,7 +54,8 @@ button.columnIcon[data-tinted]:hover { background: color-mix(in srgb, var(--tile
 .tileWrap { position: relative; display: inline-flex; flex: none; }
 .pickerOpen { z-index: 10; }
 .columnHeader h2 { margin: 0; font-size: 14px; font-weight: 550; letter-spacing: -.01em; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.columnHeader .pill { margin-right: auto; }
+.columnHeader h2, .columnHeader .rename { margin-right: auto; }
+.columnHeader h2 { flex: 0 1 auto; }
 .nameButton { background: none; border: 0; padding: 0; color: inherit; font: inherit; letter-spacing: inherit; cursor: text; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 .draftColumn .placeholder { min-height: 72px; }
 .miniPrimary { height: 24px; padding: 0 10px; border: 0; border-radius: 7px; background: var(--accent); color: var(--on-accent); font: inherit; font-size: 12px; font-weight: 500; cursor: pointer; transition: opacity .15s; }

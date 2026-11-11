@@ -238,10 +238,10 @@ export function WorkspacesView() {
                   : column.id === UNSORTED
                     ? <h2>{column.name}</h2>
                     : <h2><button type="button" className={styles.nameButton} title="Rename category" onClick={() => setRenaming(column.id)}>{column.name}</button></h2>}
-                <span className={styles.pill}>{column.graphs.length}</span>
                 {column.id !== UNSORTED && (confirming === column.id
                   ? <button type="button" className={styles.danger} onClick={() => { workspaces.remove(column.id); setConfirming(null); }} onBlur={() => setConfirming(null)} autoFocus>Delete category?</button>
                   : <button type="button" className={`${styles.iconButton} ${styles.reveal}`} aria-label={`Delete category ${column.name}`} title="Delete category (canvases move back to Unsorted)" onClick={() => setConfirming(column.id)}><TrashIcon /></button>)}
+                <span className={styles.pill}>{column.graphs.length}</span>
               </header>
               <ul className={styles.list}>
                 {column.graphs.map((graph, index) => <li key={graph.id}
