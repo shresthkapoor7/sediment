@@ -1,0 +1,87 @@
+"use client";
+
+import { useMemo, useSyncExternalStore } from "react";
+
+// Workspace categories live in this browser, next to the anonymous user id the canvases belong to.
+// A canvas is in at most one category; anything not listed is "Unsorted".
+// `icon` and `color` are ids from the category picker; both are optional and fall back to a plain folder.
+export type WorkspaceCategory = { id: string; name: string; graphIds: string[]; icon?: string; color?: string };
+export type CategoryLook = { icon?: string; color?: string };
+
+const key = "sediment_workspaces_v1";
+const event = "sediment-workspaces";
+
+function subscribe(callback: () => void) {
+  window.addEventListener("storage", callback);
+  window.addEventListener(event, callback);
+  return () => {
+    window.removeEventListener("storage", callback);
+    window.removeEventListener(event, callback);
+  };
+}
+const snapshot = () => { try { return localStorage.getItem(key) || "[]"; } catch { return "[]"; } };
+const serverSnapshot = () => "[]";
+
+function parse(raw: string): WorkspaceCategory[] {
+  try {
+    const value: unknown = JSON.parse(raw);
+    if (!Array.isArray(value)) return [];
+    return value.flatMap(entry => {
+      if (!entry || typeof entry !== "object" || typeof entry.id !== "string" || typeof entry.name !== "string") return [];
+      const ids = Array.isArray(entry.graphIds) ? entry.graphIds.filter((id: unknown): id is string => typeof id === "string") : [];
+      return [{
+        id: entry.id, name: entry.name, graphIds: [...new Set<string>(ids)],
+        ...(typeof entry.icon === "string" ? { icon: entry.icon } : {}), ...(typeof entry.color === "string" ? { color: entry.color } : {}),
+      }];
+    });
+  } catch { return []; }
+}
+
+function write(categories: WorkspaceCategory[]) {
+  try { localStorage.setItem(key, JSON.stringify(categories)); } catch { /* Restricted storage: changes last until reload. */ }
+  window.dispatchEvent(new Event(event));
+}
+const read = () => parse(snapshot());
+
+export const UNSORTED = "unsorted";
+
+export function useWorkspaces() {
+  const raw = useSyncExternalStore(subscribe, snapshot, serverSnapshot);
+  const categories = useMemo(() => parse(raw), [raw]);
+  return {
+    categories,
+    create(name: string, look: CategoryLook = {}) {
+      const clean = name.trim().slice(0, 60);
+      if (!clean) return null;
+      const id = crypto.randomUUID();
+      write([...read(), { id, name: clean, graphIds: [], ...look }]);
+      return id;
+    },
+    rename(id: string, name: string) {
+      const clean = name.trim().slice(0, 60);
+      if (!clean) return;
+      write(read().map(category => category.id === id ? { ...category, name: clean } : category));
+    },
+    restyle(id: string, look: CategoryLook) {
+      write(read().map(category => category.id === id ? { ...category, ...look } : category));
+    },
+    remove(id: string) { write(read().filter(category => category.id !== id)); },
+    /** Files a canvas into a category (or back to Unsorted), before `beforeId` when given, otherwise last. */
+    move(graphId: string, target: string, beforeId?: string | null) {
+      const next = read().map(category => ({ ...category, graphIds: category.graphIds.filter(id => id !== graphId) }));
+      if (target !== UNSORTED) {
+        const category = next.find(entry => entry.id === target);
+        if (!category) return;
+        const at = beforeId ? category.graphIds.indexOf(beforeId) : -1;
+        if (at >= 0) category.graphIds.splice(at, 0, graphId); else category.graphIds.push(graphId);
+      }
+      write(next);
+    },
+    /** Forget canvases that no longer exist. */
+    prune(existing: Set<string>) {
+      const current = read();
+      if (current.every(category => category.graphIds.every(id => existing.has(id)))) return;
+      write(current.map(category => ({ ...category, graphIds: category.graphIds.filter(id => existing.has(id)) })));
+    },
+  };
+}
