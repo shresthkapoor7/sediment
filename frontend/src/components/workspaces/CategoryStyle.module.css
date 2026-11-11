@@ -1,0 +1,11 @@
+.picker { position: absolute; top: calc(100% + 6px); left: 0; z-index: 30; width: 216px; padding: 10px; box-sizing: border-box; border: 1px solid var(--border-hover); border-radius: 10px; background: var(--bg-secondary); box-shadow: 0 12px 32px rgba(0, 0, 0, .35); }
+.icons { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; }
+.iconOption { display: grid; place-items: center; height: 28px; border: 0; border-radius: 7px; background: transparent; color: var(--text-tertiary); cursor: pointer; transition: background .15s, color .15s; }
+.iconOption:hover { background: color-mix(in srgb, var(--text-primary) 8%, transparent); color: var(--text-primary); }
+.iconOption[aria-checked="true"] { background: var(--bg-tertiary); color: var(--text-primary); }
+.colors { display: flex; align-items: center; gap: 8px; margin-top: 10px; padding: 10px 4px 0; border-top: 1px solid var(--border); }
+.swatch { position: relative; width: 18px; height: 18px; padding: 0; border: 0; border-radius: 50%; cursor: pointer; transition: transform .15s; }
+.swatch:hover { transform: scale(1.12); }
+.swatchDefault { background: var(--text-tertiary); }
+/* the selected swatch gets a ring that sits outside it, so every swatch keeps the same size */
+.swatch[aria-checked="true"]::after { content: ""; position: absolute; inset: -4px; border-radius: 50%; border: 1.5px solid var(--text-primary); }
