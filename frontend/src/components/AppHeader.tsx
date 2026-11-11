@@ -7,6 +7,8 @@ import { LogoMark } from "@/components/LogoMark";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { TimelineData, TraversalSettings } from "@/lib/types";
 
+const MotionLink = m.create(Link);
+
 const GITHUB_REPO_URL = "https://github.com/shresthkapoor7/sediment";
 
 const THUMB_SIZE = 13;
@@ -135,7 +137,6 @@ interface AppHeaderProps {
   graphTitleInputRef: React.RefObject<HTMLInputElement | null>;
   isSearching: boolean;
   isExpanding: boolean;
-  historyOpen: boolean;
   settingsOpen: boolean;
   settings: TraversalSettings;
   draftSettings: TraversalSettings;
@@ -148,7 +149,6 @@ interface AppHeaderProps {
   shareState: "idle" | "sharing" | "copied" | "error";
   selectedSeedOpenalexId: string | null;
   landingScrollEl: HTMLDivElement | null;
-  setHistoryOpen: React.Dispatch<React.SetStateAction<boolean>>;
   setSettingsOpen: React.Dispatch<React.SetStateAction<boolean>>;
   setSettings: React.Dispatch<React.SetStateAction<TraversalSettings>>;
   setDraftSettings: React.Dispatch<React.SetStateAction<TraversalSettings>>;
@@ -183,7 +183,6 @@ export function AppHeader({
   graphTitleInputRef,
   isSearching,
   isExpanding,
-  historyOpen,
   settingsOpen,
   settings,
   draftSettings,
@@ -196,7 +195,6 @@ export function AppHeader({
   shareState,
   selectedSeedOpenalexId,
   landingScrollEl,
-  setHistoryOpen,
   setSettingsOpen,
   setSettings,
   setDraftSettings,
@@ -243,7 +241,7 @@ export function AppHeader({
           padding: "0.75rem clamp(1rem, 4vw, 3rem)",
           borderBottom: "0.0625rem solid var(--border)",
           background: "var(--bg-primary)",
-          zIndex: !timelineData && historyOpen ? 10 : 50,
+          zIndex: 50,
           flexShrink: 0,
         }}
       >
@@ -414,12 +412,12 @@ export function AppHeader({
             )}
 
             {!timelineData && (
-              <m.button
+              <MotionLink
+                href="/workspaces"
                 className="app-header-labeled-action app-header-workspaces"
                 initial={{ opacity: 0, y: -4 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.25 }}
-                onClick={() => setHistoryOpen((open) => !open)}
                 style={{
                   display: "flex",
                   alignItems: "center",
@@ -427,22 +425,19 @@ export function AppHeader({
                   padding: "0 0.75rem",
                   height: "2rem",
                   boxSizing: "border-box",
-                  background: historyOpen ? "var(--accent-soft)" : "none",
-                  border: `0.0625rem solid ${historyOpen ? "var(--accent)" : "var(--border)"}`,
+                  border: "0.0625rem solid var(--border)",
                   borderRadius: "0.4375rem",
-                  color: historyOpen
-                    ? "var(--accent)"
-                    : "var(--text-secondary)",
+                  color: "var(--text-secondary)",
                   fontSize: "0.75rem",
                   fontFamily: "var(--font-sans), sans-serif",
                   fontWeight: 500,
+                  textDecoration: "none",
                   cursor: "pointer",
-                  transition:
-                    "border-color 0.15s, color 0.15s, background 0.15s",
+                  transition: "border-color 0.15s, color 0.15s",
                 }}
               >
                 <span className="app-header-action-label">Workspaces</span>
-              </m.button>
+              </MotionLink>
             )}
 
             {/* Credits indicator */}
@@ -1051,55 +1046,28 @@ export function AppHeader({
                 </div>
               </div>
 
-              {/* History */}
+              {/* Workspaces */}
               {!timelineData && (
-                <button
-                  onClick={() => {
-                    setHistoryOpen((o) => !o);
-                    setMobileMenuOpen(false);
-                  }}
+                <Link
+                  href="/workspaces"
+                  onClick={() => setMobileMenuOpen(false)}
                   style={{
                     display: "flex",
                     alignItems: "center",
                     gap: "0.625rem",
                     width: "100%",
                     padding: "0.625rem 0.5rem",
-                    background: "none",
-                    border: "none",
                     borderRadius: "0.5rem",
                     color: "var(--text-primary)",
                     fontSize: "0.875rem",
                     fontFamily: "var(--font-sans), sans-serif",
                     fontWeight: 500,
-                    cursor: "pointer",
-                    textAlign: "left",
-                    transition: "background 0.15s",
-                  }}
-                  onTouchStart={(e) => {
-                    e.currentTarget.style.background = "var(--bg-secondary)";
-                  }}
-                  onTouchEnd={(e) => {
-                    e.currentTarget.style.background = "none";
-                  }}
-                  onTouchCancel={(e) => {
-                    e.currentTarget.style.background = "none";
+                    textDecoration: "none",
                   }}
                 >
-                  <svg
-                    width="15"
-                    height="15"
-                    viewBox="0 0 16 16"
-                    fill="none"
-                    stroke="var(--text-tertiary)"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M2.5 3.5h11M2.5 8h11M2.5 12.5h11" />
-                    <path d="M4.5 3.5v9" opacity="0.35" />
-                  </svg>
-                  History
-                </button>
+                  <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="var(--text-tertiary)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="2" y="2.5" width="12" height="3.5" rx="1" /><rect x="2" y="8.5" width="5.5" height="5" rx="1" /><rect x="9" y="8.5" width="5" height="5" rx="1" /></svg>
+                  Workspaces
+                </Link>
               )}
 
               {!timelineData && (

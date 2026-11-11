@@ -29,13 +29,11 @@ import {
   clarifyQuery,
   ClarifyResult,
   createSavedGraph,
-  deleteSavedGraph,
   expandLineage,
   fetchSavedGraph,
   fetchUsage,
   getOrCreateAnonymousUserId,
   LAST_GRAPH_ID_KEY,
-  listSavedGraphs,
   registerAnonymousUser,
   searchLineage,
   shareGraph,
@@ -50,7 +48,6 @@ import {
   mergeTimelineWithGraph,
 } from "@/lib/timeline-builder";
 import {
-  SavedGraphListItem,
   LineageChange,
   SeedCandidate,
   TimelineData,
@@ -69,8 +66,6 @@ const DEFAULT_SETTINGS: TraversalSettings = {
   referenceLimit: 20,
   topN: 5,
 };
-const DELETE_CONFIRMATION_DISABLED_KEY = "history_delete_confirmation_disabled";
-const HISTORY_PAGE_SIZE = 10;
 
 
 export default function Home() {
@@ -98,17 +93,6 @@ export default function Home() {
   const [selectedSeedOpenalexId, setSelectedSeedOpenalexId] = useState<
     string | null
   >(null);
-  const [historyOpen, setHistoryOpen] = useState(false);
-  const [savedGraphs, setSavedGraphs] = useState<SavedGraphListItem[]>([]);
-  const [isHistoryLoading, setIsHistoryLoading] = useState(false);
-  const [isHistoryLoadingMore, setIsHistoryLoadingMore] = useState(false);
-  const [historyNextOffset, setHistoryNextOffset] = useState<number | null>(0);
-  const [historyHasMore, setHistoryHasMore] = useState(false);
-  const [historyDeletedCount, setHistoryDeletedCount] = useState(0);
-  const [deletingGraphId, setDeletingGraphId] = useState<string | null>(null);
-  const [pendingDeleteGraph, setPendingDeleteGraph] = useState<SavedGraphListItem | null>(null);
-  const [skipDeleteConfirmation, setSkipDeleteConfirmation] = useState(false);
-  const [neverShowDeleteConfirmationAgain, setNeverShowDeleteConfirmationAgain] = useState(false);
   const [saveState, setSaveState] = useState<
     "idle" | "saving" | "saved" | "error"
   >("idle");
@@ -140,7 +124,6 @@ export default function Home() {
     setLandingScrollEl(node);
   }, []);
   const landingSearchRef = useRef<HTMLDivElement | null>(null);
-  const savedGraphIdsRef = useRef<Set<string>>(new Set());
   const { mobile } = useLandingViewport();
 
   useEffect(() => {
@@ -196,12 +179,8 @@ export default function Home() {
   }, [refreshCredits]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- Hydrate the persisted confirmation preference.
-    setSkipDeleteConfirmation(
-      window.localStorage.getItem(DELETE_CONFIRMATION_DISABLED_KEY) === "true",
-    );
-
     const nextUserId = getOrCreateAnonymousUserId();
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- The anonymous id only exists in the browser.
     setUserId(nextUserId);
 
     void registerAnonymousUser(nextUserId).catch(() => undefined);
@@ -245,55 +224,6 @@ export default function Home() {
     },
     [],
   );
-
-  useEffect(() => {
-    if (!historyOpen || !userId || timelineData) return;
-
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- Loading state belongs to this history-fetch effect.
-    setIsHistoryLoading(true);
-    setHistoryDeletedCount(0);
-    void listSavedGraphs(userId, { limit: HISTORY_PAGE_SIZE, offset: 0 })
-      .then((page) => {
-        setSavedGraphs(page.items);
-        setHistoryHasMore(page.hasMore);
-        setHistoryNextOffset(page.nextOffset ?? null);
-      })
-      .catch(() => {
-        setSavedGraphs([]);
-        setHistoryHasMore(false);
-        setHistoryNextOffset(null);
-      })
-      .finally(() => {
-        setIsHistoryLoading(false);
-      });
-  }, [historyOpen, timelineData, userId]);
-
-  useEffect(() => {
-    savedGraphIdsRef.current = new Set(savedGraphs.map((graph) => graph.id));
-  }, [savedGraphs]);
-
-  const loadMoreHistory = useCallback(() => {
-    if (!userId || isHistoryLoading || isHistoryLoadingMore || historyNextOffset === null) return;
-    setIsHistoryLoadingMore(true);
-    const adjustedOffset = Math.max(0, historyNextOffset - historyDeletedCount);
-    void listSavedGraphs(userId, { limit: HISTORY_PAGE_SIZE, offset: adjustedOffset })
-      .then((page) => {
-        setSavedGraphs((current) => {
-          const existing = new Set(current.map((graph) => graph.id));
-          return [
-            ...current,
-            ...page.items.filter((graph) => !existing.has(graph.id)),
-          ];
-        });
-        setHistoryHasMore(page.hasMore);
-        setHistoryNextOffset(page.nextOffset ?? null);
-        setHistoryDeletedCount(0);
-      })
-      .catch(() => undefined)
-      .finally(() => {
-        setIsHistoryLoadingMore(false);
-      });
-  }, [historyDeletedCount, historyNextOffset, isHistoryLoading, isHistoryLoadingMore, userId]);
 
   const scheduleGraphUpdate = useCallback(
     (nextData: TimelineData, nextQuery: string) => {
@@ -752,95 +682,6 @@ export default function Home() {
     }
   }, [graphId, shareState, userId]);
 
-  const handleLoadSavedGraph = useCallback(
-    (savedGraphId: string) => {
-      if (!userId) return;
-
-      setIsHistoryLoading(true);
-      void fetchSavedGraph(savedGraphId, userId)
-        .then((graph) => {
-          setTimelineData(upgradeLegacyTimelineNoteLayout(graph.data));
-          setSearchedQuery(graph.query);
-          setGraphId(graph.id);
-          setGraphOwnerId(graph.userId);
-          setGraphTitle(graph.metadata.title || graph.query);
-          setSelectedSeedOpenalexId(graph.seedPaperId ?? null);
-          setSaveState("idle");
-          persistLastGraphId(graph.id);
-          setHistoryOpen(false);
-        })
-        .catch((error) => {
-          setSearchError(
-            error instanceof Error
-              ? error.message
-              : "Failed to load saved graph",
-          );
-        })
-        .finally(() => {
-          setIsHistoryLoading(false);
-        });
-    },
-    [persistLastGraphId, userId],
-  );
-
-  const handleDeleteSavedGraph = useCallback((savedGraphId: string) => {
-    if (!userId || deletingGraphId) return;
-
-    setDeletingGraphId(savedGraphId);
-    setSearchError("");
-
-    void deleteSavedGraph(savedGraphId, userId)
-      .then(() => {
-        if (savedGraphIdsRef.current.has(savedGraphId)) {
-          setHistoryDeletedCount((count) => count + 1);
-        }
-        setSavedGraphs((current) => current.filter((graph) => graph.id !== savedGraphId));
-        if (graphId === savedGraphId) {
-          setTimelineData(null);
-          setGraphId(null);
-          setSelectedSeedOpenalexId(null);
-          setSaveState("idle");
-          persistLastGraphId(null);
-        } else if (window.localStorage.getItem(LAST_GRAPH_ID_KEY) === savedGraphId) {
-          persistLastGraphId(null);
-        }
-      })
-      .catch((error) => {
-        setSearchError(error instanceof Error ? error.message : "Failed to delete saved graph");
-      })
-      .finally(() => {
-        setDeletingGraphId(null);
-      });
-  }, [deletingGraphId, graphId, persistLastGraphId, userId]);
-
-  const requestDeleteSavedGraph = useCallback((graph: SavedGraphListItem) => {
-    if (skipDeleteConfirmation) {
-      void handleDeleteSavedGraph(graph.id);
-      return;
-    }
-
-    setNeverShowDeleteConfirmationAgain(false);
-    setPendingDeleteGraph(graph);
-  }, [handleDeleteSavedGraph, skipDeleteConfirmation]);
-
-  const confirmDeleteSavedGraph = useCallback(() => {
-    if (!pendingDeleteGraph) return;
-
-    if (neverShowDeleteConfirmationAgain) {
-      window.localStorage.setItem(DELETE_CONFIRMATION_DISABLED_KEY, "true");
-      setSkipDeleteConfirmation(true);
-    }
-
-    const graphIdToDelete = pendingDeleteGraph.id;
-    setPendingDeleteGraph(null);
-    void handleDeleteSavedGraph(graphIdToDelete);
-  }, [handleDeleteSavedGraph, neverShowDeleteConfirmationAgain, pendingDeleteGraph]);
-
-  const cancelDeleteSavedGraph = useCallback(() => {
-    setPendingDeleteGraph(null);
-    setNeverShowDeleteConfirmationAgain(false);
-  }, []);
-
   // The home screen shows the header inside its scroll container, so it scrolls away with the page.
   const showLandingView = !timelineData && !isSearching && !isRestoring;
   const appHeader = (
@@ -855,7 +696,6 @@ export default function Home() {
       graphTitleInputRef={graphTitleInputRef}
       isSearching={isSearching}
       isExpanding={isExpanding}
-      historyOpen={historyOpen}
       settingsOpen={settingsOpen}
       settings={settings}
       draftSettings={draftSettings}
@@ -868,7 +708,6 @@ export default function Home() {
       shareState={shareState}
       selectedSeedOpenalexId={selectedSeedOpenalexId}
       landingScrollEl={landingScrollEl}
-      setHistoryOpen={setHistoryOpen}
       setSettingsOpen={setSettingsOpen}
       setSettings={setSettings}
       setDraftSettings={setDraftSettings}
@@ -940,491 +779,6 @@ export default function Home() {
 
       {/* Main content */}
       <div style={{ flex: 1, position: "relative", overflow: "hidden" }}>
-        <AnimatePresence>
-          {!timelineData && historyOpen && (
-            <>
-              <m.button
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                onClick={() => setHistoryOpen(false)}
-                style={{
-                  position: "absolute",
-                  inset: 0,
-                  background: "rgba(10, 10, 12, 0.45)",
-                  border: "none",
-                  zIndex: 20,
-                  cursor: "pointer",
-                }}
-                aria-label="Close history"
-              />
-
-              <m.aside
-                initial={{ opacity: 0, x: 24 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 24 }}
-                transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-                style={{
-                  position: "absolute",
-                  top: "0.875rem",
-                  right: "0.875rem",
-                  bottom: "0.875rem",
-                  width: "21.25rem",
-                  maxWidth: "calc(100vw - 1.75rem)",
-                  borderRadius: "0.5rem",
-                  border: "0.0625rem solid var(--border)",
-                  background:
-                    "color-mix(in srgb, var(--bg-primary) 98%, transparent)",
-                  boxShadow: "0 0.75rem 2rem rgba(0,0,0,0.16)",
-                  zIndex: 30,
-                  display: "flex",
-                  flexDirection: "column",
-                  overflow: "hidden",
-                }}
-              >
-                <button
-                  type="button"
-                  onClick={() => setHistoryOpen(false)}
-                  aria-label="Close history"
-                  style={{
-                    position: "absolute",
-                    top: 0,
-                    right: 0,
-                    zIndex: 100,
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    width: "4.25rem",
-                    height: "4.75rem",
-                    color: "var(--text-tertiary)",
-                    cursor: "pointer",
-                    fontSize: "1.25rem",
-                    lineHeight: 1,
-                    textDecoration: "none",
-                    border: "none",
-                    padding: 0,
-                    background: "transparent",
-                  }}
-                >
-                  <span
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      width: "2rem",
-                      height: "2rem",
-                      borderRadius: "0.25rem",
-                      border: "0.0625rem solid var(--border)",
-                      background: "var(--bg-primary)",
-                    }}
-                  >
-                    ×
-                  </span>
-                </button>
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    padding: "1.125rem 1.125rem 0.875rem",
-                    borderBottom: "0.0625rem solid var(--border)",
-                  }}
-                >
-                  <div>
-                    <p
-                      style={{
-                        fontSize: "0.6875rem",
-                        color: "var(--accent)",
-                        fontFamily: "var(--font-mono), monospace",
-                        letterSpacing: "0.08em",
-                        textTransform: "uppercase",
-                        marginBottom: "0.375rem",
-                      }}
-                    >
-                      Saved graphs
-                    </p>
-                    <h2
-                      style={{
-                        fontSize: "1.375rem",
-                        lineHeight: 1.1,
-                        color: "var(--text-primary)",
-                        fontFamily: "var(--font-sans), sans-serif",
-                        fontWeight: 600,
-                      }}
-                    >
-                      Return to prior traces
-                    </h2>
-                  </div>
-
-                </div>
-
-                <div
-                  style={{
-                    padding: "0.875rem",
-                    overflowY: "auto",
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "0.625rem",
-                  }}
-                >
-                  {isHistoryLoading ? (
-                    <div
-                      style={{
-                        padding: "1.125rem 1rem",
-                        borderRadius: "0.375rem",
-                        border: "0.0625rem solid var(--border)",
-                        background: "var(--bg-secondary)",
-                        color: "var(--text-tertiary)",
-                        fontSize: "0.8125rem",
-                      }}
-                    >
-                      Loading saved graphs...
-                    </div>
-                  ) : savedGraphs.length === 0 && !historyHasMore ? (
-                    <div
-                      style={{
-                        padding: "1.125rem 1rem",
-                        borderRadius: "0.375rem",
-                        border: "0.0625rem solid var(--border)",
-                        background: "var(--bg-secondary)",
-                        color: "var(--text-secondary)",
-                        fontSize: "0.8125rem",
-                        lineHeight: 1.6,
-                      }}
-                    >
-                      No saved graphs yet. Run a search and Sediment will keep
-                      the trace here.
-                    </div>
-                  ) : (
-                    <>
-                    {savedGraphs.map((graph) => (
-                      <div
-                        key={graph.id}
-                        style={{
-                          textAlign: "left",
-                          padding: "0.875rem 0.875rem 0.8125rem",
-                          borderRadius: "0.375rem",
-                          border: "0.0625rem solid var(--border)",
-                          background: "var(--bg-secondary)",
-                          color: "var(--text-primary)",
-                          transition: "border-color 0.12s, background 0.12s",
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.borderColor = "var(--border-hover)";
-                          e.currentTarget.style.background = "var(--bg-tertiary)";
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.borderColor = "var(--border)";
-                          e.currentTarget.style.background = "var(--bg-secondary)";
-                        }}
-                      >
-                        <div
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "space-between",
-                            gap: "0.75rem",
-                            marginBottom: "0.5rem",
-                          }}
-                        >
-                          <button
-                            onClick={() => handleLoadSavedGraph(graph.id)}
-                            style={{
-                              flex: 1,
-                              textAlign: "left",
-                              background: "none",
-                              border: "none",
-                              padding: 0,
-                              color: "inherit",
-                              cursor: deletingGraphId ? "default" : "pointer",
-                            }}
-                            disabled={!!deletingGraphId}
-                          >
-                            <div
-                              style={{
-                                fontSize: 14,
-                                fontWeight: 600,
-                                lineHeight: 1.35,
-                              }}
-                            >
-                              {graph.metadata.title || graph.query}
-                            </div>
-                          </button>
-                          <div
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: "0.5rem",
-                            }}
-                          >
-                            <div
-                              style={{
-                                flexShrink: 0,
-                                padding: "3px 7px",
-                                borderRadius: 2,
-                                background: "var(--accent-soft)",
-                                color: "var(--accent)",
-                                fontSize: 10,
-                                fontFamily: "var(--font-mono), monospace",
-                                letterSpacing: "0.04em",
-                              }}
-                            >
-                              {graph.metadata.nodeCount} nodes
-                            </div>
-                            <button
-                              onClick={() => requestDeleteSavedGraph(graph)}
-                              disabled={deletingGraphId !== null}
-                              aria-label={`Delete ${graph.metadata.title || graph.query}`}
-                              style={{
-                                display: "inline-flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                height: 22,
-                                padding: "0 7px",
-                                borderRadius: 4,
-                                border: "none",
-                                background: deletingGraphId === graph.id ? "var(--bg-tertiary)" : "color-mix(in srgb, var(--cat-rose) 12%, transparent)",
-                                color: deletingGraphId === graph.id ? "var(--text-tertiary)" : "var(--cat-rose)",
-                                cursor: deletingGraphId ? "default" : "pointer",
-                                flexShrink: 0,
-                                transition: "background 0.12s, color 0.12s",
-                              }}
-                              onMouseEnter={(e) => {
-                                if (deletingGraphId) return;
-                                e.currentTarget.style.background = "color-mix(in srgb, var(--cat-rose) 22%, transparent)";
-                              }}
-                              onMouseLeave={(e) => {
-                                e.currentTarget.style.background = deletingGraphId === graph.id ? "var(--bg-tertiary)" : "color-mix(in srgb, var(--cat-rose) 12%, transparent)";
-                              }}
-                            >
-                              {deletingGraphId === graph.id ? (
-                                <span
-                                  style={{
-                                    fontSize: 10,
-                                    fontFamily: "var(--font-mono), monospace",
-                                    letterSpacing: "0.04em",
-                                  }}
-                                >
-                                  ...
-                                </span>
-                              ) : (
-                                <svg
-                                  width="11"
-                                  height="11"
-                                  viewBox="0 0 16 16"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  strokeWidth="1.5"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                >
-                                  <path d="M2.5 4h11" />
-                                  <path d="M6 1.75h4" />
-                                  <path d="M5 4v8.25c0 .55.45 1 1 1h4c.55 0 1-.45 1-1V4" />
-                                  <path d="M6.75 6.25v4.5M9.25 6.25v4.5" />
-                                </svg>
-                              )}
-                            </button>
-                          </div>
-                        </div>
-                        <button
-                          onClick={() => handleLoadSavedGraph(graph.id)}
-                          style={{
-                            width: "100%",
-                            textAlign: "left",
-                            background: "none",
-                            border: "none",
-                            padding: 0,
-                            color: "inherit",
-                            cursor: deletingGraphId ? "default" : "pointer",
-                          }}
-                          disabled={!!deletingGraphId}
-                        >
-                          <div
-                            style={{
-                              flexShrink: 0,
-                              fontSize: "0.6875rem",
-                              color: "var(--text-tertiary)",
-                              fontFamily: "var(--font-mono), monospace",
-                              letterSpacing: "0.02em",
-                            }}
-                          >
-                            updated {new Date(graph.updatedAt).toLocaleDateString()}
-                          </div>
-                        </button>
-                      </div>
-                    ))}
-                    {historyHasMore && (
-                      <button
-                        onClick={loadMoreHistory}
-                        disabled={isHistoryLoadingMore}
-                        style={{
-                          width: "100%",
-                          padding: "0.75rem 0.875rem",
-                          borderRadius: "0.25rem",
-                          border: "0.0625rem solid var(--border)",
-                          background: "var(--bg-secondary)",
-                          color: isHistoryLoadingMore ? "var(--text-tertiary)" : "var(--accent)",
-                          cursor: isHistoryLoadingMore ? "default" : "pointer",
-                          fontSize: "0.75rem",
-                          fontFamily: "var(--font-mono), monospace",
-                          letterSpacing: "0.04em",
-                        }}
-                      >
-                        {isHistoryLoadingMore ? "Loading..." : "Load more"}
-                      </button>
-                    )}
-                    </>
-                  )}
-                </div>
-              </m.aside>
-            </>
-          )}
-        </AnimatePresence>
-
-        <AnimatePresence>
-          {pendingDeleteGraph && (
-            <>
-              <m.button
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                onClick={cancelDeleteSavedGraph}
-                style={{
-                  position: "fixed",
-                  inset: 0,
-                  background: "rgba(10, 10, 12, 0.55)",
-                  border: "none",
-                  zIndex: 40,
-                  cursor: "pointer",
-                }}
-                aria-label="Close delete confirmation"
-              />
-
-              <m.div
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby="delete-graph-dialog-title"
-                initial={{ opacity: 0, y: 12, scale: 0.98 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 12, scale: 0.98 }}
-                transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
-                style={{
-                  position: "fixed",
-                  inset: 0,
-                  width: "min(26.25rem, calc(100vw - 2rem))",
-                  height: "fit-content",
-                  maxHeight: "calc(100dvh - 2rem)",
-                  margin: "auto",
-                  padding: 20,
-                  borderRadius: 8,
-                  border: "1px solid var(--border)",
-                  background: "var(--bg-primary)",
-                  boxShadow: "0 1rem 2.5rem rgba(0,0,0,0.16)",
-                  zIndex: 50,
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 14,
-                  overflowY: "auto",
-                }}
-              >
-                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  <p
-                    style={{
-                      fontSize: 11,
-                      color: "var(--accent)",
-                      fontFamily: "var(--font-mono), monospace",
-                      letterSpacing: "0.08em",
-                      textTransform: "uppercase",
-                    }}
-                  >
-                    Confirm deletion
-                  </p>
-                  <h3
-                    id="delete-graph-dialog-title"
-                    style={{
-                      fontSize: 24,
-                      lineHeight: 1.1,
-                      color: "var(--text-primary)",
-                      fontFamily: "var(--font-sans), sans-serif",
-                      fontWeight: 600,
-                    }}
-                  >
-                    Delete this saved graph?
-                  </h3>
-                  <p
-                    style={{
-                      fontSize: 14,
-                      lineHeight: 1.6,
-                      color: "var(--text-secondary)",
-                    }}
-                  >
-                    This hides <strong>{pendingDeleteGraph.metadata.title || pendingDeleteGraph.query}</strong> from history.
-                    The record is soft-deleted, so it is not removed permanently from the database.
-                  </p>
-                </div>
-
-                <label
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 10,
-                    color: "var(--text-secondary)",
-                    fontSize: 13,
-                    cursor: "pointer",
-                    userSelect: "none",
-                  }}
-                >
-                  <input
-                    type="checkbox"
-                    checked={neverShowDeleteConfirmationAgain}
-                    onChange={(e) => setNeverShowDeleteConfirmationAgain(e.currentTarget.checked)}
-                    style={{ accentColor: "var(--accent)" }}
-                  />
-                  Never show again
-                </label>
-
-                <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
-                  <button
-                    onClick={cancelDeleteSavedGraph}
-                    style={{
-                      height: 34,
-                      padding: "0 12px",
-                      borderRadius: 6,
-                      border: "1px solid var(--border)",
-                      background: "none",
-                      color: "var(--text-secondary)",
-                      cursor: "pointer",
-                      fontSize: 12,
-                      fontFamily: "var(--font-sans), sans-serif",
-                      fontWeight: 500,
-                    }}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={confirmDeleteSavedGraph}
-                    style={{
-                      height: 34,
-                      padding: "0 12px",
-                      borderRadius: 6,
-                      border: "1px solid color-mix(in srgb, var(--cat-rose) 55%, var(--border))",
-                      background: "color-mix(in srgb, var(--cat-rose) 12%, transparent)",
-                      color: "var(--cat-rose)",
-                      cursor: "pointer",
-                      fontSize: 12,
-                      fontFamily: "var(--font-sans), sans-serif",
-                      fontWeight: 600,
-                    }}
-                  >
-                    Delete graph
-                  </button>
-                </div>
-              </m.div>
-            </>
-          )}
-        </AnimatePresence>
-
         {/* Fixed behind the scrolling home page, so the feed scrolls over the ridge */}
         {!timelineData && !isSearching && !isRestoring && <AsciiBackdrop />}
 
