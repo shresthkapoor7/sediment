@@ -398,6 +398,7 @@ body {
     width: 100%;
     min-height: 3rem !important;
     padding: 0 0.75rem !important;
+    border-bottom: none !important;
     box-shadow: none !important;
   }
 
@@ -1110,6 +1111,23 @@ html[data-theme="dark"] .canvas-shell {
   --on-accent: #0d0d0d;
   --node-bg: #111111;
   --node-border: #2b2b2b;
+}
+
+/* Sticky-note fills: opaque and flat, so nothing shows through them. */
+:root {
+  --note-paper: #e9ecef;
+  --note-amber: #ffec99;
+  --note-blue: #c5e3ff;
+  --note-green: #c3f0ca;
+  --note-rose: #ffd0d0;
+}
+
+html[data-theme="dark"] {
+  --note-paper: #2c2c2c;
+  --note-amber: #4f4420;
+  --note-blue: #213a55;
+  --note-green: #22402d;
+  --note-rose: #4f2a32;
 }
 
 .canvas-shell {

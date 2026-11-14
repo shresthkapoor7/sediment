@@ -52,8 +52,6 @@ interface GlobalChatPanelProps {
   onNodeColorChanges?: (changes: TimelineNodeColorChange[]) => void;
   onUsageChanged?: () => void;
   graphId?: string | null;
-  /** Width the open panel takes from the canvas's left edge, 0 when closed. */
-  onDockWidthChange?: (width: number) => void;
   userId?: string | null;
 }
 
@@ -206,7 +204,7 @@ function capMessages(messages: Message[]): Message[] {
   ));
 }
 
-export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMentionedPaperIdsChange, onLineageChanges, onNoteChanges, onNodeColorChanges, onUsageChanged, graphId, userId, onDockWidthChange }: GlobalChatPanelProps) {
+export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMentionedPaperIdsChange, onLineageChanges, onNoteChanges, onNodeColorChanges, onUsageChanged, graphId, userId }: GlobalChatPanelProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [mentionedPaperIds, setMentionedPaperIds] = useState<string[]>([]);
@@ -334,10 +332,6 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
   useEffect(() => {
     panelWidthRef.current = panelWidth;
   }, [panelWidth]);
-
-  useEffect(() => {
-    onDockWidthChange?.(open ? panelWidth : 0);
-  }, [onDockWidthChange, open, panelWidth]);
 
   const handlePanelResizeStart = useCallback(
     (event: React.PointerEvent<HTMLDivElement>) => {
@@ -708,8 +702,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
               bottom: 0,
               width: `min(${panelWidth}px, 100vw)`,
               height: "100%",
-              background: "var(--bg-primary)",
-              borderRight: "0.0625rem solid var(--border)",
+              background: "var(--bg-secondary)",
               display: "flex",
               flexDirection: "column",
               overflow: "hidden",
@@ -827,9 +820,9 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
                     display: "inline-flex",
                     alignItems: "center",
                     borderRadius: "999px",
-                    border: "0.0625rem solid var(--border)",
-                    background: "transparent",
-                    color: "var(--text-tertiary)",
+                    border: "none",
+                    background: "var(--bg-tertiary)",
+                    color: "var(--text-secondary)",
                     padding: "0.25rem 0.625rem",
                     fontSize: "0.6875rem",
                     fontFamily: "var(--font-sans), sans-serif",
@@ -842,12 +835,12 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
                     if (isThinking) return;
                     event.currentTarget.style.borderColor = "var(--border-hover)";
                     event.currentTarget.style.color = "var(--text-primary)";
-                    event.currentTarget.style.background = "var(--bg-tertiary)";
+                    event.currentTarget.style.background = "var(--border)";
                   }}
                   onMouseLeave={(event) => {
                     event.currentTarget.style.borderColor = "var(--border)";
-                    event.currentTarget.style.color = "var(--text-tertiary)";
-                    event.currentTarget.style.background = "transparent";
+                    event.currentTarget.style.color = "var(--text-secondary)";
+                    event.currentTarget.style.background = "var(--bg-tertiary)";
                   }}
                 >
                   @ paper mentions
@@ -860,9 +853,9 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
                     display: "inline-flex",
                     alignItems: "center",
                     borderRadius: "999px",
-                    border: "0.0625rem solid var(--border)",
-                    background: "transparent",
-                    color: "var(--text-tertiary)",
+                    border: "none",
+                    background: "var(--bg-tertiary)",
+                    color: "var(--text-secondary)",
                     padding: "0.25rem 0.625rem",
                     fontSize: "0.6875rem",
                     fontFamily: "var(--font-sans), sans-serif",
@@ -875,12 +868,12 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
                     if (isThinking) return;
                     event.currentTarget.style.borderColor = "var(--border-hover)";
                     event.currentTarget.style.color = "var(--text-primary)";
-                    event.currentTarget.style.background = "var(--bg-tertiary)";
+                    event.currentTarget.style.background = "var(--border)";
                   }}
                   onMouseLeave={(event) => {
                     event.currentTarget.style.borderColor = "var(--border)";
-                    event.currentTarget.style.color = "var(--text-tertiary)";
-                    event.currentTarget.style.background = "transparent";
+                    event.currentTarget.style.color = "var(--text-secondary)";
+                    event.currentTarget.style.background = "var(--bg-tertiary)";
                   }}
                 >
                   Add/Delete papers
@@ -893,9 +886,9 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
                     display: "inline-flex",
                     alignItems: "center",
                     borderRadius: "999px",
-                    border: "0.0625rem solid var(--border)",
-                    background: "transparent",
-                    color: "var(--text-tertiary)",
+                    border: "none",
+                    background: "var(--bg-tertiary)",
+                    color: "var(--text-secondary)",
                     padding: "0.25rem 0.625rem",
                     fontSize: "0.6875rem",
                     fontFamily: "var(--font-sans), sans-serif",
@@ -908,12 +901,12 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
                     if (isThinking) return;
                     event.currentTarget.style.borderColor = "var(--border-hover)";
                     event.currentTarget.style.color = "var(--text-primary)";
-                    event.currentTarget.style.background = "var(--bg-tertiary)";
+                    event.currentTarget.style.background = "var(--border)";
                   }}
                   onMouseLeave={(event) => {
                     event.currentTarget.style.borderColor = "var(--border)";
-                    event.currentTarget.style.color = "var(--text-tertiary)";
-                    event.currentTarget.style.background = "transparent";
+                    event.currentTarget.style.color = "var(--text-secondary)";
+                    event.currentTarget.style.background = "var(--bg-tertiary)";
                   }}
                 >
                   Manage notes
@@ -926,9 +919,9 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
                     display: "inline-flex",
                     alignItems: "center",
                     borderRadius: "999px",
-                    border: "0.0625rem solid var(--border)",
-                    background: "transparent",
-                    color: "var(--text-tertiary)",
+                    border: "none",
+                    background: "var(--bg-tertiary)",
+                    color: "var(--text-secondary)",
                     padding: "0.25rem 0.625rem",
                     fontSize: "0.6875rem",
                     fontFamily: "var(--font-sans), sans-serif",
@@ -941,12 +934,12 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
                     if (isThinking) return;
                     event.currentTarget.style.borderColor = "var(--border-hover)";
                     event.currentTarget.style.color = "var(--text-primary)";
-                    event.currentTarget.style.background = "var(--bg-tertiary)";
+                    event.currentTarget.style.background = "var(--border)";
                   }}
                   onMouseLeave={(event) => {
                     event.currentTarget.style.borderColor = "var(--border)";
-                    event.currentTarget.style.color = "var(--text-tertiary)";
-                    event.currentTarget.style.background = "transparent";
+                    event.currentTarget.style.color = "var(--text-secondary)";
+                    event.currentTarget.style.background = "var(--bg-tertiary)";
                   }}
                 >
                   Access paper
@@ -975,8 +968,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
                       onClick={() => { setInput(hint); inputRef.current?.focus({ preventScroll: true }); }}
                       style={{
                         textAlign: "left",
-                        background: "var(--bg-secondary)",
-                        border: "0.0625rem solid var(--border)",
+                        background: "var(--bg-tertiary)",
                         borderRadius: "0.5625rem",
                         padding: "0.5625rem 0.75rem",
                         fontSize: "0.75rem",
@@ -1177,8 +1169,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
                     alignItems: "flex-end",
                     gap: "0.5rem",
                     flexWrap: "nowrap",
-                    background: "var(--node-bg)",
-                    border: "0.0625rem solid var(--border)",
+                    background: "var(--bg-tertiary)",
                     borderRadius: "0.875rem",
                     padding: "0.75rem 0.75rem 0.75rem 0.875rem",
                   }}

@@ -332,6 +332,8 @@ export interface TimelineData {
   lanes: number;
   rootId: number;
   expansions: Expansion[];
+  /** Which card size and spacing the stored positions were laid out with. */
+  layoutVersion?: number;
   traceSummary?: TraceSummary;
   traceEvidence?: TraceEvidence;
 }

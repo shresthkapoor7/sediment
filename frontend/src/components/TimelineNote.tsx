@@ -192,7 +192,6 @@ export function TimelineNoteCard({
           height: readOnly && !note.height ? "auto" : height,
           minHeight: readOnly ? undefined : TIMELINE_NOTE_MIN_HEIGHT,
           borderRadius: "0.25rem 0.25rem 0.25rem 0.875rem",
-          border: `0.09375rem solid ${colorStyle.border}`,
           background: colorStyle.background,
           boxShadow: isDragging ? "0.25rem 0.375rem 0 rgba(0,0,0,0.22)" : "none",
           transition: "box-shadow 0.12s",
@@ -455,15 +454,17 @@ export function TimelineNoteCard({
               style={{
                 background: "transparent",
                 border: "none",
-                color: isSpecialNoteDeleting ? "var(--text-tertiary)" : "var(--cat-rose)",
+                color: "var(--text-secondary)",
                 cursor: isSpecialNoteDeleting ? "default" : "pointer",
-                fontSize: "0.625rem",
-                fontFamily: "var(--font-mono), monospace",
-                letterSpacing: "0.04em",
+                display: "inline-flex",
+                alignItems: "center",
+                marginRight: "1.25rem",
                 padding: "0.125rem",
               }}
+              aria-label={specialNote ? "Delete file" : "Delete note"}
+              title={isSpecialNoteDeleting ? "Deleting…" : specialNote ? "Delete file" : "Delete note"}
             >
-              {isSpecialNoteDeleting ? "Deleting…" : specialNote ? "Delete file" : "Delete"}
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.500" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 4.500h10M6.500 4.500V3h3v1.500M4.500 4.500l.5 8.500h6l.5-8.500" /></svg>
             </button>
           </div>
         )}
@@ -478,9 +479,8 @@ export function TimelineNoteCard({
               position: "relative",
               width: "calc(100% - 1.25rem)",
               margin: "0 0.625rem 0.625rem",
-              border: `0.0625rem solid ${colorStyle.border}`,
               borderRadius: "0.375rem",
-              background: "transparent",
+              background: "color-mix(in srgb, var(--text-primary) 8%, transparent)",
               color: isConnectedToActiveNode ? "var(--text-primary)" : "var(--text-secondary)",
               cursor: "pointer",
               fontSize: "0.625rem",

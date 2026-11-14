@@ -551,7 +551,20 @@ export function AppHeader({
               </div>
             </div>
 
-            {/* Graph session actions (Settings is hidden on the home screen) */}
+            {/* Canvas actions sit in the bar itself; only the traversal settings open a popover. */}
+            {timelineData && (
+              <>
+                <button type="button" className="app-header-labeled-action" onClick={handleExport} title="Export to Obsidian">
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M8 2.5v7.5M5 7.5l3 3 3-3M3 13h10" /></svg>
+                  <span className="app-header-action-label">Export</span>
+                </button>
+                <button type="button" className="app-header-labeled-action" onClick={() => void handleShare()} disabled={shareState === "sharing"} title="Copy a share link">
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6.8 9.2a3 3 0 0 0 4.2 0l2-2a3 3 0 0 0-4.200-4.2l-.8.8M9.2 6.800a3 3 0 0 0-4.200 0l-2 2a3 3 0 0 0 4.200 4.200l.8-.8" /></svg>
+                  <span className="app-header-action-label">{shareState === "sharing" ? "Sharing…" : shareState === "copied" ? "Link copied" : shareState === "error" ? "Share failed" : "Share"}</span>
+                </button>
+                <ThemeToggle className="app-header-labeled-action app-header-graph-icon-action" />
+              </>
+            )}
             <div style={{ position: "relative", display: timelineData ? undefined : "none" }}>
               <button
                 className={`app-header-labeled-action${timelineData ? " app-header-graph-icon-action" : ""}`}
@@ -565,9 +578,9 @@ export function AppHeader({
                   setDraftSettings(settings);
                   setSettingsOpen((open) => !open);
                 }}
-                aria-label={timelineData ? "Session actions" : "Settings"}
+                aria-label={timelineData ? "Traversal settings" : "Settings"}
                 aria-expanded={timelineData ? sessionActionsOpen : settingsOpen}
-                title={timelineData ? "Session actions" : undefined}
+                title={timelineData ? "Traversal settings" : undefined}
                 style={{
                   display: "flex",
                   alignItems: "center",
@@ -597,10 +610,10 @@ export function AppHeader({
                 }}
               >
                 {timelineData ? (
-                  <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-                    <circle cx="3" cy="8" r="1.35" />
-                    <circle cx="8" cy="8" r="1.35" />
-                    <circle cx="13" cy="8" r="1.35" />
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden="true">
+                    <path d="M2.5 5h6M11.500 5h2M2.500 11h2M7.500 11h6" />
+                    <circle cx="10" cy="5" r="1.500" />
+                    <circle cx="6" cy="11" r="1.500" />
                   </svg>
                 ) : (
                   <>
@@ -647,65 +660,6 @@ export function AppHeader({
                       gap: "0.625rem",
                     }}
                   >
-                    {timelineData && (
-                      <p
-                        style={{
-                          fontSize: "0.625rem",
-                          color: "var(--text-tertiary)",
-                          fontFamily: "var(--font-mono), monospace",
-                          letterSpacing: "0.06em",
-                          textTransform: "uppercase",
-                        }}
-                      >
-                        Session actions
-                      </p>
-                    )}
-                    {timelineData && (
-                      <div
-                        style={{
-                          display: "flex",
-                          flexDirection: "column",
-                          gap: "0.125rem",
-                          paddingBottom: "0.625rem",
-                          borderBottom: "0.0625rem solid var(--border)",
-                        }}
-                      >
-                        <button
-                          onClick={() => {
-                            handleExport();
-                            setSessionActionsOpen(false);
-                          }}
-                          style={{
-                            display: "flex", alignItems: "center", gap: "0.625rem", width: "100%", height: "2rem", padding: "0 0.5rem", border: "none", borderRadius: "0.375rem", background: "none", color: "var(--text-primary)", cursor: "pointer", fontFamily: "var(--font-sans), sans-serif", fontSize: "0.75rem", fontWeight: 500, textAlign: "left",
-                          }}
-                        >
-                          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="var(--text-tertiary)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M8 2v9M4 7l4 4 4-4" /><path d="M2 13h12" /></svg>
-                          Export
-                        </button>
-                        <button
-                          onClick={() => void handleShare()}
-                          disabled={shareState === "sharing"}
-                          style={{
-                            display: "flex", alignItems: "center", gap: "0.625rem", width: "100%", height: "2rem", padding: "0 0.5rem", border: "none", borderRadius: "0.375rem", background: "none", color: shareState === "copied" ? "var(--accent)" : "var(--text-primary)", cursor: shareState === "sharing" ? "default" : "pointer", fontFamily: "var(--font-sans), sans-serif", fontSize: "0.75rem", fontWeight: 500, textAlign: "left",
-                          }}
-                        >
-                          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke={shareState === "copied" ? "var(--accent)" : "var(--text-tertiary)"} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M11 3a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM5 8a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM11 9a2 2 0 1 1 0 4 2 2 0 0 1 0-4z" /><path d="M9 4.5l-4 3M9 11.5l-4-3" /></svg>
-                          {shareState === "sharing" ? "Sharing…" : shareState === "copied" ? "Link copied" : shareState === "error" ? "Share failed" : "Share"}
-                        </button>
-                        <a
-                          href={GITHUB_REPO_URL}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          style={{ display: "flex", alignItems: "center", gap: "0.625rem", width: "100%", height: "2rem", padding: "0 0.5rem", borderRadius: "0.375rem", color: "var(--text-primary)", fontFamily: "var(--font-sans), sans-serif", fontSize: "0.75rem", fontWeight: 500, textDecoration: "none" }}
-                        >
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style={{ color: "var(--text-tertiary)" }} aria-hidden="true">
-                            <path d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.7c-2.78.6-3.36-1.34-3.36-1.34-.45-1.15-1.1-1.46-1.1-1.46-.9-.62.07-.61.07-.61 1 .07 1.53 1.03 1.53 1.03.89 1.53 2.34 1.09 2.91.83.09-.65.35-1.09.63-1.34-2.22-.25-4.55-1.11-4.55-4.94 0-1.09.39-1.98 1.03-2.68-.1-.25-.45-1.27.1-2.65 0 0 .84-.27 2.75 1.02A9.5 9.5 0 0 1 12 6.84c.85 0 1.71.11 2.5.34 1.91-1.29 2.75-1.02 2.75-1.02.55 1.38.2 2.4.1 2.65.64.7 1.03 1.59 1.03 2.68 0 3.84-2.34 4.69-4.57 4.94.36.31.68.92.68 1.85v2.74c0 .27.18.58.69.48A10 10 0 0 0 12 2z" />
-                          </svg>
-                          GitHub
-                        </a>
-                        <ThemeToggle className="app-header-graph-session-theme" showLabel fullWidth />
-                      </div>
-                    )}
                     <p
                       style={{
                         fontSize: "0.625rem",

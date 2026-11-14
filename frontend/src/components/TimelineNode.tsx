@@ -61,7 +61,7 @@ export function TimelineNodeCard({
   const color = node.annotation?.borderColor ?? null;
   const deleteDisabled = isGraphActionDisabled || isLocked || isOnlyNode;
   const state = isActive || isSelected ? "active" : isHighlighted || isMentioned ? "marked" : undefined;
-  const authors = authorLine(paper.authors) || paper.summary;
+  const authors = authorLine(paper.authors);
 
   return (
     <m.div
@@ -69,7 +69,7 @@ export function TimelineNodeCard({
       initial={shouldAnimate ? { opacity: 0, y: 12 } : false}
       animate={{ opacity: 1, y: 0 }}
       transition={shouldAnimate ? { duration: 0.5, delay: index * 0.06, ease: [0.16, 1, 0.3, 1] } : { duration: 0 }}
-      style={{ left: node.x - 4, top: node.y - 4, width: width + 8, height: canEdit ? height + 52 : height + 8 }}
+      style={{ left: node.x - 4, top: node.y - 4, width: width + 8, height: canEdit ? height + 54 : height + 8 }}
       onClick={() => onClick(node.id)}
       onMouseEnter={(event) => onHoverStart?.(node.id, event.currentTarget.getBoundingClientRect())}
       onMouseLeave={() => onHoverEnd?.(node.id)}
@@ -89,6 +89,7 @@ export function TimelineNodeCard({
           </span>
         </div>
         <p className={styles.title} title={paper.title}>{paper.title}</p>
+        {paper.summary && <p className={styles.summary}>{paper.summary}</p>}
         <p className={styles.authors}>{authors}</p>
       </div>
 

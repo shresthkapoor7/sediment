@@ -1,4 +1,4 @@
-import { GAP_X, LANE_HEIGHT, NODE_DIMENSIONS, PADDING_X, PADDING_Y } from "./layout-constants";
+import { GAP_X, LANE_HEIGHT, LAYOUT_VERSION, NODE_DIMENSIONS, PADDING_X, PADDING_Y } from "./layout-constants";
 import { estimateTimelineNoteDimensions, layoutTimelineNotes } from "./note-layout";
 import { GraphEdge, GraphPaper, LineageGraphResponse, TimelineData, TimelineNode, TraceNote } from "./types";
 
@@ -263,6 +263,7 @@ function buildTimelineData(papers: GraphPaper[], edges: GraphEdge[]): TimelineDa
     lanes,
     rootId,
     expansions: [],
+    layoutVersion: LAYOUT_VERSION,
   };
 }
 

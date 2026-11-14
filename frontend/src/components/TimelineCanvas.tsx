@@ -129,8 +129,6 @@ export function TimelineCanvas({
   const suppressNodeClickRef = useRef(false);
 
   const [zoomDisplay, setZoomDisplay] = useState(1);
-  // Width of the agent panel docked on the left, so the zoom controls sit beside it instead of under it.
-  const [agentDockWidth, setAgentDockWidth] = useState(0);
   const [isOutOfView, setIsOutOfView] = useState(false);
   const [cursorStyle, setCursorStyle] = useState("default");
   const [activeNodeId, setActiveNodeId] = useState<number | null>(null);
@@ -1348,8 +1346,11 @@ export function TimelineCanvas({
         style={{
           position: "absolute",
           bottom: "1rem",
-          left: `calc(${agentDockWidth}px + 1rem)`,
-          transition: "left 0.32s cubic-bezier(0.16, 1, 0.3, 1)",
+          left: "50%",
+          transform: "translateX(-50%)",
+          padding: "0.1875rem",
+          borderRadius: "0.625rem",
+          background: "var(--bg-tertiary)",
           display: "flex",
           gap: "0.25rem",
           zIndex: 10,
@@ -1407,8 +1408,8 @@ export function TimelineCanvas({
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              background: "var(--bg-secondary)",
-              border: "0.0625rem solid var(--border)",
+              background: "transparent",
+              border: "none",
               borderRadius: "0.375rem",
               color: "var(--text-secondary)",
               cursor: "pointer",
@@ -1454,14 +1455,14 @@ export function TimelineCanvas({
             alignItems: "center",
             justifyContent: "center",
             background: isOutOfView ? "var(--accent-soft)" : "var(--bg-secondary)",
-            border: `0.0625rem solid ${isOutOfView ? "var(--accent)" : "var(--border)"}`,
+            border: "none",
             borderRadius: "0.375rem",
             color: isOutOfView ? "var(--accent)" : "var(--text-secondary)",
             cursor: "pointer",
             fontSize: "0.875rem",
             fontFamily: "inherit",
             transition: "all 0.2s ease",
-            boxShadow: isOutOfView ? "0 0 0 0.1875rem var(--accent-soft)" : "none",
+            
             touchAction: "manipulation",
           }}
           onMouseEnter={(e) => {
@@ -1479,8 +1480,8 @@ export function TimelineCanvas({
           fontSize: "0.6875rem",
           fontFamily: "var(--font-mono), monospace",
           color: "var(--text-tertiary)",
-          background: "var(--bg-secondary)",
-          border: "0.0625rem solid var(--border)",
+          background: "transparent",
+          border: "none",
           borderRadius: "0.375rem",
           padding: "0.25rem 0.5rem",
           userSelect: "none",
@@ -1503,7 +1504,7 @@ export function TimelineCanvas({
               height: "1.75rem",
               padding: 0,
               background: hoverPreviewEnabled ? "var(--accent-soft)" : "var(--bg-secondary)",
-              border: `0.0625rem solid ${hoverPreviewEnabled ? "var(--accent)" : "var(--border)"}`,
+              border: "none",
               borderRadius: "0.375rem",
               color: hoverPreviewEnabled ? "var(--accent)" : "var(--text-tertiary)",
               cursor: "pointer",
@@ -1540,8 +1541,8 @@ export function TimelineCanvas({
                 marginLeft: "0.25rem",
                 padding: "0 0.5rem",
                 borderRadius: "0.375rem",
-                border: "0.0625rem solid var(--border)",
-                background: "var(--bg-secondary)",
+                border: "none",
+                background: "transparent",
                 color:
                   saveState === "error"
                     ? "#d16f5b"
@@ -2075,8 +2076,7 @@ export function TimelineCanvas({
               bottom: 0,
               width: resolvedDetailPanelWidth,
               maxWidth: "100%",
-              background: "var(--bg-primary)",
-              borderLeft: "0.0625rem solid var(--border)",
+              background: "var(--bg-secondary)",
               zIndex: 20,
               display: "flex",
               flexDirection: "column",
@@ -2411,7 +2411,6 @@ export function TimelineCanvas({
           onUsageChanged={onUsageChanged}
           graphId={graphId}
           userId={userId}
-          onDockWidthChange={setAgentDockWidth}
         />
       )}
     </m.div>
