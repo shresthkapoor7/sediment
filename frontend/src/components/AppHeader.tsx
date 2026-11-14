@@ -859,7 +859,8 @@ export function AppHeader({
               <button
                 className="app-header-graph-icon-action"
                 onClick={handleToggleGlobalChat}
-                aria-label={globalChatOpen ? "Close timeline sidebar" : "Open timeline sidebar"}
+                aria-label={globalChatOpen ? "Close agent" : "Open agent"}
+                title={globalChatOpen ? "Close agent" : "Open agent"}
                 aria-pressed={globalChatOpen}
                 style={{
                   display: "flex",
@@ -867,21 +868,19 @@ export function AppHeader({
                   justifyContent: "center",
                   width: "2rem",
                   height: "2rem",
-                  background: globalChatOpen ? "var(--accent-soft)" : "none",
-                  border: `0.0625rem solid ${globalChatOpen ? "var(--accent)" : "var(--border)"}`,
+                  background: globalChatOpen ? "var(--bg-tertiary)" : "none",
+                  border: "none",
                   borderRadius: "0.4375rem",
-                  color: globalChatOpen ? "var(--accent)" : "var(--text-secondary)",
+                  color: globalChatOpen ? "var(--text-primary)" : "var(--text-secondary)",
                   cursor: "pointer",
                   padding: 0,
-                  transition: "border-color 0.15s, color 0.15s, background 0.15s",
+                  transition: "color 0.15s, background 0.15s",
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.borderColor = "var(--accent)";
-                  e.currentTarget.style.color = "var(--accent)";
+                  e.currentTarget.style.color = "var(--text-primary)";
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.borderColor = globalChatOpen ? "var(--accent)" : "var(--border)";
-                  e.currentTarget.style.color = globalChatOpen ? "var(--accent)" : "var(--text-secondary)";
+                  e.currentTarget.style.color = globalChatOpen ? "var(--text-primary)" : "var(--text-secondary)";
                 }}
               >
                 <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">

@@ -52,6 +52,8 @@ interface GlobalChatPanelProps {
   onNodeColorChanges?: (changes: TimelineNodeColorChange[]) => void;
   onUsageChanged?: () => void;
   graphId?: string | null;
+  /** Width the open panel takes from the canvas's left edge, 0 when closed. */
+  onDockWidthChange?: (width: number) => void;
   userId?: string | null;
 }
 
@@ -204,7 +206,7 @@ function capMessages(messages: Message[]): Message[] {
   ));
 }
 
-export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMentionedPaperIdsChange, onLineageChanges, onNoteChanges, onNodeColorChanges, onUsageChanged, graphId, userId }: GlobalChatPanelProps) {
+export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMentionedPaperIdsChange, onLineageChanges, onNoteChanges, onNodeColorChanges, onUsageChanged, graphId, userId, onDockWidthChange }: GlobalChatPanelProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [mentionedPaperIds, setMentionedPaperIds] = useState<string[]>([]);
@@ -333,6 +335,10 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
     panelWidthRef.current = panelWidth;
   }, [panelWidth]);
 
+  useEffect(() => {
+    onDockWidthChange?.(open ? panelWidth : 0);
+  }, [onDockWidthChange, open, panelWidth]);
+
   const handlePanelResizeStart = useCallback(
     (event: React.PointerEvent<HTMLDivElement>) => {
       event.preventDefault();
@@ -345,7 +351,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
       const handlePointerMove = (moveEvent: PointerEvent) => {
         const current = panelResizeStateRef.current;
         if (!current) return;
-        const nextWidth = getClampedPanelWidth(current.startWidth - (moveEvent.clientX - current.startX));
+        const nextWidth = getClampedPanelWidth(current.startWidth + (moveEvent.clientX - current.startX));
         panelWidthRef.current = nextWidth;
         setPanelWidth(nextWidth);
       };
@@ -680,7 +686,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
       style={{
         position: "absolute",
         top: 0,
-        right: 0,
+        left: 0,
         bottom: 0,
         zIndex: 22,
         pointerEvents: "none",
@@ -690,21 +696,20 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
         {open && (
           <m.div
             id={panelId}
-            initial={{ x: "100%" }}
+            initial={{ x: "-100%" }}
             animate={{ x: 0 }}
-            exit={{ x: "100%" }}
+            exit={{ x: "-100%" }}
             transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
             onWheelCapture={(e) => e.stopPropagation()}
             style={{
               position: "absolute",
               top: 0,
-              right: 0,
+              left: 0,
               bottom: 0,
               width: `min(${panelWidth}px, 100vw)`,
               height: "100%",
               background: "var(--bg-primary)",
-              borderLeft: "0.0625rem solid var(--border)",
-              boxShadow: "-0.75rem 0 2.5rem rgba(0,0,0,0.16)",
+              borderRight: "0.0625rem solid var(--border)",
               display: "flex",
               flexDirection: "column",
               overflow: "hidden",
@@ -717,7 +722,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
               style={{
                 position: "absolute",
                 top: 0,
-                left: "-0.375rem",
+                right: "-0.375rem",
                 bottom: 0,
                 width: "0.75rem",
                 cursor: "ew-resize",
@@ -746,8 +751,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
               display: "flex",
               alignItems: "center",
               gap: "0.5rem",
-              padding: "0.625rem 0.875rem",
-              borderBottom: "0.0625rem solid var(--border)",
+              padding: "0.75rem 1rem 0.25rem",
               flexShrink: 0,
             }}>
               <div
@@ -762,15 +766,15 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
               >
                 <LogoMark width="18" height="18" style={{ color: "var(--text-primary)" }} />
               </div>
-              <div style={{ position: "absolute", left: "50%", transform: "translateX(-50%)", maxWidth: "calc(100% - 7rem)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", pointerEvents: "none" }}>
-                <div style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--text-primary)", fontFamily: "var(--font-sans), sans-serif" }}>
-                  Sediment Agent
+              <div style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", pointerEvents: "none" }}>
+                <div style={{ fontSize: "0.8125rem", fontWeight: 600, color: "var(--text-primary)", fontFamily: "var(--font-sans), sans-serif" }}>
+                  Agent
                 </div>
               </div>
               <div style={{ flex: 1 }} />
               <button
                 onClick={handleClose}
-                aria-label="Close chat"
+                aria-label="Close agent"
                 style={{
                   background: "none", border: "none", cursor: "pointer",
                   color: "var(--text-tertiary)", padding: "0.25rem", borderRadius: "0.375rem",
@@ -788,9 +792,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
                 display: "flex",
                 flexDirection: "column",
                 gap: "0.5rem",
-                padding: "0.75rem 0.875rem",
-                borderBottom: "0.0625rem solid var(--border)",
-                background: "var(--bg-secondary)",
+                padding: "0.5rem 1rem 0.75rem",
                 flexShrink: 0,
               }}
             >
@@ -824,11 +826,11 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
                   style={{
                     display: "inline-flex",
                     alignItems: "center",
-                    borderRadius: "0.25rem",
+                    borderRadius: "999px",
                     border: "0.0625rem solid var(--border)",
                     background: "transparent",
                     color: "var(--text-tertiary)",
-                    padding: "0.25rem 0.55rem",
+                    padding: "0.25rem 0.625rem",
                     fontSize: "0.6875rem",
                     fontFamily: "var(--font-sans), sans-serif",
                     fontWeight: 500,
@@ -857,11 +859,11 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
                   style={{
                     display: "inline-flex",
                     alignItems: "center",
-                    borderRadius: "0.25rem",
+                    borderRadius: "999px",
                     border: "0.0625rem solid var(--border)",
                     background: "transparent",
                     color: "var(--text-tertiary)",
-                    padding: "0.25rem 0.55rem",
+                    padding: "0.25rem 0.625rem",
                     fontSize: "0.6875rem",
                     fontFamily: "var(--font-sans), sans-serif",
                     fontWeight: 500,
@@ -890,11 +892,11 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
                   style={{
                     display: "inline-flex",
                     alignItems: "center",
-                    borderRadius: "0.25rem",
+                    borderRadius: "999px",
                     border: "0.0625rem solid var(--border)",
                     background: "transparent",
                     color: "var(--text-tertiary)",
-                    padding: "0.25rem 0.55rem",
+                    padding: "0.25rem 0.625rem",
                     fontSize: "0.6875rem",
                     fontFamily: "var(--font-sans), sans-serif",
                     fontWeight: 500,
@@ -923,11 +925,11 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
                   style={{
                     display: "inline-flex",
                     alignItems: "center",
-                    borderRadius: "0.25rem",
+                    borderRadius: "999px",
                     border: "0.0625rem solid var(--border)",
                     background: "transparent",
                     color: "var(--text-tertiary)",
-                    padding: "0.25rem 0.55rem",
+                    padding: "0.25rem 0.625rem",
                     fontSize: "0.6875rem",
                     fontFamily: "var(--font-sans), sans-serif",
                     fontWeight: 500,
@@ -954,7 +956,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
 
             {/* Messages */}
             <div style={{ position: "relative", flex: 1, minHeight: 0 }}>
-              <div ref={messagesRef} style={{ height: "100%", overflowY: "auto", padding: "0.625rem 0.875rem", display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+              <div ref={messagesRef} style={{ height: "100%", overflowY: "auto", padding: "0.5rem 1rem 1rem", display: "flex", flexDirection: "column", gap: "1rem" }}>
               {messages.length === 0 && (
                 <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem", marginTop: "0.25rem" }}>
                   {loadingSuggestions ? (
@@ -975,9 +977,9 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
                         textAlign: "left",
                         background: "var(--bg-secondary)",
                         border: "0.0625rem solid var(--border)",
-                        borderRadius: "0.5rem",
-                        padding: "0.4375rem 0.625rem",
-                        fontSize: "0.71875rem",
+                        borderRadius: "0.5625rem",
+                        padding: "0.5625rem 0.75rem",
+                        fontSize: "0.75rem",
                         color: "var(--text-secondary)",
                         fontFamily: "var(--font-sans), sans-serif",
                         cursor: "pointer",
@@ -995,13 +997,13 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
               {messages.map((msg) => (
                 <div id={`${panelId}-message-${msg.id}`} key={msg.id} style={{ display: "flex", flexDirection: "column", gap: "0.25rem", alignItems: msg.role === "user" ? "flex-end" : "flex-start" }}>
                   <div style={{
-                    maxWidth: "88%",
-                    padding: "0.4375rem 0.625rem",
-                    borderRadius: msg.role === "user" ? "0.625rem 0.625rem 0.1875rem 0.625rem" : "0.625rem 0.625rem 0.625rem 0.1875rem",
-                    background: msg.role === "user" ? "var(--accent)" : "var(--bg-secondary)",
-                    color: msg.role === "user" ? "var(--on-accent)" : "var(--text-primary)",
-                    fontSize: "0.78125rem",
-                    lineHeight: 1.5,
+                    maxWidth: msg.role === "user" ? "88%" : "100%",
+                    padding: msg.role === "user" ? "0.5rem 0.75rem" : 0,
+                    borderRadius: "0.75rem",
+                    background: msg.role === "user" ? "var(--bg-tertiary)" : "transparent",
+                    color: "var(--text-primary)",
+                    fontSize: "0.8125rem",
+                    lineHeight: 1.6,
                     fontFamily: "var(--font-sans), sans-serif",
                   }}>
                     {msg.role === "assistant" ? (
@@ -1072,7 +1074,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
             </div>
 
             {/* Input bar */}
-            <div style={{ position: "relative", padding: "0.75rem 1rem", borderTop: "0.0625rem solid var(--border)", flexShrink: 0 }}>
+            <div style={{ position: "relative", padding: "0.5rem 1rem 1rem", flexShrink: 0 }}>
               <AnimatePresence>
                 {mentionOpen && mentionOptions.length > 0 && (
                   <m.div
@@ -1175,10 +1177,10 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
                     alignItems: "flex-end",
                     gap: "0.5rem",
                     flexWrap: "nowrap",
-                    background: "var(--bg-secondary)",
+                    background: "var(--node-bg)",
                     border: "0.0625rem solid var(--border)",
-                    borderRadius: "0.25rem",
-                    padding: "0.5625rem 0.75rem",
+                    borderRadius: "0.875rem",
+                    padding: "0.75rem 0.75rem 0.75rem 0.875rem",
                   }}
                 >
                   <textarea
@@ -1204,7 +1206,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
                     onClick={(e) => updateMentionSearch(input, e.currentTarget.selectionStart)}
                     onKeyUp={(e) => updateMentionSearch(input, e.currentTarget.selectionStart)}
                     onKeyDown={handleKey}
-                    placeholder="Ask, or @ papers to focus context..."
+                    placeholder="Ask anything, @ to mention a paper"
                     disabled={isThinking}
                     style={{
                       flex: 1,

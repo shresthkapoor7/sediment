@@ -491,7 +491,7 @@ function applyNoteAddition(
     ...(data.notes ?? {}),
     [action.note.id]: {
       ...action.note,
-      text: action.note.text || "New research note",
+      text: action.note.text ?? "",
       width: action.note.width ?? dimensions.width,
       height: action.note.height ?? dimensions.height,
     },

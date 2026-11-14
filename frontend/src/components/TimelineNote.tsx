@@ -51,7 +51,11 @@ export function TimelineNoteCard({
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
   const [kindMenuOpen, setKindMenuOpen] = useState(false);
-  const [isEditingText, setIsEditingText] = useState(false);
+  // A note that was just added (still empty) opens ready to type in.
+  const [isEditingText, setIsEditingText] = useState(() => !readOnly && !note.text && !!note.createdAt && Date.now() - Date.parse(note.createdAt) < 5000);
+  const [isHovered, setIsHovered] = useState(false);
+  // Colour, delete and resize stay out of the way until the note is hovered or being edited.
+  const showControls = isHovered || isEditingText || isDragging || isResizing || kindMenuOpen;
 
   useEffect(() => {
     if (!kindMenuOpen) return;
@@ -168,6 +172,8 @@ export function TimelineNoteCard({
       onPointerMove={handlePointerMove}
       onPointerUp={finishDrag}
       onPointerCancel={finishDrag}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
       style={{
         position: "absolute",
         left: note.x,
@@ -185,12 +191,11 @@ export function TimelineNoteCard({
           position: "relative",
           height: readOnly && !note.height ? "auto" : height,
           minHeight: readOnly ? undefined : TIMELINE_NOTE_MIN_HEIGHT,
-          borderRadius: "0.375rem",
-          border: `0.0625rem solid ${colorStyle.border}`,
+          borderRadius: "0.25rem 0.25rem 0.25rem 0.875rem",
+          border: `0.09375rem solid ${colorStyle.border}`,
           background: colorStyle.background,
-          boxShadow: isDragging
-            ? "0 1.125rem 2.5rem rgba(0,0,0,0.24), 0 0 0 0.1875rem var(--accent-soft)"
-            : "0 0.5rem 1.25rem rgba(0,0,0,0.18)",
+          boxShadow: isDragging ? "0.25rem 0.375rem 0 rgba(0,0,0,0.22)" : "none",
+          transition: "box-shadow 0.12s",
           overflow: "visible",
           userSelect: isDragging ? "none" : "auto",
           display: "flex",
@@ -343,6 +348,7 @@ export function TimelineNoteCard({
             onPointerDown={(event) => event.stopPropagation()}
             onFocus={() => setIsEditingText(true)}
             onBlur={() => setIsEditingText(false)}
+            placeholder="Write a note…"
             autoFocus
             style={{
               position: "relative",
@@ -355,9 +361,9 @@ export function TimelineNoteCard({
               background: "transparent",
               color: "var(--text-primary)",
               fontFamily: "var(--font-sans), sans-serif",
-              fontSize: "0.9375rem",
-              fontWeight: 500,
-              lineHeight: 1.5,
+              fontSize: "0.875rem",
+              fontWeight: 400,
+              lineHeight: 1.55,
               letterSpacing: 0,
               padding: "0.5rem 0.75rem",
               cursor: "text",
@@ -389,16 +395,16 @@ export function TimelineNoteCard({
           >
             <MarkdownContent
               style={{
-                color: "var(--text-primary)",
+                color: note.text ? "var(--text-primary)" : "var(--text-tertiary)",
                 fontFamily: "var(--font-sans), sans-serif",
-                fontSize: "0.9375rem",
-                fontWeight: 500,
-                lineHeight: 1.5,
+                fontSize: "0.875rem",
+                fontWeight: 400,
+                lineHeight: 1.55,
                 letterSpacing: 0,
                 overflowWrap: "break-word",
               }}
             >
-              {note.text || "Add note (markdown supported)"}
+              {note.text || "Write a note…"}
             </MarkdownContent>
           </button>
         )}
@@ -413,6 +419,8 @@ export function TimelineNoteCard({
               justifyContent: "space-between",
               gap: "0.5rem",
               padding: specialNote ? "0.75rem 0.625rem 0.625rem" : "0 0.625rem 0.625rem",
+              opacity: showControls ? 1 : 0,
+              transition: "opacity 0.12s",
             }}
             onPointerDown={(event) => event.stopPropagation()}
           >
@@ -430,7 +438,7 @@ export function TimelineNoteCard({
                       width: "1rem",
                       height: "1rem",
                       borderRadius: "999px",
-                      border: `0.09375rem solid ${selected ? "var(--text-primary)" : "var(--border)"}`,
+                      border: `0.09375rem solid ${selected ? "var(--text-primary)" : "transparent"}`,
                       background: color.accent,
                       cursor: "pointer",
                       opacity: selected ? 1 : 0.72,
@@ -470,10 +478,10 @@ export function TimelineNoteCard({
               position: "relative",
               width: "calc(100% - 1.25rem)",
               margin: "0 0.625rem 0.625rem",
-              border: `0.0625rem solid ${isConnectedToActiveNode ? colorStyle.accent : "var(--border)"}`,
-              borderRadius: "0.25rem",
-              background: isConnectedToActiveNode ? "color-mix(in srgb, var(--accent-soft) 72%, transparent)" : "var(--bg-primary)",
-              color: isConnectedToActiveNode ? "var(--accent)" : "var(--text-secondary)",
+              border: `0.0625rem solid ${colorStyle.border}`,
+              borderRadius: "0.375rem",
+              background: "transparent",
+              color: isConnectedToActiveNode ? "var(--text-primary)" : "var(--text-secondary)",
               cursor: "pointer",
               fontSize: "0.625rem",
               fontFamily: "var(--font-mono), monospace",
@@ -504,7 +512,9 @@ export function TimelineNoteCard({
               height: "1rem",
               border: "none",
               background: "transparent",
-              cursor: isResizing ? "nwse-resize" : "nwse-resize",
+              cursor: "nwse-resize",
+              opacity: showControls ? 1 : 0,
+              transition: "opacity 0.12s",
               padding: 0,
               color: "var(--text-tertiary)",
             }}

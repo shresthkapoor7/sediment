@@ -1,0 +1,27 @@
+/* A paper on the canvas: a flat card (plain fill, solid stroke, no glow) with a quick-action bar under it. */
+.wrap { position: absolute; cursor: pointer; touch-action: none; }
+.card { position: relative; margin: 4px; padding: 11px 14px; display: flex; flex-direction: column; gap: 6px; overflow: hidden; user-select: none; background: var(--node-bg); border: 1.5px solid var(--card-stroke, var(--border-hover)); border-radius: 10px; transition: border-color .15s, background .15s; }
+.card[data-tint] { background: color-mix(in srgb, var(--card-stroke) 9%, var(--node-bg)); }
+.wrap:hover .card { border-color: var(--card-stroke, var(--text-tertiary)); }
+.card[data-state="active"] { border-color: var(--text-primary); }
+.card[data-state="marked"] { border-color: var(--text-primary); border-style: dashed; }
+
+.meta { display: flex; align-items: center; gap: 8px; height: 14px; font-family: var(--font-mono), monospace; font-size: 10.5px; letter-spacing: .04em; color: var(--text-tertiary); }
+.year { color: var(--card-stroke, var(--text-secondary)); font-weight: 500; }
+.cites { margin-left: auto; display: inline-flex; align-items: center; gap: 4px; }
+.dot { width: 5px; height: 5px; border-radius: 50%; background: var(--text-primary); }
+.title { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; font-size: 13.5px; font-weight: 600; line-height: 1.3; letter-spacing: -.015em; color: var(--text-primary); }
+.authors { margin-top: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; line-height: 14px; color: var(--text-tertiary); }
+
+/* Quick actions: shown while the card is hovered or selected, so adding a note is one click. */
+.bar { position: absolute; left: 50%; transform: translateX(-50%); z-index: 18; display: flex; align-items: center; gap: 2px; height: 32px; padding: 0 4px; border: 1px solid var(--border); border-radius: 9px; background: var(--bg-secondary); opacity: 0; pointer-events: none; transition: opacity .12s; cursor: default; }
+.wrap:hover .bar, .bar[data-show] { opacity: 1; pointer-events: auto; }
+.bar button { display: inline-flex; align-items: center; justify-content: center; gap: 5px; height: 24px; min-width: 24px; padding: 0 6px; border: 0; border-radius: 6px; background: transparent; color: var(--text-secondary); font-size: 11.5px; font-weight: 500; white-space: nowrap; cursor: pointer; transition: background .12s, color .12s; }
+.bar button:hover:not(:disabled) { background: var(--bg-tertiary); color: var(--text-primary); }
+.bar button:disabled { opacity: .4; cursor: default; }
+.bar .danger:hover:not(:disabled) { color: var(--cat-rose); }
+.sep { width: 1px; height: 16px; margin: 0 4px; background: var(--border); }
+.swatches { display: flex; align-items: center; gap: 5px; padding: 0 2px; }
+.bar .swatch { width: 12px; min-width: 12px; height: 12px; padding: 0; border-radius: 50%; }
+.bar .swatch:hover:not(:disabled) { transform: scale(1.2); }
+.bar .swatch[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--bg-secondary), 0 0 0 3.5px var(--text-primary); }

@@ -393,14 +393,11 @@ body {
     gap: 0 !important;
   }
 
+  /* Canvas header: a full-width bar. Sidebar toggle and title on the left, credits and menu on the right. */
   .app-header-graph {
-    position: absolute !important;
-    inset: 0 0 auto !important;
     width: 100%;
-    min-height: 0 !important;
-    padding: 0 !important;
-    border-bottom: none !important;
-    background: transparent !important;
+    min-height: 3rem !important;
+    padding: 0 0.75rem !important;
     box-shadow: none !important;
   }
 
@@ -410,20 +407,30 @@ body {
   }
 
   .app-header-graph .app-header-actions {
-    position: absolute;
-    top: 0.75rem;
-    left: 50%;
-    transform: translateX(-50%);
+    flex: 1 1 auto;
+    min-width: 0;
     gap: 0.25rem !important;
-    width: max-content;
-    max-width: calc(100vw - 2rem);
-    padding: 0.3125rem 0.375rem;
-    border: 0.0625rem solid color-mix(in srgb, var(--border) 72%, transparent);
-    border-radius: 0.5rem;
-    background: color-mix(in srgb, var(--bg-primary) 88%, transparent);
-    box-shadow: 0 0.5rem 1.5rem rgba(0, 0, 0, 0.10);
-    backdrop-filter: blur(16px);
-    transition: padding 200ms ease, gap 200ms ease;
+  }
+
+  .app-header-graph .app-header-actions > div:not(.desktop-only) {
+    order: -1;
+  }
+
+  .app-header-graph .app-header-credit {
+    margin-left: auto;
+  }
+
+  .app-header.app-header-graph .app-header-graph-compact-toggle {
+    display: none !important;
+  }
+
+  .app-header.app-header-graph .app-header-graph-icon-action {
+    border: none !important;
+  }
+
+  .app-header-graph button:focus-visible {
+    outline: 1px solid var(--border-hover);
+    outline-offset: 0;
   }
 
   .app-header-graph .desktop-only {
@@ -1030,7 +1037,6 @@ details[open] > .chat-trace-summary::before {
 
 html[data-theme="dark"] .landing-shell,
 html[data-theme="dark"] .feeds-shell,
-html[data-theme="dark"] .canvas-shell,
 html[data-theme="dark"] .graph-loading-shell {
   --accent: #4B8BF4;
   --accent-hover: #6BA2F7;
@@ -1039,7 +1045,6 @@ html[data-theme="dark"] .graph-loading-shell {
   --edge-color-active: #4B8BF4;
 }
 
-html[data-theme="dark"] .canvas-shell,
 html[data-theme="dark"] .feeds-shell,
 html[data-theme="dark"] .graph-loading-shell {
   --bg-primary: #0A0D10;
@@ -1059,8 +1064,9 @@ html[data-theme="dark"] .feeds-shell {
 
 
 /* Home screen palette — deep black and white (light mode inverts), no chroma. Scoped to the
-   landing state so the graph, feeds and loading screens keep the app's blue accent. */
-.landing-shell:not(.graph-loading-shell) {
+   landing state and the canvas; feeds and loading screens keep the app's blue accent. */
+.landing-shell:not(.graph-loading-shell),
+.canvas-shell {
   /* the hero no longer paints the page, so the shell does (the backdrop sits between) */
   background: var(--bg-primary);
   --font-sans: var(--font-geist-sans), system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
@@ -1086,7 +1092,8 @@ html[data-theme="dark"] .feeds-shell {
   --node-border: #e4e4e4;
 }
 
-html[data-theme="dark"] .landing-shell:not(.graph-loading-shell) {
+html[data-theme="dark"] .landing-shell:not(.graph-loading-shell),
+html[data-theme="dark"] .canvas-shell {
   --bg-primary: #0d0d0d;
   --bg-secondary: #141414;
   --bg-tertiary: #1c1c1c;
@@ -1103,6 +1110,18 @@ html[data-theme="dark"] .landing-shell:not(.graph-loading-shell) {
   --on-accent: #0d0d0d;
   --node-bg: #111111;
   --node-border: #2b2b2b;
+}
+
+.canvas-shell {
+  --edge-color: #cfcfcf;
+  --edge-color-active: #0f0f0f;
+  --canvas-dot: #e2e2e2;
+}
+
+html[data-theme="dark"] .canvas-shell {
+  --edge-color: #3a3a3a;
+  --edge-color-active: #f2f2f2;
+  --canvas-dot: #1f1f1f;
 }
 
 /* Home layout, after muzzle: a quiet full-width bar (logo left, links right) and a hero that sits

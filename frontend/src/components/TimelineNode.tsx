@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
 import type { CSSProperties } from "react";
-import { AnimatePresence, m } from "framer-motion";
+import { m } from "framer-motion";
 import { TimelineNode as TNode, NodeBorderColor } from "@/lib/types";
 import { NODE_BORDER_COLOR_OPTIONS, nodeBorderColorCss } from "@/lib/node-style";
 import { NODE_DIMENSIONS } from "@/lib/layout-constants";
+import styles from "./TimelineNode.module.css";
 
 interface TimelineNodeProps {
   node: TNode;
@@ -19,15 +19,21 @@ interface TimelineNodeProps {
   isSelected?: boolean;
   shouldAnimate: boolean;
   canEdit?: boolean;
-  isEditMenuOpen?: boolean;
   isGraphActionDisabled?: boolean;
   isLocked?: boolean;
   isOnlyNode?: boolean;
-  onEditMenuToggle?: (id: number) => void;
   onSetBorderColor?: (id: number, borderColor: NodeBorderColor | null) => void;
   onAddNote?: (id: number) => void;
   onAddSpecialNote?: (id: number) => void;
   onDeleteNode?: (id: number) => void;
+}
+
+const compact = new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 });
+
+function authorLine(authors?: string[]) {
+  if (!authors?.length) return "";
+  const shown = authors.slice(0, 2).join(", ");
+  return authors.length > 2 ? `${shown} +${authors.length - 2}` : shown;
 }
 
 export function TimelineNodeCard({
@@ -42,330 +48,88 @@ export function TimelineNodeCard({
   isSelected = false,
   shouldAnimate,
   canEdit = false,
-  isEditMenuOpen = false,
   isGraphActionDisabled = false,
   isLocked = false,
   isOnlyNode = false,
-  onEditMenuToggle,
   onSetBorderColor,
   onAddNote,
   onAddSpecialNote,
   onDeleteNode,
 }: TimelineNodeProps) {
-  const [isHovered, setIsHovered] = useState(false);
   const { width, height } = NODE_DIMENSIONS;
-  const annotationColor = node.annotation?.borderColor ? nodeBorderColorCss(node.annotation.borderColor) : null;
-  const showEditButton = canEdit && (isHovered || isEditMenuOpen || isSelected);
+  const { paper } = node;
+  const color = node.annotation?.borderColor ?? null;
   const deleteDisabled = isGraphActionDisabled || isLocked || isOnlyNode;
-  const getBorderColor = (active: boolean, highlighted: boolean, mentioned: boolean) =>
-    active || highlighted || mentioned ? "var(--accent)" : annotationColor ?? "var(--node-border)";
-  const getBoxShadow = (active: boolean, highlighted: boolean, mentioned: boolean) =>
-    active
-      ? "0 0 0 0.1875rem var(--accent-soft), var(--node-shadow)"
-      : highlighted
-        ? "0 0 0 0.1875rem var(--accent-soft), 0 0 1rem var(--accent-glow), var(--node-shadow)"
-        : mentioned
-          ? "0 0 0 0.125rem var(--accent-soft), 0 0 1.125rem var(--accent-glow), var(--node-shadow)"
-        : annotationColor
-          ? `0 0 0 0.15625rem color-mix(in srgb, ${annotationColor} 28%, transparent), var(--node-shadow)`
-        : "var(--node-shadow)";
-  const getHoverBoxShadow = () => "var(--node-shadow-hover)";
-  const borderColor = getBorderColor(isActive, isHighlighted, isMentioned);
-  const boxShadow = getBoxShadow(isActive, isHighlighted, isMentioned);
+  const state = isActive || isSelected ? "active" : isHighlighted || isMentioned ? "marked" : undefined;
+  const authors = authorLine(paper.authors) || paper.summary;
 
   return (
     <m.div
+      className={styles.wrap}
       initial={shouldAnimate ? { opacity: 0, y: 12 } : false}
       animate={{ opacity: 1, y: 0 }}
-      transition={
-        shouldAnimate
-          ? {
-              duration: 0.5,
-              delay: index * 0.06,
-              ease: [0.16, 1, 0.3, 1],
-            }
-          : { duration: 0 }
-      }
-      style={{
-        position: "absolute",
-        left: node.x - 4,
-        top: node.y - 4,
-        width: width + 8,
-        height: canEdit ? height + 52 : height + 8,
-        cursor: "pointer",
-        touchAction: "none",
-      }}
+      transition={shouldAnimate ? { duration: 0.5, delay: index * 0.06, ease: [0.16, 1, 0.3, 1] } : { duration: 0 }}
+      style={{ left: node.x - 4, top: node.y - 4, width: width + 8, height: canEdit ? height + 52 : height + 8 }}
       onClick={() => onClick(node.id)}
-      onMouseEnter={(e) => {
-        setIsHovered(true);
-        onHoverStart?.(node.id, e.currentTarget.getBoundingClientRect());
-      }}
-      onMouseLeave={() => {
-        setIsHovered(false);
-        onHoverEnd?.(node.id);
-      }}
+      onMouseEnter={(event) => onHoverStart?.(node.id, event.currentTarget.getBoundingClientRect())}
+      onMouseLeave={() => onHoverEnd?.(node.id)}
     >
       <div
-        style={{
-          width,
-          height,
-          margin: 4,
-          background: "var(--node-bg)",
-          border: `0.09375rem solid ${borderColor}`,
-          borderRadius: "0.375rem",
-          padding: "0.75rem 0.875rem",
-          display: "flex",
-          flexDirection: "column",
-          gap: "0.375rem",
-          boxShadow,
-          transition: "border-color 0.2s, box-shadow 0.2s, transform 0.2s",
-          overflow: "hidden",
-          position: "relative",
-          userSelect: "none",
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.boxShadow = getHoverBoxShadow();
-          e.currentTarget.style.transform = "translateY(-0.0625rem)";
-          e.currentTarget.style.borderColor = "var(--border-hover)";
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.boxShadow = getBoxShadow(isActive, isHighlighted, isMentioned);
-          e.currentTarget.style.transform = "translateY(0)";
-          e.currentTarget.style.borderColor = getBorderColor(isActive, isHighlighted, isMentioned);
-        }}
+        className={styles.card}
+        data-state={state}
+        data-tint={color ? "" : undefined}
+        style={{ width, height, ...(color ? ({ "--card-stroke": nodeBorderColorCss(color) } as CSSProperties) : null) }}
       >
-        {isMentioned && (
-          <div
-            aria-hidden="true"
-            style={{
-              position: "absolute",
-              inset: "-0.0625rem",
-              borderRadius: "0.375rem",
-              border: "0.125rem solid var(--accent)",
-              boxShadow: "0 0 0 0.1875rem var(--accent-soft)",
-              opacity: 0.85,
-              pointerEvents: "none",
-            }}
-          />
-        )}
-
-        {/* Expanded indicator */}
-        {node.expanded && (
-          <div
-            style={{
-              position: "absolute",
-              top: "0.5rem",
-              right: "0.5rem",
-              width: "0.375rem",
-              height: "0.375rem",
-              borderRadius: "0.1875rem",
-              background: "var(--accent)",
-              opacity: 0.6,
-            }}
-          />
-        )}
-
-        {/* Year badge */}
-        <span
-          style={{
-            alignSelf: "flex-start",
-            background: "var(--accent-soft)",
-            color: "var(--accent)",
-            fontSize: "0.6875rem",
-            fontWeight: 500,
-            fontFamily: "var(--font-mono), monospace",
-            padding: "0.125rem 0.4375rem",
-            borderRadius: "0.125rem",
-            lineHeight: "1rem",
-            letterSpacing: "0.02em",
-          }}
-        >
-          {node.paper.year}
-        </span>
-
-        {/* Title */}
-        <p
-          style={{
-            fontSize: "0.84375rem",
-            fontWeight: 600,
-            color: "var(--text-primary)",
-            lineHeight: 1.3,
-            letterSpacing: "-0.015em",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-            fontFamily: "var(--font-sans), sans-serif",
-          }}
-        >
-          {node.paper.title}
-        </p>
-
-        {/* Summary */}
-        <p
-          style={{
-            fontSize: "0.6875rem",
-            color: "var(--text-tertiary)",
-            lineHeight: 1.4,
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-            fontFamily: "var(--font-sans), sans-serif",
-          }}
-        >
-          {node.paper.summary}
-        </p>
+        <div className={styles.meta}>
+          <span className={styles.year}>{paper.year}</span>
+          {paper.type && paper.type !== "article" && <span>{paper.type.replace(/-/g, " ")}</span>}
+          <span className={styles.cites}>
+            {typeof paper.citedByCount === "number" && paper.citedByCount > 0 && <>{compact.format(paper.citedByCount)} cited</>}
+            {node.expanded && <span className={styles.dot} title="Expanded" />}
+          </span>
+        </div>
+        <p className={styles.title} title={paper.title}>{paper.title}</p>
+        <p className={styles.authors}>{authors}</p>
       </div>
 
       {canEdit && (
-        <m.button
-          type="button"
-          aria-label="Edit node"
-          title="Edit node"
-          initial={false}
-          animate={{ opacity: showEditButton ? 1 : 0, scale: showEditButton ? 1 : 0.92 }}
-          transition={{ duration: 0.14 }}
-          onClick={(event) => {
-            event.stopPropagation();
-            onEditMenuToggle?.(node.id);
-          }}
-          style={{
-            position: "absolute",
-            top: height + 12,
-            left: "calc(50% - 0.8125rem)",
-            zIndex: 18,
-            width: "1.625rem",
-            height: "1.625rem",
-            borderRadius: "999px",
-            border: `0.0625rem solid ${isEditMenuOpen ? "var(--accent)" : "var(--border)"}`,
-            background: isEditMenuOpen ? "var(--accent-soft)" : "color-mix(in srgb, var(--bg-primary) 98%, transparent)",
-            color: isEditMenuOpen ? "var(--accent)" : "var(--text-secondary)",
-            boxShadow: "0 0.5rem 1rem rgba(0,0,0,0.24)",
-            cursor: "pointer",
-            pointerEvents: showEditButton ? "auto" : "none",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
+        <div
+          className={styles.bar}
+          data-canvas-ui="true"
+          data-show={isSelected ? "" : undefined}
+          style={{ top: height + 12 }}
+          onClick={(event) => event.stopPropagation()}
         >
-          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.55" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <path d="M10.8 2.2 13.8 5.2 6.1 12.9l-3.4.7.7-3.4 7.4-8Z" />
-            <path d="M9.8 3.2l3 3" />
-          </svg>
-        </m.button>
+          <button type="button" disabled={isGraphActionDisabled} onClick={() => onAddNote?.(node.id)} title="Add a note linked to this paper">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 2.5h10v7L9.5 13.5H3zM13 9.5H9.5v4" /></svg>
+            Note
+          </button>
+          <button type="button" disabled={isGraphActionDisabled} onClick={() => onAddSpecialNote?.(node.id)} title="Attach a file" aria-label="Attach a file">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M13 7.5 8 12.5a3 3 0 0 1-4.2-4.3l5.4-5.3a2 2 0 0 1 2.8 2.8L6.7 11a1 1 0 0 1-1.4-1.4L10 5" /></svg>
+          </button>
+          <span className={styles.sep} />
+          <div className={styles.swatches} role="group" aria-label="Card colour">
+            {NODE_BORDER_COLOR_OPTIONS.map((option) => {
+              const selected = color === option.key;
+              return <button
+                key={option.key}
+                type="button"
+                className={styles.swatch}
+                aria-pressed={selected}
+                aria-label={selected ? `Clear ${option.label.toLowerCase()}` : option.label}
+                title={selected ? "Clear colour" : option.label}
+                disabled={isGraphActionDisabled}
+                style={{ background: option.css }}
+                onClick={() => onSetBorderColor?.(node.id, selected ? null : option.key)}
+              />;
+            })}
+          </div>
+          <span className={styles.sep} />
+          <button type="button" className={styles.danger} disabled={deleteDisabled} onClick={() => onDeleteNode?.(node.id)} title={isLocked ? "The seed paper can't be removed" : "Remove from canvas"} aria-label="Remove from canvas">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.5 8.5h6l.5-8.5" /></svg>
+          </button>
+        </div>
       )}
-
-      <AnimatePresence>
-        {canEdit && isEditMenuOpen && (
-          <m.div
-            data-canvas-ui="true"
-            initial={{ opacity: 0, scale: 0.94, y: 4 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.94, y: 4 }}
-            transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
-            onClick={(event) => event.stopPropagation()}
-            style={{
-              position: "absolute",
-              top: height + 44,
-              left: "calc(50% - 5.375rem)",
-              zIndex: 20,
-              width: "10.75rem",
-              padding: "0.625rem",
-              borderRadius: "0.375rem",
-              border: "0.0625rem solid var(--border)",
-              background: "color-mix(in srgb, var(--bg-primary) 98%, transparent)",
-              boxShadow: "0 0.5rem 1.5rem rgba(0,0,0,0.10)",
-              cursor: "default",
-            }}
-          >
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(6, 1.25rem)",
-                gap: "0.35rem",
-                marginBottom: "0.625rem",
-              }}
-            >
-              {NODE_BORDER_COLOR_OPTIONS.map((color) => {
-                const selected = node.annotation?.borderColor === color.key;
-                return (
-                  <button
-                    key={color.key}
-                    type="button"
-                    title={`Set ${color.label.toLowerCase()} border`}
-                    aria-label={`Set ${color.label.toLowerCase()} border`}
-                    disabled={isGraphActionDisabled}
-                    onClick={() => onSetBorderColor?.(node.id, color.key)}
-                    style={{
-                      width: "1.25rem",
-                      height: "1.25rem",
-                      borderRadius: "999px",
-                      border: `0.125rem solid ${selected ? "var(--text-primary)" : "var(--border)"}`,
-                      background: color.css,
-                      cursor: isGraphActionDisabled ? "default" : "pointer",
-                      opacity: isGraphActionDisabled ? 0.5 : 1,
-                      boxShadow: selected ? `0 0 0 0.1875rem color-mix(in srgb, ${color.css} 28%, transparent)` : "none",
-                    }}
-                  />
-                );
-              })}
-            </div>
-
-            <div style={{ display: "grid", gap: "0.375rem" }}>
-              <button
-                type="button"
-                disabled={isGraphActionDisabled || !node.annotation?.borderColor}
-                onClick={() => onSetBorderColor?.(node.id, null)}
-                style={menuButtonStyle(isGraphActionDisabled || !node.annotation?.borderColor)}
-              >
-                Clear border
-              </button>
-              <button
-                type="button"
-                disabled={isGraphActionDisabled}
-                onClick={() => onAddNote?.(node.id)}
-                style={menuButtonStyle(isGraphActionDisabled)}
-              >
-                Add note
-              </button>
-              <button
-                type="button"
-                disabled={isGraphActionDisabled}
-                onClick={() => onAddSpecialNote?.(node.id)}
-                style={menuButtonStyle(isGraphActionDisabled)}
-              >
-                Add special note
-              </button>
-              <button
-                type="button"
-                disabled={deleteDisabled}
-                onClick={() => onDeleteNode?.(node.id)}
-                title={isLocked ? "Seed paper cannot be removed" : "Remove node"}
-                style={{
-                  ...menuButtonStyle(deleteDisabled),
-                  color: deleteDisabled ? "var(--text-tertiary)" : "var(--cat-rose)",
-                }}
-              >
-                Delete node
-              </button>
-            </div>
-          </m.div>
-        )}
-      </AnimatePresence>
     </m.div>
   );
-}
-
-function menuButtonStyle(disabled: boolean): CSSProperties {
-  return {
-    height: "1.9rem",
-    borderRadius: "0.25rem",
-    border: "0.0625rem solid var(--border)",
-    background: "var(--bg-secondary)",
-    color: disabled ? "var(--text-tertiary)" : "var(--text-secondary)",
-    cursor: disabled ? "default" : "pointer",
-    fontSize: "0.8125rem",
-    fontWeight: 500,
-    letterSpacing: "-0.006em",
-    fontFamily: "var(--font-sans), sans-serif",
-  };
 }

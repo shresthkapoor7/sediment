@@ -9,6 +9,7 @@ import { TIMELINE_MOBILE_BREAKPOINT_PX } from "@/lib/hover-preview";
 import { TimelineData, ChatSuggestion, PaperAccessResponse, PaperContentResponse, TimelineNode, PaperChatStreamEvent, TimelineGraphAction, NodeBorderColor, TimelineNote, LineageChange, TimelineNodeColorChange, TimelineNoteChange, SpecialNoteFile, SpecialNoteFileListResponse } from "@/lib/types";
 import { NODE_BORDER_COLOR_OPTIONS } from "@/lib/node-style";
 import { SPECIAL_NOTE_MIN_HEIGHT, TIMELINE_NOTE_DEFAULT_WIDTH, TIMELINE_NOTE_MIN_HEIGHT, isSpecialNote } from "@/lib/note-style";
+import peek from "./PaperPeek.module.css";
 import { NODE_DIMENSIONS } from "@/lib/layout-constants";
 import { TimelineNodeCard } from "./TimelineNode";
 import { TimelineEdgeLine } from "./TimelineEdge";
@@ -128,6 +129,8 @@ export function TimelineCanvas({
   const suppressNodeClickRef = useRef(false);
 
   const [zoomDisplay, setZoomDisplay] = useState(1);
+  // Width of the agent panel docked on the left, so the zoom controls sit beside it instead of under it.
+  const [agentDockWidth, setAgentDockWidth] = useState(0);
   const [isOutOfView, setIsOutOfView] = useState(false);
   const [cursorStyle, setCursorStyle] = useState("default");
   const [activeNodeId, setActiveNodeId] = useState<number | null>(null);
@@ -239,9 +242,12 @@ export function TimelineCanvas({
   useEffect(() => {
     if (previousClosePaperPanelSignalRef.current === closePaperPanelSignal) return;
     previousClosePaperPanelSignalRef.current = closePaperPanelSignal;
+    // The agent (left) and the paper (right) sit side by side on desktop; on a phone each fills the screen.
+    if (!isMobileViewport) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Closing the paper panel in response to a parent signal.
     setActiveNodeId(null);
     setPaperReaderOpen(false);
-  }, [closePaperPanelSignal]);
+  }, [closePaperPanelSignal, isMobileViewport]);
 
   useEffect(() => {
     if (!graphId || !userId || activeNodeId === null) return;
@@ -589,11 +595,11 @@ export function TimelineCanvas({
   const handleNodeClick = useCallback((id: number) => {
     if (suppressNodeClickRef.current) return;
     setActiveNodeId((prev) => (prev === id ? null : id));
-    onGlobalChatOpenChange?.(false);
+    if (isMobileViewport) onGlobalChatOpenChange?.(false);
     setHoveredNode(null);
     setChatInput("");
     setIsThinking(Object.keys(activePaperStreamsRef.current).length > 0);
-  }, [onGlobalChatOpenChange]);
+  }, [isMobileViewport, onGlobalChatOpenChange]);
 
   const clearHoverHideTimeout = useCallback(() => {
     if (hoverHideTimeoutRef.current) {
@@ -1073,13 +1079,13 @@ export function TimelineCanvas({
     const noteId = `note-${Date.now()}-${++noteIdRef.current}`;
     const note: TimelineNote = {
       id: noteId,
-      text: "Add note (markdown supported)",
+      text: "",
       kind: "field_note",
       x: targetNode.x + NODE_DIMENSIONS.width + 56,
       y: targetNode.y,
       width: TIMELINE_NOTE_DEFAULT_WIDTH,
       height: TIMELINE_NOTE_MIN_HEIGHT,
-      color: "paper",
+      color: "amber",
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -1332,7 +1338,6 @@ export function TimelineCanvas({
         overflow: "hidden",
         cursor: cursorStyle,
         background: "var(--bg-canvas)",
-        borderRadius: "0.5rem",
         position: "relative",
         // touchAction is set on the <svg> only so chat panels inside can still scroll
       }}
@@ -1343,7 +1348,8 @@ export function TimelineCanvas({
         style={{
           position: "absolute",
           bottom: "1rem",
-          left: "1rem",
+          left: `calc(${agentDockWidth}px + 1rem)`,
+          transition: "left 0.32s cubic-bezier(0.16, 1, 0.3, 1)",
           display: "flex",
           gap: "0.25rem",
           zIndex: 10,
@@ -1669,11 +1675,9 @@ export function TimelineCanvas({
               isSelected={activeNodeId === node.id}
               shouldAnimate={node.generation === latestGeneration}
               canEdit={!readOnly && Boolean(onGraphAction)}
-              isEditMenuOpen={editingNodeId === node.id}
               isGraphActionDisabled={graphActionsDisabled}
               isLocked={node.id === data.rootId || node.paper.openalexId === lockedNodeOpenalexId}
               isOnlyNode={Object.keys(data.nodes).length <= 1}
-              onEditMenuToggle={(nodeId) => setEditingNodeId((current) => (current === nodeId ? null : nodeId))}
               onSetBorderColor={handleSetNodeBorderColorForNode}
               onAddNote={handleAddNoteForNode}
               onAddSpecialNote={handleAddSpecialNoteForNode}
@@ -2076,7 +2080,6 @@ export function TimelineCanvas({
               zIndex: 20,
               display: "flex",
               flexDirection: "column",
-              boxShadow: "-0.5rem 0 2rem rgba(0,0,0,0.08)",
             }}
           >
             {!isMobileViewport && (
@@ -2116,7 +2119,6 @@ export function TimelineCanvas({
                 alignItems: "center",
                 gap: "0.5rem",
                 padding: "0.625rem 1rem",
-                borderBottom: "0.0625rem solid var(--border)",
                 flexShrink: 0,
                 minHeight: "3.25rem",
               }}
@@ -2137,98 +2139,9 @@ export function TimelineCanvas({
                   <path d="M6 4l4 4-4 4" />
                 </svg>
               </button>
-              <span
-                style={{
-                  fontSize: "0.6875rem",
-                  color: "var(--text-tertiary)",
-                  fontFamily: "var(--font-mono), monospace",
-                  letterSpacing: "0.04em",
-                  flexShrink: 0,
-                }}
-              >
-                {activeNode.paper.year}
-              </span>
-              <div
-                style={{
-                  flex: 1,
-                  minWidth: 0,
-                  fontSize: "0.8125rem",
-                  color: "var(--text-primary)",
-                  fontFamily: "var(--font-sans), sans-serif",
-                  fontWeight: 500,
-                  lineHeight: 1.35,
-                }}
-                title={activeNode.paper.title}
-              >
-                {activeNode.paper.title}
-              </div>
+              <div style={{ flex: 1 }} />
               <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "0.25rem", flexShrink: 0 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "0.375rem" }}>
-                  {activePaperHref && (
-                    <a
-                      href={activePaperHref}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      title="Open"
-                      aria-label="Open"
-                      style={{
-                        flexShrink: 0,
-                        color: "var(--text-tertiary)",
-                        textDecoration: "none",
-                        background: "var(--bg-secondary)",
-                        border: "0.0625rem solid var(--border)",
-                        borderRadius: "0.3125rem",
-                        width: "1.875rem",
-                        height: "1.875rem",
-                        boxSizing: "border-box",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        transition: "all 0.15s",
-                      }}
-                      onMouseEnter={(e) => { (e.currentTarget as HTMLAnchorElement).style.borderColor = "var(--accent)"; (e.currentTarget as HTMLAnchorElement).style.color = "var(--accent)"; }}
-                      onMouseLeave={(e) => { (e.currentTarget as HTMLAnchorElement).style.borderColor = "var(--border)"; (e.currentTarget as HTMLAnchorElement).style.color = "var(--text-tertiary)"; }}
-                    >
-                      <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.55" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                        <path d="M3 13 13 3M13 3H6M13 3v7" />
-                      </svg>
-                    </a>
-                  )}
-                  {isActivePaperCached && (
-                    <button
-                      type="button"
-                      onClick={openPaperReader}
-                      title="Paper"
-                      aria-label="Paper"
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        width: "1.875rem",
-                        height: "1.875rem",
-                        padding: 0,
-                        borderRadius: "0.3125rem",
-                        border: "0.0625rem solid var(--border)",
-                        background: "var(--bg-secondary)",
-                        color: "var(--text-tertiary)",
-                        cursor: "pointer",
-                        transition: "all 0.15s",
-                      }}
-                      onMouseEnter={(event) => {
-                        event.currentTarget.style.borderColor = "var(--accent)";
-                        event.currentTarget.style.color = "var(--accent)";
-                      }}
-                      onMouseLeave={(event) => {
-                        event.currentTarget.style.borderColor = "var(--border)";
-                        event.currentTarget.style.color = "var(--text-tertiary)";
-                      }}
-                    >
-                      <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                        <path d="M3 2.5h7.25A2.75 2.75 0 0 1 13 5.25v8.25H5.5A2.5 2.5 0 0 0 3 16V2.5Z" />
-                        <path d="M3 13.5h7.5A2.5 2.5 0 0 1 13 16M5.5 5.25H10M5.5 7.75H10" />
-                      </svg>
-                    </button>
-                  )}
                   {isMobileViewport && !readOnly && onGraphAction && (
                     <div style={{ position: "relative", flexShrink: 0 }}>
                       <button
@@ -2352,403 +2265,56 @@ export function TimelineCanvas({
                     </div>
                   )}
                 </div>
-                {activePaperAccess && (
-                  <span
-                    tabIndex={0}
-                    title={activePaperAccess.message}
-                    aria-label={`${paperAccessLabel(activePaperAccess)}. ${activePaperAccess.message}`}
-                    style={{
-                      fontSize: "0.5625rem",
-                      lineHeight: 1.2,
-                      fontFamily: "var(--font-mono), monospace",
-                      color: paperAccessColor(activePaperAccess),
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {paperAccessLabel(activePaperAccess)}
-                  </span>
-                )}
                 </div>
               </div>
 
-            {/* Scrollable chat area */}
-            <div style={{ position: "relative", flex: 1, minHeight: 0 }}>
-              <div
-                style={{
-                  height: "100%",
-                  overflowY: "auto",
-                  padding: "1.25rem 1.25rem 0.5rem",
-                  touchAction: "pan-y",
-                }}
-              >
-
-              {/* Paper context — shown as a subtle block at the top */}
-              <div
-                style={{
-                  background: "var(--bg-secondary)",
-                  borderRadius: "0.375rem",
-                  padding: "0.875rem 1rem",
-                  marginBottom: "1.25rem",
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "0.625rem",
-                }}
-              >
-                {/* Type badge */}
-                {activeNode.paper.type && (
-                  <span style={{
-                    alignSelf: "flex-start",
-                    fontSize: "0.625rem",
-                    fontFamily: "var(--font-mono), monospace",
-                    letterSpacing: "0.06em",
-                    textTransform: "uppercase",
-                    color: "var(--accent)",
-                    background: "var(--accent-soft)",
-                    border: "0.0625rem solid var(--accent)",
-                    borderRadius: "0.25rem",
-                    padding: "0.125rem 0.375rem",
-                  }}>
-                    {activeNode.paper.type.replace(/-/g, " ")}
-                  </span>
-                )}
-
-                {/* AI Summary */}
-                <div>
-                  <p style={{ fontSize: "0.625rem", color: "var(--text-tertiary)", fontFamily: "var(--font-mono), monospace", letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: "0.3125rem" }}>
-                    AI Summary
-                  </p>
-                  <MarkdownContent style={{ fontSize: "0.8125rem", color: "var(--text-primary)", lineHeight: 1.6, fontFamily: "var(--font-sans), sans-serif", fontStyle: "italic", overflowWrap: "break-word" }}>
-                    {activeNode.paper.summary}
-                  </MarkdownContent>
+            {/* What the paper is. Questions about it go to the agent. */}
+            <div style={{ flex: 1, minHeight: 0 }}>
+              <div className={peek.body}>
+                <div className={peek.meta}>
+                  <span>{activeNode.paper.year}</span>
+                  {activeNode.paper.type && <span>{activeNode.paper.type.replace(/-/g, " ")}</span>}
+                  {activePaperAccess && <span title={activePaperAccess.message}>{paperAccessLabel(activePaperAccess)}</span>}
                 </div>
-
-                {/* Abstract */}
-                {activeNode.paper.detail && (
-                  <div>
-                    <p style={{ fontSize: "0.625rem", color: "var(--text-tertiary)", fontFamily: "var(--font-mono), monospace", letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: "0.3125rem" }}>
-                      Abstract
-                    </p>
-                    <MarkdownContent style={{ fontSize: "0.78125rem", color: "var(--text-secondary)", lineHeight: 1.7, fontFamily: "var(--font-sans), sans-serif", overflowWrap: "break-word" }}>
-                      {activeNode.paper.detail}
-                    </MarkdownContent>
-                  </div>
-                )}
-
-                {/* Concepts */}
-                {activeNode.paper.concepts && activeNode.paper.concepts.length > 0 && (
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: "0.3125rem" }}>
-                    {activeNode.paper.concepts.map((c) => (
-                      <span key={c} style={{
-                        fontSize: "0.625rem",
-                        fontFamily: "var(--font-sans), sans-serif",
-                        color: "var(--text-tertiary)",
-                        background: "var(--bg-primary)",
-                        border: "0.0625rem solid var(--border)",
-                        borderRadius: "0.25rem",
-                        padding: "0.125rem 0.375rem",
-                      }}>
-                        {c}
-                      </span>
-                    ))}
-                  </div>
-                )}
-
-                {/* Authors */}
+                <h2>{activeNode.paper.title}</h2>
                 {activeNode.paper.authors && activeNode.paper.authors.length > 0 && (
-                  <p style={{ fontSize: "0.6875rem", color: "var(--text-tertiary)", fontFamily: "var(--font-sans), sans-serif" }}>
-                    {activeNode.paper.authors.join(", ")}
-                  </p>
+                  <p className={peek.authors}>{activeNode.paper.authors.join(", ")}</p>
                 )}
-              </div>
-
-              {/* Chat messages */}
-              {(chatHistories[activeNodeId] ?? []).map((msg) => (
-                <m.div
-                  id={`paper-chat-${activeNodeId}-${msg.id}`}
-                  key={msg.id}
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-                  style={{ marginBottom: "1rem" }}
-                >
-                  {msg.role === "user" ? (
-                    <div style={{ display: "flex", justifyContent: "flex-end" }}>
-                      <div
-                        style={{
-                          background: "var(--accent-soft)",
-                          border: "0.0625rem solid var(--accent)",
-                          borderRadius: "0.75rem 0.75rem 0.125rem 0.75rem",
-                          padding: "0.5625rem 0.8125rem",
-                          maxWidth: "80%",
-                          fontSize: "0.8125rem",
-                          color: "var(--text-primary)",
-                          fontFamily: "var(--font-sans), sans-serif",
-                          lineHeight: 1.5,
-                        }}
-                      >
-                        {msg.selectedExcerpt && (
-                          <div
-                            style={{
-                              marginBottom: "0.5rem",
-                              padding: "0.375rem 0.5rem",
-                              borderLeft: "0.125rem solid var(--accent)",
-                              borderRadius: "0.25rem",
-                              background: "color-mix(in srgb, var(--bg-primary) 48%, transparent)",
-                              color: "var(--text-secondary)",
-                              fontSize: "0.71875rem",
-                              fontStyle: "italic",
-                            }}
-                          >
-                            {excerptPreview(msg.selectedExcerpt, 220)}
-                          </div>
-                        )}
-                        {msg.content}
-                      </div>
-                    </div>
-                  ) : (
-                    <div>
-                      {msg.content ? (
-                        <MarkdownContent style={{ fontSize: "0.84375rem", color: "var(--text-primary)", lineHeight: 1.7, fontFamily: "var(--font-sans), sans-serif", marginBottom: msg.suggestion ? "0.875rem" : 0 }}>
-                          {msg.content}
-                        </MarkdownContent>
-                      ) : (
-                        <p style={{ fontSize: "0.8125rem", color: "var(--text-tertiary)", fontFamily: "var(--font-sans), sans-serif", marginBottom: "0.5rem" }}>
-                          Working…
-                        </p>
-                      )}
-
-                      {(msg.pending || (msg.toolEvents?.length ?? 0) > 0 || (msg.statusEvents?.length ?? 0) > 0) && (
-                        <div
-                          style={{
-                            display: "flex",
-                            flexDirection: "column",
-                            gap: "0.375rem",
-                            margin: "0.625rem 0 0.75rem",
-                          }}
-                        >
-                          {(msg.statusEvents ?? []).slice(-2).map((status, index) => (
-                            <div key={`${msg.id}-status-${index}`} style={{ display: "flex", alignItems: "center", gap: "0.375rem", color: "var(--text-tertiary)", fontSize: "0.6875rem", fontFamily: "var(--font-mono), monospace" }}>
-                              <span style={{ width: "0.375rem", height: "0.375rem", borderRadius: "50%", background: msg.pending ? "var(--accent)" : "var(--text-tertiary)", display: "inline-block" }} />
-                              {status}
-                            </div>
-                          ))}
-                          {(msg.toolEvents ?? []).map((tool) => (
-                            <div key={`${msg.id}-${tool.name}`} style={{ display: "flex", alignItems: "center", gap: "0.375rem", color: "var(--text-secondary)", fontSize: "0.71875rem", fontFamily: "var(--font-sans), sans-serif" }}>
-                              <span style={{ color: tool.status === "started" || tool.status === "processing" ? "var(--accent)" : tool.status === "error" ? "var(--danger, #b45309)" : "var(--text-tertiary)" }}>
-                                {tool.status === "started" || tool.status === "processing" ? "↻" : tool.status === "error" ? "!" : "✓"}
-                              </span>
-                              {tool.label}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-
-                      {needsFullPaperConfirmation(msg) && !readOnly && (
-                        <button
-                          type="button"
-                          onClick={() => sendPaperQuestion("Yes, access and index the complete paper.")}
-                          disabled={isThinking}
-                          style={{
-                            background: "var(--accent)",
-                            color: "white",
-                            border: "none",
-                            borderRadius: "0.4375rem",
-                            padding: "0.4375rem 0.75rem",
-                            fontSize: "0.75rem",
-                            fontWeight: 500,
-                            fontFamily: "var(--font-sans), sans-serif",
-                            cursor: isThinking ? "default" : "pointer",
-                            opacity: isThinking ? 0.6 : 1,
-                            margin: "0 0 0.875rem",
-                          }}
-                        >
-                          Access full paper
-                        </button>
-                      )}
-
-                      {msg.citations && msg.citations.length > 0 && (
-                        <div style={{ display: "flex", flexWrap: "wrap", gap: "0.375rem", margin: "0.625rem 0 0.875rem" }}>
-                          {msg.citations.slice(0, 6).map((citation, index) => {
-                            const href = citationHref(citation);
-                            const Chip = href ? "a" : "span";
-                            return (
-                            <Chip
-                              key={`${msg.id}-citation-${citationLabel(citation)}-${index}`}
-                              href={href}
-                              target={href ? "_blank" : undefined}
-                              rel={href ? "noopener noreferrer" : undefined}
-                              title={citationTooltip(citation)}
-                              style={{
-                                fontSize: "0.625rem",
-                                fontFamily: "var(--font-mono), monospace",
-                                color: "var(--text-tertiary)",
-                                background: "var(--bg-secondary)",
-                                border: "0.0625rem solid var(--border)",
-                                borderRadius: "999px",
-                                padding: "0.1875rem 0.4375rem",
-                                textDecoration: "none",
-                              }}
-                            >
-                              {citationLabel(citation)}
-                            </Chip>
-                          );})}
-                        </div>
-                      )}
-                    </div>
+                <div className={peek.actions}>
+                  {activePaperHref && (
+                    <a className={peek.primary} href={activePaperHref} target="_blank" rel="noopener noreferrer">
+                      {getOpenLabel(activeNode.paper.type)}
+                      <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 13 13 3M13 3H6M13 3v7" /></svg>
+                    </a>
                   )}
-                </m.div>
-              ))}
-
-              {/* Thinking indicator */}
-              <AnimatePresence>
-                {isThinking && (
-                  <m.div
-                    initial={{ opacity: 0, y: 6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0 }}
-                    style={{ display: "flex", gap: "0.25rem", alignItems: "center", paddingBottom: "0.75rem" }}
-                  >
-                    {[0, 1, 2].map((i) => (
-                      <div
-                        key={i}
-                        className="sediment-typing-dot"
-                        style={{ width: "0.375rem", height: "0.375rem", borderRadius: "0.1875rem", background: "var(--text-tertiary)", animationDelay: `${i * 0.2}s` }}
-                      />
-                    ))}
-                  </m.div>
+                  {isActivePaperCached && <button type="button" onClick={openPaperReader}>Read here</button>}
+                  {!readOnly && onGlobalChatOpenChange && !globalChatOpen && (
+                    <button type="button" onClick={() => onGlobalChatOpenChange(true)}>Ask the agent</button>
+                  )}
+                </div>
+                <section className={peek.section}>
+                  <h3>Summary</h3>
+                  <div className={peek.text}><MarkdownContent>{activeNode.paper.summary}</MarkdownContent></div>
+                </section>
+                {activeNode.paper.detail && (
+                  <section className={peek.section}>
+                    <h3>Abstract</h3>
+                    <div className={peek.text}><MarkdownContent>{activeNode.paper.detail}</MarkdownContent></div>
+                  </section>
                 )}
-              </AnimatePresence>
-
-              <div ref={chatEndRef} />
+                {activeNode.paper.concepts && activeNode.paper.concepts.length > 0 && (
+                  <ul className={peek.topics}>
+                    {activeNode.paper.concepts.map((concept) => <li key={concept}>{concept}</li>)}
+                  </ul>
+                )}
+                <dl className={peek.facts}>
+                  {typeof activeNode.paper.citedByCount === "number" && <div><dt>Cited by</dt><dd>{activeNode.paper.citedByCount.toLocaleString()}</dd></div>}
+                  {typeof activeNode.paper.referencesCount === "number" && <div><dt>References</dt><dd>{activeNode.paper.referencesCount.toLocaleString()}</dd></div>}
+                  {activeNode.paper.doi && <div><dt>DOI</dt><dd><a href={`https://doi.org/${activeNode.paper.doi.replace(/^https?:\/\/doi\.org\//, "")}`} target="_blank" rel="noopener noreferrer">{activeNode.paper.doi.replace(/^https?:\/\/doi\.org\//, "")}</a></dd></div>}
+                  <div><dt>Source</dt><dd>{getPaperSourceLabel(activeNode)}</dd></div>
+                </dl>
               </div>
-              <ConversationNavigator
-                side="left"
-                items={paperNavigationItems}
-                activeId={activePaperNavigationId}
-                onActiveChange={(messageId) => {
-                  if (activeNodeId === null) return;
-                  setActivePaperNavigationIds((current) => ({ ...current, [activeNodeId]: messageId }));
-                }}
-                onJump={jumpToPaperMessage}
-              />
-              <ConversationNavigator
-                side="right"
-                items={paperNavigationItems}
-                activeId={activePaperNavigationId}
-                onActiveChange={(messageId) => {
-                  if (activeNodeId === null) return;
-                  setActivePaperNavigationIds((current) => ({ ...current, [activeNodeId]: messageId }));
-                }}
-                onJump={jumpToPaperMessage}
-              />
             </div>
-
-            {/* Input bar */}
-            {!readOnly && <div style={{ padding: "0.75rem 1rem", borderTop: "0.0625rem solid var(--border)", flexShrink: 0 }}>
-              {activeSelectedExcerpt && (
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "flex-start",
-                    gap: "0.5rem",
-                    marginBottom: "0.5rem",
-                    padding: "0.5rem 0.625rem",
-                    borderRadius: "0.625rem",
-                    background: "var(--bg-secondary)",
-                    border: "0.0625rem solid var(--border)",
-                    color: "var(--text-secondary)",
-                  }}
-                >
-                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flexShrink: 0, marginTop: "0.0625rem", color: "var(--accent)" }}>
-                    <path d="M2 5.5h8.5M7 2l3.5 3.5L7 9" />
-                  </svg>
-                  <span style={{ flex: 1, minWidth: 0, fontSize: "0.71875rem", lineHeight: 1.45, fontFamily: "var(--font-sans), sans-serif" }}>
-                    “{excerptPreview(activeSelectedExcerpt, 240)}”
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedExcerptByNode((current) => {
-                      if (activeNodeId === null) return current;
-                      const { [activeNodeId]: _excerpt, ...remaining } = current;
-                      return remaining;
-                    })}
-                    aria-label="Remove selected excerpt"
-                    title="Remove excerpt"
-                    style={{
-                      width: "1.25rem",
-                      height: "1.25rem",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      padding: 0,
-                      flexShrink: 0,
-                      border: "none",
-                      background: "none",
-                      color: "var(--text-tertiary)",
-                      cursor: "pointer",
-                    }}
-                  >
-                    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" aria-hidden="true">
-                      <path d="m3 3 10 10M13 3 3 13" />
-                    </svg>
-                  </button>
-                </div>
-              )}
-              <form onSubmit={handleChatSubmit}>
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "0.5rem",
-                    background: "var(--bg-secondary)",
-                    border: "0.0625rem solid var(--border)",
-                    borderRadius: "0.25rem",
-                    padding: "0.5625rem 0.75rem",
-                  }}
-                >
-                  <input
-                    ref={chatInputRef}
-                    type="text"
-                    value={chatInput}
-                    onChange={(e) => setChatInput(e.target.value)}
-                    placeholder={activeSelectedExcerpt ? "Ask Sediment about this excerpt..." : "Ask about this paper..."}
-                    disabled={isThinking}
-                    style={{
-                      flex: 1,
-                      background: "none",
-                      border: "none",
-                      outline: "none",
-                      color: "var(--text-primary)",
-                      fontSize: "0.8125rem",
-                      fontFamily: "var(--font-sans), sans-serif",
-                    }}
-                  />
-                  <button
-                    type="submit"
-                    disabled={isThinking || !chatInput.trim()}
-                    style={{
-                      background: "var(--accent)",
-                      border: "none",
-                      borderRadius: "0.375rem",
-                      width: "1.75rem",
-                      height: "1.75rem",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      cursor: chatInput.trim() ? "pointer" : "default",
-                      flexShrink: 0,
-                      opacity: chatInput.trim() ? 1 : 0,
-                      transition: "opacity 0.15s",
-                      pointerEvents: chatInput.trim() ? "auto" : "none",
-                    }}
-                  >
-                    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="var(--on-accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M14 8H2M8 2l6 6-6 6" />
-                    </svg>
-                  </button>
-                </div>
-              </form>
-            </div>}
           </m.div>
         )}
       </AnimatePresence>
@@ -2835,7 +2401,7 @@ export function TimelineCanvas({
       {!readOnly && (
         <GlobalChatPanel
           data={data}
-          open={globalChatOpen && activeNodeId === null}
+          open={globalChatOpen}
           onOpenChange={onGlobalChatOpenChange ?? (() => undefined)}
           onHighlight={handleGlobalHighlight}
           onMentionedPaperIdsChange={handleGlobalMentionedPaperIdsChange}
@@ -2845,6 +2411,7 @@ export function TimelineCanvas({
           onUsageChanged={onUsageChanged}
           graphId={graphId}
           userId={userId}
+          onDockWidthChange={setAgentDockWidth}
         />
       )}
     </m.div>
