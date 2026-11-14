@@ -166,7 +166,7 @@ export function FeedsView({ embedded = false, ready = true, onSearch, searching 
       </section>}
       {error && <div className={styles.error} role="alert"><p>{error}</p>{(!feed || needsReload) && <button disabled={!!pending} onClick={reload}>Reload feed</button>}</div>}
       {embedded && !editing ? <StartBar
-        mode={startMode ?? (feed && !feed.interests ? "blank" : "feed")}
+        mode={startMode ?? "paper"}
         onModeChange={setStartMode}
         markedCount={selection.papers.length}
         disabled={disabled || !feed}

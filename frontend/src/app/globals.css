@@ -789,10 +789,20 @@ body {
 }
 
 button:focus-visible,
-a:focus-visible,
-input:focus-visible {
+a:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 3px;
+}
+
+/* Text fields never get a focus ring, glow or border change. */
+input:focus,
+input:focus-visible,
+textarea:focus,
+textarea:focus-visible,
+select:focus,
+select:focus-visible {
+  outline: none;
+  box-shadow: none;
 }
 
 /* ── Typography ── */
@@ -1241,11 +1251,6 @@ html[data-theme="dark"] .landing-shell .trace-search-field {
   border-color: #2b2b2b !important;
 }
 
-html[data-theme="dark"] .landing-shell .trace-search-field:focus-within {
-  border-color: #5a5a5a !important;
-  box-shadow: none !important;
-}
-
 html[data-theme="dark"] .landing-shell .trace-search-suggestion,
 html[data-theme="dark"] .landing-shell .trace-search-mode {
   background: #141414 !important;
@@ -1479,11 +1484,6 @@ a.landing-brand:hover {
 
 .trace-search-field {
   min-height: 3.25rem;
-}
-
-.trace-search-field:focus-within {
-  border-color: var(--accent) !important;
-  box-shadow: 0 0 0 0.1875rem var(--accent-soft) !important;
 }
 
 .trace-search-field input::placeholder {

@@ -5,10 +5,11 @@ import styles from "./FeedsView.module.css";
 
 export type StartMode = "feed" | "paper" | "blank";
 
-const MODES: { value: StartMode; label: string }[] = [
-  { value: "feed", label: "Feed" },
+// Feed and Blank are switched off for now; their code paths stay so they can be turned back on here.
+const MODES: { value: StartMode; label: string; disabled?: boolean }[] = [
+  { value: "feed", label: "Feed", disabled: true },
   { value: "paper", label: "Paper" },
-  { value: "blank", label: "Blank" },
+  { value: "blank", label: "Blank", disabled: true },
 ];
 
 function StartMenu({ mode, onSelect }: { mode: StartMode; onSelect: (mode: StartMode) => void }) {
@@ -43,7 +44,7 @@ function StartMenu({ mode, onSelect }: { mode: StartMode; onSelect: (mode: Start
     </button>
     {open && <ul id="start-menu" className={styles.menu}>
       {MODES.map(item => <li key={item.value}>
-        <button type="button" className={styles.menuItem} aria-pressed={item.value === mode} onClick={() => { setOpen(false); onSelect(item.value); }}>
+        <button type="button" className={styles.menuItem} aria-pressed={item.value === mode} disabled={item.disabled} onClick={() => { setOpen(false); onSelect(item.value); }}>
           {item.label}
         </button>
       </li>)}
