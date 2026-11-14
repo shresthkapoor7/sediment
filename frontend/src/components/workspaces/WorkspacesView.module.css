@@ -19,7 +19,7 @@
 .tools kbd { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 6px; font-family: var(--font-mono), monospace; font-size: 11px; line-height: 1; }
 
 .search { display: flex; align-items: center; gap: 8px; height: 36px; width: 248px; padding: 0 8px 0 12px; border-radius: 9px; border: 1px solid var(--border); background: color-mix(in srgb, var(--node-bg) 60%, transparent); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); color: var(--text-tertiary); cursor: text; transition: border-color .15s; }
-.search:hover, .search:focus-within { border-color: var(--border-hover); }
+.search:hover { border-color: var(--border-hover); }
 .search input { flex: 1; min-width: 0; height: 100%; border: 0; background: transparent; color: var(--text-primary); font: inherit; font-size: 13px; }
 .search input::placeholder { color: var(--text-tertiary); }
 .search kbd { background: var(--bg-secondary); color: var(--text-tertiary); }
@@ -114,7 +114,6 @@ button.columnIcon[data-tinted]:hover { background: color-mix(in srgb, var(--tile
 .shell input, .shell input:focus, .shell input:focus-visible { outline: none; box-shadow: none; }
 .shell select, .shell select:focus, .shell select:focus-visible { outline: none; }
 .shell button:focus-visible, .shell a:focus-visible { outline: 1px solid var(--border-hover); outline-offset: 2px; }
-.move:has(select:focus-visible) { background: color-mix(in srgb, var(--text-primary) 7%, transparent); color: var(--text-primary); }
 
 @media (max-width: 640px) {
   .topbar { padding: 0 1.25rem; }
