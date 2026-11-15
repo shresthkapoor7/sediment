@@ -1040,8 +1040,7 @@ details[open] > .chat-trace-summary::before {
 }
 
 html[data-theme="dark"] .landing-shell,
-html[data-theme="dark"] .feeds-shell,
-html[data-theme="dark"] .graph-loading-shell {
+html[data-theme="dark"] .feeds-shell {
   --accent: #4B8BF4;
   --accent-hover: #6BA2F7;
   --accent-soft: rgba(75, 139, 244, 0.14);
@@ -1049,8 +1048,7 @@ html[data-theme="dark"] .graph-loading-shell {
   --edge-color-active: #4B8BF4;
 }
 
-html[data-theme="dark"] .feeds-shell,
-html[data-theme="dark"] .graph-loading-shell {
+html[data-theme="dark"] .feeds-shell {
   --bg-primary: #0A0D10;
   --bg-canvas: #0A0D10;
   --canvas-dot: #1B2330;
@@ -1068,8 +1066,8 @@ html[data-theme="dark"] .feeds-shell {
 
 
 /* Home screen palette — deep black and white (light mode inverts), no chroma. Scoped to the
-   landing state and the canvas; feeds and loading screens keep the app's blue accent. */
-.landing-shell:not(.graph-loading-shell),
+   landing state, the loading screen and the canvas; feeds keep the app's blue accent. */
+.landing-shell,
 .canvas-shell {
   /* the hero no longer paints the page, so the shell does (the backdrop sits between) */
   background: var(--bg-primary);
@@ -1096,7 +1094,7 @@ html[data-theme="dark"] .feeds-shell {
   --node-border: #e4e4e4;
 }
 
-html[data-theme="dark"] .landing-shell:not(.graph-loading-shell),
+html[data-theme="dark"] .landing-shell,
 html[data-theme="dark"] .canvas-shell {
   --bg-primary: #0d0d0d;
   --bg-secondary: #141414;
