@@ -684,17 +684,6 @@ export function AppHeader({
                         }
                       />
                     ))}
-                    <p
-                      style={{
-                        margin: "0.125rem 0 0",
-                        fontSize: "0.6875rem",
-                        lineHeight: 1.5,
-                        color: "var(--text-tertiary)",
-                      }}
-                    >
-                      Daily limits use an anonymous server-derived identifier
-                      for abuse prevention and API cost control.
-                    </p>
                     <div
                       style={{
                         display: "flex",
@@ -1109,17 +1098,6 @@ export function AppHeader({
                     />
                   ))}
                 </div>
-                <p
-                  style={{
-                    marginTop: "0.625rem",
-                    fontSize: "0.75rem",
-                    lineHeight: 1.5,
-                    color: "var(--text-tertiary)",
-                  }}
-                >
-                  Daily limits use an anonymous server-derived identifier for
-                  abuse prevention and API cost control.
-                </p>
                 <div
                   style={{
                     display: "flex",
