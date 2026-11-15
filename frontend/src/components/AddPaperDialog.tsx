@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { APIError, searchPapers } from "@/lib/api";
 import { GraphPaper } from "@/lib/types";
 import styles from "./AddPaperDialog.module.css";
@@ -83,6 +83,7 @@ export function AddPaperDialog({ papersOnCanvas, defaultLinkNodeId, onAdd, onClo
   const [linkNodeId, setLinkNodeId] = useState<number | null>(defaultLinkNodeId);
   const [previewId, setPreviewId] = useState<string | null>(null);
   const [mode, setMode] = useState<"keyword" | "semantic">("keyword");
+  const [semanticRequest, setSemanticRequest] = useState<{ query: string; nonce: number } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -101,30 +102,62 @@ export function AddPaperDialog({ papersOnCanvas, defaultLinkNodeId, onAdd, onClo
   }, [onClose]);
 
   const trimmed = query.trim();
+
+  const runSearch = useCallback((text: string, searchMode: "keyword" | "semantic", signal: AbortSignal) => {
+    searchPapers(text, signal, searchMode)
+      .then((papers) => setState({ status: "done", papers }))
+      .catch((error: unknown) => {
+        if (signal.aborted) return;
+        setState({
+          status: "error",
+          message: error instanceof APIError ? error.message : "Paper search is unavailable right now.",
+        });
+      });
+  }, []);
+
+  // Keyword search follows the typing.
   useEffect(() => {
-    if (trimmed.length < 2) return;
+    if (mode !== "keyword" || trimmed.length < 2) return;
     const controller = new AbortController();
     const timer = window.setTimeout(() => {
       setState({ status: "loading" });
-      searchPapers(trimmed, controller.signal, mode)
-        .then((papers) => setState({ status: "done", papers }))
-        .catch((error: unknown) => {
-          if (controller.signal.aborted) return;
-          setState({
-            status: "error",
-            message: error instanceof APIError ? error.message : "Paper search is unavailable right now.",
-          });
-        });
-    }, mode === "semantic" ? 500 : 300);
+      runSearch(trimmed, "keyword", controller.signal);
+    }, 300);
     return () => {
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [trimmed, mode]);
+  }, [trimmed, mode, runSearch]);
+
+  // Semantic search is slower and rate limited, so it only runs when the researcher asks for it.
+  useEffect(() => {
+    if (mode !== "semantic" || !semanticRequest) return;
+    const controller = new AbortController();
+    runSearch(semanticRequest.query, "semantic", controller.signal);
+    return () => controller.abort();
+  }, [mode, semanticRequest, runSearch]);
+
+  function submitSemantic() {
+    if (trimmed.length < 2) return;
+    setState({ status: "loading" });
+    setSemanticRequest((previous) => ({ query: trimmed, nonce: (previous?.nonce ?? 0) + 1 }));
+  }
+
+  function chooseMode(next: "keyword" | "semantic") {
+    if (next === mode) return;
+    setMode(next);
+    setSemanticRequest(null);
+    setPreviewId(null);
+    setState({ status: "idle" });
+    inputRef.current?.focus();
+  }
 
   const onCanvas = new Set(papersOnCanvas.map((paper) => normalizeId(paper.openalexId)));
   const linkTarget = papersOnCanvas.find((paper) => paper.nodeId === linkNodeId) ?? null;
-  const visibleState: SearchState = trimmed.length < 2 ? { status: "idle" } : state;
+  const visibleState: SearchState = mode === "semantic"
+    ? (semanticRequest ? state : { status: "idle" })
+    : trimmed.length < 2 ? { status: "idle" } : state;
+  const shownQuery = mode === "semantic" ? semanticRequest?.query ?? "" : trimmed;
 
   return (
     <div
@@ -145,6 +178,12 @@ export function AddPaperDialog({ papersOnCanvas, defaultLinkNodeId, onAdd, onClo
             ref={inputRef}
             value={query}
             onChange={(event) => setQuery(event.target.value)}
+            onKeyDown={(event) => {
+              if (mode === "semantic" && event.key === "Enter" && !event.nativeEvent.isComposing) {
+                event.preventDefault();
+                submitSemantic();
+              }
+            }}
             placeholder={mode === "semantic" ? "Describe what you are looking for" : "Search papers, or paste a DOI or arXiv link"}
             aria-label="Search papers"
             spellCheck={false}
@@ -154,7 +193,7 @@ export function AddPaperDialog({ papersOnCanvas, defaultLinkNodeId, onAdd, onClo
               type="button"
               aria-pressed={mode === "keyword"}
               title="Match the words you type in titles, abstracts and keywords"
-              onClick={() => setMode("keyword")}
+              onClick={() => chooseMode("keyword")}
             >
               Keyword
             </button>
@@ -162,11 +201,16 @@ export function AddPaperDialog({ papersOnCanvas, defaultLinkNodeId, onAdd, onClo
               type="button"
               aria-pressed={mode === "semantic"}
               title="Describe an idea in your own words; results are matched by meaning"
-              onClick={() => setMode("semantic")}
+              onClick={() => chooseMode("semantic")}
             >
               Semantic
             </button>
           </div>
+          {mode === "semantic" && (
+            <button type="button" className={styles.searchButton} disabled={trimmed.length < 2} onClick={submitSemantic}>
+              Search
+            </button>
+          )}
           <button type="button" className={styles.close} onClick={onClose} aria-label="Close">
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden="true">
               <path d="M2 2l8 8M10 2l-8 8" />
@@ -195,14 +239,14 @@ export function AddPaperDialog({ papersOnCanvas, defaultLinkNodeId, onAdd, onClo
           {visibleState.status === "idle" && (
             <p className={styles.state}>
               {mode === "semantic"
-                ? "Describe an idea or question and get papers that are about it, even if they use different words."
+                ? "Describe an idea or question, then press Enter. You get papers that are about it, even if they use different words."
                 : "Find a paper by title or topic and drop it on the canvas."}
             </p>
           )}
           {visibleState.status === "loading" && <p className={styles.state}>Searching…</p>}
           {visibleState.status === "error" && <p className={styles.state}>{visibleState.message}</p>}
           {visibleState.status === "done" && visibleState.papers.length === 0 && (
-            <p className={styles.state}>No papers found for “{trimmed}”.</p>
+            <p className={styles.state}>No papers found for “{shownQuery}”.</p>
           )}
           {visibleState.status === "done" && visibleState.papers.map((paper) => {
             const added = onCanvas.has(normalizeId(paper.openalexId));
