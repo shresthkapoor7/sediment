@@ -15,14 +15,14 @@ import { NODE_DIMENSIONS, PADDING_X, PADDING_Y } from "@/lib/layout-constants";
 // The nearest the board's content may sit to its origin before everything is slid over.
 const CANVAS_MIN_X = PADDING_X;
 const CANVAS_MIN_Y = PADDING_Y;
-const GROUP_PADDING = 24;
-const GROUP_LABEL_HEIGHT = 40;
+
 import { TimelineNodeCard } from "./TimelineNode";
 import { TimelineEdgeLine } from "./TimelineEdge";
 import { TimelineNoteCard } from "./TimelineNote";
 import { TimelineNoteEdgeLine } from "./TimelineNoteEdge";
 import { GlobalChatPanel } from "./GlobalChatPanel";
 import { AddPaperDialog } from "./AddPaperDialog";
+import { CanvasGroupRegion } from "./CanvasGroupRegion";
 import { ConversationNavigator } from "./ConversationNavigator";
 import { PaperReaderModal } from "./PaperReaderModal";
 import { SpecialNoteUploadDialog } from "./SpecialNoteUploadDialog";
@@ -1257,6 +1257,18 @@ export function TimelineCanvas({
     return [...regions.entries()].map(([key, region]) => ({ key, ...region }));
   }, [data.nodes]);
 
+  const groupLabels = useMemo(() => groupRegions.map((region) => region.label), [groupRegions]);
+
+  const handleSetNodeGroup = useCallback((nodeId: number, group: string | null) => {
+    if (readOnly) return;
+    onGraphAction?.({ type: "set_node_group", nodeId, group });
+  }, [onGraphAction, readOnly]);
+
+  const handleRenameGroup = useCallback((from: string, to: string | null) => {
+    if (readOnly) return;
+    onGraphAction?.({ type: "rename_group", from, to });
+  }, [onGraphAction, readOnly]);
+
   const handleMoveNote = useCallback(
     (noteId: string, x: number, y: number) => {
       if (readOnly) return;
@@ -1791,40 +1803,13 @@ export function TimelineCanvas({
           }}
         >
           {groupRegions.map((region) => (
-            <div
+            <CanvasGroupRegion
               key={region.key}
-              style={{
-                position: "absolute",
-                left: region.minX - GROUP_PADDING,
-                top: region.minY - GROUP_PADDING - GROUP_LABEL_HEIGHT,
-                width: region.maxX - region.minX + GROUP_PADDING * 2,
-                height: region.maxY - region.minY + GROUP_PADDING * 2 + GROUP_LABEL_HEIGHT,
-                borderRadius: "1.25rem",
-                background: "color-mix(in srgb, var(--text-primary) 3.5%, transparent)",
-                pointerEvents: "none",
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "baseline",
-                  gap: "0.5rem",
-                  height: GROUP_LABEL_HEIGHT,
-                  padding: `0.875rem ${GROUP_PADDING}px 0`,
-                  fontSize: "0.8125rem",
-                  fontWeight: 550,
-                  letterSpacing: "-0.01em",
-                  color: "var(--text-secondary)",
-                  whiteSpace: "nowrap",
-                  overflow: "hidden",
-                }}
-              >
-                <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{region.label}</span>
-                <span style={{ fontSize: "0.6875rem", fontWeight: 400, color: "var(--text-tertiary)" }}>
-                  {region.count} {region.count === 1 ? "paper" : "papers"}
-                </span>
-              </div>
-            </div>
+              label={region.label}
+              count={region.count}
+              box={region}
+              onRename={!readOnly && onGraphAction ? handleRenameGroup : undefined}
+            />
           ))}
           {nodeArray.map((node, i) => (
             <TimelineNodeCard
@@ -1832,6 +1817,8 @@ export function TimelineCanvas({
               node={node}
               index={i}
               onClick={handleNodeClick}
+              groups={groupLabels}
+              onSetGroup={!readOnly && onGraphAction ? handleSetNodeGroup : undefined}
               onMove={!readOnly && onGraphAction ? handleMoveNode : undefined}
               onMoveEnd={handleMoveNodeEnd}
               getZoom={getZoom}

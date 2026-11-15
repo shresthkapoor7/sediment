@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { m } from "framer-motion";
 import { TimelineNode as TNode, NodeBorderColor } from "@/lib/types";
 import { NODE_BORDER_COLOR_OPTIONS, nodeBorderColorCss } from "@/lib/node-style";
@@ -31,6 +31,9 @@ interface TimelineNodeProps {
   onAddNote?: (id: number) => void;
   onAddSpecialNote?: (id: number) => void;
   onDeleteNode?: (id: number) => void;
+  /** Names of the clusters on the canvas, for the cluster menu. */
+  groups?: string[];
+  onSetGroup?: (id: number, group: string | null) => void;
 }
 
 const compact = new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 });
@@ -63,6 +66,8 @@ export function TimelineNodeCard({
   onAddNote,
   onAddSpecialNote,
   onDeleteNode,
+  groups = [],
+  onSetGroup,
 }: TimelineNodeProps) {
   const { width, height } = NODE_DIMENSIONS;
   const { paper } = node;
@@ -70,6 +75,32 @@ export function TimelineNodeCard({
   const deleteDisabled = isGraphActionDisabled || isLocked || isOnlyNode;
   const state = isActive || isSelected ? "active" : isHighlighted || isMentioned ? "marked" : undefined;
   const authors = authorLine(paper.authors);
+
+  // Cluster menu: pick an existing cluster, start a new one, or leave the current one.
+  const [groupMenuOpen, setGroupMenuOpen] = useState(false);
+  const [newGroup, setNewGroup] = useState("");
+  const groupMenuRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!groupMenuOpen) return;
+    const onPointerDown = (event: PointerEvent) => {
+      if (event.target instanceof Node && groupMenuRef.current?.contains(event.target)) return;
+      setGroupMenuOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setGroupMenuOpen(false);
+    };
+    window.addEventListener("pointerdown", onPointerDown);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("pointerdown", onPointerDown);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [groupMenuOpen]);
+  const chooseGroup = (group: string | null) => {
+    onSetGroup?.(node.id, group);
+    setGroupMenuOpen(false);
+    setNewGroup("");
+  };
 
   // Drag to move. A press that travels less than a few pixels is still a click.
   const dragRef = useRef<{ pointerId: number; clientX: number; clientY: number; x: number; y: number; moved: boolean } | null>(null);
@@ -155,7 +186,7 @@ export function TimelineNodeCard({
         <div
           className={styles.bar}
           data-canvas-ui="true"
-          data-show={isSelected ? "" : undefined}
+          data-show={isSelected || groupMenuOpen ? "" : undefined}
           style={{ top: height + 12 }}
           onClick={(event) => event.stopPropagation()}
         >
@@ -166,6 +197,53 @@ export function TimelineNodeCard({
           <button type="button" disabled={isGraphActionDisabled} onClick={() => onAddSpecialNote?.(node.id)} title="Attach a file" aria-label="Attach a file">
             <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M13 7.5 8 12.5a3 3 0 0 1-4.2-4.3l5.4-5.3a2 2 0 0 1 2.8 2.8L6.7 11a1 1 0 0 1-1.4-1.4L10 5" /></svg>
           </button>
+          {onSetGroup && (
+            <div ref={groupMenuRef} className={styles.groupAnchor}>
+              <button
+                type="button"
+                disabled={isGraphActionDisabled}
+                onClick={() => setGroupMenuOpen((open) => !open)}
+                aria-expanded={groupMenuOpen}
+                title={node.group ? `Cluster: ${node.group}` : "Add to a cluster"}
+              >
+                <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="2" y="2" width="5" height="5" rx="1.2" /><rect x="9" y="2" width="5" height="5" rx="1.2" /><rect x="2" y="9" width="5" height="5" rx="1.2" /><path d="M11.500 9.500v4M9.500 11.500h4" /></svg>
+                Cluster
+              </button>
+              {groupMenuOpen && (
+                <div className={styles.groupMenu} role="menu">
+                  {groups.map((group) => {
+                    const current = node.group?.trim().toLowerCase() === group.trim().toLowerCase();
+                    return (
+                      <button key={group} type="button" role="menuitemradio" aria-checked={current} onClick={() => chooseGroup(group)}>
+                        <span>{group}</span>
+                        {current && <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M2.500 6.500 5 9l4.500-6" /></svg>}
+                      </button>
+                    );
+                  })}
+                  <form
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      if (newGroup.trim()) chooseGroup(newGroup);
+                    }}
+                  >
+                    <input
+                      value={newGroup}
+                      onChange={(event) => setNewGroup(event.target.value)}
+                      onKeyDown={(event) => event.stopPropagation()}
+                      maxLength={48}
+                      placeholder="New cluster name"
+                      aria-label="New cluster name"
+                    />
+                  </form>
+                  {node.group && (
+                    <button type="button" role="menuitem" className={styles.groupLeave} onClick={() => chooseGroup(null)}>
+                      Remove from cluster
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
           <span className={styles.sep} />
           <div className={styles.swatches} role="group" aria-label="Card colour">
             {NODE_BORDER_COLOR_OPTIONS.map((option) => {

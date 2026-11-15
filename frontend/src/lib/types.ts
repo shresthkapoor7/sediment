@@ -154,6 +154,18 @@ export type TimelineGraphAction =
       y: number;
     }
   | {
+      /** Put a paper in a cluster, creating the cluster if the name is new; null takes it out. */
+      type: "set_node_group";
+      nodeId: number;
+      group: string | null;
+    }
+  | {
+      /** Rename a cluster, merging into one that already has the new name; null dissolves it. */
+      type: "rename_group";
+      from: string;
+      to: string | null;
+    }
+  | {
       /** Slide everything by the same amount, to keep the board's content in positive coordinates. */
       type: "shift_canvas";
       dx: number;

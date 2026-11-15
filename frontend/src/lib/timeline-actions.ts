@@ -25,6 +25,32 @@ export function applyTimelineGraphAction(
     if (!node || (node.x === action.x && node.y === action.y)) return data;
     return { ...data, nodes: { ...data.nodes, [node.id]: { ...node, x: action.x, y: action.y } } };
   }
+  if (action.type === "set_node_group") {
+    const node = data.nodes[action.nodeId];
+    const group = cleanGroupLabel(action.group);
+    if (!node || (node.group ?? null) === group) return data;
+    const updated = { ...node };
+    if (group) updated.group = group;
+    else delete updated.group;
+    return { ...data, nodes: { ...data.nodes, [node.id]: updated } };
+  }
+  if (action.type === "rename_group") {
+    const to = cleanGroupLabel(action.to);
+    // Reuse the spelling of a cluster that already carries the new name, so the two merge.
+    const existing = to
+      ? Object.values(data.nodes).find((node) => !sameGroup(node.group, action.from) && sameGroup(node.group, to))?.group
+      : undefined;
+    let changed = false;
+    const nodes = Object.fromEntries(Object.entries(data.nodes).map(([id, node]) => {
+      if (!sameGroup(node.group, action.from)) return [Number(id), node];
+      changed = true;
+      const updated = { ...node };
+      if (to) updated.group = existing ?? to;
+      else delete updated.group;
+      return [Number(id), updated];
+    }));
+    return changed ? { ...data, nodes } : data;
+  }
   if (action.type === "shift_canvas") {
     if (!action.dx && !action.dy) return data;
     return {
@@ -269,6 +295,11 @@ const REGION_GAP_X = 200;
 const CARD_CLEARANCE = 24;
 
 interface Box { x: number; y: number; width: number; height: number }
+
+function cleanGroupLabel(value: string | null | undefined): string | null {
+  const label = (value ?? "").trim().replace(/\s+/g, " ").slice(0, 48);
+  return label || null;
+}
 
 function sameGroup(a: string | undefined, b: string | undefined): boolean {
   return Boolean(a && b && a.trim().toLowerCase() === b.trim().toLowerCase());

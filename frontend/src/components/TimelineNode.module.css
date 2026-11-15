@@ -31,3 +31,12 @@
 /* While a card is being dragged it rides above the others and its action bar stays out of the way. */
 .wrap[data-dragging] { cursor: grabbing; z-index: 30; }
 .wrap[data-dragging] .bar { opacity: 0; pointer-events: none; }
+
+/* Cluster menu, opening under the action bar. */
+.groupAnchor { position: relative; display: flex; }
+.groupMenu { position: absolute; top: 32px; left: 0; z-index: 40; display: flex; flex-direction: column; gap: 2px; width: 220px; padding: 6px; border-radius: 10px; background: var(--bg-tertiary); box-shadow: 0 12px 32px rgba(0, 0, 0, .28); }
+.bar .groupMenu button { justify-content: space-between; width: 100%; height: 28px; padding: 0 8px; font-size: 12px; text-align: left; }
+.bar .groupMenu button span { overflow: hidden; text-overflow: ellipsis; }
+.groupMenu input { width: 100%; height: 28px; margin: 2px 0; padding: 0 8px; border: 0; border-radius: 6px; background: color-mix(in srgb, var(--text-primary) 7%, transparent); color: var(--text-primary); font: inherit; font-size: 12px; }
+.groupMenu input::placeholder { color: var(--text-tertiary); }
+.bar .groupMenu .groupLeave { color: var(--text-tertiary); }
