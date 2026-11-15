@@ -207,8 +207,18 @@ export function AddPaperDialog({ papersOnCanvas, defaultLinkNodeId, onAdd, onClo
             </button>
           </div>
           {mode === "semantic" && (
-            <button type="button" className={styles.searchButton} disabled={trimmed.length < 2} onClick={submitSemantic}>
-              Search
+            <button
+              type="button"
+              className={styles.searchButton}
+              title="Search (Enter)"
+              aria-label="Search"
+              disabled={trimmed.length < 2}
+              onClick={submitSemantic}
+            >
+              <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
+                <circle cx="7" cy="7" r="4.5" />
+                <path d="m10.5 10.5 3 3" />
+              </svg>
             </button>
           )}
           <button type="button" className={styles.close} onClick={onClose} aria-label="Close">
