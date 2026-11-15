@@ -26,7 +26,7 @@ import { GlobalChatPanel } from "./GlobalChatPanel";
 import { AddPaperDialog } from "./AddPaperDialog";
 import { CanvasGroupRegion } from "./CanvasGroupRegion";
 import { CanvasMinimap, type MinimapItem } from "./CanvasMinimap";
-import { computeGroupRegions, groupKey, regionAt, regionFrame } from "@/lib/groups";
+import { computeGroupRegions, groupKey, isNearRegion, regionAt, regionFrame } from "@/lib/groups";
 import { ConversationNavigator } from "./ConversationNavigator";
 import { PaperReaderModal } from "./PaperReaderModal";
 import { SpecialNoteUploadDialog } from "./SpecialNoteUploadDialog";
@@ -1277,15 +1277,17 @@ export function TimelineCanvas({
     draggingNodeRef.current = false;
     setDraggingNodeId(null);
     setMoveEndTick((tick) => tick + 1);
-    // A cluster's frame holds exactly its papers: dropping a card inside one joins it, and
-    // dropping a member outside its cluster's frame takes it out.
+    // A cluster's frame holds exactly its papers: dropping a card inside another one joins it, and
+    // dragging a member well away from its cluster takes it out. A member only a little past the
+    // edge stays, which stretches the cluster.
     const node = data.nodes[nodeId];
     if (!node || readOnly) return;
     const others = computeGroupRegions(Object.values(data.nodes), nodeId);
     const target = regionAt(others, node);
+    const own = node.group ? others.find((region) => region.key === groupKey(node.group)) : undefined;
     if (target) {
       if (groupKey(node.group) !== target.key) onGraphAction?.({ type: "set_node_group", nodeId, group: target.label });
-    } else if (node.group && others.some((region) => region.key === groupKey(node.group))) {
+    } else if (own && !isNearRegion(own, node)) {
       onGraphAction?.({ type: "set_node_group", nodeId, group: null });
     }
   }, [data.nodes, onGraphAction, readOnly]);
@@ -1328,9 +1330,11 @@ export function TimelineCanvas({
     if (!dragged) return { groupRegions: computeGroupRegions(all), dropTargetKey: null as string | null };
     const others = computeGroupRegions(all, dragged.id);
     const target = regionAt(others, dragged);
-    const soleMember = dragged.group && !others.some((region) => region.key === groupKey(dragged.group));
+    const own = dragged.group ? others.find((region) => region.key === groupKey(dragged.group)) : undefined;
+    // A member that is still near its cluster stays in it, so the frame stretches with the card.
+    const staying = !target && Boolean(dragged.group) && (!own || isNearRegion(own, dragged));
     return {
-      groupRegions: soleMember ? [...others, ...computeGroupRegions([dragged])] : others,
+      groupRegions: staying ? computeGroupRegions(all) : others,
       dropTargetKey: target?.key ?? null,
     };
   }, [data.nodes, draggingNodeId]);

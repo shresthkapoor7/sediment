@@ -69,3 +69,22 @@ export function regionAt(regions: GroupRegion[], node: Pick<TimelineNode, "x" | 
       return fa.width * fa.height - fb.width * fb.height;
     })[0] ?? null;
 }
+
+/** How far past its own cluster's frame a member can be dragged and still belong, so the cluster can be stretched. */
+export const GROUP_STAY_MARGIN = 160;
+
+/** Whether a card's centre is inside the region's frame or within the stay margin of it. */
+export function isNearRegion(region: GroupRegion, node: Pick<TimelineNode, "x" | "y">): boolean {
+  const frame = regionFrame(region);
+  const center = cardCenter(node);
+  return frameContains(
+    {
+      x: frame.x - GROUP_STAY_MARGIN,
+      y: frame.y - GROUP_STAY_MARGIN,
+      width: frame.width + GROUP_STAY_MARGIN * 2,
+      height: frame.height + GROUP_STAY_MARGIN * 2,
+    },
+    center.x,
+    center.y,
+  );
+}
