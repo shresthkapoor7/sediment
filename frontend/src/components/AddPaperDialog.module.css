@@ -15,14 +15,13 @@
 .title { font-size: 14px; font-weight: 550; line-height: 1.35; letter-spacing: -.01em; overflow-wrap: anywhere; }
 .meta { margin-top: 4px; font-size: 12px; line-height: 1.5; color: var(--text-secondary); }
 .summary { margin-top: 6px; font-size: 12px; line-height: 1.55; color: var(--text-tertiary); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.add { flex: none; height: 30px; padding: 0 14px; border: 0; border-radius: 8px; background: var(--accent); color: var(--on-accent); font: inherit; font-size: 12px; font-weight: 550; cursor: pointer; }
+.add { display: grid; place-items: center; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 8px; background: var(--accent); color: var(--on-accent); cursor: pointer; }
 .add:hover { opacity: .88; }
 .add:disabled { background: transparent; color: var(--text-tertiary); cursor: default; opacity: 1; }
 .row:hover .add:disabled { background: transparent; }
-.actions { flex: none; display: flex; flex-direction: column; align-items: stretch; gap: 4px; }
-.previewButton { height: 26px; padding: 0 14px; border: 0; border-radius: 8px; background: transparent; color: var(--text-secondary); font: inherit; font-size: 12px; cursor: pointer; }
-.previewButton:hover, .previewButton[aria-expanded="true"] { background: var(--bg-tertiary); color: var(--text-primary); }
-.row:hover .previewButton[aria-expanded="false"] { background: color-mix(in srgb, var(--text-primary) 7%, transparent); }
+.actions { flex: none; display: flex; align-items: center; gap: 6px; }
+.previewButton { display: grid; place-items: center; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 8px; background: transparent; color: var(--text-secondary); cursor: pointer; }
+.previewButton:hover, .previewButton[aria-expanded="true"] { background: color-mix(in srgb, var(--text-primary) 10%, transparent); color: var(--text-primary); }
 .preview { margin-top: 10px; padding-top: 10px; display: flex; flex-direction: column; gap: 8px; border-top: 1px solid color-mix(in srgb, var(--text-primary) 10%, transparent); }
 .previewAuthors { font-size: 12px; line-height: 1.5; color: var(--text-secondary); }
 .previewFacts { font-size: 11px; color: var(--text-tertiary); text-transform: capitalize; }

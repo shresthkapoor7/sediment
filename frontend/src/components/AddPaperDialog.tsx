@@ -195,19 +195,29 @@ export function AddPaperDialog({ papersOnCanvas, defaultLinkNodeId, onAdd, onClo
                 <div className={styles.actions}>
                   <button
                     type="button"
-                    className={styles.add}
-                    disabled={added}
-                    onClick={() => onAdd(paper, linkTarget?.nodeId ?? null)}
-                  >
-                    {added ? "On canvas" : "Add"}
-                  </button>
-                  <button
-                    type="button"
                     className={styles.previewButton}
+                    title={previewing ? "Hide preview" : "Preview"}
+                    aria-label={previewing ? "Hide preview" : "Preview paper"}
                     aria-expanded={previewing}
                     onClick={() => setPreviewId(previewing ? null : paper.openalexId)}
                   >
-                    {previewing ? "Hide" : "Preview"}
+                    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M1 8s3-5 7-5 7 5 7 5-3 5-7 5-7-5-7-5z" />
+                      <circle cx="8" cy="8" r="2" />
+                      {previewing && <path d="M2 2l12 12" />}
+                    </svg>
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.add}
+                    disabled={added}
+                    title={added ? "Already on the canvas" : "Add to canvas"}
+                    aria-label={added ? "Already on the canvas" : `Add ${paper.title} to the canvas`}
+                    onClick={() => onAdd(paper, linkTarget?.nodeId ?? null)}
+                  >
+                    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      {added ? <path d="m3.5 8.5 3 3 6-7" /> : <path d="M8 3v10M3 8h10" />}
+                    </svg>
                   </button>
                 </div>
               </div>
