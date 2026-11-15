@@ -47,6 +47,8 @@ interface GlobalChatPanelProps {
   onOpenChange: (open: boolean) => void;
   onHighlight: (ids: string[]) => void;
   onMentionedPaperIdsChange?: (ids: string[]) => void;
+  /** Ask the panel to tag a paper in the composer. Change `nonce` to repeat the request. */
+  mentionRequest?: { paperId: string; nonce: number } | null;
   onLineageChanges?: (changes: LineageChange[]) => void;
   onNoteChanges?: (changes: TimelineNoteChange[]) => void;
   onNodeColorChanges?: (changes: TimelineNodeColorChange[]) => void;
@@ -204,7 +206,7 @@ function capMessages(messages: Message[]): Message[] {
   ));
 }
 
-export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMentionedPaperIdsChange, onLineageChanges, onNoteChanges, onNodeColorChanges, onUsageChanged, graphId, userId }: GlobalChatPanelProps) {
+export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMentionedPaperIdsChange, mentionRequest, onLineageChanges, onNoteChanges, onNodeColorChanges, onUsageChanged, graphId, userId }: GlobalChatPanelProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [mentionedPaperIds, setMentionedPaperIds] = useState<string[]>([]);
@@ -383,6 +385,28 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
       setMentionQuery("");
     }
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const mentionNonce = mentionRequest?.nonce;
+  useEffect(() => {
+    if (!mentionRequest) return;
+    const paper = Object.values(data.nodes).find((n) => n.paper.openalexId === mentionRequest.paperId)?.paper;
+    if (!paper) return;
+    const mentionText = `@${paper.title}`;
+    /* eslint-disable react-hooks/set-state-in-effect -- Responds to an explicit request from the paper panel. */
+    setInput((current) => current.includes(mentionText) ? current : current.trim() ? `${current.trimEnd()} ${mentionText} ` : `${mentionText} `);
+    setMentionedPaperIds((current) => current.includes(paper.openalexId) ? current : [...current, paper.openalexId]);
+    setMentionOpen(false);
+    setMentionQuery("");
+    /* eslint-enable react-hooks/set-state-in-effect */
+    // Wait for the panel to slide in before focusing the composer.
+    const timer = window.setTimeout(() => {
+      const element = inputRef.current;
+      if (!element) return;
+      element.focus({ preventScroll: true });
+      element.setSelectionRange(element.value.length, element.value.length);
+    }, 260);
+    return () => window.clearTimeout(timer);
+  }, [mentionNonce]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const messagesEl = messagesRef.current;

@@ -129,6 +129,7 @@ export function TimelineCanvas({
   const suppressNodeClickRef = useRef(false);
 
   const [zoomDisplay, setZoomDisplay] = useState(1);
+  const [agentMentionRequest, setAgentMentionRequest] = useState<{ paperId: string; nonce: number } | null>(null);
   const [isOutOfView, setIsOutOfView] = useState(false);
   const [cursorStyle, setCursorStyle] = useState("default");
   const [activeNodeId, setActiveNodeId] = useState<number | null>(null);
@@ -2288,8 +2289,16 @@ export function TimelineCanvas({
                     </a>
                   )}
                   {isActivePaperCached && <button type="button" onClick={openPaperReader}>Read here</button>}
-                  {!readOnly && onGlobalChatOpenChange && !globalChatOpen && (
-                    <button type="button" onClick={() => onGlobalChatOpenChange(true)}>Ask the agent</button>
+                  {!readOnly && onGlobalChatOpenChange && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAgentMentionRequest((current) => ({ paperId: activeNode.paper.openalexId, nonce: (current?.nonce ?? 0) + 1 }));
+                        onGlobalChatOpenChange(true);
+                      }}
+                    >
+                      Ask the agent
+                    </button>
                   )}
                 </div>
                 <section className={peek.section}>
@@ -2405,6 +2414,7 @@ export function TimelineCanvas({
           onOpenChange={onGlobalChatOpenChange ?? (() => undefined)}
           onHighlight={handleGlobalHighlight}
           onMentionedPaperIdsChange={handleGlobalMentionedPaperIdsChange}
+          mentionRequest={agentMentionRequest}
           onLineageChanges={onLineageChanges}
           onNoteChanges={onNoteChanges}
           onNodeColorChanges={onNodeColorChanges}
