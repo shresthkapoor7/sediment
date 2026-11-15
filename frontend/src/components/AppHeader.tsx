@@ -23,11 +23,9 @@ interface AppHeaderProps {
   mobileMenuOpen: boolean;
   globalChatOpen: boolean;
   credits: number;
-  showCreditsHint: boolean;
   shareState: "idle" | "sharing" | "copied" | "error";
   landingScrollEl: HTMLDivElement | null;
   setMobileMenuOpen: React.Dispatch<React.SetStateAction<boolean>>;
-  setShowCreditsHint: React.Dispatch<React.SetStateAction<boolean>>;
   setGraphTitleDraft: React.Dispatch<React.SetStateAction<string>>;
   handleReset: () => void;
   handleExport: () => void;
@@ -50,10 +48,8 @@ export function AppHeader({
   mobileMenuOpen,
   globalChatOpen,
   credits,
-  showCreditsHint,
   landingScrollEl,
   setMobileMenuOpen,
-  setShowCreditsHint,
   setGraphTitleDraft,
   handleReset,
   handleExport,
@@ -288,32 +284,8 @@ export function AppHeader({
             <div
               className={`app-header-credit${creditsExpanded ? " app-header-credit-expanded" : ""}`}
               style={{ position: "relative" }}
-              onMouseEnter={() => setShowCreditsHint(true)}
-              onMouseLeave={() => setShowCreditsHint(false)}
+              title="Daily usage limit"
             >
-              {showCreditsHint && timelineData && (
-                <div
-                  style={{
-                    position: "absolute",
-                    top: "calc(100% + 0.5rem)",
-                    right: 0,
-                    width: "8rem",
-                    padding: "0.5rem 0.625rem",
-                    borderRadius: "0.5rem",
-                    border: "0.0625rem solid var(--border-hover)",
-                    background: "var(--bg-secondary)",
-                    boxShadow:
-                      "0 0.5rem 1.5rem rgba(0,0,0,0.10), 0 0.125rem 0.375rem rgba(0,0,0,0.06)",
-                    color: "var(--text-secondary)",
-                    fontSize: "0.6875rem",
-                    lineHeight: 1.45,
-                    zIndex: 110,
-                    pointerEvents: "none",
-                  }}
-                >
-                  Daily usage credits
-                </div>
-              )}
               <div className="app-header-credit-indicator">
                 {!timelineData && (
                   <button
@@ -571,7 +543,7 @@ export function AppHeader({
             >
               {/* Credits row */}
               <div
-                title="Daily usage credits"
+                title="Daily usage limit"
                 style={{
                   display: "flex",
                   alignItems: "center",

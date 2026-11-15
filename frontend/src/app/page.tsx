@@ -76,7 +76,6 @@ export default function Home() {
   const clearAgentKickoff = useCallback(() => setAgentKickoff(null), []);
   const [closePaperPanelSignal, setClosePaperPanelSignal] = useState(0);
   const [credits, setCredits] = useState<number>(10);
-  const [showCreditsHint, setShowCreditsHint] = useState(false);
   const shareStateTimeoutRef = useRef<number | null>(null);
   const saveTimeoutRef = useRef<number | null>(null);
   const saveStateTimeoutRef = useRef<number | null>(null);
@@ -489,11 +488,9 @@ export default function Home() {
       mobileMenuOpen={mobileMenuOpen}
       globalChatOpen={globalChatOpen}
       credits={credits}
-      showCreditsHint={showCreditsHint}
       shareState={shareState}
       landingScrollEl={landingScrollEl}
       setMobileMenuOpen={setMobileMenuOpen}
-      setShowCreditsHint={setShowCreditsHint}
       setGraphTitleDraft={setGraphTitleDraft}
       handleReset={handleReset}
       handleExport={handleExport}
