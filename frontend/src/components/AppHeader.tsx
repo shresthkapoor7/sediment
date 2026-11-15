@@ -51,14 +51,12 @@ export function AppHeader({
   globalChatOpen,
   credits,
   showCreditsHint,
-  shareState,
   landingScrollEl,
   setMobileMenuOpen,
   setShowCreditsHint,
   setGraphTitleDraft,
   handleReset,
   handleExport,
-  handleShare,
   handleToggleGlobalChat,
   startGraphTitleEdit,
   saveGraphTitle,
@@ -400,15 +398,10 @@ export function AppHeader({
             {/* Canvas actions sit in the bar itself. */}
             {timelineData && (
               <>
-                <button type="button" className="app-header-labeled-action" onClick={handleExport} title="Export to Obsidian">
+                <button type="button" className="app-header-labeled-action" onClick={handleExport} title="Export markdown">
                   <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M8 2.5v7.5M5 7.5l3 3 3-3M3 13h10" /></svg>
                   <span className="app-header-action-label">Export</span>
                 </button>
-                <button type="button" className="app-header-labeled-action" onClick={() => void handleShare()} disabled={shareState === "sharing"} title="Copy a share link">
-                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6.8 9.2a3 3 0 0 0 4.2 0l2-2a3 3 0 0 0-4.200-4.2l-.8.8M9.2 6.800a3 3 0 0 0-4.200 0l-2 2a3 3 0 0 0 4.200 4.200l.8-.8" /></svg>
-                  <span className="app-header-action-label">{shareState === "sharing" ? "Sharing…" : shareState === "copied" ? "Link copied" : shareState === "error" ? "Share failed" : "Share"}</span>
-                </button>
-                <ThemeToggle className="app-header-labeled-action app-header-graph-icon-action" />
               </>
             )}
 
@@ -861,69 +854,6 @@ export function AppHeader({
                 </button>
               )}
 
-              {/* Share */}
-              {timelineData && (
-                <button
-                  onClick={() => {
-                    void handleShare();
-                    setMobileMenuOpen(false);
-                  }}
-                  disabled={shareState === "sharing"}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "0.625rem",
-                    width: "100%",
-                    padding: "0.625rem 0.5rem",
-                    background: "none",
-                    border: "none",
-                    borderRadius: "0.5rem",
-                    color:
-                      shareState === "copied"
-                        ? "var(--accent)"
-                        : "var(--text-primary)",
-                    fontSize: "0.875rem",
-                    fontFamily: "var(--font-sans), sans-serif",
-                    fontWeight: 500,
-                    cursor: shareState === "sharing" ? "default" : "pointer",
-                    textAlign: "left",
-                  }}
-                  onTouchStart={(e) => {
-                    e.currentTarget.style.background = "var(--bg-secondary)";
-                  }}
-                  onTouchEnd={(e) => {
-                    e.currentTarget.style.background = "none";
-                  }}
-                  onTouchCancel={(e) => {
-                    e.currentTarget.style.background = "none";
-                  }}
-                >
-                  <svg
-                    width="15"
-                    height="15"
-                    viewBox="0 0 16 16"
-                    fill="none"
-                    stroke={
-                      shareState === "copied"
-                        ? "var(--accent)"
-                        : "var(--text-tertiary)"
-                    }
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M11 3a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM5 8a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM11 9a2 2 0 1 1 0 4 2 2 0 0 1 0-4z" />
-                    <path d="M9 4.5l-4 3M9 11.5l-4-3" />
-                  </svg>
-                  {shareState === "sharing"
-                    ? "Sharing..."
-                    : shareState === "copied"
-                      ? "Link copied!"
-                      : shareState === "error"
-                        ? "Share failed"
-                        : "Copy share link"}
-                </button>
-              )}
 
               {/* GitHub */}
               <a
