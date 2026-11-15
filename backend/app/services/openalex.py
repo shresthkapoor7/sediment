@@ -281,6 +281,22 @@ class OpenAlexClient:
 
         return results[:limit * 2]  # give LLM more candidates to pick from
 
+    async def search_papers_semantic(self, query: str, limit: int = 10) -> list[dict]:
+        """Search by meaning rather than keywords: OpenAlex ranks works by embedding similarity to the text."""
+        params = {
+            **self._base_params(),
+            "search.semantic": query,
+            "per-page": str(limit),
+            "select": SEARCH_SELECT,
+        }
+        data = await _get(self._session_or_raise(), f"{BASE}/works", params)
+        results: list[dict] = []
+        for work in data.get("results", []):
+            normalized = self._normalize_work(work)
+            if normalized:
+                results.append(normalized)
+        return results
+
     async def fetch_work(self, openalex_id: str) -> Optional[dict]:
         params = {**self._base_params(), "select": SEARCH_SELECT}
         data = await _get(self._session_or_raise(), f"{BASE}/works/{openalex_id}", params)

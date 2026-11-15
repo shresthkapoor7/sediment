@@ -124,10 +124,14 @@ export async function streamChatAboutPaper(
   return finalResponse;
 }
 
-/** Plain OpenAlex lookup: free text, or a pasted DOI, arXiv link or OpenAlex ID. No model call. */
-export async function searchPapers(query: string, signal?: AbortSignal): Promise<GraphPaper[]> {
+/** Plain OpenAlex lookup: free text (keyword, or by meaning), or a pasted DOI, arXiv link or OpenAlex ID. No model call. */
+export async function searchPapers(
+  query: string,
+  signal?: AbortSignal,
+  mode: "keyword" | "semantic" = "keyword",
+): Promise<GraphPaper[]> {
   const response = await fetch(
-    `${EXPENSIVE_API_BASE}/api/papers/search?q=${encodeURIComponent(query)}`,
+    `${EXPENSIVE_API_BASE}/api/papers/search?q=${encodeURIComponent(query)}&mode=${mode}`,
     { cache: "no-store", signal },
   );
   if (!response.ok) {

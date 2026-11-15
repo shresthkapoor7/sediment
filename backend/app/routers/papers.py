@@ -2,7 +2,7 @@
 
 import logging
 import re
-from typing import Optional
+from typing import Literal, Optional
 
 from fastapi import APIRouter, HTTPException, Query
 
@@ -76,6 +76,7 @@ def to_graph_paper(work: dict) -> GraphPaper:
 async def search_papers(
     q: str = Query(..., min_length=2, max_length=MAX_QUERY_LENGTH),
     limit: int = Query(10, ge=1, le=20),
+    mode: Literal["keyword", "semantic"] = Query("keyword"),
 ):
     query = q.strip()
     if len(query) < 2:
@@ -94,6 +95,8 @@ async def search_papers(
                     # An unknown DOI or ID is an empty result, not an outage.
                     work = None
                 works = [work] if work else []
+            elif mode == "semantic":
+                works = (await openalex.search_papers_semantic(query, limit=limit))[:limit]
             else:
                 works = (await openalex.search_papers(query, limit=limit))[:limit]
     except OpenAlexError as e:

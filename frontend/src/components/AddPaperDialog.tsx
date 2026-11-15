@@ -82,6 +82,7 @@ export function AddPaperDialog({ papersOnCanvas, defaultLinkNodeId, onAdd, onClo
   const [state, setState] = useState<SearchState>({ status: "idle" });
   const [linkNodeId, setLinkNodeId] = useState<number | null>(defaultLinkNodeId);
   const [previewId, setPreviewId] = useState<string | null>(null);
+  const [mode, setMode] = useState<"keyword" | "semantic">("keyword");
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -105,7 +106,7 @@ export function AddPaperDialog({ papersOnCanvas, defaultLinkNodeId, onAdd, onClo
     const controller = new AbortController();
     const timer = window.setTimeout(() => {
       setState({ status: "loading" });
-      searchPapers(trimmed, controller.signal)
+      searchPapers(trimmed, controller.signal, mode)
         .then((papers) => setState({ status: "done", papers }))
         .catch((error: unknown) => {
           if (controller.signal.aborted) return;
@@ -114,12 +115,12 @@ export function AddPaperDialog({ papersOnCanvas, defaultLinkNodeId, onAdd, onClo
             message: error instanceof APIError ? error.message : "Paper search is unavailable right now.",
           });
         });
-    }, 300);
+    }, mode === "semantic" ? 500 : 300);
     return () => {
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [trimmed]);
+  }, [trimmed, mode]);
 
   const onCanvas = new Set(papersOnCanvas.map((paper) => normalizeId(paper.openalexId)));
   const linkTarget = papersOnCanvas.find((paper) => paper.nodeId === linkNodeId) ?? null;
@@ -144,10 +145,28 @@ export function AddPaperDialog({ papersOnCanvas, defaultLinkNodeId, onAdd, onClo
             ref={inputRef}
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search papers, or paste a DOI or arXiv link"
+            placeholder={mode === "semantic" ? "Describe what you are looking for" : "Search papers, or paste a DOI or arXiv link"}
             aria-label="Search papers"
             spellCheck={false}
           />
+          <div className={styles.modes} role="group" aria-label="Search type">
+            <button
+              type="button"
+              aria-pressed={mode === "keyword"}
+              title="Match the words you type in titles, abstracts and keywords"
+              onClick={() => setMode("keyword")}
+            >
+              Keyword
+            </button>
+            <button
+              type="button"
+              aria-pressed={mode === "semantic"}
+              title="Describe an idea in your own words; results are matched by meaning"
+              onClick={() => setMode("semantic")}
+            >
+              Semantic
+            </button>
+          </div>
           <button type="button" className={styles.close} onClick={onClose} aria-label="Close">
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden="true">
               <path d="M2 2l8 8M10 2l-8 8" />
@@ -174,7 +193,11 @@ export function AddPaperDialog({ papersOnCanvas, defaultLinkNodeId, onAdd, onClo
 
         <div className={styles.results}>
           {visibleState.status === "idle" && (
-            <p className={styles.state}>Find a paper by title or topic and drop it on the canvas.</p>
+            <p className={styles.state}>
+              {mode === "semantic"
+                ? "Describe an idea or question and get papers that are about it, even if they use different words."
+                : "Find a paper by title or topic and drop it on the canvas."}
+            </p>
           )}
           {visibleState.status === "loading" && <p className={styles.state}>Searching…</p>}
           {visibleState.status === "error" && <p className={styles.state}>{visibleState.message}</p>}

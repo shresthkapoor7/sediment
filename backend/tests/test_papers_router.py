@@ -42,5 +42,22 @@ class SummaryTests(unittest.TestCase):
         self.assertEqual(paper.summary, "Abstract.")
 
 
+class SearchModeTests(unittest.IsolatedAsyncioTestCase):
+    async def test_semantic_mode_uses_semantic_search(self) -> None:
+        from unittest.mock import AsyncMock, patch
+
+        from app.routers import papers
+
+        work = {"openalexId": "W1", "title": "T", "detail": "Abstract."}
+        with patch.object(papers, "OpenAlexClient") as client_cls:
+            client = client_cls.return_value.__aenter__.return_value
+            client.search_papers_semantic = AsyncMock(return_value=[work])
+            client.search_papers = AsyncMock(return_value=[])
+            result = await papers.search_papers(q="efficient attention", limit=5, mode="semantic")
+        client.search_papers_semantic.assert_awaited_once()
+        client.search_papers.assert_not_awaited()
+        self.assertEqual(result[0].openalexId, "W1")
+
+
 if __name__ == "__main__":
     unittest.main()
