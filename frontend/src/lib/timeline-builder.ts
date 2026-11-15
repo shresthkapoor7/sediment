@@ -15,6 +15,21 @@ interface CanonicalGraph {
   canonicalIdFor(id: string): string;
 }
 
+/** A canvas with nothing on it yet. Node IDs start at 1, so a root of 0 points at no paper. */
+export function createEmptyTimeline(): TimelineData {
+  return {
+    nodes: {},
+    adjacency: {},
+    edgeRelations: {},
+    notes: {},
+    noteEdges: [],
+    lanes: 0,
+    rootId: 0,
+    expansions: [],
+    layoutVersion: LAYOUT_VERSION,
+  };
+}
+
 export function buildTimelineFromGraph(response: LineageGraphResponse): TimelineData {
   const canonical = canonicalizeGraph(response.papers, response.edges);
   const timeline = applyTraceNotes(

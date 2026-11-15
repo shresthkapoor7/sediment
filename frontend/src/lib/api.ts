@@ -302,11 +302,12 @@ export async function streamChatAboutTimeline(
   mentionedPaperIds: string[] = [],
   noteContext?: TimelineNoteContext,
   nodeColorContext?: TimelineNodeColorChange[],
+  edges?: { parentPaperId: string; childPaperId: string }[],
 ): Promise<GlobalChatResponse | null> {
   const response = await fetch(`${EXPENSIVE_API_BASE}/api/chat/global/stream`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
-    body: JSON.stringify({ ...(persistence ?? {}), papers, question, mentionedPaperIds, ...(noteContext ? { noteContext } : {}), ...(nodeColorContext ? { nodeColorContext } : {}) }),
+    body: JSON.stringify({ ...(persistence ?? {}), papers, ...(edges ? { edges } : {}), question, mentionedPaperIds, ...(noteContext ? { noteContext } : {}), ...(nodeColorContext ? { nodeColorContext } : {}) }),
   });
 
   if (!response.ok || !response.body) {

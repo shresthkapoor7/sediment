@@ -49,6 +49,9 @@ interface GlobalChatPanelProps {
   onMentionedPaperIdsChange?: (ids: string[]) => void;
   /** Ask the panel to tag a paper in the composer. Change `nonce` to repeat the request. */
   mentionRequest?: { paperId: string; nonce: number } | null;
+  /** A message to send on the user's behalf as soon as the panel is ready, such as the home search. */
+  kickoff?: { text: string; nonce: number } | null;
+  onKickoffSent?: () => void;
   onLineageChanges?: (changes: LineageChange[]) => void;
   onNoteChanges?: (changes: TimelineNoteChange[]) => void;
   onNodeColorChanges?: (changes: TimelineNodeColorChange[]) => void;
@@ -206,7 +209,7 @@ function capMessages(messages: Message[]): Message[] {
   ));
 }
 
-export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMentionedPaperIdsChange, mentionRequest, onLineageChanges, onNoteChanges, onNodeColorChanges, onUsageChanged, graphId, userId }: GlobalChatPanelProps) {
+export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMentionedPaperIdsChange, mentionRequest, kickoff, onKickoffSent, onLineageChanges, onNoteChanges, onNodeColorChanges, onUsageChanged, graphId, userId }: GlobalChatPanelProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [mentionedPaperIds, setMentionedPaperIds] = useState<string[]>([]);
@@ -371,7 +374,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
 
   useEffect(() => {
     if (open) {
-      if (messages.length === 0 && suggestions.length === 0) {
+      if (messages.length === 0 && suggestions.length === 0 && papers.length > 0) {
         // eslint-disable-next-line react-hooks/set-state-in-effect -- Mark the request pending before fetching suggestions.
         setLoadingSuggestions(true);
         // eslint-disable-next-line react-hooks/immutability -- This effect intentionally reads the current derived paper list.
@@ -408,6 +411,22 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
     return () => window.clearTimeout(timer);
   }, [mentionNonce]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Send the opening message once per request, after the canvas has an ID to save against.
+  const kickoffNonce = kickoff?.nonce;
+  const sentKickoffRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!kickoff || !open || !graphId || !userId || isThinking) return;
+    if (sentKickoffRef.current === kickoff.nonce) return;
+    // Deferred so the history reset that runs when a canvas opens cannot wipe the message.
+    const timer = window.setTimeout(() => {
+      if (sentKickoffRef.current === kickoff.nonce) return;
+      sentKickoffRef.current = kickoff.nonce;
+      onKickoffSent?.();
+      void send(kickoff.text);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [kickoffNonce, open, graphId, userId, isThinking]); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     const messagesEl = messagesRef.current;
     if (!messagesEl) return;
@@ -434,6 +453,14 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
       );
     })
     .slice(0, 8);
+  const buildEdges = useCallback(() => Object.entries(data.adjacency).flatMap(([parentId, children]) => {
+    const parent = data.nodes[Number(parentId)]?.paper.openalexId;
+    return children.flatMap((childId) => {
+      const child = data.nodes[childId]?.paper.openalexId;
+      return parent && child ? [{ parentPaperId: parent, childPaperId: child }] : [];
+    });
+  }).slice(0, 300), [data.adjacency, data.nodes]);
+
   const buildNoteContext = useCallback((): TimelineNoteContext => {
     const agentNotes = Object.values(data.notes ?? {})
       .filter((note) => note.id && note.text.trim() && !isSpecialNote(note));
@@ -543,9 +570,9 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
     }, 0);
   }, [resizeInput, updateMentionSearch]);
 
-  async function send() {
-    const focusedPaperIds = mentionedPaperIds;
-    const q = input.trim() || (focusedPaperIds.length > 0 ? "Tell me about the mentioned paper(s)." : "");
+  async function send(textOverride?: string) {
+    const focusedPaperIds = textOverride ? [] : mentionedPaperIds;
+    const q = textOverride?.trim() || input.trim() || (focusedPaperIds.length > 0 ? "Tell me about the mentioned paper(s)." : "");
     if (!q || isThinking) return;
     const noteContext = requiresTimelineNoteContext(q, messages) ? buildNoteContext() : undefined;
     const nodeColorContext = requiresTimelineNodeColorContext(q, messages) ? buildNodeColorContext() : undefined;
@@ -589,13 +616,15 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
         return { ...message, toolEvents: next };
       }));
     };
-    let lineageChangesApplied = false;
+    // Canvas changes arrive while the agent is still working; the final response repeats them all.
+    let lineageChangesApplied = 0;
     let noteChangesApplied = false;
     let nodeColorChangesApplied = false;
     const applyReturnedLineageChanges = (changes: LineageChange[] | undefined) => {
-      if (lineageChangesApplied || !changes?.length) return;
-      lineageChangesApplied = true;
-      onLineageChanges?.(changes);
+      const pending = (changes ?? []).slice(lineageChangesApplied);
+      if (pending.length === 0) return;
+      lineageChangesApplied += pending.length;
+      onLineageChanges?.(pending);
     };
     const applyReturnedNoteChanges = (changes: TimelineNoteChange[] | undefined) => {
       if (noteChangesApplied || !changes?.length) return;
@@ -614,6 +643,10 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
         q,
         (event: GlobalChatStreamEvent) => {
           if (event.type === "status") appendStatus(event.message);
+          if (event.type === "canvas_change") {
+            lineageChangesApplied += 1;
+            onLineageChanges?.([event.lineageChange]);
+          }
           if (event.type === "tool_started") {
             upsertTool({ name: event.name, status: "started", label: globalToolLabel(event.name) });
           }
@@ -650,6 +683,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
         focusedPaperIds,
         noteContext,
         nodeColorContext,
+        buildEdges(),
       );
       if (res) {
         applyReturnedLineageChanges(res.lineageChanges);
@@ -1221,7 +1255,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
                     onClick={(e) => updateMentionSearch(input, e.currentTarget.selectionStart)}
                     onKeyUp={(e) => updateMentionSearch(input, e.currentTarget.selectionStart)}
                     onKeyDown={handleKey}
-                    placeholder="Ask anything, @ to mention a paper"
+                    placeholder={papers.length === 0 ? "What are you working on?" : "Ask anything, @ to mention a paper"}
                     disabled={isThinking}
                     style={{
                       flex: 1,
@@ -1358,15 +1392,24 @@ function globalToolLabel(name: string, status?: string, result?: Record<string, 
     const count = typeof result?.paperCount === "number" ? result.paperCount : null;
     return count === null ? "Searching OpenAlex" : `Searched OpenAlex · ${count} candidates`;
   }
-  if (name === "update_lineage") {
+  if (name === "get_openalex_references") {
+    const count = typeof result?.paperCount === "number" ? result.paperCount : null;
+    return count === null ? "Reading references" : `Read references · ${count} papers`;
+  }
+  if (name === "get_openalex_citing_papers") {
+    const count = typeof result?.paperCount === "number" ? result.paperCount : null;
+    return count === null ? "Finding citing papers" : `Found ${count} citing papers`;
+  }
+  if (name === "update_canvas_papers") {
     const additions = typeof result?.addedPaperCount === "number" ? result.addedPaperCount : 0;
     const removals = Array.isArray(result?.removedPaperIds) ? result.removedPaperIds.length : 0;
-    if (status === "started") return "Updating lineage";
-    if (additions || removals) {
-      const parts = [additions ? `${additions} added` : "", removals ? `${removals} removed` : ""].filter(Boolean);
-      return `Lineage updated · ${parts.join(", ")}`;
+    const links = typeof result?.edgeCount === "number" ? result.edgeCount : 0;
+    if (status === "started") return "Updating canvas";
+    if (additions || removals || links) {
+      const parts = [additions ? `${additions} added` : "", removals ? `${removals} removed` : "", links ? `${links} linked` : ""].filter(Boolean);
+      return `Canvas updated · ${parts.join(", ")}`;
     }
-    return "Checked lineage update";
+    return "No canvas change";
   }
   if (name === "update_timeline_node_colors") {
     const count = typeof result?.nodeColorCount === "number" ? result.nodeColorCount : null;

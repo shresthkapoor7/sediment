@@ -45,6 +45,7 @@ import { upgradeLegacyTimelineNoteLayout } from "@/lib/note-layout";
 import { applyTimelineGraphAction, applyTimelineLineageChanges, applyTimelineNodeColorChanges, applyTimelineNoteChanges } from "@/lib/timeline-actions";
 import {
   buildTimelineFromGraph,
+  createEmptyTimeline,
   mergeTimelineWithGraph,
 } from "@/lib/timeline-builder";
 import {
@@ -101,6 +102,8 @@ export default function Home() {
   >("idle");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [globalChatOpen, setGlobalChatOpen] = useState(false);
+  const [agentKickoff, setAgentKickoff] = useState<{ text: string; nonce: number } | null>(null);
+  const clearAgentKickoff = useCallback(() => setAgentKickoff(null), []);
   const [closePaperPanelSignal, setClosePaperPanelSignal] = useState(0);
   const [credits, setCredits] = useState<number>(10);
   const [showCreditsHint, setShowCreditsHint] = useState(false);
@@ -462,6 +465,52 @@ export default function Home() {
     ],
   );
 
+  // A new canvas starts empty. The query becomes the first message to the agent, which decides with
+  // the researcher what goes on the board.
+  const startCanvas = useCallback(
+    async (query: string) => {
+      const text = query.trim();
+      if (!text || !userId || isSearching) return;
+      if (saveTimeoutRef.current) window.clearTimeout(saveTimeoutRef.current);
+      if (saveStateTimeoutRef.current) window.clearTimeout(saveStateTimeoutRef.current);
+      const title = text.length > 60 ? `${text.slice(0, 57).trimEnd()}…` : text;
+      const emptyData = createEmptyTimeline();
+      setIsSearching(true);
+      setSearchError("");
+      setSearchedQuery(title);
+      try {
+        const savedGraph = await createSavedGraph({
+          userId,
+          query: title,
+          data: emptyData,
+          seedPaperId: null,
+          metadata: buildMetadata(title, emptyData),
+        });
+        setTimelineData(emptyData);
+        setGraphId(savedGraph.id);
+        setGraphOwnerId(savedGraph.userId);
+        setGraphTitle(savedGraph.metadata.title || title);
+        setGraphTitleDraft("");
+        setIsEditingGraphTitle(false);
+        setSelectedSeedOpenalexId(null);
+        setSaveState("idle");
+        persistLastGraphId(savedGraph.id);
+        setAgentKickoff({ text, nonce: Date.now() });
+        setGlobalChatOpen(true);
+      } catch (error) {
+        setSearchedQuery("");
+        setSearchError(
+          error instanceof APIError && error.status === 429
+            ? error.message
+            : "A new canvas could not be opened. Try again in a moment.",
+        );
+      } finally {
+        setIsSearching(false);
+      }
+    },
+    [buildMetadata, isSearching, persistLastGraphId, userId],
+  );
+
   const handleSearch = useCallback(
     async (query: string) => {
       const requestId = ++clarifyRequestIdRef.current;
@@ -531,6 +580,7 @@ export default function Home() {
     setDisambiguation([]);
     setClarification(null);
     setGlobalChatOpen(false);
+    setAgentKickoff(null);
     setSessionActionsOpen(false);
     setSettingsOpen(false);
     setClosePaperPanelSignal((value) => value + 1);
@@ -873,7 +923,7 @@ export default function Home() {
               </section>
 
               <section className="landing-feed" aria-label="Paper feed">
-                <FeedsView embedded ready={feedReady} onSearch={handleSearch} searching={isClarifying} />
+                <FeedsView embedded ready={feedReady} onSearch={startCanvas} searching={isSearching} />
               </section>
             </m.div>
           ) : isSearching || isRestoring || isClarifying ? (
@@ -920,13 +970,7 @@ export default function Home() {
                   letterSpacing: "0.02em",
                 }}
               >
-                {isRestoring
-                  ? "restoring your last graph"
-                  : isClarifying
-                    ? "checking your query..."
-                    : traceMode === "deep"
-                      ? `researching a deep trace for "${searchedQuery}"`
-                      : `tracing lineage for "${searchedQuery}"`}
+                {isRestoring ? "opening your canvas" : "setting up a new canvas"}
               </m.p>
             </m.div>
           ) : (
@@ -952,6 +996,8 @@ export default function Home() {
                 onToggleHoverPreview={onToggleHoverPreview}
                 globalChatOpen={globalChatOpen}
                 onGlobalChatOpenChange={setGlobalChatOpen}
+                agentKickoff={agentKickoff}
+                onAgentKickoffSent={clearAgentKickoff}
                 closePaperPanelSignal={closePaperPanelSignal}
                 graphId={graphId}
                 userId={userId}

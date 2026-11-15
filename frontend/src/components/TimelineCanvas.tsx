@@ -62,6 +62,9 @@ interface TimelineCanvasProps {
   onExpandNode: (nodeId: number, query: string) => void;
   onGraphAction?: (action: TimelineGraphAction) => void;
   onLineageChanges?: (changes: LineageChange[]) => void;
+  /** A first message for the agent, sent automatically when a new canvas opens. */
+  agentKickoff?: { text: string; nonce: number } | null;
+  onAgentKickoffSent?: () => void;
   onNoteChanges?: (changes: TimelineNoteChange[]) => void;
   onNodeColorChanges?: (changes: TimelineNodeColorChange[]) => void;
   lockedNodeOpenalexId?: string | null;
@@ -96,6 +99,8 @@ export function TimelineCanvas({
   onExpandNode,
   onGraphAction,
   onLineageChanges,
+  agentKickoff,
+  onAgentKickoffSent,
   onNoteChanges,
   onNodeColorChanges,
   lockedNodeOpenalexId,
@@ -394,6 +399,8 @@ export function TimelineCanvas({
 
     const onWheel = (e: WheelEvent) => {
       if (isPanningRef.current) return;
+      // A dialog over the canvas scrolls its own content.
+      if (e.target instanceof Element && e.target.closest("[role='dialog']")) return;
 
       if (e.ctrlKey || e.metaKey) {
         e.preventDefault();
@@ -1064,8 +1071,7 @@ export function TimelineCanvas({
       !targetNode ||
       graphActionsDisabled ||
       nodeId === data.rootId ||
-      targetNode.paper.openalexId === lockedNodeOpenalexId ||
-      Object.keys(data.nodes).length <= 1
+      targetNode.paper.openalexId === lockedNodeOpenalexId
     ) {
       return;
     }
@@ -1366,6 +1372,26 @@ export function TimelineCanvas({
         // touchAction is set on the <svg> only so chat panels inside can still scroll
       }}
     >
+      {allNodes.length === 0 && allNotes.length === 0 && (
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            display: "grid",
+            placeItems: "center",
+            pointerEvents: "none",
+            padding: "0 1.5rem",
+            textAlign: "center",
+          }}
+        >
+          <p style={{ maxWidth: "22rem", fontSize: "0.875rem", lineHeight: 1.6, color: "var(--text-tertiary)" }}>
+            {readOnly
+              ? "This canvas is empty."
+              : "Nothing here yet. Tell the agent what you are working on, or add a paper yourself."}
+          </p>
+        </div>
+      )}
+
       {/* Controls + zoom indicator */}
       <div
         data-canvas-ui="true"
@@ -2482,6 +2508,8 @@ export function TimelineCanvas({
           onHighlight={handleGlobalHighlight}
           onMentionedPaperIdsChange={handleGlobalMentionedPaperIdsChange}
           mentionRequest={agentMentionRequest}
+          kickoff={agentKickoff}
+          onKickoffSent={onAgentKickoffSent}
           onLineageChanges={onLineageChanges}
           onNoteChanges={onNoteChanges}
           onNodeColorChanges={onNodeColorChanges}

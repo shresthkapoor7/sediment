@@ -233,6 +233,8 @@ export interface GlobalChatResponse {
   lineageChanges?: LineageChange[];
   noteChanges?: TimelineNoteChange[];
   nodeColorChanges?: TimelineNodeColorChange[];
+  costMicroUsd?: number;
+  stoppedBy?: "budget" | "iterations" | null;
 }
 
 export interface LineageChange {
@@ -244,6 +246,7 @@ export interface LineageChange {
 
 export type GlobalChatStreamEvent =
   | { type: "message_started" }
+  | { type: "canvas_change"; lineageChange: LineageChange }
   | { type: "status"; message: string }
   | { type: "tool_started"; name: string; input?: Record<string, unknown> }
   | { type: "tool_completed"; name: string; status?: string; result?: Record<string, unknown> }

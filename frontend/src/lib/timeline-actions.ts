@@ -450,8 +450,7 @@ function applyNodeDeletion(
   if (
     !node ||
     nodeId === data.rootId ||
-    lockedOpenalexIds.has(node.paper.openalexId) ||
-    Object.keys(data.nodes).length <= 1
+    lockedOpenalexIds.has(node.paper.openalexId)
   ) {
     return data;
   }
