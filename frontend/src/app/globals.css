@@ -474,57 +474,60 @@ body {
   .app-header-graph-query {
     display: inline-block;
     min-width: 0;
-    max-width: min(22vw, 20rem);
-    padding-bottom: 0.0625rem;
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    max-width: min(32vw, 26rem);
+    padding: 0.3125rem 0.625rem;
     overflow: hidden;
-    border-bottom: 0.0625rem solid color-mix(in srgb, var(--text-secondary) 48%, transparent);
-    color: var(--text-secondary);
-    font-family: var(--font-mono), monospace;
-    font-size: 0.75rem;
+    border: none;
+    border-radius: 0.5rem;
+    background: transparent;
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: 0.875rem;
     font-weight: 500;
-    letter-spacing: 0.02em;
+    line-height: 1.25rem;
     text-overflow: ellipsis;
     white-space: nowrap;
-    transition: max-width 200ms ease, opacity 150ms ease, padding 200ms ease, border-color 150ms ease;
+    transition: background 150ms ease, opacity 150ms ease;
   }
 
   .app-header-graph-title-button {
-    border: none;
-    background: transparent;
     cursor: text;
-    text-align: left;
+    text-align: center;
   }
 
   .app-header-graph-title-button:hover {
-    border-bottom-color: var(--accent);
-    color: var(--text-primary);
+    background: var(--bg-tertiary);
   }
 
   .app-header-graph-title-form {
-    min-width: 0;
-    max-width: min(22vw, 20rem);
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: min(32vw, 26rem);
   }
 
   .app-header-graph-title-input {
     width: 100%;
-    min-width: 8rem;
     box-sizing: border-box;
-    padding: 0 0 0.0625rem;
+    padding: 0.3125rem 0.625rem;
     border: none;
-    border-bottom: 0.0625rem solid var(--accent);
+    border-radius: 0.5rem;
     outline: none;
-    background: transparent;
+    background: var(--bg-tertiary);
     color: var(--text-primary);
-    font-family: var(--font-mono), monospace;
-    font-size: 0.75rem;
+    font-family: inherit;
+    font-size: 0.875rem;
     font-weight: 500;
-    letter-spacing: 0.02em;
+    line-height: 1.25rem;
+    text-align: center;
   }
 
   .app-header-compact .app-header-graph-query {
-    max-width: 0;
-    padding-bottom: 0;
-    border-bottom-color: transparent;
     opacity: 0;
   }
 
