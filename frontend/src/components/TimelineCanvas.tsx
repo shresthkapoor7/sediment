@@ -26,6 +26,8 @@ import { GlobalChatPanel } from "./GlobalChatPanel";
 import { AddPaperDialog } from "./AddPaperDialog";
 import { CanvasGroupRegion } from "./CanvasGroupRegion";
 import { CanvasMinimap, type MinimapItem } from "./CanvasMinimap";
+import { CanvasHistory } from "./CanvasHistory";
+import type { HistoryItem } from "@/lib/canvas-history";
 import { computeGroupRegions, groupKey, isNearRegion, regionAt, regionFrame } from "@/lib/groups";
 import { ConversationNavigator } from "./ConversationNavigator";
 import { PaperReaderModal } from "./PaperReaderModal";
@@ -70,6 +72,8 @@ function capNodeMessages(messages: ChatMessage[]): ChatMessage[] {
 interface TimelineCanvasProps {
   data: TimelineData;
   onGraphAction?: (action: TimelineGraphAction) => void;
+  /** Undo and redo for the canvas; omitted where the canvas cannot be edited. */
+  history?: { undoItems: HistoryItem[]; redoItems: HistoryItem[]; onUndo: (steps: number) => void; onRedo: (steps: number) => void };
   onLineageChanges?: (changes: LineageChange[]) => void;
   /** A first message for the agent, sent automatically when a new canvas opens. */
   agentKickoff?: { text: string; nonce: number } | null;
@@ -105,6 +109,7 @@ type PaperAccessState = PaperAccessResponse | {
 export function TimelineCanvas({
   data,
   onGraphAction,
+  history,
   onLineageChanges,
   agentKickoff,
   onAgentKickoffSent,
@@ -1736,6 +1741,12 @@ export function TimelineCanvas({
         }}>
           {zoomDisplay}%
         </div>
+
+        {history && !readOnly && (
+          <div style={{ marginLeft: "0.25rem" }}>
+            <CanvasHistory {...history} />
+          </div>
+        )}
 
         {onToggleHoverPreview && (
           <button

@@ -44,6 +44,10 @@ import {
   TimelineNoteChange,
 } from "@/lib/types";
 import { exportObsidianZip } from "@/lib/export";
+import { describeGraphAction, useCanvasHistory, type HistoryMeta } from "@/lib/canvas-history";
+
+// The agent often changes the board several times in one reply; those count as one step.
+const AGENT_EDIT: HistoryMeta = { label: "Agent edit", key: "agent", windowMs: 4000 };
 
 const GITHUB_REPO_URL = "https://github.com/shresthkapoor7/sediment";
 
@@ -390,23 +394,66 @@ export default function Home() {
   useEffect(() => {
     timelineDataRef.current = timelineData;
   }, [timelineData]);
+  const { undoItems, redoItems, record: recordHistory, undo: undoHistory, redo: redoHistory, clear: clearHistory } = useCanvasHistory();
+
+  // Every change goes through here. Passing `history` makes it a step the researcher can undo.
   const commitTimeline = useCallback(
-    (update: (current: TimelineData) => TimelineData) => {
+    (update: (current: TimelineData) => TimelineData, history?: HistoryMeta | null) => {
       const current = timelineDataRef.current;
       if (!current) return;
       const next = update(current);
       if (next === current) return;
+      if (history) recordHistory(current, history);
       timelineDataRef.current = next;
       setTimelineData(next);
       scheduleGraphUpdate(next, searchedQuery);
     },
-    [scheduleGraphUpdate, searchedQuery],
+    [recordHistory, scheduleGraphUpdate, searchedQuery],
   );
+
+  // Each canvas has its own history.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Drop the previous canvas's steps when another opens.
+    clearHistory();
+  }, [graphId, clearHistory]);
+
+  const showHistoryResult = useCallback((next: TimelineData | null) => {
+    if (!next) return;
+    timelineDataRef.current = next;
+    setTimelineData(next);
+    scheduleGraphUpdate(next, searchedQuery);
+  }, [scheduleGraphUpdate, searchedQuery]);
+
+  const handleUndo = useCallback((steps = 1) => {
+    const current = timelineDataRef.current;
+    if (current) showHistoryResult(undoHistory(current, steps));
+  }, [showHistoryResult, undoHistory]);
+
+  const handleRedo = useCallback((steps = 1) => {
+    const current = timelineDataRef.current;
+    if (current) showHistoryResult(redoHistory(current, steps));
+  }, [redoHistory, showHistoryResult]);
+
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (!(event.metaKey || event.ctrlKey) || event.altKey) return;
+      const key = event.key.toLowerCase();
+      if (key !== "z" && key !== "y") return;
+      const target = event.target as HTMLElement | null;
+      // Inside a text field, undo means undoing the typing.
+      if (target && (target.isContentEditable || /^(input|textarea|select)$/i.test(target.tagName))) return;
+      event.preventDefault();
+      if (key === "y" || event.shiftKey) handleRedo();
+      else handleUndo();
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [handleRedo, handleUndo]);
 
   const handleTimelineGraphAction = useCallback(
     (action: TimelineGraphAction) => commitTimeline((current) => applyTimelineGraphAction(current, action, {
       lockedOpenalexIds: selectedSeedOpenalexId ? [selectedSeedOpenalexId] : [],
-    })),
+    }), timelineDataRef.current ? describeGraphAction(timelineDataRef.current, action) : null),
     [commitTimeline, selectedSeedOpenalexId],
   );
 
@@ -415,7 +462,7 @@ export default function Home() {
       if (changes.length === 0) return;
       commitTimeline((current) => applyTimelineLineageChanges(current, changes, {
         lockedOpenalexIds: selectedSeedOpenalexId ? [selectedSeedOpenalexId] : [],
-      }));
+      }), AGENT_EDIT);
     },
     [commitTimeline, selectedSeedOpenalexId],
   );
@@ -423,7 +470,7 @@ export default function Home() {
   const handleTimelineNoteChanges = useCallback(
     (changes: TimelineNoteChange[]) => {
       if (changes.length === 0) return;
-      commitTimeline((current) => applyTimelineNoteChanges(current, changes));
+      commitTimeline((current) => applyTimelineNoteChanges(current, changes), AGENT_EDIT);
     },
     [commitTimeline],
   );
@@ -431,7 +478,7 @@ export default function Home() {
   const handleTimelineNodeColorChanges = useCallback(
     (changes: TimelineNodeColorChange[]) => {
       if (changes.length === 0) return;
-      commitTimeline((current) => applyTimelineNodeColorChanges(current, changes));
+      commitTimeline((current) => applyTimelineNodeColorChanges(current, changes), AGENT_EDIT);
     },
     [commitTimeline],
   );
@@ -688,6 +735,7 @@ export default function Home() {
                 graphId={graphId}
                 userId={userId}
                 saveState={saveState}
+                history={{ undoItems, redoItems, onUndo: handleUndo, onRedo: handleRedo }}
               />
             </m.div>
           )}
