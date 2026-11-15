@@ -3,13 +3,12 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import styles from "./FeedsView.module.css";
 
-export type StartMode = "feed" | "paper" | "blank";
+export type StartMode = "feed" | "paper";
 
-// Feed and Blank are switched off for now; their code paths stay so they can be turned back on here.
+// Feed is switched off for now; their code paths stay so they can be turned back on here.
 const MODES: { value: StartMode; label: string; disabled?: boolean }[] = [
   { value: "feed", label: "Feed", disabled: true },
   { value: "paper", label: "Paper" },
-  { value: "blank", label: "Blank", disabled: true },
 ];
 
 function StartMenu({ mode, onSelect }: { mode: StartMode; onSelect: (mode: StartMode) => void }) {
