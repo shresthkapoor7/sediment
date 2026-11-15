@@ -17,6 +17,9 @@ export function applyTimelineGraphAction(
   if (action.type === "delete_node") {
     return applyNodeDeletion(data, action.nodeId, options);
   }
+  if (action.type === "add_paper") {
+    return applyPaperAddition(data, action);
+  }
   if (action.type === "add_note") {
     const next = applyNoteAddition(data, action);
     return next === data ? data : layoutTimelineNotes(next, [action.note.id]);
@@ -260,6 +263,70 @@ function applyTimelineLineageChange(
     adjacency,
     edgeRelations,
     lanes: Math.max(next.lanes, nextLane),
+  };
+}
+
+function applyPaperAddition(
+  data: TimelineData,
+  action: Extract<TimelineGraphAction, { type: "add_paper" }>,
+): TimelineData {
+  if (!isUsableGraphPaper(action.paper)) return data;
+  const normalizedId = normalizeOpenalexId(action.paper.openalexId);
+  const existing = Object.values(data.nodes);
+  if (existing.some((node) => normalizeOpenalexId(node.paper.openalexId) === normalizedId)) return data;
+
+  const nodeId = nextNumericId(data.nodes);
+  const lane = Math.max(data.lanes, ...existing.map((node) => node.lane + 1), 0);
+  const target = action.connectToNodeId != null ? data.nodes[action.connectToNodeId] : undefined;
+  const columnWidth = NODE_DIMENSIONS.width + GAP_X;
+
+  // Links run from the earlier paper to the later one. With no usable years, the new paper follows.
+  const newYear = action.paper.year ?? 0;
+  const newIsParent = Boolean(target && newYear > 0 && target.paper.year > 0 && newYear < target.paper.year);
+
+  let x = action.x;
+  let y = action.y;
+  if (target) {
+    x = newIsParent ? target.x - columnWidth : target.x + columnWidth;
+    y = target.y;
+  }
+  // Step down until the card is clear of every other card and note.
+  const occupied = [
+    ...existing.map((node) => ({ x: node.x, y: node.y, width: NODE_DIMENSIONS.width, height: NODE_DIMENSIONS.height })),
+    ...Object.values(data.notes ?? {}).map((note) => ({ x: note.x, y: note.y, width: note.width ?? 260, height: note.height ?? 160 })),
+  ];
+  const overlaps = (cx: number, cy: number) => occupied.some((box) => (
+    cx < box.x + box.width + 24 && cx + NODE_DIMENSIONS.width + 24 > box.x
+    && cy < box.y + box.height + 24 && cy + NODE_DIMENSIONS.height + 24 > box.y
+  ));
+  for (let attempt = 0; attempt < 200 && overlaps(x, y); attempt += 1) y += LANE_HEIGHT;
+
+  const node: TimelineNode = {
+    id: nodeId,
+    paper: graphPaperToTimelinePaper(action.paper, nodeId),
+    x,
+    y,
+    lane,
+    parentId: target && !newIsParent ? target.id : null,
+    expanded: false,
+    generation: target ? Math.max(0, target.generation + (newIsParent ? -1 : 1)) : 0,
+  };
+
+  const adjacency = cloneAdjacency(data.adjacency);
+  adjacency[nodeId] = [];
+  const edgeRelations = { ...(data.edgeRelations ?? {}) };
+  if (target) {
+    const [parentId, childId] = newIsParent ? [nodeId, target.id] : [target.id, nodeId];
+    adjacency[parentId] = [...(adjacency[parentId] ?? []), childId];
+    edgeRelations[edgeKey(parentId, childId)] = "influenced";
+  }
+
+  return {
+    ...data,
+    nodes: { ...data.nodes, [nodeId]: node },
+    adjacency,
+    edgeRelations,
+    lanes: lane + 1,
   };
 }
 

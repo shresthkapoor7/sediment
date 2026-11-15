@@ -6,7 +6,7 @@ import { MarkdownContent } from "./MarkdownContent";
 import { SPECIAL_NOTE_SIGNED_URL_TTL_MS, deleteSpecialNoteFile, fetchCachedPaperContent, fetchPaperAccess, fetchSpecialNoteFileUrl, listSpecialNoteFiles, openChatSession, streamChatAboutPaper, uploadSpecialNoteFile } from "@/lib/api";
 import { DETAIL_PANEL_DEFAULT_WIDTH, DETAIL_PANEL_MAX_WIDTH, DETAIL_PANEL_MIN_WIDTH, DETAIL_PANEL_WIDTH_KEY } from "@/lib/detail-panel";
 import { TIMELINE_MOBILE_BREAKPOINT_PX } from "@/lib/hover-preview";
-import { TimelineData, ChatSuggestion, PaperAccessResponse, PaperContentResponse, TimelineNode, PaperChatStreamEvent, TimelineGraphAction, NodeBorderColor, TimelineNote, LineageChange, TimelineNodeColorChange, TimelineNoteChange, SpecialNoteFile, SpecialNoteFileListResponse } from "@/lib/types";
+import { TimelineData, ChatSuggestion, GraphPaper, PaperAccessResponse, PaperContentResponse, TimelineNode, PaperChatStreamEvent, TimelineGraphAction, NodeBorderColor, TimelineNote, LineageChange, TimelineNodeColorChange, TimelineNoteChange, SpecialNoteFile, SpecialNoteFileListResponse } from "@/lib/types";
 import { NODE_BORDER_COLOR_OPTIONS } from "@/lib/node-style";
 import { SPECIAL_NOTE_MIN_HEIGHT, TIMELINE_NOTE_DEFAULT_WIDTH, TIMELINE_NOTE_MIN_HEIGHT, isSpecialNote } from "@/lib/note-style";
 import peek from "./PaperPeek.module.css";
@@ -16,6 +16,7 @@ import { TimelineEdgeLine } from "./TimelineEdge";
 import { TimelineNoteCard } from "./TimelineNote";
 import { TimelineNoteEdgeLine } from "./TimelineNoteEdge";
 import { GlobalChatPanel } from "./GlobalChatPanel";
+import { AddPaperDialog } from "./AddPaperDialog";
 import { ConversationNavigator } from "./ConversationNavigator";
 import { PaperReaderModal } from "./PaperReaderModal";
 import { SpecialNoteUploadDialog } from "./SpecialNoteUploadDialog";
@@ -129,6 +130,7 @@ export function TimelineCanvas({
   const suppressNodeClickRef = useRef(false);
 
   const [zoomDisplay, setZoomDisplay] = useState(1);
+  const [addPaperOpen, setAddPaperOpen] = useState(false);
   const [agentMentionRequest, setAgentMentionRequest] = useState<{ paperId: string; nonce: number } | null>(null);
   const [isOutOfView, setIsOutOfView] = useState(false);
   const [cursorStyle, setCursorStyle] = useState("default");
@@ -1072,6 +1074,29 @@ export function TimelineCanvas({
     setActiveNodeId((current) => (current === nodeId ? null : current));
   }, [data.nodes, data.rootId, graphActionsDisabled, lockedNodeOpenalexId, onGraphAction]);
 
+  const handleAddPaper = useCallback((paper: GraphPaper, linkToNodeId: number | null) => {
+    if (graphActionsDisabled) return;
+    // Unlinked papers land in the middle of what the user is looking at.
+    const container = containerRef.current;
+    const zoom = zoomRef.current || 1;
+    const centerX = ((container?.clientWidth ?? 0) / 2 - panRef.current.x) / zoom;
+    const centerY = ((container?.clientHeight ?? 0) / 2 - panRef.current.y) / zoom;
+    onGraphAction?.({
+      type: "add_paper",
+      paper,
+      x: Math.round(centerX - NODE_DIMENSIONS.width / 2),
+      y: Math.round(centerY - NODE_DIMENSIONS.height / 2),
+      connectToNodeId: linkToNodeId,
+    });
+  }, [graphActionsDisabled, onGraphAction]);
+
+  const canvasPaperOptions = useMemo(
+    () => Object.values(data.nodes)
+      .map((node) => ({ nodeId: node.id, openalexId: node.paper.openalexId, title: node.paper.title, year: node.paper.year }))
+      .sort((a, b) => a.title.localeCompare(b.title)),
+    [data.nodes],
+  );
+
   const handleAddNoteForNode = useCallback((nodeId: number) => {
     const targetNode = data.nodes[nodeId];
     if (!targetNode || graphActionsDisabled) return;
@@ -1358,6 +1383,39 @@ export function TimelineCanvas({
           alignItems: "center",
         }}
       >
+        {!readOnly && (
+          <button
+            type="button"
+            data-canvas-ui="true"
+            onClick={() => setAddPaperOpen(true)}
+            disabled={graphActionsDisabled}
+            title="Add a paper"
+            style={{
+              height: "1.75rem",
+              display: "flex",
+              alignItems: "center",
+              gap: "0.375rem",
+              padding: "0 0.625rem 0 0.5rem",
+              marginRight: "0.25rem",
+              background: "var(--accent)",
+              border: "none",
+              borderRadius: "0.4375rem",
+              color: "var(--on-accent)",
+              cursor: graphActionsDisabled ? "default" : "pointer",
+              opacity: graphActionsDisabled ? 0.5 : 1,
+              fontSize: "0.75rem",
+              fontWeight: 550,
+              fontFamily: "inherit",
+              whiteSpace: "nowrap",
+              touchAction: "manipulation",
+            }}
+          >
+            <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
+              <path d="M6 1.5v9M1.5 6h9" />
+            </svg>
+            Add paper
+          </button>
+        )}
         {/* eslint-disable-next-line react-hooks/refs -- Zoom controls intentionally read imperative canvas refs in event handlers. */}
         {[
           {
@@ -2405,6 +2463,15 @@ export function TimelineCanvas({
             </svg>
           </button>
         </div>
+      )}
+
+      {addPaperOpen && !readOnly && (
+        <AddPaperDialog
+          papersOnCanvas={canvasPaperOptions}
+          defaultLinkNodeId={activeNodeId}
+          onAdd={handleAddPaper}
+          onClose={() => setAddPaperOpen(false)}
+        />
       )}
 
       {!readOnly && (

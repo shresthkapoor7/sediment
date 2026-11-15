@@ -151,6 +151,15 @@ export type TimelineGraphAction =
       nodeId: number;
     }
   | {
+      /** A paper the user picked by hand. It may stand alone or link to one existing paper. */
+      type: "add_paper";
+      paper: GraphPaper;
+      /** Where to drop it (canvas coordinates) when it is not linked to anything. */
+      x: number;
+      y: number;
+      connectToNodeId?: number | null;
+    }
+  | {
       type: "add_note";
       note: TimelineNote;
       connectToNodeId?: number | null;

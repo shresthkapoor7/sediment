@@ -1,6 +1,7 @@
 import {
   GlobalChatResponse,
   GlobalChatStreamEvent,
+  GraphPaper,
   LineageGraphResponse,
   PaperChatResponse,
   PaperChatStreamEvent,
@@ -216,6 +217,19 @@ export async function streamChatAboutPaper(
   if (buffer.trim()) consume(buffer);
 
   return finalResponse;
+}
+
+/** Plain OpenAlex lookup: free text, or a pasted DOI, arXiv link or OpenAlex ID. No model call. */
+export async function searchPapers(query: string, signal?: AbortSignal): Promise<GraphPaper[]> {
+  const response = await fetch(
+    `${EXPENSIVE_API_BASE}/api/papers/search?q=${encodeURIComponent(query)}`,
+    { cache: "no-store", signal },
+  );
+  if (!response.ok) {
+    const detail = await readErrorDetail(response);
+    throw new APIError(detail || `Paper search failed with status ${response.status}`, response.status);
+  }
+  return response.json();
 }
 
 export async function fetchPaperAccess(openalexId: string): Promise<PaperAccessResponse> {
