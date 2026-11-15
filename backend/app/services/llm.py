@@ -170,6 +170,23 @@ GLOBAL_AGENT_TOOLS = [
                     "maxItems": 20,
                     "description": "Links to create between papers that are on the canvas after this change.",
                 },
+                "groups": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "label": {"type": "string", "description": "Short name for the cluster, two to four words."},
+                            "paperIds": {"type": "array", "items": {"type": "string"}, "maxItems": 20},
+                        },
+                        "required": ["label", "paperIds"],
+                        "additionalProperties": False,
+                    },
+                    "maxItems": 6,
+                    "description": (
+                        "Named clusters for papers on the canvas after this change. Each cluster is shown as its "
+                        "own labelled region. Works for papers being added and for papers already there."
+                    ),
+                },
             },
             "additionalProperties": False,
         },
@@ -585,6 +602,10 @@ Real research often combines bodies of work that have never cited each other. A 
 - Add an edge with relation "influenced" only when the later paper cites the earlier one. Check this against referencedPaperIds in search results or with get_openalex_references.
 - Use "inferred" only for a conceptual connection you can explain, and say in your reply that it is your inference.
 - When two clusters are related only through the researcher's own idea, leave them unlinked. The bridge between them is the researcher's contribution; a note connected to papers on both sides is the right way to record it, if they want one.
+
+# Clusters
+
+When the board holds more than one body of work, put each in a named cluster by passing "groups" to update_canvas_papers. Each cluster appears as its own labelled region, which is how the researcher sees the shape of the board at a glance. Use short names of two to four words that a researcher would recognise, such as "Delusion formation" or "LLM sycophancy". Reuse an existing cluster's name exactly when adding to it; each canvas paper's current cluster is listed in the canvas state. A board about a single topic does not need clusters, and a cluster is not a link: papers in different clusters stay unlinked unless one cites the other. The researcher can drag papers anywhere, so do not describe positions.
 
 # Building a lineage
 
@@ -1172,6 +1193,7 @@ Rules:
                 "title": paper.get("title"),
                 "year": paper.get("year"),
                 "summary": (paper.get("summary", "") or "")[:220],
+                **({"group": paper["group"]} if paper.get("group") else {}),
             }
             for paper in selected_papers
         ]
@@ -1346,6 +1368,7 @@ User message:
                     record["result"].get("addedPapers")
                     or record["result"].get("removedPaperIds")
                     or record["result"].get("edges")
+                    or record["result"].get("groups")
                 )
             )
         ]

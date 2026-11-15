@@ -27,3 +27,7 @@
 .bar .swatch { width: 12px; min-width: 12px; height: 12px; padding: 0; border-radius: 50%; }
 .bar .swatch:hover:not(:disabled) { transform: scale(1.2); }
 .bar .swatch[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--bg-tertiary), 0 0 0 3.5px var(--text-primary); }
+
+/* While a card is being dragged it rides above the others and its action bar stays out of the way. */
+.wrap[data-dragging] { cursor: grabbing; z-index: 30; }
+.wrap[data-dragging] .bar { opacity: 0; pointer-events: none; }

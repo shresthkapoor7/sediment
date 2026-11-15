@@ -1,6 +1,6 @@
 "use client";
 
-import type { CSSProperties } from "react";
+import { useRef, useState, type CSSProperties } from "react";
 import { m } from "framer-motion";
 import { TimelineNode as TNode, NodeBorderColor } from "@/lib/types";
 import { NODE_BORDER_COLOR_OPTIONS, nodeBorderColorCss } from "@/lib/node-style";
@@ -11,6 +11,11 @@ interface TimelineNodeProps {
   node: TNode;
   index: number;
   onClick: (id: number) => void;
+  /** Called while the card is dragged, with its new canvas position. */
+  onMove?: (id: number, x: number, y: number) => void;
+  onMoveEnd?: (id: number) => void;
+  /** Current canvas zoom, so a drag covers the same distance as the pointer. */
+  getZoom?: () => number;
   onHoverStart?: (id: number, rect: DOMRect) => void;
   onHoverEnd?: (id: number) => void;
   isActive: boolean;
@@ -40,6 +45,9 @@ export function TimelineNodeCard({
   node,
   index,
   onClick,
+  onMove,
+  onMoveEnd,
+  getZoom,
   onHoverStart,
   onHoverEnd,
   isActive,
@@ -63,6 +71,44 @@ export function TimelineNodeCard({
   const state = isActive || isSelected ? "active" : isHighlighted || isMentioned ? "marked" : undefined;
   const authors = authorLine(paper.authors);
 
+  // Drag to move. A press that travels less than a few pixels is still a click.
+  const dragRef = useRef<{ pointerId: number; clientX: number; clientY: number; x: number; y: number; moved: boolean } | null>(null);
+  const draggedRef = useRef(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (!onMove || event.button !== 0 || event.altKey || event.pointerType === "touch") return;
+    if (event.target instanceof Element && event.target.closest("[data-canvas-ui='true']")) return;
+    draggedRef.current = false;
+    dragRef.current = { pointerId: event.pointerId, clientX: event.clientX, clientY: event.clientY, x: node.x, y: node.y, moved: false };
+  };
+  const handlePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    const dx = event.clientX - drag.clientX;
+    const dy = event.clientY - drag.clientY;
+    if (!drag.moved) {
+      if (Math.hypot(dx, dy) < 4) return;
+      drag.moved = true;
+      draggedRef.current = true;
+      setIsDragging(true);
+      try {
+        event.currentTarget.setPointerCapture(event.pointerId);
+      } catch {
+        // The pointer is already gone; the drag simply ends on the next pointer event.
+      }
+    }
+    const zoom = getZoom?.() || 1;
+    onMove?.(node.id, Math.round(drag.x + dx / zoom), Math.round(drag.y + dy / zoom));
+  };
+  const handlePointerEnd = (event: React.PointerEvent<HTMLDivElement>) => {
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    dragRef.current = null;
+    if (!drag.moved) return;
+    setIsDragging(false);
+    onMoveEnd?.(node.id);
+  };
+
   return (
     <m.div
       className={styles.wrap}
@@ -70,7 +116,19 @@ export function TimelineNodeCard({
       animate={{ opacity: 1, y: 0 }}
       transition={shouldAnimate ? { duration: 0.5, delay: index * 0.06, ease: [0.16, 1, 0.3, 1] } : { duration: 0 }}
       style={{ left: node.x - 4, top: node.y - 4, width: width + 8, height: canEdit ? height + 54 : height + 8 }}
-      onClick={() => onClick(node.id)}
+      data-dragging={isDragging ? "" : undefined}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerEnd}
+      onPointerCancel={handlePointerEnd}
+      onClick={() => {
+        // The click that ends a drag is not a selection.
+        if (draggedRef.current) {
+          draggedRef.current = false;
+          return;
+        }
+        onClick(node.id);
+      }}
       onMouseEnter={(event) => onHoverStart?.(node.id, event.currentTarget.getBoundingClientRect())}
       onMouseLeave={() => onHoverEnd?.(node.id)}
     >

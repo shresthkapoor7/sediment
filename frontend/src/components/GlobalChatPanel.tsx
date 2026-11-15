@@ -437,7 +437,8 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
     openalexId: n.paper.openalexId,
     title: n.paper.title,
     year: n.paper.year,
-    summary: n.paper.summary,
+    summary: (n.paper.summary ?? "").slice(0, 500),
+    ...(n.group ? { group: n.group.slice(0, 48) } : {}),
   }));
   const noteCount = Object.values(data.notes ?? {}).filter(
     (note) => note.id && note.text.trim() && !isSpecialNote(note),

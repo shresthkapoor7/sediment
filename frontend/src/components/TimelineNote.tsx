@@ -13,6 +13,8 @@ interface TimelineNoteCardProps {
   isConnectedToActiveNode?: boolean;
   readOnly?: boolean;
   onMove?: (noteId: string, x: number, y: number) => void;
+  /** Current canvas zoom, so drags and resizes cover the same distance as the pointer. */
+  getZoom?: () => number;
   onResize?: (noteId: string, width: number, height: number) => void;
   onTextChange?: (noteId: string, text: string) => void;
   onKindChange?: (noteId: string, kind: TimelineNote["kind"]) => void;
@@ -31,6 +33,7 @@ export function TimelineNoteCard({
   isConnectedToActiveNode = false,
   readOnly = false,
   onMove,
+  getZoom,
   onResize,
   onTextChange,
   onKindChange,
@@ -105,9 +108,10 @@ export function TimelineNoteCard({
       if (!start || start.pointerId !== event.pointerId || readOnly) return;
       event.preventDefault();
       event.stopPropagation();
-      onMove?.(note.id, start.x + event.clientX - start.clientX, start.y + event.clientY - start.clientY);
+      const zoom = getZoom?.() || 1;
+      onMove?.(note.id, start.x + (event.clientX - start.clientX) / zoom, start.y + (event.clientY - start.clientY) / zoom);
     },
-    [note.id, onMove, readOnly],
+    [getZoom, note.id, onMove, readOnly],
   );
 
   const finishDrag = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
@@ -143,12 +147,13 @@ export function TimelineNoteCard({
       if (!start || start.pointerId !== event.pointerId || readOnly) return;
       event.preventDefault();
       event.stopPropagation();
-      const nextWidth = Math.max(180, start.width + event.clientX - start.clientX);
+      const zoom = getZoom?.() || 1;
+      const nextWidth = Math.max(180, start.width + (event.clientX - start.clientX) / zoom);
       const minHeight = specialNote ? SPECIAL_NOTE_MIN_HEIGHT : TIMELINE_NOTE_MIN_HEIGHT;
-      const nextHeight = Math.max(minHeight, start.height + event.clientY - start.clientY);
+      const nextHeight = Math.max(minHeight, start.height + (event.clientY - start.clientY) / zoom);
       onResize?.(note.id, nextWidth, nextHeight);
     },
-    [note.id, onResize, readOnly, specialNote],
+    [getZoom, note.id, onResize, readOnly, specialNote],
   );
 
   const finishResize = useCallback((event: React.PointerEvent<HTMLButtonElement>) => {

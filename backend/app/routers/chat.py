@@ -18,6 +18,7 @@ from ..db.supabase import SupabaseAPIError, SupabaseClient, SupabaseConfigError
 from ..models import (
     MAX_TIMELINE_NOTE_CONNECTIONS,
     MAX_TIMELINE_NOTES,
+    MAX_GROUP_LABEL_LENGTH,
     MAX_TIMELINE_PAPERS,
     ChatRequest,
     ChatResponse,
@@ -715,7 +716,10 @@ async def _run_global_chat(req: GlobalChatRequest, request_ip: str, event_emitte
                 for paper in _graph_papers(graph_data)
             }
             papers = [
-                saved_by_normalized_id.get(_normalize_openalex_id(paper.get("openalexId")), paper)
+                {
+                    **saved_by_normalized_id.get(_normalize_openalex_id(paper.get("openalexId")), paper),
+                    **({"group": paper["group"]} if paper.get("group") else {}),
+                }
                 for paper in papers
             ] if req.papers else list(saved_by_normalized_id.values())
             paper_by_normalized_id = {
@@ -1064,11 +1068,27 @@ async def _run_global_chat(req: GlobalChatRequest, request_ip: str, event_emitte
                 edge_keys.add(key)
                 edges.append(edge)
 
+            # Cluster names for papers that will be on the canvas after this change.
+            groups: list[dict[str, Any]] = []
+            raw_groups = tool_input.get("groups") if isinstance(tool_input.get("groups"), list) else []
+            for raw_group in raw_groups[:6]:
+                if not isinstance(raw_group, dict):
+                    continue
+                label = " ".join(str(raw_group.get("label") or "").split())[:MAX_GROUP_LABEL_LENGTH]
+                member_ids = [
+                    known_papers[paper_id]
+                    for paper_id in _unique_openalex_ids(raw_group.get("paperIds"), 20)
+                    if paper_id in retained_ids and paper_id in known_papers
+                ]
+                if label and member_ids:
+                    groups.append({"label": label, "paperIds": member_ids})
+
             result = {
                 "status": "completed",
                 "addedPapers": added_papers,
                 "removedPaperIds": list(dict.fromkeys(removed_paper_ids)),
                 "edges": edges,
+                "groups": groups,
                 "skipped": skipped,
             }
             removed_normalized_ids = {_normalize_openalex_id(paper_id) for paper_id in removed_paper_ids}
@@ -1089,7 +1109,7 @@ async def _run_global_chat(req: GlobalChatRequest, request_ip: str, event_emitte
                     current_ids.add(normalized_id)
             valid_ids.clear()
             valid_ids.update(paper.get("openalexId") for paper in papers)
-            if added_papers or removed_paper_ids or edges:
+            if added_papers or removed_paper_ids or edges or groups:
                 # Let the canvas change while the agent is still working, not only when it finishes.
                 await _emit(event_emitter, "canvas_change", {"lineageChange": result})
             lineage_edges[:] = [

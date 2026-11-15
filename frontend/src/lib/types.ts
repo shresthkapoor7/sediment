@@ -147,6 +147,19 @@ export type TimelineGraphAction =
       nodeId: number;
     }
   | {
+      /** The user dragged a paper card to a new spot. */
+      type: "move_node";
+      nodeId: number;
+      x: number;
+      y: number;
+    }
+  | {
+      /** Slide everything by the same amount, to keep the board's content in positive coordinates. */
+      type: "shift_canvas";
+      dx: number;
+      dy: number;
+    }
+  | {
       /** A paper the user picked by hand. It may stand alone or link to one existing paper. */
       type: "add_paper";
       paper: GraphPaper;
@@ -226,10 +239,17 @@ export interface GlobalChatResponse {
   stoppedBy?: "budget" | "iterations" | null;
 }
 
+export interface PaperGroupAssignment {
+  label: string;
+  paperIds: string[];
+}
+
 export interface LineageChange {
   addedPapers: GraphPaper[];
   removedPaperIds: string[];
   edges: GraphEdge[];
+  /** Cluster names for papers on the canvas after this change. */
+  groups?: PaperGroupAssignment[];
   skipped?: { paperId: string; reason: string }[];
 }
 
@@ -295,6 +315,8 @@ export interface TimelineNode {
   expanded: boolean;
   generation: number;
   annotation?: TimelineNodeAnnotation;
+  /** Name of the cluster this paper belongs to. Papers sharing a name sit in one labelled region. */
+  group?: string;
 }
 
 export interface TimelineData {

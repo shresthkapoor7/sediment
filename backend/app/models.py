@@ -17,6 +17,7 @@ MAX_SELECTED_EXCERPT_LENGTH = 6_000
 MAX_PAPER_CONTENT_CHUNKS = 100
 MAX_TIMELINE_PAPERS = 60
 MAX_CANVAS_EDGES = 300
+MAX_GROUP_LABEL_LENGTH = 48
 MAX_TIMELINE_NOTES = 100
 MAX_TIMELINE_NOTE_CONNECTIONS = MAX_TIMELINE_NOTES * 5
 MAX_NOTE_ID_LENGTH = 128
@@ -204,6 +205,8 @@ class PaperSummary(StrictRequestModel):
     title: str = Field(min_length=1, max_length=MAX_TITLE_LENGTH)
     year: Optional[int] = None
     summary: str = Field(default="", max_length=MAX_SUMMARY_LENGTH)
+    # Name of the cluster the paper sits in on the canvas, if any.
+    group: Optional[str] = Field(default=None, max_length=MAX_GROUP_LABEL_LENGTH)
 
 
 class TimelineNoteSnapshot(StrictRequestModel):

@@ -20,6 +20,25 @@ export function applyTimelineGraphAction(
   if (action.type === "add_paper") {
     return applyPaperAddition(data, action);
   }
+  if (action.type === "move_node") {
+    const node = data.nodes[action.nodeId];
+    if (!node || (node.x === action.x && node.y === action.y)) return data;
+    return { ...data, nodes: { ...data.nodes, [node.id]: { ...node, x: action.x, y: action.y } } };
+  }
+  if (action.type === "shift_canvas") {
+    if (!action.dx && !action.dy) return data;
+    return {
+      ...data,
+      nodes: Object.fromEntries(Object.entries(data.nodes).map(([id, node]) => [
+        Number(id),
+        { ...node, x: node.x + action.dx, y: node.y + action.dy },
+      ])),
+      notes: Object.fromEntries(Object.entries(data.notes ?? {}).map(([id, note]) => [
+        id,
+        { ...note, x: note.x + action.dx, y: note.y + action.dy },
+      ])),
+    };
+  }
   if (action.type === "add_note") {
     const next = applyNoteAddition(data, action);
     return next === data ? data : layoutTimelineNotes(next, [action.note.id]);
@@ -182,7 +201,7 @@ function applyTimelineLineageChange(
 
   const additions = (change.addedPapers ?? []).filter(isUsableGraphPaper);
   const edges = (change.edges ?? []).filter(isUsableGraphEdge);
-  if (additions.length === 0 && edges.length === 0) return next;
+  if (additions.length === 0 && edges.length === 0 && !change.groups?.length) return next;
 
   const nodes = cloneNodes(next.nodes);
   const adjacency = cloneAdjacency(next.adjacency);
@@ -225,37 +244,17 @@ function applyTimelineLineageChange(
     edgeRelations[edgeKey(parentId, childId)] = strongerRelation(edgeRelations[edgeKey(parentId, childId)], edge.relation);
   }
 
-  const columnWidth = NODE_DIMENSIONS.width + GAP_X;
-  const defaultX = Math.max(PADDING_X, ...Object.values(next.nodes).map((node) => node.x + columnWidth));
-  for (let pass = 0; pass < addedNodeIds.length + 1; pass += 1) {
-    for (const nodeId of addedNodeIds) {
-      const node = nodes[nodeId];
-      if (!node) continue;
-      const parentIds = Object.entries(adjacency)
-        .filter(([, children]) => children.includes(nodeId))
-        .map(([parentId]) => Number(parentId))
-        .filter((parentId) => Boolean(nodes[parentId]));
-      const childIds = (adjacency[nodeId] ?? []).filter((childId) => Boolean(nodes[childId]));
-      const parentNodes = parentIds.map((parentId) => nodes[parentId]);
-      const childNodes = childIds.map((childId) => nodes[childId]);
-      const x = parentNodes.length > 0
-        ? Math.max(...parentNodes.map((parent) => parent.x + columnWidth))
-        : childNodes.length > 0
-          ? Math.min(...childNodes.map((child) => child.x - columnWidth))
-          : defaultX;
-      const generation = parentNodes.length > 0
-        ? Math.max(...parentNodes.map((parent) => parent.generation)) + 1
-        : childNodes.length > 0
-          ? Math.max(0, Math.min(...childNodes.map((child) => child.generation)) - 1)
-          : Math.max(...Object.values(next.nodes).map((existing) => existing.generation), 0) + 1;
-      nodes[nodeId] = {
-        ...node,
-        x,
-        generation,
-        parentId: parentIds[0] ?? null,
-      };
+  // Cluster names: applied to papers already on the canvas as well as the new ones.
+  for (const group of change.groups ?? []) {
+    const label = typeof group?.label === "string" ? group.label.trim().slice(0, 48) : "";
+    if (!label || !Array.isArray(group.paperIds)) continue;
+    for (const paperId of group.paperIds) {
+      const nodeId = numericIdByOpenalexId.get(normalizeOpenalexId(paperId));
+      if (nodeId && nodes[nodeId]) nodes[nodeId] = { ...nodes[nodeId], group: label };
     }
   }
+
+  placeAddedNodes(nodes, adjacency, addedNodeIds, Object.values(next.notes ?? {}));
 
   return {
     ...next,
@@ -264,6 +263,91 @@ function applyTimelineLineageChange(
     edgeRelations,
     lanes: Math.max(next.lanes, nextLane),
   };
+}
+
+const REGION_GAP_X = 200;
+const CARD_CLEARANCE = 24;
+
+interface Box { x: number; y: number; width: number; height: number }
+
+function sameGroup(a: string | undefined, b: string | undefined): boolean {
+  return Boolean(a && b && a.trim().toLowerCase() === b.trim().toLowerCase());
+}
+
+/**
+ * Decide where newly added papers go. A paper linked to one that already has a place sits beside it,
+ * in reading order. A paper joining an existing cluster goes under that cluster. Anything else starts
+ * a new column to the right of the board, one column per cluster, so unrelated work stays apart.
+ */
+function placeAddedNodes(
+  nodes: Record<number, TimelineNode>,
+  adjacency: Record<number, number[]>,
+  addedNodeIds: number[],
+  notes: TimelineNote[],
+): void {
+  if (addedNodeIds.length === 0) return;
+  const { width, height } = NODE_DIMENSIONS;
+  const columnWidth = width + GAP_X;
+  const pending = new Set(addedNodeIds);
+  const placed = Object.values(nodes).filter((node) => !pending.has(node.id));
+  const occupied: Box[] = [
+    ...placed.map((node) => ({ x: node.x, y: node.y, width, height })),
+    ...notes.map((note) => ({ x: note.x, y: note.y, width: note.width ?? 260, height: note.height ?? 160 })),
+  ];
+  const overlaps = (x: number, y: number) => occupied.some((box) => (
+    x < box.x + box.width + CARD_CLEARANCE && x + width + CARD_CLEARANCE > box.x
+    && y < box.y + box.height + CARD_CLEARANCE && y + height + CARD_CLEARANCE > box.y
+  ));
+  const settle = (nodeId: number, x: number, y: number, patch: Partial<TimelineNode> = {}) => {
+    let freeY = y;
+    for (let attempt = 0; attempt < 300 && overlaps(x, freeY); attempt += 1) freeY += LANE_HEIGHT;
+    nodes[nodeId] = { ...nodes[nodeId], ...patch, x, y: freeY };
+    occupied.push({ x, y: freeY, width, height });
+    placed.push(nodes[nodeId]);
+    pending.delete(nodeId);
+  };
+  const parentsOf = (nodeId: number) => Object.entries(adjacency)
+    .filter(([, children]) => children.includes(nodeId))
+    .map(([parentId]) => Number(parentId));
+
+  // Columns opened by this change, one per cluster name ("" for papers with no cluster).
+  const newColumnX = new Map<string, number>();
+  const boardTop = placed.length > 0 ? Math.min(...placed.map((node) => node.y)) : PADDING_Y;
+
+  while (pending.size > 0) {
+    let progressed = false;
+    for (const nodeId of [...pending]) {
+      const parent = parentsOf(nodeId).map((id) => nodes[id]).find((node) => node && !pending.has(node.id));
+      const child = (adjacency[nodeId] ?? []).map((id) => nodes[id]).find((node) => node && !pending.has(node.id));
+      // A linked paper with no cluster of its own joins the cluster of the paper it is linked to.
+      const inherited = nodes[nodeId].group ? {} : { group: (parent ?? child)?.group };
+      if (parent) {
+        settle(nodeId, parent.x + columnWidth, parent.y, { ...inherited, parentId: parent.id, generation: parent.generation + 1 });
+        progressed = true;
+      } else if (child) {
+        settle(nodeId, child.x - columnWidth, child.y, { ...inherited, generation: Math.max(0, child.generation - 1) });
+        progressed = true;
+      }
+    }
+    if (progressed || pending.size === 0) continue;
+
+    // Nothing left is linked to a placed paper: seat the next one by its cluster.
+    const nodeId = [...pending][0];
+    const node = nodes[nodeId];
+    const mates = placed.filter((other) => sameGroup(other.group, node.group));
+    if (mates.length > 0) {
+      settle(nodeId, Math.min(...mates.map((mate) => mate.x)), Math.max(...mates.map((mate) => mate.y)) + LANE_HEIGHT);
+      continue;
+    }
+    const key = (node.group ?? "").trim().toLowerCase();
+    let columnX = newColumnX.get(key);
+    if (columnX === undefined) {
+      const rightEdge = occupied.length > 0 ? Math.max(...occupied.map((box) => box.x + box.width)) : null;
+      columnX = rightEdge === null ? PADDING_X : rightEdge + REGION_GAP_X;
+      newColumnX.set(key, columnX);
+    }
+    settle(nodeId, columnX, boardTop);
+  }
 }
 
 function applyPaperAddition(
@@ -310,6 +394,7 @@ function applyPaperAddition(
     parentId: target && !newIsParent ? target.id : null,
     expanded: false,
     generation: target ? Math.max(0, target.generation + (newIsParent ? -1 : 1)) : 0,
+    ...(target?.group ? { group: target.group } : {}),
   };
 
   const adjacency = cloneAdjacency(data.adjacency);

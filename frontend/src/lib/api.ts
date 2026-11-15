@@ -200,7 +200,7 @@ export async function chatAboutTimeline(
 }
 
 export async function streamChatAboutTimeline(
-  papers: { openalexId: string; title: string; year?: number | null; summary?: string }[],
+  papers: { openalexId: string; title: string; year?: number | null; summary?: string; group?: string }[],
   question: string,
   onEvent: (event: GlobalChatStreamEvent) => void,
   persistence?: { graphId: string; userId: string },

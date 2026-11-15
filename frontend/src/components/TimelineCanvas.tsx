@@ -10,7 +10,13 @@ import { TimelineData, ChatSuggestion, GraphPaper, PaperAccessResponse, PaperCon
 import { NODE_BORDER_COLOR_OPTIONS } from "@/lib/node-style";
 import { SPECIAL_NOTE_MIN_HEIGHT, TIMELINE_NOTE_DEFAULT_WIDTH, TIMELINE_NOTE_MIN_HEIGHT, isSpecialNote } from "@/lib/note-style";
 import peek from "./PaperPeek.module.css";
-import { NODE_DIMENSIONS } from "@/lib/layout-constants";
+import { NODE_DIMENSIONS, PADDING_X, PADDING_Y } from "@/lib/layout-constants";
+
+// The nearest the board's content may sit to its origin before everything is slid over.
+const CANVAS_MIN_X = PADDING_X;
+const CANVAS_MIN_Y = PADDING_Y;
+const GROUP_PADDING = 24;
+const GROUP_LABEL_HEIGHT = 40;
 import { TimelineNodeCard } from "./TimelineNode";
 import { TimelineEdgeLine } from "./TimelineEdge";
 import { TimelineNoteCard } from "./TimelineNote";
@@ -1198,6 +1204,59 @@ export function TimelineCanvas({
     }
   }, [data.nodes, data.noteEdges, data.notes, graphId, onGraphAction, specialNoteTargetNodeId, userId]);
 
+  const getZoom = useCallback(() => zoomRef.current, []);
+  const draggingNodeRef = useRef(false);
+
+  const handleMoveNode = useCallback((nodeId: number, x: number, y: number) => {
+    if (readOnly) return;
+    draggingNodeRef.current = true;
+    setHoveredNode(null);
+    onGraphAction?.({ type: "move_node", nodeId, x, y });
+  }, [onGraphAction, readOnly]);
+
+  const [moveEndTick, setMoveEndTick] = useState(0);
+  const handleMoveNodeEnd = useCallback(() => {
+    draggingNodeRef.current = false;
+    setMoveEndTick((tick) => tick + 1);
+  }, []);
+
+  // Keep the board's content in positive coordinates, which fit-to-view and the layers assume. When
+  // something ends up left of or above the origin, slide everything over and move the view with it,
+  // so nothing appears to jump.
+  const contentMinX = Math.min(...Object.values(data.nodes).map((node) => node.x), ...Object.values(data.notes ?? {}).map((note) => note.x), Infinity);
+  const contentMinY = Math.min(...Object.values(data.nodes).map((node) => node.y), ...Object.values(data.notes ?? {}).map((note) => note.y), Infinity);
+  useEffect(() => {
+    if (readOnly || draggingNodeRef.current) return;
+    if (!Number.isFinite(contentMinX) || !Number.isFinite(contentMinY)) return;
+    const dx = contentMinX < CANVAS_MIN_X ? CANVAS_MIN_X - contentMinX : 0;
+    const dy = contentMinY < CANVAS_MIN_Y ? CANVAS_MIN_Y - contentMinY : 0;
+    if (!dx && !dy) return;
+    panRef.current = {
+      x: panRef.current.x - dx * zoomRef.current,
+      y: panRef.current.y - dy * zoomRef.current,
+    };
+    applyTransform();
+    onGraphAction?.({ type: "shift_canvas", dx, dy });
+  }, [applyTransform, contentMinX, contentMinY, moveEndTick, onGraphAction, readOnly]);
+
+  // Named clusters: the box around each cluster's papers, drawn behind them.
+  const groupRegions = useMemo(() => {
+    const regions = new Map<string, { label: string; minX: number; minY: number; maxX: number; maxY: number; count: number }>();
+    for (const node of Object.values(data.nodes)) {
+      const label = node.group?.trim();
+      if (!label) continue;
+      const key = label.toLowerCase();
+      const region = regions.get(key) ?? { label, minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity, count: 0 };
+      region.minX = Math.min(region.minX, node.x);
+      region.minY = Math.min(region.minY, node.y);
+      region.maxX = Math.max(region.maxX, node.x + NODE_DIMENSIONS.width);
+      region.maxY = Math.max(region.maxY, node.y + NODE_DIMENSIONS.height);
+      region.count += 1;
+      regions.set(key, region);
+    }
+    return [...regions.entries()].map(([key, region]) => ({ key, ...region }));
+  }, [data.nodes]);
+
   const handleMoveNote = useCallback(
     (noteId: string, x: number, y: number) => {
       if (readOnly) return;
@@ -1680,7 +1739,6 @@ export function TimelineCanvas({
             if (!from || !to) return null;
             const isActive =
               activeRelated.has(edge.from) && activeRelated.has(edge.to);
-            const isCrossLane = from.lane !== to.lane;
             return (
               <TimelineEdgeLine
                 key={`${edge.from}-${edge.to}-${i}`}
@@ -1688,7 +1746,6 @@ export function TimelineCanvas({
                 to={to}
                 index={i}
                 isActive={isActive}
-                isCrossLane={isCrossLane}
                 isInferred={edge.relation === "inferred"}
                 annotationColor={from.annotation?.borderColor ?? null}
               />
@@ -1733,12 +1790,51 @@ export function TimelineCanvas({
             willChange: "transform",
           }}
         >
+          {groupRegions.map((region) => (
+            <div
+              key={region.key}
+              style={{
+                position: "absolute",
+                left: region.minX - GROUP_PADDING,
+                top: region.minY - GROUP_PADDING - GROUP_LABEL_HEIGHT,
+                width: region.maxX - region.minX + GROUP_PADDING * 2,
+                height: region.maxY - region.minY + GROUP_PADDING * 2 + GROUP_LABEL_HEIGHT,
+                borderRadius: "1.25rem",
+                background: "color-mix(in srgb, var(--text-primary) 3.5%, transparent)",
+                pointerEvents: "none",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "baseline",
+                  gap: "0.5rem",
+                  height: GROUP_LABEL_HEIGHT,
+                  padding: `0.875rem ${GROUP_PADDING}px 0`,
+                  fontSize: "0.8125rem",
+                  fontWeight: 550,
+                  letterSpacing: "-0.01em",
+                  color: "var(--text-secondary)",
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                }}
+              >
+                <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{region.label}</span>
+                <span style={{ fontSize: "0.6875rem", fontWeight: 400, color: "var(--text-tertiary)" }}>
+                  {region.count} {region.count === 1 ? "paper" : "papers"}
+                </span>
+              </div>
+            </div>
+          ))}
           {nodeArray.map((node, i) => (
             <TimelineNodeCard
               key={node.id}
               node={node}
               index={i}
               onClick={handleNodeClick}
+              onMove={!readOnly && onGraphAction ? handleMoveNode : undefined}
+              onMoveEnd={handleMoveNodeEnd}
+              getZoom={getZoom}
               onHoverStart={handleNodeHoverStart}
               onHoverEnd={handleNodeHoverEnd}
               isActive={activeRelated.has(node.id)}
@@ -1767,6 +1863,7 @@ export function TimelineCanvas({
                   isConnectedToActiveNode={noteIdsConnectedToActiveNode.has(note.id)}
                   readOnly={readOnly}
                   onMove={handleMoveNote}
+                  getZoom={getZoom}
                   onResize={handleResizeNote}
                   onTextChange={handleNoteTextChange}
                   onKindChange={handleNoteKindChange}
