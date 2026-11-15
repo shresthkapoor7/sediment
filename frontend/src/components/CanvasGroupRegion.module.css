@@ -1,7 +1,11 @@
 /* A named cluster: a faint region behind its papers with an editable name on top. No strokes. */
-.region { position: absolute; border-radius: 20px; background: color-mix(in srgb, var(--text-primary) 3.5%, transparent); pointer-events: none; }
+.region { position: absolute; border-radius: 20px; background: color-mix(in srgb, var(--text-primary) 3.5%, transparent); pointer-events: none; transition: background .12s; }
+/* A dragged card is over this cluster and would join it. */
+.region[data-target] { background: color-mix(in srgb, var(--text-primary) 9%, transparent); }
+.head[data-movable] { cursor: grab; }
+.head[data-movable]:active { cursor: grabbing; }
 .head { display: flex; align-items: center; gap: 8px; height: 40px; padding: 10px 20px 0; pointer-events: auto; width: fit-content; max-width: 100%; }
-.name { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 3px 6px; margin-left: -6px; border: 0; border-radius: 6px; background: transparent; color: var(--text-secondary); font: inherit; font-size: 13px; font-weight: 550; letter-spacing: -.01em; cursor: text; }
+.name { max-width: 260px; user-select: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 3px 6px; margin-left: -6px; border: 0; border-radius: 6px; background: transparent; color: var(--text-secondary); font: inherit; font-size: 13px; font-weight: 550; letter-spacing: -.01em; cursor: text; }
 button.name:hover { background: color-mix(in srgb, var(--text-primary) 7%, transparent); color: var(--text-primary); }
 input.name { width: 220px; background: color-mix(in srgb, var(--text-primary) 7%, transparent); color: var(--text-primary); }
 .count { font-size: 11px; color: var(--text-tertiary); white-space: nowrap; }

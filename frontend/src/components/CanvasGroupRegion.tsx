@@ -3,20 +3,26 @@
 import { useEffect, useRef, useState } from "react";
 import styles from "./CanvasGroupRegion.module.css";
 
-const PADDING = 24;
-const LABEL_HEIGHT = 40;
+import { Frame } from "@/lib/groups";
+
 export const GROUP_LABEL_MAX_LENGTH = 48;
 
 interface CanvasGroupRegionProps {
   label: string;
   count: number;
-  /** Bounding box of the cluster's papers, in canvas coordinates. */
-  box: { minX: number; minY: number; maxX: number; maxY: number };
+  /** Where the frame sits, in canvas coordinates. */
+  frame: Frame;
+  /** A dragged card is over this cluster and would join it if dropped. */
+  isDropTarget?: boolean;
+  getZoom?: () => number;
+  /** Called while the cluster is dragged by its name row, with how far it moved since the last call. */
+  onMove?: (label: string, dx: number, dy: number) => void;
+  onMoveEnd?: () => void;
   /** Rename the cluster; null dissolves it and leaves the papers where they are. */
   onRename?: (label: string, next: string | null) => void;
 }
 
-export function CanvasGroupRegion({ label, count, box, onRename }: CanvasGroupRegionProps) {
+export function CanvasGroupRegion({ label, count, frame, isDropTarget = false, getZoom, onRename, onMove, onMoveEnd }: CanvasGroupRegionProps) {
   const [draft, setDraft] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -25,6 +31,53 @@ export function CanvasGroupRegion({ label, count, box, onRename }: CanvasGroupRe
     inputRef.current?.focus();
     inputRef.current?.select();
   }, [draft === null]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Drag the name row to move the whole cluster. A press that barely travels is still a click.
+  const dragRef = useRef<{ pointerId: number; lastX: number; lastY: number; startX: number; startY: number; moved: boolean; onName: boolean } | null>(null);
+  const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    event.stopPropagation();
+    if (!onMove || draft !== null || event.button !== 0 || event.pointerType === "touch") return;
+    const target = event.target instanceof Element ? event.target : null;
+    if (target?.closest("[data-group-action='ungroup']")) return;
+    dragRef.current = {
+      pointerId: event.pointerId,
+      lastX: event.clientX,
+      lastY: event.clientY,
+      startX: event.clientX,
+      startY: event.clientY,
+      moved: false,
+      onName: Boolean(target?.closest("[data-group-action='rename']")),
+    };
+    // The name row is thin: hold the pointer from the first press so a fast drag is not lost.
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      // The pointer is already gone; nothing to drag.
+    }
+  };
+  const handlePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    if (!drag.moved) {
+      if (Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) < 4) return;
+      drag.moved = true;
+    }
+    const zoom = getZoom?.() || 1;
+    const dx = Math.round((event.clientX - drag.lastX) / zoom);
+    const dy = Math.round((event.clientY - drag.lastY) / zoom);
+    if (!dx && !dy) return;
+    drag.lastX += dx * zoom;
+    drag.lastY += dy * zoom;
+    onMove?.(label, dx, dy);
+  };
+  const handlePointerEnd = (event: React.PointerEvent<HTMLDivElement>) => {
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    dragRef.current = null;
+    if (drag.moved) onMoveEnd?.();
+    // The held pointer keeps the name button from seeing its own click, so a still press renames here.
+    else if (drag.onName && event.type === "pointerup") setDraft(label);
+  };
 
   const commit = () => {
     if (draft === null) return;
@@ -36,14 +89,18 @@ export function CanvasGroupRegion({ label, count, box, onRename }: CanvasGroupRe
   return (
     <div
       className={styles.region}
-      style={{
-        left: box.minX - PADDING,
-        top: box.minY - PADDING - LABEL_HEIGHT,
-        width: box.maxX - box.minX + PADDING * 2,
-        height: box.maxY - box.minY + PADDING * 2 + LABEL_HEIGHT,
-      }}
+      data-target={isDropTarget ? "" : undefined}
+      style={{ left: frame.x, top: frame.y, width: frame.width, height: frame.height }}
     >
-      <div className={styles.head} data-canvas-ui="true" onPointerDown={(event) => event.stopPropagation()}>
+      <div
+        className={styles.head}
+        data-canvas-ui="true"
+        data-movable={onMove ? "" : undefined}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerEnd}
+        onPointerCancel={handlePointerEnd}
+      >
         {draft !== null ? (
           <input
             ref={inputRef}
@@ -60,7 +117,16 @@ export function CanvasGroupRegion({ label, count, box, onRename }: CanvasGroupRe
             }}
           />
         ) : onRename ? (
-          <button type="button" className={styles.name} onClick={() => setDraft(label)} title="Rename cluster">
+          <button
+            type="button"
+            className={styles.name}
+            data-group-action="rename"
+            onClick={(event) => {
+              // Mouse presses are handled by the row; this covers the keyboard.
+              if (event.detail === 0) setDraft(label);
+            }}
+            title="Rename cluster, or drag to move it"
+          >
             {label}
           </button>
         ) : (
@@ -71,6 +137,7 @@ export function CanvasGroupRegion({ label, count, box, onRename }: CanvasGroupRe
           <button
             type="button"
             className={styles.ungroup}
+            data-group-action="ungroup"
             onClick={() => onRename(label, null)}
             title="Ungroup these papers"
             aria-label={`Ungroup ${label}`}

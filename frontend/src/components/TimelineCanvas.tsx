@@ -23,6 +23,7 @@ import { TimelineNoteEdgeLine } from "./TimelineNoteEdge";
 import { GlobalChatPanel } from "./GlobalChatPanel";
 import { AddPaperDialog } from "./AddPaperDialog";
 import { CanvasGroupRegion } from "./CanvasGroupRegion";
+import { computeGroupRegions, groupKey, regionAt, regionFrame } from "@/lib/groups";
 import { ConversationNavigator } from "./ConversationNavigator";
 import { PaperReaderModal } from "./PaperReaderModal";
 import { SpecialNoteUploadDialog } from "./SpecialNoteUploadDialog";
@@ -1207,15 +1208,40 @@ export function TimelineCanvas({
   const getZoom = useCallback(() => zoomRef.current, []);
   const draggingNodeRef = useRef(false);
 
+  const [draggingNodeId, setDraggingNodeId] = useState<number | null>(null);
   const handleMoveNode = useCallback((nodeId: number, x: number, y: number) => {
     if (readOnly) return;
     draggingNodeRef.current = true;
+    setDraggingNodeId(nodeId);
     setHoveredNode(null);
     onGraphAction?.({ type: "move_node", nodeId, x, y });
   }, [onGraphAction, readOnly]);
 
   const [moveEndTick, setMoveEndTick] = useState(0);
-  const handleMoveNodeEnd = useCallback(() => {
+  const handleMoveNodeEnd = useCallback((nodeId: number) => {
+    draggingNodeRef.current = false;
+    setDraggingNodeId(null);
+    setMoveEndTick((tick) => tick + 1);
+    // A cluster's frame holds exactly its papers: dropping a card inside one joins it, and
+    // dropping a member outside its cluster's frame takes it out.
+    const node = data.nodes[nodeId];
+    if (!node || readOnly) return;
+    const others = computeGroupRegions(Object.values(data.nodes), nodeId);
+    const target = regionAt(others, node);
+    if (target) {
+      if (groupKey(node.group) !== target.key) onGraphAction?.({ type: "set_node_group", nodeId, group: target.label });
+    } else if (node.group && others.some((region) => region.key === groupKey(node.group))) {
+      onGraphAction?.({ type: "set_node_group", nodeId, group: null });
+    }
+  }, [data.nodes, onGraphAction, readOnly]);
+
+  const handleMoveGroup = useCallback((label: string, dx: number, dy: number) => {
+    if (readOnly) return;
+    draggingNodeRef.current = true;
+    onGraphAction?.({ type: "move_group", label, dx, dy });
+  }, [onGraphAction, readOnly]);
+
+  const handleMoveGroupEnd = useCallback(() => {
     draggingNodeRef.current = false;
     setMoveEndTick((tick) => tick + 1);
   }, []);
@@ -1239,23 +1265,20 @@ export function TimelineCanvas({
     onGraphAction?.({ type: "shift_canvas", dx, dy });
   }, [applyTransform, contentMinX, contentMinY, moveEndTick, onGraphAction, readOnly]);
 
-  // Named clusters: the box around each cluster's papers, drawn behind them.
-  const groupRegions = useMemo(() => {
-    const regions = new Map<string, { label: string; minX: number; minY: number; maxX: number; maxY: number; count: number }>();
-    for (const node of Object.values(data.nodes)) {
-      const label = node.group?.trim();
-      if (!label) continue;
-      const key = label.toLowerCase();
-      const region = regions.get(key) ?? { label, minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity, count: 0 };
-      region.minX = Math.min(region.minX, node.x);
-      region.minY = Math.min(region.minY, node.y);
-      region.maxX = Math.max(region.maxX, node.x + NODE_DIMENSIONS.width);
-      region.maxY = Math.max(region.maxY, node.y + NODE_DIMENSIONS.height);
-      region.count += 1;
-      regions.set(key, region);
-    }
-    return [...regions.entries()].map(([key, region]) => ({ key, ...region }));
-  }, [data.nodes]);
+  // Named clusters, drawn behind their papers. While a card is dragged it is left out of its own
+  // cluster's frame (unless it is the only member), so the frames show where it would land.
+  const { groupRegions, dropTargetKey } = useMemo(() => {
+    const all = Object.values(data.nodes);
+    const dragged = draggingNodeId !== null ? data.nodes[draggingNodeId] : undefined;
+    if (!dragged) return { groupRegions: computeGroupRegions(all), dropTargetKey: null as string | null };
+    const others = computeGroupRegions(all, dragged.id);
+    const target = regionAt(others, dragged);
+    const soleMember = dragged.group && !others.some((region) => region.key === groupKey(dragged.group));
+    return {
+      groupRegions: soleMember ? [...others, ...computeGroupRegions([dragged])] : others,
+      dropTargetKey: target?.key ?? null,
+    };
+  }, [data.nodes, draggingNodeId]);
 
   const groupLabels = useMemo(() => groupRegions.map((region) => region.label), [groupRegions]);
 
@@ -1807,8 +1830,12 @@ export function TimelineCanvas({
               key={region.key}
               label={region.label}
               count={region.count}
-              box={region}
+              frame={regionFrame(region)}
+              isDropTarget={region.key === dropTargetKey}
+              getZoom={getZoom}
               onRename={!readOnly && onGraphAction ? handleRenameGroup : undefined}
+              onMove={!readOnly && onGraphAction ? handleMoveGroup : undefined}
+              onMoveEnd={handleMoveGroupEnd}
             />
           ))}
           {nodeArray.map((node, i) => (

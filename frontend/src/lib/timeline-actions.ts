@@ -1,6 +1,7 @@
 import { GraphEdge, GraphPaper, LineageChange, NodeBorderColor, TimelineData, TimelineGraphAction, TimelineNode, TimelineNodeColorChange, TimelineNote, TimelineNoteChange } from "./types";
 import { GAP_X, LANE_HEIGHT, NODE_DIMENSIONS, PADDING_X, PADDING_Y } from "./layout-constants";
 import { estimateTimelineNoteDimensions, layoutTimelineNotes } from "./note-layout";
+import { computeGroupRegions, groupKey, regionAt, regionFrame } from "./groups";
 
 interface TimelineGraphActionOptions {
   lockedOpenalexIds?: string[];
@@ -32,7 +33,22 @@ export function applyTimelineGraphAction(
     const updated = { ...node };
     if (group) updated.group = group;
     else delete updated.group;
-    return { ...data, nodes: { ...data.nodes, [node.id]: updated } };
+    const nodes = { ...data.nodes, [node.id]: updated };
+    const notes = Object.values(data.notes ?? {});
+    // A frame should hold exactly its cluster: bring a joining paper in, and move a leaving one out.
+    if (group) seatInsideGroup(nodes, notes, node.id);
+    else if (node.group) seatOutsideGroup(nodes, notes, node.id, node.group);
+    return { ...data, nodes };
+  }
+  if (action.type === "move_group") {
+    if (!action.dx && !action.dy) return data;
+    let changed = false;
+    const nodes = Object.fromEntries(Object.entries(data.nodes).map(([id, node]) => {
+      if (!sameGroup(node.group, action.label)) return [Number(id), node];
+      changed = true;
+      return [Number(id), { ...node, x: node.x + action.dx, y: node.y + action.dy }];
+    }));
+    return changed ? { ...data, nodes } : data;
   }
   if (action.type === "rename_group") {
     const to = cleanGroupLabel(action.to);
@@ -271,16 +287,24 @@ function applyTimelineLineageChange(
   }
 
   // Cluster names: applied to papers already on the canvas as well as the new ones.
+  const regroupedNodeIds: number[] = [];
   for (const group of change.groups ?? []) {
     const label = typeof group?.label === "string" ? group.label.trim().slice(0, 48) : "";
     if (!label || !Array.isArray(group.paperIds)) continue;
     for (const paperId of group.paperIds) {
       const nodeId = numericIdByOpenalexId.get(normalizeOpenalexId(paperId));
-      if (nodeId && nodes[nodeId]) nodes[nodeId] = { ...nodes[nodeId], group: label };
+      if (!nodeId || !nodes[nodeId] || sameGroup(nodes[nodeId].group, label)) continue;
+      nodes[nodeId] = { ...nodes[nodeId], group: label };
+      if (!addedNodeIds.includes(nodeId)) regroupedNodeIds.push(nodeId);
     }
   }
 
   placeAddedNodes(nodes, adjacency, addedNodeIds, Object.values(next.notes ?? {}));
+  // Papers that were already on the board move into the frame of the cluster they just joined.
+  const pendingIds = new Set(addedNodeIds);
+  for (const nodeId of regroupedNodeIds) {
+    seatInsideGroup(nodes, Object.values(next.notes ?? {}), nodeId, pendingIds);
+  }
 
   return {
     ...next,
@@ -295,6 +319,69 @@ const REGION_GAP_X = 200;
 const CARD_CLEARANCE = 24;
 
 interface Box { x: number; y: number; width: number; height: number }
+
+/**
+ * The first free spot at or below (x, y) for a card: clear of every other card and note, and outside
+ * the frame of any cluster the card does not belong to.
+ */
+function findFreeY(
+  others: TimelineNode[],
+  notes: TimelineNote[],
+  group: string | undefined,
+  x: number,
+  y: number,
+): number {
+  const { width, height } = NODE_DIMENSIONS;
+  const boxes: Box[] = [
+    ...others.map((node) => ({ x: node.x, y: node.y, width, height })),
+    ...notes.map((note) => ({ x: note.x, y: note.y, width: note.width ?? 260, height: note.height ?? 160 })),
+  ];
+  const frames = computeGroupRegions(others)
+    .filter((region) => region.key !== groupKey(group))
+    .map(regionFrame);
+  const blocked = (cy: number) => boxes.some((box) => (
+    x < box.x + box.width + CARD_CLEARANCE && x + width + CARD_CLEARANCE > box.x
+    && cy < box.y + box.height + CARD_CLEARANCE && cy + height + CARD_CLEARANCE > box.y
+  )) || frames.some((frame) => (
+    x < frame.x + frame.width && x + width > frame.x && cy < frame.y + frame.height && cy + height > frame.y
+  ));
+  let freeY = y;
+  for (let attempt = 0; attempt < 400 && blocked(freeY); attempt += 1) freeY += LANE_HEIGHT / 2;
+  return freeY;
+}
+
+/** Move a paper under the rest of its cluster, unless it already sits inside that cluster's frame. */
+function seatInsideGroup(
+  nodes: Record<number, TimelineNode>,
+  notes: TimelineNote[],
+  nodeId: number,
+  ignoreNodeIds: Set<number> = new Set(),
+): void {
+  const node = nodes[nodeId];
+  const others = Object.values(nodes).filter((other) => other.id !== nodeId && !ignoreNodeIds.has(other.id));
+  const mates = others.filter((other) => sameGroup(other.group, node.group));
+  const [region] = computeGroupRegions(mates);
+  if (!region || regionAt([region], node)?.key === region.key) return;
+  const x = region.minX;
+  const y = findFreeY(others, notes, node.group, x, region.maxY + LANE_HEIGHT - NODE_DIMENSIONS.height);
+  nodes[nodeId] = { ...node, x, y };
+}
+
+/** Move a paper that left a cluster out of that cluster's frame, to its right. */
+function seatOutsideGroup(
+  nodes: Record<number, TimelineNode>,
+  notes: TimelineNote[],
+  nodeId: number,
+  formerGroup: string,
+): void {
+  const node = nodes[nodeId];
+  const others = Object.values(nodes).filter((other) => other.id !== nodeId);
+  const [region] = computeGroupRegions(others.filter((other) => sameGroup(other.group, formerGroup)));
+  if (!region || !regionAt([region], node)) return;
+  const frame = regionFrame(region);
+  const x = frame.x + frame.width + GAP_X;
+  nodes[nodeId] = { ...node, x, y: findFreeY(others, notes, undefined, x, node.y) };
+}
 
 function cleanGroupLabel(value: string | null | undefined): string | null {
   const label = (value ?? "").trim().replace(/\s+/g, " ").slice(0, 48);
@@ -321,19 +408,10 @@ function placeAddedNodes(
   const columnWidth = width + GAP_X;
   const pending = new Set(addedNodeIds);
   const placed = Object.values(nodes).filter((node) => !pending.has(node.id));
-  const occupied: Box[] = [
-    ...placed.map((node) => ({ x: node.x, y: node.y, width, height })),
-    ...notes.map((note) => ({ x: note.x, y: note.y, width: note.width ?? 260, height: note.height ?? 160 })),
-  ];
-  const overlaps = (x: number, y: number) => occupied.some((box) => (
-    x < box.x + box.width + CARD_CLEARANCE && x + width + CARD_CLEARANCE > box.x
-    && y < box.y + box.height + CARD_CLEARANCE && y + height + CARD_CLEARANCE > box.y
-  ));
   const settle = (nodeId: number, x: number, y: number, patch: Partial<TimelineNode> = {}) => {
-    let freeY = y;
-    for (let attempt = 0; attempt < 300 && overlaps(x, freeY); attempt += 1) freeY += LANE_HEIGHT;
+    const group = patch.group ?? nodes[nodeId].group;
+    const freeY = findFreeY(placed, notes, group, x, y);
     nodes[nodeId] = { ...nodes[nodeId], ...patch, x, y: freeY };
-    occupied.push({ x, y: freeY, width, height });
     placed.push(nodes[nodeId]);
     pending.delete(nodeId);
   };
@@ -373,7 +451,11 @@ function placeAddedNodes(
     const key = (node.group ?? "").trim().toLowerCase();
     let columnX = newColumnX.get(key);
     if (columnX === undefined) {
-      const rightEdge = occupied.length > 0 ? Math.max(...occupied.map((box) => box.x + box.width)) : null;
+      const taken = [
+        ...placed.map((other) => other.x + width),
+        ...notes.map((note) => note.x + (note.width ?? 260)),
+      ];
+      const rightEdge = taken.length > 0 ? Math.max(...taken) : null;
       columnX = rightEdge === null ? PADDING_X : rightEdge + REGION_GAP_X;
       newColumnX.set(key, columnX);
     }

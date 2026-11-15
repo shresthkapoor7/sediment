@@ -160,6 +160,13 @@ export type TimelineGraphAction =
       group: string | null;
     }
   | {
+      /** Drag a whole cluster: every paper in it moves by the same amount. */
+      type: "move_group";
+      label: string;
+      dx: number;
+      dy: number;
+    }
+  | {
       /** Rename a cluster, merging into one that already has the new name; null dissolves it. */
       type: "rename_group";
       from: string;

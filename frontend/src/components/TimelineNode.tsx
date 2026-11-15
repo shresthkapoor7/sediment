@@ -111,6 +111,12 @@ export function TimelineNodeCard({
     if (event.target instanceof Element && event.target.closest("[data-canvas-ui='true']")) return;
     draggedRef.current = false;
     dragRef.current = { pointerId: event.pointerId, clientX: event.clientX, clientY: event.clientY, x: node.x, y: node.y, moved: false };
+    // Hold the pointer from the first press so a fast drag cannot outrun the card.
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      // The pointer is already gone; nothing to drag.
+    }
   };
   const handlePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
     const drag = dragRef.current;
@@ -122,11 +128,6 @@ export function TimelineNodeCard({
       drag.moved = true;
       draggedRef.current = true;
       setIsDragging(true);
-      try {
-        event.currentTarget.setPointerCapture(event.pointerId);
-      } catch {
-        // The pointer is already gone; the drag simply ends on the next pointer event.
-      }
     }
     const zoom = getZoom?.() || 1;
     onMove?.(node.id, Math.round(drag.x + dx / zoom), Math.round(drag.y + dy / zoom));
