@@ -15,7 +15,8 @@ MAX_CONCEPT_CONTEXT_LENGTH = 500
 MAX_CHAT_QUESTION_LENGTH = 1_000
 MAX_SELECTED_EXCERPT_LENGTH = 6_000
 MAX_PAPER_CONTENT_CHUNKS = 100
-MAX_TIMELINE_PAPERS = 25
+MAX_TIMELINE_PAPERS = 60
+MAX_CANVAS_EDGES = 300
 MAX_TIMELINE_NOTES = 100
 MAX_TIMELINE_NOTE_CONNECTIONS = MAX_TIMELINE_NOTES * 5
 MAX_NOTE_ID_LENGTH = 128
@@ -323,10 +324,18 @@ class TimelineNodeColorSnapshot(StrictRequestModel):
     borderColor: Literal["accent", "blue", "green", "purple", "amber", "rose"]
 
 
+class CanvasEdgeSnapshot(StrictRequestModel):
+    parentPaperId: str = Field(min_length=1, max_length=MAX_OPENALEX_ID_LENGTH)
+    childPaperId: str = Field(min_length=1, max_length=MAX_OPENALEX_ID_LENGTH)
+
+
 class GlobalChatRequest(StrictRequestModel):
     graphId: Optional[str] = Field(default=None, max_length=MAX_GRAPH_ID_LENGTH)
     userId: Optional[str] = Field(default=None, max_length=MAX_USER_ID_LENGTH)
-    papers: list[PaperSummary] = Field(min_length=1, max_length=MAX_TIMELINE_PAPERS)
+    # A canvas may be empty: the agent is how the first papers get onto it.
+    papers: list[PaperSummary] = Field(default_factory=list, max_length=MAX_TIMELINE_PAPERS)
+    # Links between the papers above as the browser shows them right now.
+    edges: Optional[list[CanvasEdgeSnapshot]] = Field(default=None, max_length=MAX_CANVAS_EDGES)
     question: str = Field(min_length=1, max_length=MAX_CHAT_QUESTION_LENGTH)
     mentionedPaperIds: list[str] = Field(default_factory=list, max_length=MAX_TIMELINE_PAPERS)
     noteContext: Optional[TimelineNoteContext] = None
@@ -349,6 +358,9 @@ class GlobalChatResponse(BaseModel):
     lineageChanges: list[dict[str, Any]] = Field(default_factory=list)
     noteChanges: list[TimelineNoteChange] = Field(default_factory=list)
     nodeColorChanges: list[TimelineNodeColorChange] = Field(default_factory=list)
+    # What this message cost, and whether it was cut short by the per-message ceiling or the tool-round limit.
+    costMicroUsd: int = 0
+    stoppedBy: Optional[Literal["budget", "iterations"]] = None
 
 
 class ChatSessionRequest(StrictRequestModel):

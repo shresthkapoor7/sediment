@@ -172,8 +172,9 @@ class PaperAgentChatTests(unittest.IsolatedAsyncioTestCase):
         prompt = client.client.messages.create.await_args.kwargs["messages"][-1]["content"]
         self.assertIn('"openalexId": "W1"', prompt)
         self.assertIn('"openalexId": "W2"', prompt)
-        self.assertIn("do not ask the user to name the papers again", prompt)
-        self.assertIn("use that recommendation's exact title as the OpenAlex search query", prompt)
+        system = client.client.messages.create.await_args.kwargs["system"]
+        self.assertIn("instead of asking which paper is meant", system)
+        self.assertIn("Papers do not have to be connected", system)
         self.assertEqual(
             client.client.messages.create.await_args.kwargs["cache_control"],
             {"type": "ephemeral"},
@@ -184,18 +185,66 @@ class PaperAgentChatTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(result["highlightedPaperIds"], ["W1", "W2"])
 
+    async def test_global_agent_works_on_an_empty_canvas(self) -> None:
+        client = LLMClient(api_key="test-key", model="claude-test")
+        final = SimpleNamespace(
+            content=[FakeBlock(type="text", text="What are you curious about?")],
+            usage=SimpleNamespace(input_tokens=10, output_tokens=5),
+        )
+        client.client.messages.create = AsyncMock(return_value=final)
+
+        with patch("app.services.llm.limiter.record_usage", AsyncMock()):
+            result = await client.chat_about_timeline_agentic(
+                [],
+                "i want to understand chain of thought",
+                tool_runner=AsyncMock(),
+                ip="127.0.0.1",
+                known_candidates=[{"openalexId": "W9", "title": "Earlier find", "year": 2022}],
+            )
+
+        prompt = client.client.messages.create.await_args.kwargs["messages"][-1]["content"]
+        self.assertIn("The canvas is empty.", prompt)
+        self.assertIn('"openalexId": "W9"', prompt)
+        self.assertEqual(result["text"], "What are you curious about?")
+
+    async def test_global_agent_stops_calling_tools_when_the_message_budget_runs_out(self) -> None:
+        client = LLMClient(api_key="test-key", model="claude-test")
+        wants_tool = SimpleNamespace(
+            content=[FakeBlock(type="tool_use", name="search_openalex_papers", id="toolu_1", input={"query": "x"})],
+            # claude-test uses default pricing: 100k input tokens is $0.30, over a $0.20 ceiling.
+            usage=SimpleNamespace(input_tokens=100_000, output_tokens=0),
+        )
+        client.client.messages.create = AsyncMock(return_value=wants_tool)
+        tool_runner = AsyncMock(return_value={"status": "completed", "papers": []})
+
+        with patch("app.services.llm.limiter.record_usage", AsyncMock()):
+            result = await client.chat_about_timeline_agentic(
+                [],
+                "find everything",
+                tool_runner=tool_runner,
+                ip="127.0.0.1",
+                budget_micro_usd=200_000,
+                max_iterations=8,
+            )
+
+        # One model call, its tool run, then a hard stop: no second call once the ceiling is passed.
+        self.assertEqual(client.client.messages.create.await_count, 1)
+        self.assertEqual(result["stoppedBy"], "budget")
+        self.assertIn("spending limit", result["text"])
+        self.assertGreaterEqual(result["costMicroUsd"], 200_000)
+
     async def test_independent_read_tools_run_concurrently_and_preserve_result_order(self) -> None:
         tool_uses = [
             SimpleNamespace(name="check_paper_access", id="toolu_access"),
             SimpleNamespace(name="search_paper_content", id="toolu_search"),
-            SimpleNamespace(name="update_lineage", id="toolu_update"),
+            SimpleNamespace(name="update_canvas_papers", id="toolu_update"),
         ]
         parallel_reads_started = asyncio.Event()
         started: list[str] = []
 
         async def execute(tool_use):
             started.append(tool_use.id)
-            if tool_use.name != "update_lineage":
+            if tool_use.name != "update_canvas_papers":
                 if len(started) >= 2:
                     parallel_reads_started.set()
                 await asyncio.wait_for(parallel_reads_started.wait(), timeout=0.1)
@@ -223,7 +272,7 @@ class PaperAgentChatTests(unittest.IsolatedAsyncioTestCase):
             content=[FakeBlock(
                 type="tool_use",
                 id="toolu_update",
-                name="update_lineage",
+                name="update_canvas_papers",
                 input={
                     "addPaperIds": ["W3"],
                     "edges": [{"parentPaperId": "W3", "childPaperId": "W1", "relation": "influenced"}],
@@ -240,7 +289,7 @@ class PaperAgentChatTests(unittest.IsolatedAsyncioTestCase):
         async def run_tool(name, _tool_input):
             if name == "search_openalex_papers":
                 return {"status": "completed", "papers": [{"openalexId": "W3", "title": "Deep Residual Learning"}]}
-            if name == "update_lineage":
+            if name == "update_canvas_papers":
                 return {
                     "status": "completed",
                     "addedPapers": [{"openalexId": "W3", "title": "Deep Residual Learning", "year": 2015, "summary": "Residual networks."}],

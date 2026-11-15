@@ -319,6 +319,23 @@ class OpenAlexClient:
             return []
         return await self.hydrate_works(work.get("referencedWorks", [])[:limit])
 
+    async def fetch_citing_papers(self, openalex_id: str, limit: int = 10) -> list[dict]:
+        """Later works that cite this paper, most cited first."""
+        params = {
+            **self._base_params(),
+            "filter": f"cites:{openalex_id}",
+            "sort": "cited_by_count:desc",
+            "per-page": str(limit),
+            "select": SEARCH_SELECT,
+        }
+        data = await _get(self._session_or_raise(), f"{BASE}/works", params)
+        results = []
+        for work in data.get("results", []):
+            normalized = self._normalize_work(work)
+            if normalized:
+                results.append(normalized)
+        return results
+
     async def fetch_related_earlier_papers(self, paper: dict, limit: int = 20) -> list[dict]:
         """Fallback for papers with no indexed references — search by topic/title keywords."""
         year = paper.get("year")

@@ -47,6 +47,9 @@ NOTE_KINDS = {"field_note", "question", "insight", "todo", "contradiction"}
 NOTE_COLORS = {"paper", "amber", "blue", "green", "rose"}
 NOTE_RELATIONS = {"about", "question", "insight", "todo", "contradiction"}
 NODE_BORDER_COLORS = {"accent", "blue", "green", "purple", "amber", "rose"}
+PAPER_LOOKUP_TOOLS = {"search_openalex_papers", "get_openalex_references", "get_openalex_citing_papers"}
+MAX_CANVAS_EDGES_IN_PROMPT = 120
+MAX_KNOWN_CANDIDATES_IN_PROMPT = 30
 
 _llm = LLMClient(api_key=settings.anthropic_api_key, model=settings.llm_model)
 
@@ -192,9 +195,15 @@ def _lineage_paper_payload(paper: dict[str, Any]) -> dict[str, Any]:
 
 
 def _lineage_search_candidate(paper: dict[str, Any]) -> dict[str, Any]:
+    payload = _lineage_paper_payload(paper)
     return {
-        **_lineage_paper_payload(paper),
-        "abstract": str(paper.get("abstract") or "")[:1_200],
+        "openalexId": payload["openalexId"],
+        "title": payload["title"],
+        "year": payload["year"],
+        "authors": payload["authors"][:4],
+        "type": payload["type"],
+        "citedByCount": payload["citedByCount"],
+        "abstract": str(paper.get("abstract") or "")[:700],
         "referencedPaperIds": [
             paper_id
             for paper_id in paper.get("referencedWorks", [])
@@ -202,6 +211,68 @@ def _lineage_search_candidate(paper: dict[str, Any]) -> dict[str, Any]:
         ][:30],
         "primaryTopic": paper.get("primaryTopic") if isinstance(paper.get("primaryTopic"), str) else None,
     }
+
+
+def _canvas_edges_from_graph(graph_data: object) -> list[dict[str, str]]:
+    """Paper-to-paper links on the saved canvas, as OpenAlex ID pairs."""
+    if not isinstance(graph_data, dict):
+        return []
+    nodes = graph_data.get("nodes")
+    adjacency = graph_data.get("adjacency")
+    if not isinstance(nodes, dict) or not isinstance(adjacency, dict):
+        return []
+
+    def openalex_id(node_id: object) -> str | None:
+        node = nodes.get(str(node_id))
+        paper = node.get("paper") if isinstance(node, dict) else None
+        value = paper.get("openalexId") if isinstance(paper, dict) else None
+        return value if isinstance(value, str) and value else None
+
+    edges: list[dict[str, str]] = []
+    for parent_id, children in adjacency.items():
+        parent = openalex_id(parent_id)
+        if not parent or not isinstance(children, list):
+            continue
+        for child_id in children:
+            child = openalex_id(child_id)
+            if child:
+                edges.append({"parentPaperId": parent, "childPaperId": child})
+            if len(edges) >= MAX_CANVAS_EDGES_IN_PROMPT:
+                return edges
+    return edges
+
+
+def _known_candidates_from_context(
+    context: ChatContext | None,
+    on_canvas_normalized_ids: set[str],
+) -> list[dict[str, Any]]:
+    """Papers earlier lookups in this conversation returned, newest first, so the agent can add them by ID."""
+    if not context:
+        return []
+    candidates: dict[str, dict[str, Any]] = {}
+    for message in reversed(context.messages):
+        tool_uses = message.get("tool_uses") if message.get("role") == "assistant" else None
+        if not isinstance(tool_uses, list):
+            continue
+        for tool in tool_uses:
+            if not isinstance(tool, dict) or tool.get("name") not in PAPER_LOOKUP_TOOLS:
+                continue
+            result = tool.get("result")
+            found = result.get("papers") if isinstance(result, dict) else None
+            for paper in found if isinstance(found, list) else []:
+                if not isinstance(paper, dict):
+                    continue
+                normalized = _normalize_openalex_id(paper.get("openalexId"))
+                if not normalized or normalized in on_canvas_normalized_ids or normalized in candidates:
+                    continue
+                candidates[normalized] = {
+                    "openalexId": paper.get("openalexId"),
+                    "title": paper.get("title"),
+                    "year": paper.get("year"),
+                }
+                if len(candidates) >= MAX_KNOWN_CANDIDATES_IN_PROMPT:
+                    return list(candidates.values())
+    return list(candidates.values())
 
 
 def _latest_pending_action(context: ChatContext | None) -> dict[str, Any] | None:
@@ -531,8 +602,12 @@ async def _run_paper_chat(req: ChatRequest, request_ip: str, event_emitter: Chat
 def _tool_status_message(name: str, state: str) -> str:
     if name == "search_openalex_papers":
         return "Searching OpenAlex" if state == "started" else "OpenAlex search finished"
-    if name == "update_lineage":
-        return "Updating the lineage" if state == "started" else "Lineage updated"
+    if name == "get_openalex_references":
+        return "Reading the paper's references" if state == "started" else "References read"
+    if name == "get_openalex_citing_papers":
+        return "Finding papers that cite it" if state == "started" else "Citing papers found"
+    if name == "update_canvas_papers":
+        return "Updating the canvas" if state == "started" else "Canvas updated"
     if name == "update_timeline_node_colors":
         return "Coloring timeline nodes" if state == "started" else "Timeline nodes colored"
     if name == "read_timeline_node_colors":
@@ -634,9 +709,16 @@ async def _run_global_chat(req: GlobalChatRequest, request_ip: str, event_emitte
                 "graph",
             )
             graph_data = graph.get("data") if isinstance(graph.get("data"), dict) else None
-            papers = _graph_papers(graph_data)
-            if not papers:
-                raise HTTPException(status_code=400, detail="Graph contains no papers.")
+            # The browser's list says which papers are on the canvas right now: it is ahead of the saved
+            # copy whenever a change has not been written yet. The saved copy supplies the full details.
+            saved_by_normalized_id = {
+                _normalize_openalex_id(paper.get("openalexId")): paper
+                for paper in _graph_papers(graph_data)
+            }
+            papers = [
+                saved_by_normalized_id.get(_normalize_openalex_id(paper.get("openalexId")), paper)
+                for paper in papers
+            ] if req.papers else list(saved_by_normalized_id.values())
             paper_by_normalized_id = {
                 _normalize_openalex_id(paper.get("openalexId")): paper
                 for paper in papers
@@ -802,7 +884,46 @@ async def _run_global_chat(req: GlobalChatRequest, request_ip: str, event_emitte
             })
             return result
 
-        if name == "update_lineage":
+        if name in {"get_openalex_references", "get_openalex_citing_papers"}:
+            paper_id = _normalize_openalex_id(tool_input.get("paperId"))
+            try:
+                limit = max(1, min(int(tool_input.get("limit") or 8), 12))
+            except (TypeError, ValueError):
+                limit = 8
+            if not paper_id:
+                result = {"status": "error", "message": "An OpenAlex paper ID is required."}
+                await _emit(event_emitter, "tool_completed", {"name": name, "status": "error", "result": result})
+                return result
+            try:
+                async with OpenAlexClient(
+                    api_key=settings.openalex_api_key,
+                    mailto=settings.openalex_mailto,
+                ) as openalex:
+                    if name == "get_openalex_references":
+                        matches = await openalex.fetch_references(paper_id, limit=40)
+                    else:
+                        matches = await openalex.fetch_citing_papers(paper_id, limit=limit)
+            except OpenAlexError:
+                result = {"status": "error", "message": "OpenAlex could not be reached for this paper."}
+                await _emit(event_emitter, "tool_completed", {"name": name, "status": "error", "result": result})
+                return result
+
+            candidates = []
+            for paper in matches[:limit]:
+                normalized = _normalize_openalex_id(paper.get("openalexId"))
+                if not normalized:
+                    continue
+                searched_openalex_papers[normalized] = paper
+                candidates.append(_lineage_search_candidate(paper))
+            result = {"status": "completed", "paperId": paper_id, "papers": candidates}
+            await _emit(event_emitter, "tool_completed", {
+                "name": name,
+                "status": result["status"],
+                "result": _compact_tool_result_for_event(result),
+            })
+            return result
+
+        if name == "update_canvas_papers":
             asks_to_connect_a_note = bool(re.search(r"\bnote\b", req.question, re.I)) or (
                 has_recent_note_action
                 and bool(re.search(r"\b(connect|link)\s+(it|this|that)\b", req.question, re.I))
@@ -817,12 +938,12 @@ async def _run_global_chat(req: GlobalChatRequest, request_ip: str, event_emitte
             if not req.graphId or not req.userId:
                 result = {
                     "status": "error",
-                    "message": "Lineage edits require a saved graph. Try again after the timeline has been saved.",
+                    "message": "Canvas edits need a saved canvas. Ask the user to try again in a moment.",
                 }
                 await _emit(event_emitter, "tool_completed", {"name": name, "status": "error", "result": result})
                 return result
 
-            requested_additions = _unique_openalex_ids(tool_input.get("addPaperIds"), 5)
+            requested_additions = _unique_openalex_ids(tool_input.get("addPaperIds"), 8)
             requested_removals = _unique_openalex_ids(tool_input.get("removePaperIds"), 10)
             current_by_normalized_id = {
                 _normalize_openalex_id(paper.get("openalexId")): paper
@@ -842,6 +963,25 @@ async def _run_global_chat(req: GlobalChatRequest, request_ip: str, event_emitte
                     continue
                 removed_paper_ids.append(canonical_id)
 
+            # IDs from an earlier message are not in this message's lookup cache: fetch them by ID.
+            unknown_ids = [
+                paper_id for paper_id in requested_additions
+                if paper_id not in current_by_normalized_id and paper_id not in searched_openalex_papers
+            ]
+            if unknown_ids:
+                try:
+                    async with OpenAlexClient(
+                        api_key=settings.openalex_api_key,
+                        mailto=settings.openalex_mailto,
+                    ) as openalex:
+                        for paper in await openalex.hydrate_works(unknown_ids):
+                            normalized = _normalize_openalex_id(paper.get("openalexId"))
+                            if normalized:
+                                searched_openalex_papers[normalized] = paper
+                except OpenAlexError:
+                    logger.warning("Could not fetch papers by ID for a canvas update: %r", unknown_ids)
+
+            room = max(0, MAX_TIMELINE_PAPERS - (len(papers) - len(removed_paper_ids)))
             added_papers: list[dict[str, Any]] = []
             for paper_id in requested_additions:
                 if paper_id in current_by_normalized_id:
@@ -849,7 +989,10 @@ async def _run_global_chat(req: GlobalChatRequest, request_ip: str, event_emitte
                     continue
                 paper = searched_openalex_papers.get(paper_id)
                 if not paper:
-                    skipped.append({"paperId": paper_id, "reason": "not_returned_by_openalex_search"})
+                    skipped.append({"paperId": paper_id, "reason": "not_found_in_openalex"})
+                    continue
+                if len(added_papers) >= room:
+                    skipped.append({"paperId": paper_id, "reason": "canvas_paper_limit_reached"})
                     continue
                 added_papers.append(_lineage_paper_payload(paper))
 
@@ -878,7 +1021,7 @@ async def _run_global_chat(req: GlobalChatRequest, request_ip: str, event_emitte
                 for edge in lineage_edges
             }
             raw_edges = tool_input.get("edges") if isinstance(tool_input.get("edges"), list) else []
-            for raw_edge in raw_edges[:12]:
+            for raw_edge in raw_edges[:20]:
                 if not isinstance(raw_edge, dict):
                     skipped.append({"paperId": "<invalid edge>", "reason": "edge_invalid_payload"})
                     continue
@@ -937,6 +1080,9 @@ async def _run_global_chat(req: GlobalChatRequest, request_ip: str, event_emitte
                     current_ids.add(normalized_id)
             valid_ids.clear()
             valid_ids.update(paper.get("openalexId") for paper in papers)
+            if added_papers or removed_paper_ids or edges:
+                # Let the canvas change while the agent is still working, not only when it finishes.
+                await _emit(event_emitter, "canvas_change", {"lineageChange": result})
             lineage_edges[:] = [
                 edge
                 for edge in [*lineage_edges, *edges]
@@ -1342,8 +1488,17 @@ async def _run_global_chat(req: GlobalChatRequest, request_ip: str, event_emitte
         await _emit(event_emitter, "tool_completed", {"name": name, "status": "error", "result": result})
         return result
 
+    # One message may spend at most the fixed per-message ceiling, and never more than is left today.
+    turn_budget_micro_usd = round(settings.agent_turn_budget_usd * 1_000_000)
     try:
-        await _emit(event_emitter, "status", {"message": "Thinking with timeline tools"})
+        usage_summary = await limiter.get_summary(request_ip)
+        remaining_micro_usd = round(float(usage_summary["remaining"]) * 1_000_000)
+        turn_budget_micro_usd = max(1, min(turn_budget_micro_usd, remaining_micro_usd))
+    except HTTPException:
+        logger.warning("Usage summary unavailable; using the per-message ceiling alone")
+
+    try:
+        await _emit(event_emitter, "status", {"message": "Thinking"})
         result = await _llm.chat_about_timeline_agentic(
             papers,
             req.question.strip(),
@@ -1359,6 +1514,14 @@ async def _run_global_chat(req: GlobalChatRequest, request_ip: str, event_emitte
             mentioned_paper_ids=mentioned_paper_ids,
             pending_action=pending_action,
             timeline_note_index=timeline_note_index,
+            canvas_edges=(
+                [edge.model_dump() for edge in req.edges][:MAX_CANVAS_EDGES_IN_PROMPT]
+                if req.edges is not None
+                else _canvas_edges_from_graph(graph_data)
+            ),
+            known_candidates=_known_candidates_from_context(context, set(paper_by_normalized_id)),
+            budget_micro_usd=turn_budget_micro_usd,
+            max_iterations=settings.agent_max_iterations,
         )
     except LLMParseError as e:
         logger.warning("Timeline chat failed for %s papers", len(req.papers), exc_info=e)
@@ -1507,8 +1670,6 @@ async def suggest_questions(papers: list[PaperSummary], request: Request):
 async def chat_global(req: GlobalChatRequest, request: Request):
     if not req.question.strip():
         raise HTTPException(status_code=400, detail="question required")
-    if not req.papers:
-        raise HTTPException(status_code=400, detail="papers required")
 
     request_ip = get_request_ip(request)
     result = await _run_global_chat(req, request_ip)
@@ -1524,8 +1685,6 @@ async def chat_global(req: GlobalChatRequest, request: Request):
 async def chat_global_stream(req: GlobalChatRequest, request: Request):
     if not req.question.strip():
         raise HTTPException(status_code=400, detail="question required")
-    if not req.papers:
-        raise HTTPException(status_code=400, detail="papers required")
     request_ip = get_request_ip(request)
     return StreamingResponse(
         _global_chat_event_stream(req, request_ip),

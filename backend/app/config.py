@@ -29,6 +29,10 @@ class Settings(BaseSettings):
     special_note_storage_quota_bytes: int = 20 * 1024 * 1024
     max_special_note_upload_request_bytes: int = 20 * 1024 * 1024 + 256 * 1024
     daily_usage_limit_usd: float = 0.20
+    # Hard ceiling on what one agent message may spend, across all of its model calls and searches.
+    agent_turn_budget_usd: float = 0.20
+    # Tool rounds the agent may take in one message before it must answer.
+    agent_max_iterations: int = 8
     burst_limit_requests: int = 8
     burst_limit_window_seconds: int = 60
     actor_key_secret: SecretStr = Field(...)
