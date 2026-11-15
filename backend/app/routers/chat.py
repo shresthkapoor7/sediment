@@ -24,11 +24,13 @@ from ..models import (
     ChatResponse,
     ChatSessionRequest,
     ChatSessionResponse,
+    ChatTab,
+    ChatTabCreateRequest,
     GlobalChatRequest,
     GlobalChatResponse,
     PaperSummary,
 )
-from ..services.chat_memory import ChatContext, ChatMemoryService, serialize_chat_context
+from ..services.chat_memory import ChatContext, ChatMemoryService, ChatSessionNotFound, serialize_chat_context
 from ..services.graph_retrieval import retrieve_graph_context
 from ..services.llm import LLMClient, LLMParseError
 from ..services.openalex import OpenAlexClient, OpenAlexError
@@ -52,6 +54,8 @@ NODE_BORDER_COLORS = {"accent", "blue", "green", "purple", "amber", "rose"}
 PAPER_LOOKUP_TOOLS = {"search_openalex_papers", "get_openalex_references", "get_openalex_citing_papers"}
 MAX_CANVAS_EDGES_IN_PROMPT = 120
 MAX_KNOWN_CANDIDATES_IN_PROMPT = 30
+MAX_CHATS_PER_CANVAS = 12
+CHAT_TITLE_LENGTH = 40
 
 _llm = LLMClient(api_key=settings.anthropic_api_key, model=settings.llm_model)
 
@@ -353,6 +357,7 @@ async def _load_persistent_context(
     scope: str,
     paper_openalex_id: str | None = None,
     message_limit: int = 24,
+    session_id: str | None = None,
 ) -> tuple[SupabaseClient, dict, ChatMemoryService, ChatContext]:
     db = _db()
     graph = await db.get_graph(graph_id, user_id)
@@ -364,13 +369,17 @@ async def _load_persistent_context(
     ):
         raise HTTPException(status_code=404, detail="Paper is not present in this graph.")
     memory = ChatMemoryService(db)
-    context = await memory.open(
-        graph_id,
-        user_id,
-        scope,
-        paper_openalex_id,
-        message_limit=message_limit,
-    )
+    try:
+        context = await memory.open(
+            graph_id,
+            user_id,
+            scope,
+            paper_openalex_id,
+            message_limit=message_limit,
+            session_id=session_id,
+        )
+    except ChatSessionNotFound as exc:
+        raise HTTPException(status_code=404, detail="That chat no longer exists.") from exc
     return db, graph, memory, context
 
 
@@ -707,6 +716,7 @@ async def _run_global_chat(req: GlobalChatRequest, request_ip: str, event_emitte
                 req.graphId,
                 req.userId,
                 "graph",
+                session_id=req.sessionId,
             )
             graph_data = graph.get("data") if isinstance(graph.get("data"), dict) else None
             # The browser's list says which papers are on the canvas right now: it is ahead of the saved
@@ -728,6 +738,15 @@ async def _run_global_chat(req: GlobalChatRequest, request_ip: str, event_emitte
                 if _normalize_openalex_id(paper.get("openalexId"))
             }
             mentioned_paper_ids = _resolve_mentioned_paper_ids(paper_by_normalized_id, req.mentionedPaperIds)
+            if not context.session.get("title"):
+                # A chat is named after its first message.
+                words = " ".join(req.question.split())
+                title = words if len(words) <= CHAT_TITLE_LENGTH else f"{words[:CHAT_TITLE_LENGTH - 1].rstrip()}…"
+                try:
+                    await memory.db.update_chat_session_title(context.session["id"], req.userId, title)
+                    context.session["title"] = title
+                except SupabaseAPIError:
+                    logger.warning("Chat title could not be saved for session_id=%r", context.session.get("id"))
             await memory.append(
                 context,
                 req.userId,
@@ -1643,11 +1662,65 @@ async def open_chat_session(graph_id: str, req: ChatSessionRequest):
             req.scope,
             req.paperOpenalexId.upper() if req.paperOpenalexId else None,
             message_limit=100,
+            session_id=req.sessionId if req.scope == "graph" else None,
         )
         return ChatSessionResponse(**serialize_chat_context(context))
     except SupabaseAPIError as exc:
         logger.warning("Chat session restore failed for graph_id=%r", graph_id, exc_info=exc)
         raise HTTPException(status_code=502, detail="Chat history is currently unavailable.") from exc
+
+
+def _chat_tab(session: dict[str, Any]) -> ChatTab:
+    return ChatTab(
+        sessionId=session["id"],
+        title=session.get("title"),
+        createdAt=session["created_at"],
+        updatedAt=session["updated_at"],
+    )
+
+
+async def _require_owned_graph(db: SupabaseClient, graph_id: str, user_id: str) -> None:
+    if not await db.get_graph(graph_id, user_id):
+        raise HTTPException(status_code=404, detail="Graph not found.")
+
+
+@router.get("/graphs/{graph_id}/chats", response_model=list[ChatTab])
+async def list_chats(graph_id: str, userId: str):
+    """The agent chats on a canvas, oldest first. A canvas with none gets its first one here."""
+    try:
+        db = _db()
+        await _require_owned_graph(db, graph_id, userId)
+        sessions = await db.list_graph_chat_sessions(graph_id, userId)
+        if not sessions:
+            sessions = [await db.create_graph_chat_session(graph_id, userId)]
+        return [_chat_tab(session) for session in sessions]
+    except SupabaseAPIError as exc:
+        logger.warning("Chat list failed for graph_id=%r", graph_id, exc_info=exc)
+        raise HTTPException(status_code=502, detail="Chats are currently unavailable.") from exc
+
+
+@router.post("/graphs/{graph_id}/chats", response_model=ChatTab, status_code=201)
+async def create_chat(graph_id: str, req: ChatTabCreateRequest):
+    try:
+        db = _db()
+        await _require_owned_graph(db, graph_id, req.userId)
+        if len(await db.list_graph_chat_sessions(graph_id, req.userId)) >= MAX_CHATS_PER_CANVAS:
+            raise HTTPException(status_code=409, detail=f"A canvas can hold up to {MAX_CHATS_PER_CANVAS} chats.")
+        return _chat_tab(await db.create_graph_chat_session(graph_id, req.userId))
+    except SupabaseAPIError as exc:
+        logger.warning("Chat creation failed for graph_id=%r", graph_id, exc_info=exc)
+        raise HTTPException(status_code=502, detail="A new chat could not be started.") from exc
+
+
+@router.delete("/graphs/{graph_id}/chats/{session_id}", status_code=204)
+async def delete_chat(graph_id: str, session_id: str, userId: str):
+    try:
+        db = _db()
+        await _require_owned_graph(db, graph_id, userId)
+        await db.delete_graph_chat_session(graph_id, userId, session_id)
+    except SupabaseAPIError as exc:
+        logger.warning("Chat deletion failed for graph_id=%r", graph_id, exc_info=exc)
+        raise HTTPException(status_code=502, detail="The chat could not be closed.") from exc
 
 
 @router.post("/chat", response_model=ChatResponse)

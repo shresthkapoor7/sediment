@@ -1,14 +1,14 @@
 "use client";
 
-import { useState, useRef, useEffect, useId, useCallback, type ReactNode } from "react";
+import { useState, useRef, useEffect, useId, useCallback, useMemo, type ReactNode } from "react";
 import { m, AnimatePresence } from "framer-motion";
 import dynamic from "next/dynamic";
 // react-markdown + KaTeX are heavy; load them only when a message actually
 // renders markdown, not when the (already code-split) chat panel first mounts.
 const MarkdownContent = dynamic(() => import("./MarkdownContent").then((mod) => mod.MarkdownContent), { ssr: false });
 import { ConversationNavigator } from "./ConversationNavigator";
-import { LogoMark } from "./LogoMark";
-import { openChatSession, streamChatAboutTimeline, suggestTimelineQuestions } from "@/lib/api";
+import { createChat, deleteChat, listChats, openChatSession, streamChatAboutTimeline, suggestTimelineQuestions } from "@/lib/api";
+import { ChatTabs, type ChatTabItem } from "./ChatTabs";
 import { DETAIL_PANEL_DEFAULT_WIDTH, DETAIL_PANEL_MAX_WIDTH, DETAIL_PANEL_MIN_WIDTH, DETAIL_PANEL_WIDTH_KEY } from "@/lib/detail-panel";
 import { isSpecialNote } from "@/lib/note-style";
 import {
@@ -209,14 +209,32 @@ function capMessages(messages: Message[]): Message[] {
   ));
 }
 
+const LOCAL_SESSION_KEY = "local";
+const MAX_CHATS = 12;
+
 export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMentionedPaperIdsChange, mentionRequest, kickoff, onKickoffSent, onLineageChanges, onNoteChanges, onNodeColorChanges, onUsageChanged, graphId, userId }: GlobalChatPanelProps) {
-  const [messages, setMessages] = useState<Message[]>([]);
+  // Each chat keeps its own messages, so switching tabs or a reply arriving in another chat never mixes them.
+  const [messagesBySession, setMessagesBySession] = useState<Record<string, Message[]>>({});
+  const [tabs, setTabs] = useState<ChatTabItem[]>([]);
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const [thinkingKeys, setThinkingKeys] = useState<Set<string>>(() => new Set());
+  // An unsaved canvas has no stored chats; its one conversation lives under this key.
+  const sessionKey = activeSessionId ?? LOCAL_SESSION_KEY;
+  const messages = useMemo(() => messagesBySession[sessionKey] ?? [], [messagesBySession, sessionKey]);
+  const setSessionMessages = useCallback((key: string, update: Message[] | ((current: Message[]) => Message[])) => {
+    setMessagesBySession((all) => {
+      const current = all[key] ?? [];
+      const next = typeof update === "function" ? update(current) : update;
+      return next === current ? all : { ...all, [key]: next };
+    });
+  }, []);
+  const isThinking = thinkingKeys.has(sessionKey);
+  const loadedSessionsRef = useRef<Set<string>>(new Set());
   const [input, setInput] = useState("");
   const [mentionedPaperIds, setMentionedPaperIds] = useState<string[]>([]);
   const [mentionQuery, setMentionQuery] = useState("");
   const [mentionOpen, setMentionOpen] = useState(false);
   const [inputFocused, setInputFocused] = useState(false);
-  const [isThinking, setIsThinking] = useState(false);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
   const msgIdRef = useRef(0);
@@ -225,14 +243,35 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
   const panelWidthRef = useRef(DETAIL_PANEL_DEFAULT_WIDTH);
   const panelResizeStateRef = useRef<{ startX: number; startWidth: number } | null>(null);
 
+  // Load the canvas's chats when it opens.
   useEffect(() => {
     let cancelled = false;
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- Reset messages before loading the next remote session.
-    setMessages([]);
+    /* eslint-disable react-hooks/set-state-in-effect -- Reset per-canvas chat state before loading the next canvas. */
+    setMessagesBySession({});
+    setTabs([]);
+    setActiveSessionId(null);
+    setThinkingKeys(new Set());
+    /* eslint-enable react-hooks/set-state-in-effect */
+    loadedSessionsRef.current = new Set();
     if (!graphId || !userId) return () => { cancelled = true; };
-    void openChatSession(graphId, userId, "graph")
-      .then((session) => {
+    void listChats(graphId, userId)
+      .then((chats) => {
         if (cancelled) return;
+        setTabs(chats.map((chat) => ({ id: chat.sessionId, title: chat.title })));
+        setActiveSessionId(chats[0]?.sessionId ?? null);
+      })
+      .catch(() => undefined);
+    return () => { cancelled = true; };
+  }, [graphId, userId]);
+
+  // Load a chat's history the first time its tab is opened.
+  useEffect(() => {
+    if (!graphId || !userId || !activeSessionId) return;
+    if (loadedSessionsRef.current.has(activeSessionId)) return;
+    loadedSessionsRef.current.add(activeSessionId);
+    const sessionId = activeSessionId;
+    void openChatSession(graphId, userId, "graph", undefined, sessionId)
+      .then((session) => {
         const restored: Message[] = session.messages.map((message) => {
           const metadata = restoredGlobalMetadata(message.toolUses);
           return {
@@ -244,10 +283,44 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
             citations: message.citations,
           };
         });
-        setMessages((current) => capMessages(mergeMessagesById(current, restored)));
+        setSessionMessages(sessionId, (current) => capMessages(mergeMessagesById(current, restored)));
+      })
+      .catch(() => {
+        loadedSessionsRef.current.delete(sessionId);
+      });
+  }, [activeSessionId, graphId, setSessionMessages, userId]);
+
+  const handleAddChat = useCallback(() => {
+    if (!graphId || !userId) return;
+    void createChat(graphId, userId)
+      .then((chat) => {
+        loadedSessionsRef.current.add(chat.sessionId);
+        setTabs((current) => [...current, { id: chat.sessionId, title: chat.title }]);
+        setActiveSessionId(chat.sessionId);
+        window.setTimeout(() => inputRef.current?.focus({ preventScroll: true }), 0);
       })
       .catch(() => undefined);
-    return () => { cancelled = true; };
+  }, [graphId, userId]);
+
+  const handleCloseChat = useCallback((sessionId: string) => {
+    if (!graphId || !userId) return;
+    void deleteChat(graphId, userId, sessionId)
+      .then(() => {
+        setTabs((current) => {
+          const index = current.findIndex((tab) => tab.id === sessionId);
+          const next = current.filter((tab) => tab.id !== sessionId);
+          setActiveSessionId((active) => (
+            active === sessionId ? (next[Math.min(index, next.length - 1)]?.id ?? null) : active
+          ));
+          return next;
+        });
+        setMessagesBySession((all) => {
+          const rest = { ...all };
+          delete rest[sessionId];
+          return rest;
+        });
+      })
+      .catch(() => undefined);
   }, [graphId, userId]);
 
   const traceSummaryKey = data.traceSummary
@@ -256,9 +329,12 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
 
   useEffect(() => {
     if (!data.traceSummary || !traceSummaryKey) return;
+    // The trace write-up belongs to the canvas's first chat.
+    const firstKey = graphId ? tabs[0]?.id : LOCAL_SESSION_KEY;
+    if (!firstKey) return;
     const id = `trace-summary:${traceSummaryKey}`;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- Add the derived trace summary when its source changes.
-    setMessages((current) => (
+    setSessionMessages(firstKey, (current) => (
       current.some((message) => message.id === id)
         ? current
         : [{
@@ -268,7 +344,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
           traceEvidence: data.traceEvidence,
         }, ...current]
     ));
-  }, [data.traceSummary, graphId, traceSummaryKey]);
+  }, [data.traceSummary, graphId, setSessionMessages, tabs, traceSummaryKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     onMentionedPaperIdsChange?.(inputFocused ? mentionedPaperIds : []);
@@ -415,7 +491,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
   const kickoffNonce = kickoff?.nonce;
   const sentKickoffRef = useRef<number | null>(null);
   useEffect(() => {
-    if (!kickoff || !open || !graphId || !userId || isThinking) return;
+    if (!kickoff || !open || !graphId || !userId || !activeSessionId || isThinking) return;
     if (sentKickoffRef.current === kickoff.nonce) return;
     // Deferred so the history reset that runs when a canvas opens cannot wipe the message.
     const timer = window.setTimeout(() => {
@@ -425,7 +501,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
       void send(kickoff.text);
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [kickoffNonce, open, graphId, userId, isThinking]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [kickoffNonce, open, graphId, userId, activeSessionId, isThinking]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const messagesEl = messagesRef.current;
@@ -575,6 +651,22 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
     const focusedPaperIds = textOverride ? [] : mentionedPaperIds;
     const q = textOverride?.trim() || input.trim() || (focusedPaperIds.length > 0 ? "Tell me about the mentioned paper(s)." : "");
     if (!q || isThinking) return;
+    if (graphId && userId && !activeSessionId) return;
+    // Everything below belongs to the chat this message was sent in, even if the user switches tabs.
+    const targetKey = sessionKey;
+    const setMessages = (update: Message[] | ((current: Message[]) => Message[])) => setSessionMessages(targetKey, update);
+    const setIsThinking = (thinking: boolean) => setThinkingKeys((current) => {
+      const next = new Set(current);
+      if (thinking) next.add(targetKey);
+      else next.delete(targetKey);
+      return next;
+    });
+    if (activeSessionId) {
+      // A chat is named after its first message, as the server does.
+      const words = q.replace(/\s+/g, " ");
+      const title = words.length <= 40 ? words : `${words.slice(0, 39).trimEnd()}…`;
+      setTabs((current) => current.map((tab) => (tab.id === activeSessionId && !tab.title ? { ...tab, title } : tab)));
+    }
     const noteContext = requiresTimelineNoteContext(q, messages) ? buildNoteContext() : undefined;
     const nodeColorContext = requiresTimelineNodeColorContext(q, messages) ? buildNodeColorContext() : undefined;
     setInput("");
@@ -680,7 +772,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
             updateAssistant({ text: event.detail || "Chat failed", pending: false });
           }
         },
-        graphId && userId ? { graphId, userId } : undefined,
+        graphId && userId ? { graphId, userId, ...(activeSessionId ? { sessionId: activeSessionId } : {}) } : undefined,
         focusedPaperIds,
         noteContext,
         nodeColorContext,
@@ -797,47 +889,16 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
               />
             </div>
 
-            {/* Header */}
-            <div style={{
-              position: "relative",
-              display: "flex",
-              alignItems: "center",
-              gap: "0.5rem",
-              padding: "0.75rem 1rem 0.25rem",
-              flexShrink: 0,
-            }}>
-              <div
-                style={{
-                  width: "1.25rem",
-                  height: "1.25rem",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  flexShrink: 0,
-                }}
-              >
-                <LogoMark width="18" height="18" style={{ color: "var(--text-primary)" }} />
-              </div>
-              <div style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", pointerEvents: "none" }}>
-                <div style={{ fontSize: "0.8125rem", fontWeight: 600, color: "var(--text-primary)", fontFamily: "var(--font-sans), sans-serif" }}>
-                  Agent
-                </div>
-              </div>
-              <div style={{ flex: 1 }} />
-              <button
-                onClick={handleClose}
-                aria-label="Close agent"
-                style={{
-                  background: "none", border: "none", cursor: "pointer",
-                  color: "var(--text-tertiary)", padding: "0.25rem", borderRadius: "0.375rem",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                }}
-              >
-                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
-                  <path d="M3 3l10 10M13 3L3 13" />
-                </svg>
-              </button>
-            </div>
+            <ChatTabs
+              tabs={graphId ? tabs : [{ id: LOCAL_SESSION_KEY, title: null }]}
+              activeId={sessionKey}
+              busyIds={thinkingKeys}
+              canAdd={Boolean(graphId && userId) && tabs.length > 0 && tabs.length < MAX_CHATS}
+              onSelect={setActiveSessionId}
+              onAdd={handleAddChat}
+              onClose={handleCloseChat}
+              onClosePanel={handleClose}
+            />
 
             <div
               style={{
@@ -1406,8 +1467,14 @@ function globalToolLabel(name: string, status?: string, result?: Record<string, 
     const removals = Array.isArray(result?.removedPaperIds) ? result.removedPaperIds.length : 0;
     const links = typeof result?.edgeCount === "number" ? result.edgeCount : 0;
     if (status === "started") return "Updating canvas";
-    if (additions || removals || links) {
-      const parts = [additions ? `${additions} added` : "", removals ? `${removals} removed` : "", links ? `${links} linked` : ""].filter(Boolean);
+    const clustered = Array.isArray(result?.groups) ? result.groups.length : 0;
+    if (additions || removals || links || clustered) {
+      const parts = [
+        additions ? `${additions} added` : "",
+        removals ? `${removals} removed` : "",
+        links ? `${links} linked` : "",
+        clustered ? `${clustered} ${clustered === 1 ? "cluster" : "clusters"} set` : "",
+      ].filter(Boolean);
       return `Canvas updated · ${parts.join(", ")}`;
     }
     return "No canvas change";

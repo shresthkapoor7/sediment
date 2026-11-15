@@ -203,7 +203,7 @@ export async function streamChatAboutTimeline(
   papers: { openalexId: string; title: string; year?: number | null; summary?: string; group?: string }[],
   question: string,
   onEvent: (event: GlobalChatStreamEvent) => void,
-  persistence?: { graphId: string; userId: string },
+  persistence?: { graphId: string; userId: string; sessionId?: string },
   mentionedPaperIds: string[] = [],
   noteContext?: TimelineNoteContext,
   nodeColorContext?: TimelineNodeColorChange[],
@@ -259,6 +259,7 @@ export async function openChatSession(
   userId: string,
   scope: "paper" | "graph",
   paperOpenalexId?: string,
+  sessionId?: string,
 ): Promise<PersistentChatSession> {
   const response = await fetch(`${API_BASE}/api/graphs/${encodeURIComponent(graphId)}/chat/session`, {
     method: "POST",
@@ -267,6 +268,7 @@ export async function openChatSession(
       userId,
       scope,
       ...(paperOpenalexId ? { paperOpenalexId } : {}),
+      ...(sessionId ? { sessionId } : {}),
     }),
     cache: "no-store",
   });
@@ -275,6 +277,50 @@ export async function openChatSession(
     throw new APIError(detail || `Chat history failed with status ${response.status}`, response.status);
   }
   return response.json();
+}
+
+export interface ChatTab {
+  sessionId: string;
+  title: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** The agent chats on a canvas, oldest first. A canvas always has at least one. */
+export async function listChats(graphId: string, userId: string): Promise<ChatTab[]> {
+  const response = await fetch(
+    `${API_BASE}/api/graphs/${encodeURIComponent(graphId)}/chats?userId=${encodeURIComponent(userId)}`,
+    { cache: "no-store" },
+  );
+  if (!response.ok) {
+    const detail = await readErrorDetail(response);
+    throw new APIError(detail || `Chats failed with status ${response.status}`, response.status);
+  }
+  return response.json();
+}
+
+export async function createChat(graphId: string, userId: string): Promise<ChatTab> {
+  const response = await fetch(`${API_BASE}/api/graphs/${encodeURIComponent(graphId)}/chats`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ userId }),
+  });
+  if (!response.ok) {
+    const detail = await readErrorDetail(response);
+    throw new APIError(detail || `New chat failed with status ${response.status}`, response.status);
+  }
+  return response.json();
+}
+
+export async function deleteChat(graphId: string, userId: string, sessionId: string): Promise<void> {
+  const response = await fetch(
+    `${API_BASE}/api/graphs/${encodeURIComponent(graphId)}/chats/${encodeURIComponent(sessionId)}?userId=${encodeURIComponent(userId)}`,
+    { method: "DELETE" },
+  );
+  if (!response.ok) {
+    const detail = await readErrorDetail(response);
+    throw new APIError(detail || `Close chat failed with status ${response.status}`, response.status);
+  }
 }
 
 let memoryAnonymousUserId: string | null = null;

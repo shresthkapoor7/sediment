@@ -289,6 +289,61 @@ class SupabaseClient:
             expect_single=True,
         )
 
+    _CHAT_SESSION_COLUMNS = "id,graph_id,user_id,scope,paper_openalex_id,title,summary,summary_through_sequence,created_at,updated_at"
+
+    async def list_graph_chat_sessions(self, graph_id: str, user_id: str) -> list[dict[str, Any]]:
+        """Every agent chat on a canvas, oldest first."""
+        query = (
+            "/rest/v1/chat_sessions"
+            f"?select={self._CHAT_SESSION_COLUMNS}"
+            f"&graph_id=eq.{quote(graph_id, safe='')}"
+            f"&user_id=eq.{quote(user_id, safe='')}"
+            "&scope=eq.graph"
+            "&order=created_at.asc"
+            "&limit=50"
+        )
+        return await self._request("GET", query) or []
+
+    async def get_graph_chat_session(self, graph_id: str, user_id: str, session_id: str) -> dict[str, Any] | None:
+        query = (
+            "/rest/v1/chat_sessions"
+            f"?select={self._CHAT_SESSION_COLUMNS}"
+            f"&id=eq.{quote(session_id, safe='')}"
+            f"&graph_id=eq.{quote(graph_id, safe='')}"
+            f"&user_id=eq.{quote(user_id, safe='')}"
+            "&scope=eq.graph"
+            "&limit=1"
+        )
+        return await self._request("GET", query, expect_single=True, allow_empty=True)
+
+    async def create_graph_chat_session(self, graph_id: str, user_id: str, title: str | None = None) -> dict[str, Any]:
+        """Start another agent chat on a canvas. The caller checks the canvas belongs to the user."""
+        return await self._request(
+            "POST",
+            f"/rest/v1/chat_sessions?select={self._CHAT_SESSION_COLUMNS}",
+            json={"graph_id": graph_id, "user_id": user_id, "scope": "graph", "title": title},
+            headers={"Prefer": "return=representation"},
+            expect_single=True,
+        )
+
+    async def update_chat_session_title(self, session_id: str, user_id: str, title: str) -> None:
+        query = (
+            "/rest/v1/chat_sessions"
+            f"?id=eq.{quote(session_id, safe='')}"
+            f"&user_id=eq.{quote(user_id, safe='')}"
+        )
+        await self._request("PATCH", query, json={"title": title}, headers={"Prefer": "return=minimal"}, allow_empty=True)
+
+    async def delete_graph_chat_session(self, graph_id: str, user_id: str, session_id: str) -> None:
+        query = (
+            "/rest/v1/chat_sessions"
+            f"?id=eq.{quote(session_id, safe='')}"
+            f"&graph_id=eq.{quote(graph_id, safe='')}"
+            f"&user_id=eq.{quote(user_id, safe='')}"
+            "&scope=eq.graph"
+        )
+        await self._request("DELETE", query, headers={"Prefer": "return=minimal"}, allow_empty=True)
+
     async def list_chat_messages(
         self,
         session_id: str,

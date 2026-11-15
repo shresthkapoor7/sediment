@@ -335,6 +335,8 @@ class CanvasEdgeSnapshot(StrictRequestModel):
 class GlobalChatRequest(StrictRequestModel):
     graphId: Optional[str] = Field(default=None, max_length=MAX_GRAPH_ID_LENGTH)
     userId: Optional[str] = Field(default=None, max_length=MAX_USER_ID_LENGTH)
+    # The agent chat this message belongs to. Left out, the canvas's oldest chat is used.
+    sessionId: Optional[str] = Field(default=None, max_length=MAX_GRAPH_ID_LENGTH)
     # A canvas may be empty: the agent is how the first papers get onto it.
     papers: list[PaperSummary] = Field(default_factory=list, max_length=MAX_TIMELINE_PAPERS)
     # Links between the papers above as the browser shows them right now.
@@ -370,6 +372,8 @@ class ChatSessionRequest(StrictRequestModel):
     userId: str = Field(min_length=1, max_length=MAX_USER_ID_LENGTH)
     scope: Literal["paper", "graph"]
     paperOpenalexId: Optional[str] = Field(default=None, max_length=MAX_OPENALEX_ID_LENGTH)
+    # Which agent chat to open on a canvas. Left out, the oldest one is opened.
+    sessionId: Optional[str] = Field(default=None, max_length=MAX_GRAPH_ID_LENGTH)
 
     @model_validator(mode="after")
     def validate_scope(self):
@@ -390,8 +394,20 @@ class ChatMessageRecord(BaseModel):
     createdAt: str
 
 
+class ChatTab(BaseModel):
+    sessionId: str
+    title: Optional[str] = None
+    createdAt: str
+    updatedAt: str
+
+
+class ChatTabCreateRequest(StrictRequestModel):
+    userId: str = Field(min_length=1, max_length=MAX_USER_ID_LENGTH)
+
+
 class ChatSessionResponse(BaseModel):
     sessionId: str
+    title: Optional[str] = None
     scope: Literal["paper", "graph"]
     paperOpenalexId: Optional[str] = None
     summary: Optional[str] = None

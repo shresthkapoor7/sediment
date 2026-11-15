@@ -384,52 +384,57 @@ export default function Home() {
     setGlobalChatOpen((open) => !open);
   }, []);
 
-  const handleTimelineGraphAction = useCallback(
-    (action: TimelineGraphAction) => {
-      if (!timelineData) return;
-      const nextTimelineData = applyTimelineGraphAction(timelineData, action, {
-        lockedOpenalexIds: selectedSeedOpenalexId ? [selectedSeedOpenalexId] : [],
-      });
-      if (nextTimelineData === timelineData) return;
-      setTimelineData(nextTimelineData);
-      scheduleGraphUpdate(nextTimelineData, searchedQuery);
+  // Canvas edits are applied to the newest canvas, never to the copy a handler happened to capture.
+  // The agent holds on to these handlers for the length of a reply, during which it and the user may
+  // both change the board; working from a captured copy would silently undo the earlier change.
+  const timelineDataRef = useRef<TimelineData | null>(null);
+  useEffect(() => {
+    timelineDataRef.current = timelineData;
+  }, [timelineData]);
+  const commitTimeline = useCallback(
+    (update: (current: TimelineData) => TimelineData) => {
+      const current = timelineDataRef.current;
+      if (!current) return;
+      const next = update(current);
+      if (next === current) return;
+      timelineDataRef.current = next;
+      setTimelineData(next);
+      scheduleGraphUpdate(next, searchedQuery);
     },
-    [scheduleGraphUpdate, searchedQuery, selectedSeedOpenalexId, timelineData],
+    [scheduleGraphUpdate, searchedQuery],
+  );
+
+  const handleTimelineGraphAction = useCallback(
+    (action: TimelineGraphAction) => commitTimeline((current) => applyTimelineGraphAction(current, action, {
+      lockedOpenalexIds: selectedSeedOpenalexId ? [selectedSeedOpenalexId] : [],
+    })),
+    [commitTimeline, selectedSeedOpenalexId],
   );
 
   const handleTimelineLineageChanges = useCallback(
     (changes: LineageChange[]) => {
-      if (!timelineData || changes.length === 0) return;
-      const nextTimelineData = applyTimelineLineageChanges(timelineData, changes, {
+      if (changes.length === 0) return;
+      commitTimeline((current) => applyTimelineLineageChanges(current, changes, {
         lockedOpenalexIds: selectedSeedOpenalexId ? [selectedSeedOpenalexId] : [],
-      });
-      if (nextTimelineData === timelineData) return;
-      setTimelineData(nextTimelineData);
-      scheduleGraphUpdate(nextTimelineData, searchedQuery);
+      }));
     },
-    [scheduleGraphUpdate, searchedQuery, selectedSeedOpenalexId, timelineData],
+    [commitTimeline, selectedSeedOpenalexId],
   );
 
   const handleTimelineNoteChanges = useCallback(
     (changes: TimelineNoteChange[]) => {
-      if (!timelineData || changes.length === 0) return;
-      const nextTimelineData = applyTimelineNoteChanges(timelineData, changes);
-      if (nextTimelineData === timelineData) return;
-      setTimelineData(nextTimelineData);
-      scheduleGraphUpdate(nextTimelineData, searchedQuery);
+      if (changes.length === 0) return;
+      commitTimeline((current) => applyTimelineNoteChanges(current, changes));
     },
-    [scheduleGraphUpdate, searchedQuery, timelineData],
+    [commitTimeline],
   );
 
   const handleTimelineNodeColorChanges = useCallback(
     (changes: TimelineNodeColorChange[]) => {
-      if (!timelineData || changes.length === 0) return;
-      const nextTimelineData = applyTimelineNodeColorChanges(timelineData, changes);
-      if (nextTimelineData === timelineData) return;
-      setTimelineData(nextTimelineData);
-      scheduleGraphUpdate(nextTimelineData, searchedQuery);
+      if (changes.length === 0) return;
+      commitTimeline((current) => applyTimelineNodeColorChanges(current, changes));
     },
-    [scheduleGraphUpdate, searchedQuery, timelineData],
+    [commitTimeline],
   );
 
   const handleExport = useCallback(() => {

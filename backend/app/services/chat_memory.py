@@ -14,6 +14,10 @@ SUMMARY_BATCH_MIN_MESSAGES = 10
 SUMMARY_BATCH_MAX_MESSAGES = 40
 
 
+class ChatSessionNotFound(Exception):
+    """The requested chat does not exist on this canvas."""
+
+
 @dataclass
 class ChatContext:
     session: dict
@@ -47,13 +51,26 @@ class ChatMemoryService:
         paper_openalex_id: str | None = None,
         *,
         message_limit: int = RECENT_MESSAGE_LIMIT,
+        session_id: str | None = None,
     ) -> ChatContext:
-        session = await self.db.get_or_create_chat_session(
-            graph_id,
-            user_id,
-            scope,
-            paper_openalex_id,
-        )
+        if scope == "graph":
+            # A canvas can hold several agent chats. Open the one asked for, else the oldest, else start one.
+            # The caller has already checked that the canvas belongs to this user.
+            session = None
+            if session_id:
+                session = await self.db.get_graph_chat_session(graph_id, user_id, session_id)
+                if not session:
+                    raise ChatSessionNotFound(session_id)
+            if not session:
+                existing = await self.db.list_graph_chat_sessions(graph_id, user_id)
+                session = existing[0] if existing else await self.db.create_graph_chat_session(graph_id, user_id)
+        else:
+            session = await self.db.get_or_create_chat_session(
+                graph_id,
+                user_id,
+                scope,
+                paper_openalex_id,
+            )
         messages = await self.db.list_chat_messages(session["id"], user_id, limit=message_limit)
         return ChatContext(session=session, messages=messages)
 
@@ -121,6 +138,7 @@ def serialize_chat_context(context: ChatContext) -> dict:
     session = context.session
     return {
         "sessionId": session["id"],
+        "title": session.get("title"),
         "scope": session["scope"],
         "paperOpenalexId": session.get("paper_openalex_id"),
         "summary": session.get("summary"),
