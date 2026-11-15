@@ -84,10 +84,6 @@ export interface TimelineNoteConnection {
   relation?: TimelineNoteRelation;
 }
 
-export interface TraceNote extends TimelineNoteSummary {
-  connections: TimelineNoteConnection[];
-}
-
 export interface TraceSummary {
   traceMode: "standard" | "deep";
   rationale: string;
@@ -192,13 +188,6 @@ export type TimelineGraphAction =
       nodeId: number;
     };
 
-export interface SeedCandidate {
-  openalexId: string;
-  title: string;
-  year: number | null;
-  reason?: string | null;
-}
-
 export interface ChatSuggestion {
   topic: string;
   query: string;
@@ -271,33 +260,6 @@ export interface PersistentChatSession {
   paperOpenalexId?: string | null;
   summary?: string | null;
   messages: PersistentChatMessage[];
-}
-
-export interface TraversalSettings {
-  depth: number;
-  breadth: number;
-  referenceLimit: number;
-  topN: number;
-}
-
-export interface SearchMeta {
-  query: string;
-  mode: "resolved" | "resolved_inferred" | "needs_disambiguation" | "no_results";
-  confidence?: "high" | "medium" | "low" | null;
-  cacheHit: boolean;
-  traceMode?: "standard" | "deep";
-}
-
-export interface LineageGraphResponse {
-  seedPaperId: string | null;
-  papers: GraphPaper[];
-  edges: GraphEdge[];
-  rootIds: string[];
-  meta: SearchMeta;
-  disambiguation?: SeedCandidate[] | null;
-  traceNotes?: TraceNote[];
-  traceSummary?: TraceSummary | null;
-  traceEvidence?: TraceEvidence | null;
 }
 
 export interface Paper {

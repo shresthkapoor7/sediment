@@ -59,7 +59,6 @@ function capNodeMessages(messages: ChatMessage[]): ChatMessage[] {
 
 interface TimelineCanvasProps {
   data: TimelineData;
-  onExpandNode: (nodeId: number, query: string) => void;
   onGraphAction?: (action: TimelineGraphAction) => void;
   onLineageChanges?: (changes: LineageChange[]) => void;
   /** A first message for the agent, sent automatically when a new canvas opens. */
@@ -68,7 +67,6 @@ interface TimelineCanvasProps {
   onNoteChanges?: (changes: TimelineNoteChange[]) => void;
   onNodeColorChanges?: (changes: TimelineNodeColorChange[]) => void;
   lockedNodeOpenalexId?: string | null;
-  isExpanding: boolean;
   onUsageChanged?: () => void;
   readOnly?: boolean;
   hoverPreviewEnabled?: boolean;
@@ -96,7 +94,6 @@ type PaperAccessState = PaperAccessResponse | {
 
 export function TimelineCanvas({
   data,
-  onExpandNode,
   onGraphAction,
   onLineageChanges,
   agentKickoff,
@@ -104,7 +101,6 @@ export function TimelineCanvas({
   onNoteChanges,
   onNodeColorChanges,
   lockedNodeOpenalexId,
-  isExpanding,
   onUsageChanged,
   readOnly = false,
   hoverPreviewEnabled = true,
@@ -853,7 +849,7 @@ export function TimelineCanvas({
       block: "start",
     });
   }, [activeNodeId]);
-  const graphActionsDisabled = readOnly || isExpanding;
+  const graphActionsDisabled = readOnly;
   const activePaperHref = activeNode ? getPaperHref(activeNode) : null;
   const activePaperAccess = activeNode
     ? paperAccessById[activeNode.paper.openalexId] ?? {
@@ -1330,16 +1326,6 @@ export function TimelineCanvas({
       );
     },
     [activeNodeId, data.noteEdges, onGraphAction, readOnly],
-  );
-
-  const hasExistingExpansion = useCallback(
-    (sourceNodeId: number, query: string) =>
-      data.expansions.some(
-        (expansion) =>
-          expansion.sourceNodeId === sourceNodeId &&
-          expansion.query.trim().toLowerCase() === query.trim().toLowerCase(),
-      ),
-    [data.expansions]
   );
 
   const hoveredTimelineNode = hoveredNode ? data.nodes[hoveredNode.nodeId] : null;

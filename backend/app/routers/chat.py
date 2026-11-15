@@ -36,7 +36,8 @@ from ..services.paper_ingestion import IngestionError, PaperIngestionService
 from ..services.paper_retrieval import PaperRetrievalService, RetrievalError
 from ..services.special_notes import is_special_note
 from ..services.usage_limiter import limiter
-from .search import get_request_ip
+from ..request_ip import get_request_ip
+from .papers import resolve_identifier
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -170,8 +171,6 @@ def _lineage_paper_payload(paper: dict[str, Any]) -> dict[str, Any]:
     summary = detail.split(".", 1)[0].strip()
     if summary:
         summary = f"{summary}."
-    else:
-        summary = "OpenAlex metadata for this paper."
     return {
         "openalexId": paper.get("openalexId"),
         "title": paper.get("title") or "Untitled paper",
@@ -863,7 +862,17 @@ async def _run_global_chat(req: GlobalChatRequest, request_ip: str, event_emitte
                     api_key=settings.openalex_api_key,
                     mailto=settings.openalex_mailto,
                 ) as openalex:
-                    matches = await openalex.search_papers(query, limit=limit)
+                    # A pasted DOI, arXiv link or OpenAlex ID names one paper: fetch it instead of searching.
+                    identifier = resolve_identifier(query)
+                    matches = []
+                    if identifier:
+                        try:
+                            work = await openalex.fetch_work(identifier)
+                            matches = [work] if work else []
+                        except OpenAlexError:
+                            matches = []
+                    if not matches:
+                        matches = await openalex.search_papers(query, limit=limit)
             except OpenAlexError:
                 result = {"status": "error", "message": "OpenAlex search is currently unavailable."}
                 await _emit(event_emitter, "tool_completed", {"name": name, "status": "error", "result": result})

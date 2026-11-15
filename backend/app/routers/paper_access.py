@@ -19,7 +19,7 @@ from ..services.paper_access import PaperAccessChecker
 from ..services.paper_ingestion import IngestionError, PaperIngestionService
 from ..services.paper_retrieval import PaperRetrievalService, RetrievalError
 from ..services.usage_limiter import limiter
-from .search import get_request_ip
+from ..request_ip import get_request_ip
 
 router = APIRouter()
 logger = logging.getLogger(__name__)

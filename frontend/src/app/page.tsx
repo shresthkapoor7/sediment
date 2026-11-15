@@ -19,23 +19,15 @@ const TimelineCanvas = dynamic(
   () => import("@/components/TimelineCanvas").then((mod) => mod.TimelineCanvas),
   { ssr: false },
 );
-const ClarificationModal = dynamic(
-  () => import("@/components/ClarificationModal").then((mod) => mod.ClarificationModal),
-  { ssr: false },
-);
 import {
   APIError,
   APP_VERSION,
-  clarifyQuery,
-  ClarifyResult,
   createSavedGraph,
-  expandLineage,
   fetchSavedGraph,
   fetchUsage,
   getOrCreateAnonymousUserId,
   LAST_GRAPH_ID_KEY,
   registerAnonymousUser,
-  searchLineage,
   shareGraph,
   updateSavedGraph,
 } from "@/lib/api";
@@ -43,47 +35,25 @@ import { useHoverPreviewToggle } from "@/lib/hover-preview";
 import { useLandingViewport } from "@/lib/use-landing-viewport";
 import { upgradeLegacyTimelineNoteLayout } from "@/lib/note-layout";
 import { applyTimelineGraphAction, applyTimelineLineageChanges, applyTimelineNodeColorChanges, applyTimelineNoteChanges } from "@/lib/timeline-actions";
-import {
-  buildTimelineFromGraph,
-  createEmptyTimeline,
-  mergeTimelineWithGraph,
-} from "@/lib/timeline-builder";
+import { createEmptyTimeline } from "@/lib/timeline-builder";
 import {
   LineageChange,
-  SeedCandidate,
   TimelineData,
   TimelineGraphAction,
   TimelineNodeColorChange,
   TimelineNoteChange,
-  TraversalSettings,
 } from "@/lib/types";
 import { exportObsidianZip } from "@/lib/export";
 
 const GITHUB_REPO_URL = "https://github.com/shresthkapoor7/sediment";
 
-const DEFAULT_SETTINGS: TraversalSettings = {
-  depth: 1,
-  breadth: 2,
-  referenceLimit: 20,
-  topN: 5,
-};
-
-
 export default function Home() {
   const reduceMotion = useReducedMotion();
   const [timelineData, setTimelineData] = useState<TimelineData | null>(null);
   const [isSearching, setIsSearching] = useState(false);
-  const [isExpanding, setIsExpanding] = useState(false);
   const [isRestoring, setIsRestoring] = useState(true);
   const [searchedQuery, setSearchedQuery] = useState("");
   const [searchError, setSearchError] = useState("");
-  const [disambiguation, setDisambiguation] = useState<SeedCandidate[]>([]);
-  const [traceMode, setTraceMode] = useState<"standard" | "deep">("standard");
-  const [settings, setSettings] = useState<TraversalSettings>(DEFAULT_SETTINGS);
-  const [draftSettings, setDraftSettings] =
-    useState<TraversalSettings>(DEFAULT_SETTINGS);
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [sessionActionsOpen, setSessionActionsOpen] = useState(false);
   const { hoverPreviewEnabled, onToggleHoverPreview } = useHoverPreviewToggle();
   const [userId, setUserId] = useState<string | null>(null);
   const [graphId, setGraphId] = useState<string | null>(null);
@@ -107,11 +77,6 @@ export default function Home() {
   const [closePaperPanelSignal, setClosePaperPanelSignal] = useState(0);
   const [credits, setCredits] = useState<number>(10);
   const [showCreditsHint, setShowCreditsHint] = useState(false);
-  const [isClarifying, setIsClarifying] = useState(false);
-  const [clarification, setClarification] = useState<ClarifyResult | null>(
-    null,
-  );
-  const clarifyRequestIdRef = useRef(0);
   const shareStateTimeoutRef = useRef<number | null>(null);
   const saveTimeoutRef = useRef<number | null>(null);
   const saveStateTimeoutRef = useRef<number | null>(null);
@@ -126,7 +91,6 @@ export default function Home() {
   const setLandingScrollRef = useCallback((node: HTMLDivElement | null) => {
     setLandingScrollEl(node);
   }, []);
-  const landingSearchRef = useRef<HTMLDivElement | null>(null);
   const { mobile } = useLandingViewport();
 
   useEffect(() => {
@@ -344,127 +308,6 @@ export default function Home() {
     userId,
   ]);
 
-  const runSearch = useCallback(
-    async (
-      query: string,
-      seedOpenalexId?: string,
-      searchSettings: TraversalSettings = settings,
-      requestQuery: string = query,
-      selectedTraceMode: "standard" | "deep" = traceMode,
-    ) => {
-      if (isExpanding) return;
-      if (saveTimeoutRef.current) {
-        window.clearTimeout(saveTimeoutRef.current);
-      }
-      if (saveStateTimeoutRef.current) {
-        window.clearTimeout(saveStateTimeoutRef.current);
-      }
-      setIsSearching(true);
-      setSearchError("");
-      setDisambiguation([]);
-      setSearchedQuery(query);
-      setGraphTitle(query);
-      setGraphTitleDraft("");
-      setIsEditingGraphTitle(false);
-      setGraphOwnerId(null);
-
-      try {
-        let response = await searchLineage(
-          requestQuery,
-          seedOpenalexId,
-          searchSettings,
-          selectedTraceMode,
-        );
-        const normalizedDisplayQuery = query.trim().toLowerCase();
-        const normalizedRequestQuery = requestQuery.trim().toLowerCase();
-        if (
-          response.papers.length === 0 &&
-          normalizedRequestQuery &&
-          normalizedRequestQuery !== normalizedDisplayQuery
-        ) {
-          response = await searchLineage(query, seedOpenalexId, searchSettings, selectedTraceMode);
-        }
-        if (response.meta.mode === "needs_disambiguation") {
-          setTimelineData(null);
-          setGraphId(null);
-          setGraphOwnerId(null);
-          setSelectedSeedOpenalexId(null);
-          setSaveState("idle");
-          persistLastGraphId(null);
-          setDisambiguation(response.disambiguation ?? []);
-          return;
-        }
-        if (response.meta.mode === "no_results" || response.papers.length === 0) {
-          setTimelineData(null);
-          setGraphId(null);
-          setGraphOwnerId(null);
-          setSelectedSeedOpenalexId(null);
-          setGlobalChatOpen(false);
-          setSaveState("idle");
-          persistLastGraphId(null);
-          setSearchError("I couldn’t find papers for that full query. Try one concept or paper title at a time.");
-          return;
-        }
-        const nextTimelineData = buildTimelineFromGraph(response);
-        const nextSeedPaperId =
-          response.seedPaperId ??
-          seedOpenalexId ??
-          nextTimelineData.nodes[nextTimelineData.rootId]?.paper.openalexId ??
-          null;
-        setTimelineData(nextTimelineData);
-        setSelectedSeedOpenalexId(nextSeedPaperId);
-        setGlobalChatOpen(Boolean(nextTimelineData.traceSummary));
-
-        if (userId) {
-          try {
-            setSaveState("saving");
-            const savedGraph = await createSavedGraph({
-              userId,
-              query,
-              data: nextTimelineData,
-              seedPaperId: nextSeedPaperId,
-              metadata: buildMetadata(query, nextTimelineData),
-            });
-            setGraphId(savedGraph.id);
-            setGraphOwnerId(savedGraph.userId);
-            setGraphTitle(savedGraph.metadata.title || query);
-            setSaveState("saved");
-            persistLastGraphId(savedGraph.id);
-            saveStateTimeoutRef.current = window.setTimeout(() => {
-              setSaveState("idle");
-            }, 1800);
-          } catch {
-            setGraphId(null);
-            setGraphOwnerId(null);
-            setSaveState("error");
-            persistLastGraphId(null);
-          }
-        }
-      } catch (error) {
-        setTimelineData(null);
-        setGraphId(null);
-        setGraphOwnerId(null);
-        setSelectedSeedOpenalexId(null);
-        setSaveState("idle");
-        setSearchError(
-          error instanceof Error ? error.message : "Search failed",
-        );
-      } finally {
-        setIsSearching(false);
-        refreshCredits();
-      }
-    },
-    [
-      buildMetadata,
-      isExpanding,
-      persistLastGraphId,
-      refreshCredits,
-      settings,
-      traceMode,
-      userId,
-    ],
-  );
-
   // A new canvas starts empty. The query becomes the first message to the agent, which decides with
   // the researcher what goes on the board.
   const startCanvas = useCallback(
@@ -473,7 +316,9 @@ export default function Home() {
       if (!text || !userId || isSearching) return;
       if (saveTimeoutRef.current) window.clearTimeout(saveTimeoutRef.current);
       if (saveStateTimeoutRef.current) window.clearTimeout(saveStateTimeoutRef.current);
-      const title = text.length > 60 ? `${text.slice(0, 57).trimEnd()}…` : text;
+      // A pasted link or ID is not a name; the researcher can rename the canvas from the top bar.
+      const looksLikeLink = /^(https?:\/\/|www\.|doi:|arxiv:|10\.\d{4,}\/)/i.test(text) || /^W\d{4,}$/i.test(text);
+      const title = looksLikeLink ? "Untitled canvas" : text.length > 60 ? `${text.slice(0, 57).trimEnd()}…` : text;
       const emptyData = createEmptyTimeline();
       setIsSearching(true);
       setSearchError("");
@@ -511,56 +356,7 @@ export default function Home() {
     [buildMetadata, isSearching, persistLastGraphId, userId],
   );
 
-  const handleSearch = useCallback(
-    async (query: string) => {
-      const requestId = ++clarifyRequestIdRef.current;
-      setClarification(null);
-      setSearchError("");
-      setIsClarifying(true);
-      try {
-        const result = await clarifyQuery(query);
-        if (clarifyRequestIdRef.current !== requestId) {
-          return;
-        }
-        if (result.needsClarification) {
-          setClarification(result);
-        } else {
-          void runSearch(
-            query,
-            undefined,
-            settings,
-            result.refinedQuery ?? query,
-          );
-        }
-      } catch (error) {
-        if (clarifyRequestIdRef.current !== requestId) {
-          return;
-        }
-        if (error instanceof APIError && error.status === 429) {
-          setSearchError(error.message);
-          return;
-        }
-        void runSearch(query);
-      } finally {
-        if (clarifyRequestIdRef.current === requestId) {
-          setIsClarifying(false);
-        }
-      }
-    },
-    [runSearch, settings],
-  );
-
-  const handleSeedChoice = useCallback(
-    (openalexId: string) => {
-      if (!searchedQuery) return;
-      setSelectedSeedOpenalexId(openalexId);
-      void runSearch(searchedQuery, openalexId);
-    },
-    [runSearch, searchedQuery],
-  );
-
   const handleReset = useCallback(() => {
-    clarifyRequestIdRef.current += 1;
     if (saveTimeoutRef.current) {
       window.clearTimeout(saveTimeoutRef.current);
     }
@@ -577,74 +373,20 @@ export default function Home() {
     setSaveState("idle");
     setSearchedQuery("");
     setSearchError("");
-    setDisambiguation([]);
-    setClarification(null);
     setGlobalChatOpen(false);
     setAgentKickoff(null);
-    setSessionActionsOpen(false);
-    setSettingsOpen(false);
     setClosePaperPanelSignal((value) => value + 1);
-    setDraftSettings(settings);
     persistLastGraphId(null);
-  }, [persistLastGraphId, settings]);
+  }, [persistLastGraphId]);
 
   const handleToggleGlobalChat = useCallback(() => {
     setClosePaperPanelSignal((value) => value + 1);
     setGlobalChatOpen((open) => !open);
   }, []);
 
-  const handleExpandNode = useCallback(
-    (nodeId: number, query: string) => {
-      if (!timelineData) return;
-
-      const sourceNode = timelineData.nodes[nodeId];
-      if (!sourceNode) return;
-
-      const normalizedQuery = query.trim().toLowerCase();
-      const alreadyExpanded = timelineData.expansions.some(
-        (expansion) =>
-          expansion.sourceNodeId === nodeId &&
-          expansion.query.trim().toLowerCase() === normalizedQuery,
-      );
-      if (alreadyExpanded) return;
-
-      setIsExpanding(true);
-      setSearchError("");
-
-      void expandLineage(sourceNode.paper.openalexId, query, settings)
-        .then((fragment) => {
-          const nextTimelineData = mergeTimelineWithGraph(
-            timelineData,
-            fragment,
-            nodeId,
-            query,
-          );
-
-          setTimelineData(nextTimelineData);
-          scheduleGraphUpdate(nextTimelineData, searchedQuery);
-        })
-        .catch((error) => {
-          setSearchError(
-            error instanceof Error ? error.message : "Expand failed",
-          );
-        })
-        .finally(() => {
-          setIsExpanding(false);
-          refreshCredits();
-        });
-    },
-    [
-      refreshCredits,
-      scheduleGraphUpdate,
-      searchedQuery,
-      settings,
-      timelineData,
-    ],
-  );
-
   const handleTimelineGraphAction = useCallback(
     (action: TimelineGraphAction) => {
-      if (!timelineData || isExpanding) return;
+      if (!timelineData) return;
       const nextTimelineData = applyTimelineGraphAction(timelineData, action, {
         lockedOpenalexIds: selectedSeedOpenalexId ? [selectedSeedOpenalexId] : [],
       });
@@ -652,12 +394,12 @@ export default function Home() {
       setTimelineData(nextTimelineData);
       scheduleGraphUpdate(nextTimelineData, searchedQuery);
     },
-    [isExpanding, scheduleGraphUpdate, searchedQuery, selectedSeedOpenalexId, timelineData],
+    [scheduleGraphUpdate, searchedQuery, selectedSeedOpenalexId, timelineData],
   );
 
   const handleTimelineLineageChanges = useCallback(
     (changes: LineageChange[]) => {
-      if (!timelineData || isExpanding || changes.length === 0) return;
+      if (!timelineData || changes.length === 0) return;
       const nextTimelineData = applyTimelineLineageChanges(timelineData, changes, {
         lockedOpenalexIds: selectedSeedOpenalexId ? [selectedSeedOpenalexId] : [],
       });
@@ -665,35 +407,30 @@ export default function Home() {
       setTimelineData(nextTimelineData);
       scheduleGraphUpdate(nextTimelineData, searchedQuery);
     },
-    [isExpanding, scheduleGraphUpdate, searchedQuery, selectedSeedOpenalexId, timelineData],
+    [scheduleGraphUpdate, searchedQuery, selectedSeedOpenalexId, timelineData],
   );
 
   const handleTimelineNoteChanges = useCallback(
     (changes: TimelineNoteChange[]) => {
-      if (!timelineData || isExpanding || changes.length === 0) return;
+      if (!timelineData || changes.length === 0) return;
       const nextTimelineData = applyTimelineNoteChanges(timelineData, changes);
       if (nextTimelineData === timelineData) return;
       setTimelineData(nextTimelineData);
       scheduleGraphUpdate(nextTimelineData, searchedQuery);
     },
-    [isExpanding, scheduleGraphUpdate, searchedQuery, timelineData],
+    [scheduleGraphUpdate, searchedQuery, timelineData],
   );
 
   const handleTimelineNodeColorChanges = useCallback(
     (changes: TimelineNodeColorChange[]) => {
-      if (!timelineData || isExpanding || changes.length === 0) return;
+      if (!timelineData || changes.length === 0) return;
       const nextTimelineData = applyTimelineNodeColorChanges(timelineData, changes);
       if (nextTimelineData === timelineData) return;
       setTimelineData(nextTimelineData);
       scheduleGraphUpdate(nextTimelineData, searchedQuery);
     },
-    [isExpanding, scheduleGraphUpdate, searchedQuery, timelineData],
+    [scheduleGraphUpdate, searchedQuery, timelineData],
   );
-
-  const handleRefreshCurrent = useCallback(() => {
-    if (!searchedQuery || isExpanding) return;
-    void runSearch(searchedQuery, selectedSeedOpenalexId ?? undefined);
-  }, [isExpanding, runSearch, searchedQuery, selectedSeedOpenalexId]);
 
   const handleExport = useCallback(() => {
     if (!timelineData || !searchedQuery) return;
@@ -744,24 +481,12 @@ export default function Home() {
       isEditingGraphTitle={isEditingGraphTitle}
       canEditGraphTitle={canEditGraphTitle}
       graphTitleInputRef={graphTitleInputRef}
-      isSearching={isSearching}
-      isExpanding={isExpanding}
-      settingsOpen={settingsOpen}
-      settings={settings}
-      draftSettings={draftSettings}
-      defaultSettings={DEFAULT_SETTINGS}
-      sessionActionsOpen={sessionActionsOpen}
       mobileMenuOpen={mobileMenuOpen}
       globalChatOpen={globalChatOpen}
       credits={credits}
       showCreditsHint={showCreditsHint}
       shareState={shareState}
-      selectedSeedOpenalexId={selectedSeedOpenalexId}
       landingScrollEl={landingScrollEl}
-      setSettingsOpen={setSettingsOpen}
-      setSettings={setSettings}
-      setDraftSettings={setDraftSettings}
-      setSessionActionsOpen={setSessionActionsOpen}
       setMobileMenuOpen={setMobileMenuOpen}
       setShowCreditsHint={setShowCreditsHint}
       setGraphTitleDraft={setGraphTitleDraft}
@@ -772,13 +497,12 @@ export default function Home() {
       startGraphTitleEdit={startGraphTitleEdit}
       saveGraphTitle={saveGraphTitle}
       cancelGraphTitleEdit={cancelGraphTitleEdit}
-      runSearch={runSearch}
     />
   );
 
   return (
     <div
-      className={`app-shell${timelineData ? " canvas-shell" : " landing-shell"}${isSearching || isRestoring || isClarifying ? " graph-loading-shell" : ""}`}
+      className={`app-shell${timelineData ? " canvas-shell" : " landing-shell"}${isSearching || isRestoring ? " graph-loading-shell" : ""}`}
       style={{
         height: "100vh",
         display: "flex",
@@ -788,44 +512,6 @@ export default function Home() {
     >
       {/* Top bar: the home screen renders it inside the scrolling page instead, so it scrolls away */}
       {!showLandingView && appHeader}
-
-      {/* Clarification modal */}
-      <AnimatePresence>
-        {clarification?.needsClarification && (
-          <ClarificationModal
-            key="clarification-modal"
-            returnFocusRef={landingSearchRef}
-            question={
-              clarification.question ??
-              "What research area are you interested in?"
-            }
-            options={clarification.options ?? []}
-            onSelect={(query) => {
-              setClarification(null);
-              void runSearch(query);
-            }}
-            onDismiss={() => setClarification(null)}
-          />
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {disambiguation.length > 0 && !isSearching && (
-          <ClarificationModal
-            key="seed-paper-modal"
-            returnFocusRef={landingSearchRef}
-            question="Which paper would you like to start from?"
-            options={disambiguation.map((candidate) => ({
-              value: candidate.openalexId,
-              label: candidate.title,
-              description: String(candidate.year ?? "Unknown year"),
-            }))}
-            allowCustomQuery={false}
-            onSelect={handleSeedChoice}
-            onDismiss={() => setDisambiguation([])}
-          />
-        )}
-      </AnimatePresence>
 
       {/* Main content */}
       <div style={{ flex: 1, position: "relative", overflow: "hidden" }}>
@@ -926,7 +612,7 @@ export default function Home() {
                 <FeedsView embedded ready={feedReady} onSearch={startCanvas} searching={isSearching} />
               </section>
             </m.div>
-          ) : isSearching || isRestoring || isClarifying ? (
+          ) : isSearching || isRestoring ? (
             /* Loading state */
             <m.div
               key="loading"
@@ -984,13 +670,11 @@ export default function Home() {
             >
               <TimelineCanvas
                 data={timelineData!}
-                onExpandNode={handleExpandNode}
                 onGraphAction={handleTimelineGraphAction}
                 onLineageChanges={handleTimelineLineageChanges}
                 onNoteChanges={handleTimelineNoteChanges}
                 onNodeColorChanges={handleTimelineNodeColorChanges}
                 lockedNodeOpenalexId={selectedSeedOpenalexId}
-                isExpanding={isExpanding}
                 onUsageChanged={refreshCredits}
                 hoverPreviewEnabled={hoverPreviewEnabled}
                 onToggleHoverPreview={onToggleHoverPreview}

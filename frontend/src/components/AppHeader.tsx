@@ -5,126 +5,11 @@ import { useState } from "react";
 import { m, AnimatePresence } from "framer-motion";
 import { LogoMark } from "@/components/LogoMark";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { TimelineData, TraversalSettings } from "@/lib/types";
+import { TimelineData } from "@/lib/types";
 
 const MotionLink = m.create(Link);
 
 const GITHUB_REPO_URL = "https://github.com/shresthkapoor7/sediment";
-
-const THUMB_SIZE = 13;
-
-// Single source of truth for the traversal-settings sliders so the desktop and
-// mobile panels can't drift on ranges. Only the label differs per surface.
-const TRAVERSAL_SLIDERS = [
-  { key: "depth", label: "Depth", min: 1, max: 2 },
-  { key: "breadth", label: "Breadth", min: 1, max: 4 },
-  { key: "referenceLimit", label: "Reference limit", compactLabel: "Ref limit", min: 5, max: 30 },
-  { key: "topN", label: "Top N", min: 1, max: 6 },
-] as const;
-
-function SettingsSlider({
-  item,
-  value,
-  onChange,
-}: {
-  item: { key: string; label: string; min: number; max: number };
-  value: number;
-  onChange: (v: number) => void;
-}) {
-  const pct = ((value - item.min) / (item.max - item.min)) * 100;
-  return (
-    <label style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "baseline",
-          fontSize: "0.71875rem",
-          color: "var(--text-secondary)",
-          fontFamily: "var(--font-sans), sans-serif",
-        }}
-      >
-        <span style={{ fontWeight: 500 }}>{item.label}</span>
-        <span
-          style={{
-            fontFamily: "var(--font-mono), monospace",
-            fontSize: "0.6875rem",
-            color: "var(--accent)",
-          }}
-        >
-          {value}
-        </span>
-      </div>
-      <div
-        style={{
-          position: "relative",
-          height: "1.25rem",
-          display: "flex",
-          alignItems: "center",
-        }}
-      >
-        {/* Track */}
-        <div
-          style={{
-            position: "absolute",
-            left: 0,
-            right: 0,
-            height: "0.1875rem",
-            top: "50%",
-            transform: "translateY(-50%)",
-            borderRadius: "0.125rem",
-            background: "var(--bg-tertiary)",
-          }}
-        />
-        {/* Fill */}
-        <div
-          style={{
-            position: "absolute",
-            left: 0,
-            height: "0.1875rem",
-            top: "50%",
-            transform: "translateY(-50%)",
-            borderRadius: "0.125rem",
-            background: "var(--accent)",
-            width: `${pct}%`,
-          }}
-        />
-        {/* Thumb */}
-        <div
-          style={{
-            position: "absolute",
-            width: THUMB_SIZE,
-            height: THUMB_SIZE,
-            top: "50%",
-            transform: "translateY(-50%)",
-            borderRadius: "50%",
-            background: "var(--accent)",
-            boxShadow: "0 0.0625rem 0.25rem rgba(0,0,0,0.3)",
-            pointerEvents: "none",
-            left: `calc(${pct}% - ${(pct / 100) * THUMB_SIZE}px)`,
-          }}
-        />
-        {/* Hidden native input */}
-        <input
-          type="range"
-          min={item.min}
-          max={item.max}
-          value={value}
-          onChange={(e) => onChange(Number(e.currentTarget.value))}
-          style={{
-            position: "absolute",
-            inset: 0,
-            width: "100%",
-            margin: 0,
-            opacity: 0,
-            cursor: "pointer",
-            height: "100%",
-          }}
-        />
-      </div>
-    </label>
-  );
-}
 
 interface AppHeaderProps {
   timelineData: TimelineData | null;
@@ -135,24 +20,12 @@ interface AppHeaderProps {
   isEditingGraphTitle: boolean;
   canEditGraphTitle: boolean;
   graphTitleInputRef: React.RefObject<HTMLInputElement | null>;
-  isSearching: boolean;
-  isExpanding: boolean;
-  settingsOpen: boolean;
-  settings: TraversalSettings;
-  draftSettings: TraversalSettings;
-  defaultSettings: TraversalSettings;
-  sessionActionsOpen: boolean;
   mobileMenuOpen: boolean;
   globalChatOpen: boolean;
   credits: number;
   showCreditsHint: boolean;
   shareState: "idle" | "sharing" | "copied" | "error";
-  selectedSeedOpenalexId: string | null;
   landingScrollEl: HTMLDivElement | null;
-  setSettingsOpen: React.Dispatch<React.SetStateAction<boolean>>;
-  setSettings: React.Dispatch<React.SetStateAction<TraversalSettings>>;
-  setDraftSettings: React.Dispatch<React.SetStateAction<TraversalSettings>>;
-  setSessionActionsOpen: React.Dispatch<React.SetStateAction<boolean>>;
   setMobileMenuOpen: React.Dispatch<React.SetStateAction<boolean>>;
   setShowCreditsHint: React.Dispatch<React.SetStateAction<boolean>>;
   setGraphTitleDraft: React.Dispatch<React.SetStateAction<string>>;
@@ -163,13 +36,6 @@ interface AppHeaderProps {
   startGraphTitleEdit: () => void;
   saveGraphTitle: () => void;
   cancelGraphTitleEdit: () => void;
-  runSearch: (
-    query: string,
-    seedOpenalexId?: string,
-    searchSettings?: TraversalSettings,
-    requestQuery?: string,
-    selectedTraceMode?: "standard" | "deep",
-  ) => void | Promise<void>;
 }
 
 export function AppHeader({
@@ -181,24 +47,12 @@ export function AppHeader({
   isEditingGraphTitle,
   canEditGraphTitle,
   graphTitleInputRef,
-  isSearching,
-  isExpanding,
-  settingsOpen,
-  settings,
-  draftSettings,
-  defaultSettings,
-  sessionActionsOpen,
   mobileMenuOpen,
   globalChatOpen,
   credits,
   showCreditsHint,
   shareState,
-  selectedSeedOpenalexId,
   landingScrollEl,
-  setSettingsOpen,
-  setSettings,
-  setDraftSettings,
-  setSessionActionsOpen,
   setMobileMenuOpen,
   setShowCreditsHint,
   setGraphTitleDraft,
@@ -209,7 +63,6 @@ export function AppHeader({
   startGraphTitleEdit,
   saveGraphTitle,
   cancelGraphTitleEdit,
-  runSearch,
 }: AppHeaderProps) {
   // Compaction state lives here so toggling the graph dock only re-renders the
   // header — not the whole page tree. The home header never collapses: it scrolls
@@ -217,13 +70,6 @@ export function AppHeader({
   // Home header: credits sit collapsed as a ring until clicked open into the bar meter.
   const [creditsExpanded, setCreditsExpanded] = useState(false);
   const [isGraphHeaderCompact, setIsGraphHeaderCompact] = useState(false);
-
-  // Apply is a no-op unless the draft differs from the active settings.
-  const settingsChanged =
-    draftSettings.depth !== settings.depth ||
-    draftSettings.breadth !== settings.breadth ||
-    draftSettings.referenceLimit !== settings.referenceLimit ||
-    draftSettings.topN !== settings.topN;
 
   return (
       <m.header
@@ -551,7 +397,7 @@ export function AppHeader({
               </div>
             </div>
 
-            {/* Canvas actions sit in the bar itself; only the traversal settings open a popover. */}
+            {/* Canvas actions sit in the bar itself. */}
             {timelineData && (
               <>
                 <button type="button" className="app-header-labeled-action" onClick={handleExport} title="Export to Obsidian">
@@ -565,190 +411,6 @@ export function AppHeader({
                 <ThemeToggle className="app-header-labeled-action app-header-graph-icon-action" />
               </>
             )}
-            <div style={{ position: "relative", display: timelineData ? undefined : "none" }}>
-              <button
-                className={`app-header-labeled-action${timelineData ? " app-header-graph-icon-action" : ""}`}
-                onClick={() => {
-                  if (timelineData) {
-                    setSessionActionsOpen((open) => !open);
-                    setSettingsOpen(false);
-                    setDraftSettings(settings);
-                    return;
-                  }
-                  setDraftSettings(settings);
-                  setSettingsOpen((open) => !open);
-                }}
-                aria-label={timelineData ? "Traversal settings" : "Settings"}
-                aria-expanded={timelineData ? sessionActionsOpen : settingsOpen}
-                title={timelineData ? "Traversal settings" : undefined}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: timelineData ? 0 : "0.375rem",
-                  padding: timelineData ? 0 : "0 0.75rem",
-                  width: timelineData ? "2rem" : "auto",
-                  height: "2rem",
-                  boxSizing: "border-box",
-                  background: "none",
-                  border: "0.0625rem solid var(--border)",
-                  borderRadius: "0.4375rem",
-                  color: "var(--text-secondary)",
-                  fontSize: "0.75rem",
-                  fontFamily: "var(--font-sans), sans-serif",
-                  fontWeight: 500,
-                  cursor: "pointer",
-                  transition: "border-color 0.15s, color 0.15s",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.borderColor = "var(--accent)";
-                  e.currentTarget.style.color = "var(--accent)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.borderColor = "var(--border)";
-                  e.currentTarget.style.color = "var(--text-secondary)";
-                }}
-              >
-                {timelineData ? (
-                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden="true">
-                    <path d="M2.5 5h6M11.500 5h2M2.500 11h2M7.500 11h6" />
-                    <circle cx="10" cy="5" r="1.500" />
-                    <circle cx="6" cy="11" r="1.500" />
-                  </svg>
-                ) : (
-                  <>
-                    <svg
-                      width="13"
-                      height="13"
-                      viewBox="0 0 16 16"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.5"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M6.5 1.5h3M6 14.5h4M3.5 5.5h9M2.5 10.5h11" />
-                      <circle cx="10.5" cy="5.5" r="1.5" />
-                      <circle cx="5.5" cy="10.5" r="1.5" />
-                    </svg>
-                    <span className="app-header-action-label">Settings</span>
-                  </>
-                )}
-              </button>
-
-              <AnimatePresence>
-                {(settingsOpen || sessionActionsOpen) && (
-                  <m.div
-                    initial={{ opacity: 0, y: -6, scale: 0.98 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: -6, scale: 0.98 }}
-                    transition={{ duration: 0.15, ease: "easeOut" }}
-                    style={{
-                      position: "absolute",
-                      top: "2.5rem",
-                      right: 0,
-                      width: timelineData ? "16rem" : "15rem",
-                      padding: "0.875rem 0.875rem 0.75rem",
-                      background: "var(--bg-secondary)",
-                      border: "0.0625rem solid var(--border-hover)",
-                      borderRadius: "0.625rem",
-                      boxShadow:
-                        "0 0.5rem 1.5rem rgba(0,0,0,0.10), 0 0.125rem 0.375rem rgba(0,0,0,0.06)",
-                      zIndex: 100,
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: "0.625rem",
-                    }}
-                  >
-                    <p
-                      style={{
-                        fontSize: "0.625rem",
-                        color: "var(--text-tertiary)",
-                        fontFamily: "var(--font-mono), monospace",
-                        letterSpacing: "0.06em",
-                        textTransform: "uppercase",
-                      }}
-                    >
-                      traversal settings
-                    </p>
-                    {TRAVERSAL_SLIDERS.map((slider) => (
-                      <SettingsSlider
-                        key={slider.key}
-                        item={{ key: slider.key, label: slider.label, min: slider.min, max: slider.max }}
-                        value={draftSettings[slider.key]}
-                        onChange={(v) =>
-                          setDraftSettings((prev) => ({
-                            ...prev,
-                            [slider.key]: v,
-                          }))
-                        }
-                      />
-                    ))}
-                    <div
-                      style={{
-                        display: "flex",
-                        gap: "0.375rem",
-                        alignItems: "center",
-                        marginTop: "0.125rem",
-                        borderTop: "0.0625rem solid var(--border)",
-                        paddingTop: "0.625rem",
-                      }}
-                    >
-                      <button
-                        onClick={() => setDraftSettings(defaultSettings)}
-                        style={{
-                          height: "1.625rem",
-                          padding: "0 0.5rem",
-                          borderRadius: "0.375rem",
-                          border: "none",
-                          background: "none",
-                          color: "var(--text-tertiary)",
-                          cursor: "pointer",
-                          fontSize: "0.6875rem",
-                          fontFamily: "var(--font-sans), sans-serif",
-                          fontWeight: 500,
-                          letterSpacing: "0.01em",
-                        }}
-                      >
-                        Reset
-                      </button>
-                      <div style={{ flex: 1 }} />
-                      <button
-                        onClick={() => {
-                          if (isExpanding) return;
-                          setSettings(draftSettings);
-                          if (searchedQuery && !isSearching)
-                            void runSearch(
-                              searchedQuery,
-                              selectedSeedOpenalexId ?? undefined,
-                              draftSettings,
-                            );
-                          setSettingsOpen(false);
-                          setSessionActionsOpen(false);
-                        }}
-                        disabled={isExpanding || !settingsChanged}
-                        style={{
-                          height: "1.625rem",
-                          padding: "0 0.625rem",
-                          borderRadius: "0.375rem",
-                          border: "0.0625rem solid var(--accent)",
-                          background: "var(--accent-soft)",
-                          color: "var(--accent)",
-                          cursor: isExpanding || !settingsChanged ? "default" : "pointer",
-                          opacity: settingsChanged ? 1 : 0.45,
-                          fontSize: "0.6875rem",
-                          fontFamily: "var(--font-sans), sans-serif",
-                          fontWeight: 600,
-                          letterSpacing: "0.01em",
-                        }}
-                      >
-                        Apply
-                      </button>
-                    </div>
-                  </m.div>
-                )}
-              </AnimatePresence>
-            </div>
 
             {timelineData && (
               <button
@@ -838,7 +500,6 @@ export function AppHeader({
               className="show-mobile"
               onClick={() => {
                 setMobileMenuOpen((o) => !o);
-                setDraftSettings(settings);
               }}
               aria-label="Menu"
               style={{
@@ -1060,99 +721,6 @@ export function AppHeader({
                   Changelog
                 </Link>
               )}
-
-              {/* Settings — inline sliders */}
-              <div style={{ padding: "0.5rem 0.5rem 0.25rem" }}>
-                <p
-                  style={{
-                    fontSize: "0.625rem",
-                    color: "var(--text-tertiary)",
-                    fontFamily: "var(--font-mono), monospace",
-                    letterSpacing: "0.06em",
-                    textTransform: "uppercase",
-                    marginBottom: "0.625rem",
-                  }}
-                >
-                  traversal settings
-                </p>
-                <div
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "0.625rem",
-                  }}
-                >
-                  {TRAVERSAL_SLIDERS.map((slider) => (
-                    <SettingsSlider
-                      key={slider.key}
-                      item={{
-                        key: slider.key,
-                        label: "compactLabel" in slider ? slider.compactLabel : slider.label,
-                        min: slider.min,
-                        max: slider.max,
-                      }}
-                      value={draftSettings[slider.key]}
-                      onChange={(v) =>
-                        setDraftSettings((prev) => ({ ...prev, [slider.key]: v }))
-                      }
-                    />
-                  ))}
-                </div>
-                <div
-                  style={{
-                    display: "flex",
-                    gap: "0.375rem",
-                    marginTop: "0.75rem",
-                  }}
-                >
-                  <button
-                    onClick={() => setDraftSettings(defaultSettings)}
-                    style={{
-                      flex: 1,
-                      height: "2.25rem",
-                      borderRadius: "0.5rem",
-                      border: "0.0625rem solid var(--border)",
-                      background: "none",
-                      color: "var(--text-secondary)",
-                      cursor: "pointer",
-                      fontSize: "0.8125rem",
-                      fontFamily: "var(--font-sans), sans-serif",
-                      fontWeight: 500,
-                    }}
-                  >
-                    Reset
-                  </button>
-                  <button
-                    onClick={() => {
-                      if (isExpanding) return;
-                      setSettings(draftSettings);
-                      if (searchedQuery && !isSearching)
-                        void runSearch(
-                          searchedQuery,
-                          selectedSeedOpenalexId ?? undefined,
-                          draftSettings,
-                        );
-                      setMobileMenuOpen(false);
-                    }}
-                    disabled={isExpanding || !settingsChanged}
-                    style={{
-                      flex: 1,
-                      height: "2.25rem",
-                      borderRadius: "0.5rem",
-                      border: "0.0625rem solid var(--accent)",
-                      background: "var(--accent)",
-                      color: "#fff",
-                      cursor: isExpanding || !settingsChanged ? "default" : "pointer",
-                      opacity: settingsChanged ? 1 : 0.45,
-                      fontSize: "0.8125rem",
-                      fontFamily: "var(--font-sans), sans-serif",
-                      fontWeight: 600,
-                    }}
-                  >
-                    Apply
-                  </button>
-                </div>
-              </div>
 
               {/* Divider before action buttons */}
               {timelineData && (

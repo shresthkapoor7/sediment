@@ -10,7 +10,7 @@ from starlette.datastructures import Headers
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from .config import settings
-from .routers import feeds, changelog, chat, clarify, expand, paper_access, papers, persistence, search, usage
+from .routers import feeds, changelog, chat, paper_access, papers, persistence, usage
 from .services.paper_ingestion import shutdown_paper_parse_executor
 
 logger = logging.getLogger(__name__)
@@ -186,9 +186,6 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
 
 app.include_router(feeds.router, prefix="/api")
 app.include_router(changelog.router, prefix="/api")
-app.include_router(clarify.router, prefix="/api")
-app.include_router(search.router, prefix="/api")
-app.include_router(expand.router, prefix="/api")
 app.include_router(chat.router, prefix="/api")
 app.include_router(persistence.router, prefix="/api")
 app.include_router(paper_access.router, prefix="/api")
