@@ -6,6 +6,8 @@ import { MarkdownContent } from "./MarkdownContent";
 import { SPECIAL_NOTE_SIGNED_URL_TTL_MS, deleteSpecialNoteFile, fetchCachedPaperContent, fetchPaperAccess, fetchSpecialNoteFileUrl, listSpecialNoteFiles, openChatSession, streamChatAboutPaper, uploadSpecialNoteFile } from "@/lib/api";
 import { DETAIL_PANEL_DEFAULT_WIDTH, DETAIL_PANEL_MAX_WIDTH, DETAIL_PANEL_MIN_WIDTH, DETAIL_PANEL_WIDTH_KEY } from "@/lib/detail-panel";
 import { TIMELINE_MOBILE_BREAKPOINT_PX } from "@/lib/hover-preview";
+
+const MINIMAP_STORAGE_KEY = "sediment:minimap-enabled";
 import { TimelineData, ChatSuggestion, GraphPaper, PaperAccessResponse, PaperContentResponse, TimelineNode, PaperChatStreamEvent, TimelineGraphAction, NodeBorderColor, TimelineNote, LineageChange, TimelineNodeColorChange, TimelineNoteChange, SpecialNoteFile, SpecialNoteFileListResponse } from "@/lib/types";
 import { NODE_BORDER_COLOR_OPTIONS } from "@/lib/node-style";
 import { SPECIAL_NOTE_MIN_HEIGHT, TIMELINE_NOTE_DEFAULT_WIDTH, TIMELINE_NOTE_MIN_HEIGHT, isSpecialNote } from "@/lib/note-style";
@@ -23,6 +25,7 @@ import { TimelineNoteEdgeLine } from "./TimelineNoteEdge";
 import { GlobalChatPanel } from "./GlobalChatPanel";
 import { AddPaperDialog } from "./AddPaperDialog";
 import { CanvasGroupRegion } from "./CanvasGroupRegion";
+import { CanvasMinimap, type MinimapItem } from "./CanvasMinimap";
 import { computeGroupRegions, groupKey, regionAt, regionFrame } from "@/lib/groups";
 import { ConversationNavigator } from "./ConversationNavigator";
 import { PaperReaderModal } from "./PaperReaderModal";
@@ -138,6 +141,8 @@ export function TimelineCanvas({
   const suppressNodeClickRef = useRef(false);
 
   const [zoomDisplay, setZoomDisplay] = useState(1);
+  const [minimapEnabled, setMinimapEnabled] = useState(true);
+  const viewListenersRef = useRef(new Set<() => void>());
   const [addPaperOpen, setAddPaperOpen] = useState(false);
   const [agentMentionRequest, setAgentMentionRequest] = useState<{ paperId: string; nonce: number } | null>(null);
   const [isOutOfView, setIsOutOfView] = useState(false);
@@ -393,7 +398,57 @@ export function TimelineCanvas({
       const outOfView = !(x >= -TOLERANCE && y >= -TOLERANCE && contentRight <= clientWidth + TOLERANCE && contentBottom <= clientHeight + TOLERANCE);
       setIsOutOfView(outOfView);
     }
+    viewListenersRef.current.forEach((listener) => listener());
   }, [maxX, maxY]);
+
+  useEffect(() => {
+    try {
+      if (window.localStorage.getItem(MINIMAP_STORAGE_KEY) === "false") {
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- Hydrate the persisted minimap preference.
+        setMinimapEnabled(false);
+      }
+    } catch {
+      // Storage can be blocked; the minimap just stays on.
+    }
+  }, []);
+
+  const toggleMinimap = useCallback(() => {
+    setMinimapEnabled((value) => {
+      try {
+        window.localStorage.setItem(MINIMAP_STORAGE_KEY, String(!value));
+      } catch {
+        // Not persisting is fine.
+      }
+      return !value;
+    });
+  }, []);
+
+  const subscribeToView = useCallback((listener: () => void) => {
+    viewListenersRef.current.add(listener);
+    return () => {
+      viewListenersRef.current.delete(listener);
+    };
+  }, []);
+
+  const getMinimapView = useCallback(() => {
+    const el = containerRef.current;
+    if (!el) return null;
+    const z = zoomRef.current;
+    return {
+      x: -panRef.current.x / z,
+      y: -panRef.current.y / z,
+      width: el.clientWidth / z,
+      height: el.clientHeight / z,
+    };
+  }, []);
+
+  const navigateFromMinimap = useCallback((x: number, y: number) => {
+    const el = containerRef.current;
+    if (!el) return;
+    const z = zoomRef.current;
+    panRef.current = { x: el.clientWidth / 2 - x * z, y: el.clientHeight / 2 - y * z };
+    applyTransform();
+  }, [applyTransform]);
 
   // Wheel: zoom (pinch / ctrl+scroll) or pan (plain scroll)
   useEffect(() => {
@@ -1282,6 +1337,28 @@ export function TimelineCanvas({
 
   const groupLabels = useMemo(() => groupRegions.map((region) => region.label), [groupRegions]);
 
+  const minimapItems = useMemo<MinimapItem[]>(() => {
+    const items: MinimapItem[] = [];
+    for (const region of groupRegions) {
+      const frame = regionFrame(region);
+      items.push({ id: `group:${region.key}`, kind: "group", ...frame });
+    }
+    for (const node of Object.values(data.nodes)) {
+      items.push({ id: `node:${node.id}`, kind: "card", x: node.x, y: node.y, width: NODE_DIMENSIONS.width, height: NODE_DIMENSIONS.height });
+    }
+    for (const note of Object.values(data.notes ?? {})) {
+      items.push({
+        id: `note:${note.id}`,
+        kind: "note",
+        x: note.x,
+        y: note.y,
+        width: note.width ?? TIMELINE_NOTE_DEFAULT_WIDTH,
+        height: note.height ?? TIMELINE_NOTE_MIN_HEIGHT,
+      });
+    }
+    return items;
+  }, [data.nodes, data.notes, groupRegions]);
+
   const handleSetNodeGroup = useCallback((nodeId: number, group: string | null) => {
     if (readOnly) return;
     onGraphAction?.({ type: "set_node_group", nodeId, group });
@@ -1689,6 +1766,35 @@ export function TimelineCanvas({
           </button>
         )}
 
+        <button
+          type="button"
+          className="hide-mobile"
+          onClick={toggleMinimap}
+          title={minimapEnabled ? "Hide minimap" : "Show minimap"}
+          aria-pressed={minimapEnabled}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            width: "1.75rem",
+            height: "1.75rem",
+            padding: 0,
+            background: minimapEnabled ? "var(--accent-soft)" : "var(--bg-secondary)",
+            border: "none",
+            borderRadius: "0.375rem",
+            color: minimapEnabled ? "var(--accent)" : "var(--text-tertiary)",
+            cursor: "pointer",
+            transition: "all 0.15s",
+            marginLeft: "0.25rem",
+            userSelect: "none",
+          }}
+        >
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <rect x="1.5" y="3" width="13" height="10" rx="2" />
+            <rect x="8" y="7" width="4.5" height="3.5" rx="0.75" />
+          </svg>
+        </button>
+
         <AnimatePresence>
           {saveState !== "idle" && (
             <m.div
@@ -1743,6 +1849,16 @@ export function TimelineCanvas({
           )}
         </AnimatePresence>
       </div>
+
+      {minimapEnabled && !isMobileViewport && (
+        <CanvasMinimap
+          items={minimapItems}
+          getView={getMinimapView}
+          subscribe={subscribeToView}
+          onNavigate={navigateFromMinimap}
+          right={activeNode ? `calc(${resolvedDetailPanelWidth} + 1rem)` : "1rem"}
+        />
+      )}
 
       <svg
         ref={svgRef}
