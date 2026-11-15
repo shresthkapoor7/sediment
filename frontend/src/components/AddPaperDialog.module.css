@@ -19,5 +19,18 @@
 .add:hover { opacity: .88; }
 .add:disabled { background: transparent; color: var(--text-tertiary); cursor: default; opacity: 1; }
 .row:hover .add:disabled { background: transparent; }
+.actions { flex: none; display: flex; flex-direction: column; align-items: stretch; gap: 4px; }
+.previewButton { height: 26px; padding: 0 14px; border: 0; border-radius: 8px; background: transparent; color: var(--text-secondary); font: inherit; font-size: 12px; cursor: pointer; }
+.previewButton:hover, .previewButton[aria-expanded="true"] { background: var(--bg-tertiary); color: var(--text-primary); }
+.row:hover .previewButton[aria-expanded="false"] { background: color-mix(in srgb, var(--text-primary) 7%, transparent); }
+.preview { margin-top: 10px; padding-top: 10px; display: flex; flex-direction: column; gap: 8px; border-top: 1px solid color-mix(in srgb, var(--text-primary) 10%, transparent); }
+.previewAuthors { font-size: 12px; line-height: 1.5; color: var(--text-secondary); }
+.previewFacts { font-size: 11px; color: var(--text-tertiary); text-transform: capitalize; }
+.previewAbstract { margin: 0; font-size: 12.5px; line-height: 1.6; color: var(--text-secondary); max-height: 14rem; overflow-y: auto; scrollbar-width: thin; }
+.previewTags { display: flex; flex-wrap: wrap; gap: 6px; }
+.previewTags span { padding: 2px 8px; border-radius: 999px; background: color-mix(in srgb, var(--text-primary) 7%, transparent); font-size: 11px; color: var(--text-secondary); }
+.previewLinks { display: flex; gap: 14px; font-size: 12px; }
+.previewLinks a { color: var(--accent); text-decoration: none; }
+.previewLinks a:hover { text-decoration: underline; }
 .state { padding: 28px 16px 34px; text-align: center; font-size: 13px; line-height: 1.6; color: var(--text-tertiary); }
 @media (max-width: 640px) { .backdrop { padding-top: 8vh; } .panel { max-height: 84vh; } }

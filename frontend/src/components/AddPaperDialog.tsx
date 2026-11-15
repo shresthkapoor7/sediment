@@ -44,10 +44,44 @@ function describe(paper: GraphPaper): string {
   ].filter(Boolean).join(" · ");
 }
 
+function doiHref(doi: string): string {
+  return /^https?:\/\//i.test(doi) ? doi : `https://doi.org/${doi.replace(/^doi:/i, "")}`;
+}
+
+/** What a result is about: the whole abstract and the details the one-line row leaves out. */
+function PaperPreview({ paper }: { paper: GraphPaper }) {
+  const authors = paper.authors ?? [];
+  const facts = [paper.type, paper.year ? String(paper.year) : "", paper.referencesCount ? `${paper.referencesCount} references` : ""].filter(Boolean);
+  const abstract = (paper.detail || paper.summary || "").trim();
+  const links = [
+    paper.doi ? { label: "DOI", href: doiHref(paper.doi) } : null,
+    paper.oaUrl ? { label: "Open access", href: paper.oaUrl } : null,
+    { label: "OpenAlex", href: `https://openalex.org/${normalizeId(paper.openalexId)}` },
+  ].filter((link): link is { label: string; href: string } => link !== null);
+  return (
+    <div className={styles.preview}>
+      {authors.length > 0 && <div className={styles.previewAuthors}>{authors.join(", ")}</div>}
+      {facts.length > 0 && <div className={styles.previewFacts}>{facts.join(" · ")}</div>}
+      <p className={styles.previewAbstract}>{abstract || "OpenAlex has no abstract for this paper."}</p>
+      {(paper.concepts ?? []).length > 0 && (
+        <div className={styles.previewTags}>
+          {(paper.concepts ?? []).slice(0, 6).map((concept) => <span key={concept}>{concept}</span>)}
+        </div>
+      )}
+      <div className={styles.previewLinks}>
+        {links.map((link) => (
+          <a key={link.label} href={link.href} target="_blank" rel="noopener noreferrer">{link.label} ↗</a>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function AddPaperDialog({ papersOnCanvas, defaultLinkNodeId, onAdd, onClose }: AddPaperDialogProps) {
   const [query, setQuery] = useState("");
   const [state, setState] = useState<SearchState>({ status: "idle" });
   const [linkNodeId, setLinkNodeId] = useState<number | null>(defaultLinkNodeId);
+  const [previewId, setPreviewId] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -149,21 +183,33 @@ export function AddPaperDialog({ papersOnCanvas, defaultLinkNodeId, onAdd, onClo
           )}
           {visibleState.status === "done" && visibleState.papers.map((paper) => {
             const added = onCanvas.has(normalizeId(paper.openalexId));
+            const previewing = previewId === paper.openalexId;
             return (
               <div key={paper.openalexId} className={styles.row}>
                 <div className={styles.info}>
                   <div className={styles.title}>{paper.title}</div>
                   <div className={styles.meta}>{describe(paper)}</div>
-                  {paper.summary && <div className={styles.summary}>{paper.summary}</div>}
+                  {!previewing && paper.summary && <div className={styles.summary}>{paper.summary}</div>}
+                  {previewing && <PaperPreview paper={paper} />}
                 </div>
-                <button
-                  type="button"
-                  className={styles.add}
-                  disabled={added}
-                  onClick={() => onAdd(paper, linkTarget?.nodeId ?? null)}
-                >
-                  {added ? "On canvas" : "Add"}
-                </button>
+                <div className={styles.actions}>
+                  <button
+                    type="button"
+                    className={styles.add}
+                    disabled={added}
+                    onClick={() => onAdd(paper, linkTarget?.nodeId ?? null)}
+                  >
+                    {added ? "On canvas" : "Add"}
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.previewButton}
+                    aria-expanded={previewing}
+                    onClick={() => setPreviewId(previewing ? null : paper.openalexId)}
+                  >
+                    {previewing ? "Hide" : "Preview"}
+                  </button>
+                </div>
               </div>
             );
           })}
