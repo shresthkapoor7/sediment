@@ -223,7 +223,14 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
   const msgIdRef = useRef(0);
-  const messagesRef = useRef<HTMLDivElement>(null);
+  const messagesRef = useRef<HTMLDivElement | null>(null);
+  // The list element itself, as state: it is created and destroyed as the panel opens, closes and changes
+  // tab, and the scroll tracking below has to follow whichever one is on screen.
+  const [messagesEl, setMessagesEl] = useState<HTMLDivElement | null>(null);
+  const attachMessages = useCallback((element: HTMLDivElement | null) => {
+    messagesRef.current = element;
+    setMessagesEl(element);
+  }, []);
   const [panelWidth, setPanelWidth] = useState(DETAIL_PANEL_DEFAULT_WIDTH);
   const panelWidthRef = useRef(DETAIL_PANEL_DEFAULT_WIDTH);
   const panelResizeStateRef = useRef<{ startX: number; startWidth: number } | null>(null);
@@ -359,7 +366,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
   // the upper third of the chat. At the very bottom it is always the latest.
   const navigationIdsKey = navigationItems.map((item) => item.id).join(",");
   useEffect(() => {
-    const container = messagesRef.current;
+    const container = messagesEl;
     if (!container || !navigationIdsKey) return;
     const ids = navigationIdsKey.split(",");
     let frame = 0;
@@ -388,9 +395,8 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
       container.removeEventListener("scroll", onScroll);
       if (frame) window.cancelAnimationFrame(frame);
     };
-    // The chat list only exists while the panel is open, and is a different list per chat tab; re-attach
-    // whenever either changes, or after a reload the rail would never follow the scroll.
-  }, [navigationIdsKey, panelId, open, sessionKey]);
+    // Re-run whenever the list element or its messages change (a reload loads history after the panel opens).
+  }, [navigationIdsKey, panelId, messagesEl, messages]);
 
   const jumpToMessage = useCallback((messageId: string) => {
     setActiveNavigationId(messageId);
@@ -532,10 +538,15 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
   }, [kickoffNonce, open, graphId, userId, activeSessionId, isThinking]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    const messagesEl = messagesRef.current;
-    if (!messagesEl) return;
-    messagesEl.scrollTo({ top: messagesEl.scrollHeight, behavior: "smooth" });
+    const element = messagesRef.current;
+    if (!element) return;
+    element.scrollTo({ top: element.scrollHeight, behavior: "smooth" });
   }, [messages, isThinking]);
+
+  // A chat opens at its latest message, like any chat app.
+  useEffect(() => {
+    if (messagesEl) messagesEl.scrollTop = messagesEl.scrollHeight;
+  }, [messagesEl, sessionKey]);
 
   const papers = Object.values(data.nodes).map((n) => ({
     openalexId: n.paper.openalexId,
@@ -975,7 +986,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
 
             {/* Messages */}
             <div style={{ position: "relative", flex: 1, minHeight: 0 }}>
-              <div ref={messagesRef} className="no-scrollbar" style={{ height: "100%", overflowY: "auto", padding: "0.5rem 1rem 1rem", display: "flex", flexDirection: "column", gap: "1rem" }}>
+              <div ref={attachMessages} className="no-scrollbar" style={{ height: "100%", overflowY: "auto", padding: "0.5rem 1rem 1rem", display: "flex", flexDirection: "column", gap: "1rem" }}>
               {messages.length === 0 && (
                 <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem", marginTop: "0.25rem" }}>
                   {loadingSuggestions ? (
