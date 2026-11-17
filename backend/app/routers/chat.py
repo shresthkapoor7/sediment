@@ -608,6 +608,19 @@ async def _run_paper_chat(req: ChatRequest, request_ip: str, event_emitter: Chat
     return result
 
 
+CANVAS_DETAILS_REQUEST_RE = re.compile(r"\b(rename|renaming|name|title|describe|description)\b", re.IGNORECASE)
+
+
+def _may_set_canvas_details(req: GlobalChatRequest, context: ChatContext | None) -> bool:
+    """The agent may name a canvas unprompted only at the very start; later, only when the researcher asks."""
+    if CANVAS_DETAILS_REQUEST_RE.search(req.question):
+        return True
+    details = req.canvas
+    untouched = details is not None and not details.titleSetBy and not details.descriptionSetBy
+    first_message = not (context and context.history) and len(req.papers) == 0
+    return untouched and first_message
+
+
 CANVAS_TITLE_LENGTH = 80
 CANVAS_DESCRIPTION_LENGTH = 500
 NOTE_TEXT_START_LENGTH = 160
@@ -1600,6 +1613,7 @@ async def _run_global_chat(req: GlobalChatRequest, request_ip: str, event_emitte
             ),
             known_candidates=_known_candidates_from_context(context, set(paper_by_normalized_id)),
             canvas_details=req.canvas.model_dump() if req.canvas else None,
+            allow_canvas_details=_may_set_canvas_details(req, context),
             paper_colors={
                 resolved: str(item.get("borderColor"))
                 for item in raw_node_color_context
