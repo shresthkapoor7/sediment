@@ -26,6 +26,9 @@ type SearchState =
   | { status: "done"; papers: GraphPaper[] }
   | { status: "error"; message: string };
 
+/** The most papers a canvas can hold; the agent's request is capped at the same number. */
+export const MAX_CANVAS_PAPERS = 60;
+
 const normalizeId = (value: string) => value.trim().split("/").pop()?.toUpperCase() ?? "";
 
 function formatCount(count: number): string {
@@ -152,6 +155,7 @@ export function AddPaperDialog({ papersOnCanvas, defaultLinkNodeId, onAdd, onClo
     inputRef.current?.focus();
   }
 
+  const canvasFull = papersOnCanvas.length >= MAX_CANVAS_PAPERS;
   const onCanvas = new Set(papersOnCanvas.map((paper) => normalizeId(paper.openalexId)));
   const linkTarget = papersOnCanvas.find((paper) => paper.nodeId === linkNodeId) ?? null;
   const visibleState: SearchState = mode === "semantic"
@@ -245,6 +249,11 @@ export function AddPaperDialog({ papersOnCanvas, defaultLinkNodeId, onAdd, onClo
           </label>
         )}
 
+        {canvasFull && (
+          <p className={styles.state} role="status">
+            This canvas holds {MAX_CANVAS_PAPERS} papers, the most the agent can work with. Remove one to add another.
+          </p>
+        )}
         <div className={styles.results}>
           {visibleState.status === "idle" && (
             <p className={styles.state}>
@@ -287,7 +296,7 @@ export function AddPaperDialog({ papersOnCanvas, defaultLinkNodeId, onAdd, onClo
                   <button
                     type="button"
                     className={styles.add}
-                    disabled={added}
+                    disabled={added || canvasFull}
                     title={added ? "Already on the canvas" : "Add to canvas"}
                     aria-label={added ? "Already on the canvas" : `Add ${paper.title} to the canvas`}
                     onClick={() => onAdd(paper, linkTarget?.nodeId ?? null)}

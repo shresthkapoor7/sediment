@@ -97,7 +97,9 @@ export function useCanvasHistory() {
     const { undo, redo } = stacks.current;
     const now = Date.now();
     const last = undo[undo.length - 1];
-    if (meta.key && last && last.key === meta.key && now - last.at < (meta.windowMs ?? DEFAULT_WINDOW_MS)) {
+    // Never merge across an undo: the step after an undo starts fresh, or undoing it would undo too much.
+    const mergeable = redo.length === 0 && last && last.key === meta.key && now - last.at < (meta.windowMs ?? DEFAULT_WINDOW_MS);
+    if (meta.key && mergeable) {
       last.at = now;
       last.label = meta.label;
     } else {

@@ -214,6 +214,12 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
     });
   }, []);
   const isThinking = thinkingKeys.has(sessionKey);
+  const [chatsError, setChatsError] = useState(false);
+  const [chatsReload, setChatsReload] = useState(0);
+  // Chats whose saved history has finished loading; a message sent earlier would be cut by the restore.
+  const [restoredSessions, setRestoredSessions] = useState<Set<string>>(new Set());
+  const graphIdRef = useRef<string | null>(graphId ?? null);
+  const closingChatRef = useRef(false);
   const loadedSessionsRef = useRef<Set<string>>(new Set());
   const [input, setInput] = useState("");
   const [mentionedPaperIds, setMentionedPaperIds] = useState<string[]>([]);
@@ -245,6 +251,9 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
     setThinkingKeys(new Set());
     /* eslint-enable react-hooks/set-state-in-effect */
     loadedSessionsRef.current = new Set();
+    graphIdRef.current = graphId ?? null;
+    setChatsError(false); // eslint-disable-line react-hooks/set-state-in-effect -- Clear the last canvas's load error.
+    setRestoredSessions(new Set());
     if (!graphId || !userId) return () => { cancelled = true; };
     void listChats(graphId, userId)
       .then((chats) => {
@@ -252,9 +261,11 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
         setTabs(chats.map((chat) => ({ id: chat.sessionId, title: chat.title })));
         setActiveSessionId(chats[0]?.sessionId ?? null);
       })
-      .catch(() => undefined);
+      .catch(() => {
+        if (!cancelled) setChatsError(true);
+      });
     return () => { cancelled = true; };
-  }, [graphId, userId]);
+  }, [graphId, userId, chatsReload]);
 
   // Load a chat's history the first time its tab is opened.
   useEffect(() => {
@@ -279,14 +290,21 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
       })
       .catch(() => {
         loadedSessionsRef.current.delete(sessionId);
+      })
+      .finally(() => {
+        setRestoredSessions((current) => new Set(current).add(sessionId));
       });
   }, [activeSessionId, graphId, setSessionMessages, userId]);
 
   const handleAddChat = useCallback(() => {
     if (!graphId || !userId) return;
+    const requestedFor = graphId;
     void createChat(graphId, userId)
       .then((chat) => {
+        // Another canvas may have opened while this was being created.
+        if (graphIdRef.current !== requestedFor) return;
         loadedSessionsRef.current.add(chat.sessionId);
+        setRestoredSessions((current) => new Set(current).add(chat.sessionId));
         setTabs((current) => [...current, { id: chat.sessionId, title: chat.title }]);
         setActiveSessionId(chat.sessionId);
         window.setTimeout(() => inputRef.current?.focus({ preventScroll: true }), 0);
@@ -295,7 +313,9 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
   }, [graphId, userId]);
 
   const handleCloseChat = useCallback((sessionId: string) => {
-    if (!graphId || !userId) return;
+    // One close at a time, and never the last chat: two quick closes could otherwise remove both.
+    if (!graphId || !userId || closingChatRef.current || tabs.length <= 1) return;
+    closingChatRef.current = true;
     void deleteChat(graphId, userId, sessionId)
       .then(() => {
         setTabs((current) => {
@@ -312,8 +332,11 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
           return rest;
         });
       })
-      .catch(() => undefined);
-  }, [graphId, userId]);
+      .catch(() => undefined)
+      .finally(() => {
+        closingChatRef.current = false;
+      });
+  }, [graphId, tabs.length, userId]);
 
   const traceSummaryKey = data.traceSummary
     ? `${data.traceSummary.traceMode}:${data.traceSummary.rationale}:${data.traceSummary.steps.join("|")}:${JSON.stringify(data.traceEvidence ?? {})}`
@@ -525,7 +548,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
   const kickoffNonce = kickoff?.nonce;
   const sentKickoffRef = useRef<number | null>(null);
   useEffect(() => {
-    if (!kickoff || !open || !graphId || !userId || !activeSessionId || isThinking) return;
+    if (!kickoff || !open || !graphId || !userId || !activeSessionId || !restoredSessions.has(activeSessionId) || isThinking) return;
     if (sentKickoffRef.current === kickoff.nonce) return;
     // Deferred so the history reset that runs when a canvas opens cannot wipe the message.
     const timer = window.setTimeout(() => {
@@ -535,7 +558,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
       void send(kickoff.text);
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [kickoffNonce, open, graphId, userId, activeSessionId, isThinking]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [kickoffNonce, open, graphId, userId, activeSessionId, restoredSessions, isThinking]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const element = messagesRef.current;
@@ -690,7 +713,10 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
     const focusedPaperIds = textOverride ? [] : mentionedPaperIds;
     const q = textOverride?.trim() || input.trim() || (focusedPaperIds.length > 0 ? "Tell me about the mentioned paper(s)." : "");
     if (!q || isThinking) return;
-    if (graphId && userId && !activeSessionId) return;
+    if (graphId && userId && (!activeSessionId || !restoredSessions.has(activeSessionId))) return;
+    // Results belong to the canvas this was sent from; drop any that arrive after another canvas opened.
+    const originGraphId = graphId ?? null;
+    const stillOnCanvas = () => graphIdRef.current === originGraphId;
     // Everything below belongs to the chat this message was sent in, even if the user switches tabs.
     const targetKey = sessionKey;
     const setMessages = (update: Message[] | ((current: Message[]) => Message[])) => setSessionMessages(targetKey, update);
@@ -753,25 +779,28 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
     let lineageChangesApplied = 0;
     let noteChangesApplied = false;
     let nodeColorChangesApplied = false;
-    let canvasDetailsApplied = false;
+    let lastCanvasDetailsKey: string | null = null;
     const applyCanvasDetails = (details: CanvasDetailsChange | null | undefined) => {
-      if (canvasDetailsApplied || !details || (!details.title && !details.description)) return;
-      canvasDetailsApplied = true;
+      if (!details || (!details.title && !details.description) || !stillOnCanvas()) return;
+      // Each distinct change applies in order; the final response repeats the last one.
+      const key = JSON.stringify([details.title ?? "", details.description ?? ""]);
+      if (key === lastCanvasDetailsKey) return;
+      lastCanvasDetailsKey = key;
       onCanvasDetailsChange?.(details);
     };
     const applyReturnedLineageChanges = (changes: LineageChange[] | undefined) => {
       const pending = (changes ?? []).slice(lineageChangesApplied);
-      if (pending.length === 0) return;
+      if (pending.length === 0 || !stillOnCanvas()) return;
       lineageChangesApplied += pending.length;
       onLineageChanges?.(pending);
     };
     const applyReturnedNoteChanges = (changes: TimelineNoteChange[] | undefined) => {
-      if (noteChangesApplied || !changes?.length) return;
+      if (noteChangesApplied || !changes?.length || !stillOnCanvas()) return;
       noteChangesApplied = true;
       onNoteChanges?.(changes);
     };
     const applyReturnedNodeColorChanges = (changes: TimelineNodeColorChange[] | undefined) => {
-      if (nodeColorChangesApplied || !changes?.length) return;
+      if (nodeColorChangesApplied || !changes?.length || !stillOnCanvas()) return;
       nodeColorChangesApplied = true;
       onNodeColorChanges?.(changes);
     };
@@ -785,7 +814,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
           if (event.type === "canvas_details") applyCanvasDetails(event.details);
           if (event.type === "canvas_change") {
             lineageChangesApplied += 1;
-            onLineageChanges?.([event.lineageChange]);
+            if (stillOnCanvas()) onLineageChanges?.([event.lineageChange]);
           }
           if (event.type === "tool_started") {
             upsertTool({ name: event.name, status: "started", label: globalToolLabel(event.name) });
@@ -966,7 +995,20 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
                     fontFamily: "var(--font-mono), monospace",
                   }}
                 >
-                  {papers.length} paper{papers.length !== 1 ? "s" : ""} · {noteCount} note{noteCount !== 1 ? "s" : ""}
+                  {chatsError ? (
+                    <>
+                      Chats could not be loaded.{" "}
+                      <button
+                        type="button"
+                        onClick={() => setChatsReload((value) => value + 1)}
+                        style={{ border: "none", background: "none", padding: 0, color: "var(--text-primary)", font: "inherit", textDecoration: "underline", cursor: "pointer" }}
+                      >
+                        Retry
+                      </button>
+                    </>
+                  ) : (
+                    <>{papers.length} paper{papers.length !== 1 ? "s" : ""} · {noteCount} note{noteCount !== 1 ? "s" : ""}</>
+                  )}
                 </span>
                 <AgentCapabilities
                   disabled={isThinking}

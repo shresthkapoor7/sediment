@@ -36,8 +36,9 @@ export function applyTimelineGraphAction(
     const nodes = { ...data.nodes, [node.id]: updated };
     const notes = Object.values(data.notes ?? {});
     // A frame should hold exactly its cluster: bring a joining paper in, and move a leaving one out.
+    // Leave the old frame first (not for a change of letter case, which is the same cluster), then join.
+    if (node.group && !sameGroup(node.group, group ?? undefined)) seatOutsideGroup(nodes, notes, node.id, node.group);
     if (group) seatInsideGroup(nodes, notes, node.id);
-    else if (node.group) seatOutsideGroup(nodes, notes, node.id, node.group);
     return { ...data, nodes };
   }
   if (action.type === "move_group") {
@@ -358,8 +359,9 @@ function seatInsideGroup(
   ignoreNodeIds: Set<number> = new Set(),
 ): void {
   const node = nodes[nodeId];
-  const others = Object.values(nodes).filter((other) => other.id !== nodeId && !ignoreNodeIds.has(other.id));
-  const mates = others.filter((other) => sameGroup(other.group, node.group));
+  // Papers just added this change do not define the cluster's frame yet, but they still take up room.
+  const others = Object.values(nodes).filter((other) => other.id !== nodeId);
+  const mates = others.filter((other) => !ignoreNodeIds.has(other.id) && sameGroup(other.group, node.group));
   const [region] = computeGroupRegions(mates);
   if (!region || regionAt([region], node)?.key === region.key) return;
   const x = region.minX;
@@ -716,11 +718,12 @@ function applyNodeDeletion(
     const current = nodes[affectedNodeId];
     if (!current) return;
     const generation = computeGenerationFromParents(affectedNodeId, nodes);
+    // Keep where the researcher put it; only a changed generation moves it sideways.
+    if (generation === current.generation) return;
     nodes[affectedNodeId] = {
       ...current,
       generation,
       x: PADDING_X + generation * (NODE_DIMENSIONS.width + GAP_X),
-      y: PADDING_Y + current.lane * LANE_HEIGHT,
     };
   });
 
