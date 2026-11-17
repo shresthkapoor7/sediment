@@ -23,12 +23,14 @@ function dateLabel(value: string | null) {
 /** Papers shown at a time. The backend returns more per request; the rest are revealed on demand. */
 const PAGE = 10;
 
-export function FeedsView({ embedded = false, ready = true, onSearch, searching }: {
+export function FeedsView({ embedded = false, ready = true, onSearch, onStartWorkspace, searching }: {
   embedded?: boolean;
   /** Hold the first feed request until true, so the page around the feed can load first. */
   ready?: boolean;
   /** Runs a search from the start bar (embedded only). */
   onSearch?: (query: string) => void;
+  /** Starts a workspace holding these papers, with the feed interests as context. */
+  onStartWorkspace?: (papers: FeedPaper[], interests: string) => void;
   searching?: boolean;
 }) {
   const [openedPaper, setOpenedPaper] = useState<FeedPaper | null>(null);
@@ -173,6 +175,7 @@ export function FeedsView({ embedded = false, ready = true, onSearch, searching 
         adding={pending === "interests"}
         searching={searching}
         onSearch={onSearch}
+        onSynchronize={onStartWorkspace ? () => onStartWorkspace(selection.papers, feed?.interests ?? interests) : undefined}
         onAddInterests={async text => {
           const ok = await update("interests", "all", text);
           if (ok) setStartMode("feed");
@@ -229,7 +232,18 @@ export function FeedsView({ embedded = false, ready = true, onSearch, searching 
         </>}
       </section>
     </main>
-    <PaperStage papers={selection.papers} onRemove={selection.toggle} onClear={selection.clear} onOpen={openPaper} />
+    <PaperStage
+      papers={selection.papers}
+      onRemove={selection.toggle}
+      onClear={selection.clear}
+      onOpen={openPaper}
+      feedPapers={feed?.papers.slice(0, shown) ?? []}
+      interests={feed?.interests ?? interests}
+      domain={feed?.domain ?? domain}
+      onMark={found => selection.add(found.map(paper => feed?.papers.find(item => item.id === paper.id) ?? paper))}
+      onInterests={text => { setInterests(text); void update("interests", "all", text); }}
+      onStartWorkspace={onStartWorkspace ? () => onStartWorkspace(selection.papers, feed?.interests ?? interests) : undefined}
+    />
     {openedPaper && <FeedPaperDetail paper={openedPaper} intercepted onClose={() => setOpenedPaper(null)} />}
   </div>;
 }

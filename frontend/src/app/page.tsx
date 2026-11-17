@@ -11,6 +11,7 @@ import { AsciiBackdrop } from "@/components/AsciiBackdrop";
 import { LandingBrain } from "@/components/LandingBrain";
 import { GitHubMark } from "@/components/GitHubMark";
 import { FeedsView } from "@/components/feeds/FeedsView";
+import type { FeedPaper } from "@/lib/feeds-api";
 import { whenIdle } from "@/lib/when-idle";
 
 // Graph view + clarification modal are never shown on the landing page — load their
@@ -38,6 +39,7 @@ import { applyTimelineGraphAction, applyTimelineLineageChanges, applyTimelineNod
 import { createEmptyTimeline } from "@/lib/timeline-builder";
 import {
   CanvasDetailsChange,
+  GraphPaper,
   LineageChange,
   TimelineData,
   TimelineGraphAction,
@@ -366,8 +368,10 @@ export default function Home() {
 
   // A new canvas starts empty. The query becomes the first message to the agent, which decides with
   // the researcher what goes on the board.
+  // A new canvas. `seed` starts it with papers already on it (from the feed) and a first message about them;
+  // otherwise it is blank and the query is the first message to the agent.
   const startCanvas = useCallback(
-    async (query: string) => {
+    async (query: string, seed?: { papers: GraphPaper[]; message: string }) => {
       const text = query.trim();
       if (!text || !userId || isSearching) return;
       if (saveTimeoutRef.current) window.clearTimeout(saveTimeoutRef.current);
@@ -375,7 +379,15 @@ export default function Home() {
       // A pasted link or ID is not a name; the researcher can rename the canvas from the top bar.
       const looksLikeLink = /^(https?:\/\/|www\.|doi:|arxiv:|10\.\d{4,}\/)/i.test(text) || /^W\d{4,}$/i.test(text);
       const title = looksLikeLink ? "Untitled canvas" : text.length > 60 ? `${text.slice(0, 57).trimEnd()}…` : text;
-      const emptyData = createEmptyTimeline();
+      const emptyData = (seed?.papers ?? []).reduce<TimelineData>(
+        (data, paper, index) => applyTimelineGraphAction(data, {
+          type: "add_paper",
+          paper,
+          x: 80 + (index % 3) * 400,
+          y: 80 + Math.floor(index / 3) * 240,
+        }),
+        createEmptyTimeline(),
+      );
       setIsSearching(true);
       setSearchError("");
       setSearchedQuery(title);
@@ -399,7 +411,7 @@ export default function Home() {
         setSelectedSeedOpenalexId(null);
         setSaveState("idle");
         persistLastGraphId(savedGraph.id);
-        setAgentKickoff({ text, nonce: Date.now() });
+        setAgentKickoff({ text: seed?.message ?? text, nonce: Date.now() });
         setGlobalChatOpen(true);
       } catch (error) {
         setSearchedQuery("");
@@ -412,8 +424,33 @@ export default function Home() {
         setIsSearching(false);
       }
     },
-    [buildMetadata, isSearching, persistLastGraphId, userId],
+    [buildMetadata, isSearching, persistLastGraphId, setDetailAuthors, userId],
   );
+
+  // Synchronize on the feed, or the feed assistant's button: a workspace holding the marked papers, with the
+  // researcher's interests handed to the agent as its first message.
+  const startCanvasFromFeed = useCallback((papers: FeedPaper[], interests: string) => {
+    if (papers.length === 0) return;
+    const graphPapers: GraphPaper[] = papers.flatMap((paper) => paper.openalex_id ? [{
+      openalexId: paper.openalex_id,
+      title: paper.title,
+      year: paper.published ? Number(paper.published.slice(0, 4)) || null : null,
+      summary: paper.abstract.slice(0, 300),
+      detail: paper.abstract,
+      authors: paper.authors,
+      doi: paper.doi,
+    }] : []);
+    const list = papers.map((paper) => `- ${paper.title}${paper.published ? ` (${paper.published.slice(0, 4)})` : ""}`).join("\n");
+    const missing = papers.length - graphPapers.length;
+    const message = [
+      `I started this workspace from ${papers.length} paper${papers.length === 1 ? "" : "s"} I marked in my feed:`,
+      list,
+      missing ? `${missing} of them could not be placed on the canvas automatically; please find and add them.` : "",
+      interests.trim() ? `My feed interests: ${interests.trim()}.` : "",
+      "Help me see how these relate and what I should look at next.",
+    ].filter(Boolean).join("\n\n");
+    void startCanvas("From your feed", { papers: graphPapers, message });
+  }, [startCanvas]);
 
   const handleReset = useCallback(() => {
     if (saveTimeoutRef.current) {
@@ -761,7 +798,7 @@ export default function Home() {
               </section>
 
               <section className="landing-feed" aria-label="Paper feed">
-                <FeedsView embedded ready={feedReady} onSearch={startCanvas} searching={isSearching} />
+                <FeedsView embedded ready={feedReady} onSearch={(query) => void startCanvas(query)} onStartWorkspace={startCanvasFromFeed} searching={isSearching} />
               </section>
             </m.div>
           ) : isSearching || isRestoring ? (

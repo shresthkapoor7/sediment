@@ -1991,3 +1991,188 @@ def _truncate_words(text: str, max_words: int) -> str:
     if len(words) <= max_words:
         return text
     return " ".join(words[:max_words])
+
+
+# --- Feed agent -----------------------------------------------------------------------------------------
+# The chat on the home feed. It helps a researcher look through new papers, find more, and decide what to
+# take into a workspace. It keeps no memory of its own: the browser sends the conversation each time.
+
+FEED_AGENT_TOOLS = [
+    {
+        "name": "search_openalex_papers",
+        "description": (
+            "Search all of OpenAlex by relevance, any year. Use it when the researcher describes something they "
+            "are looking for, names a paper, or wants classic or foundational work."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "Search words: a topic, a title, or an author and topic."},
+                "limit": {"type": "integer", "minimum": 1, "maximum": 10},
+            },
+            "required": ["query"],
+        },
+    },
+    {
+        "name": "search_recent_papers",
+        "description": (
+            "Search recent papers the way the feed does, newest first, optionally from one source. Use it for "
+            "'what is new on X' or to find more papers like the ones in the feed."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string"},
+                "source": {
+                    "type": "string",
+                    "enum": ["all", "arxiv", "huggingface", "openalex", "biorxiv", "medrxiv", "journals", "repositories"],
+                },
+                "days": {"type": "integer", "minimum": 7, "maximum": 730, "description": "How far back to look. Default 120."},
+                "limit": {"type": "integer", "minimum": 1, "maximum": 10},
+            },
+            "required": ["query"],
+        },
+    },
+    {
+        "name": "mark_papers",
+        "description": (
+            "Add papers to the researcher's marked collection, by the ids shown in the feed, the marked list, or "
+            "your search results. Only when they ask you to mark, collect or keep papers."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {"paperIds": {"type": "array", "items": {"type": "string"}, "maxItems": 20}},
+            "required": ["paperIds"],
+        },
+    },
+    {
+        "name": "update_interests",
+        "description": (
+            "Replace the researcher's feed interests, which rebuilds their feed. Only when their current message asks "
+            "for it; put their exact words asking for it in researcherRequest."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "interests": {"type": "string", "description": "Up to three topics, comma separated."},
+                "researcherRequest": {"type": "string"},
+            },
+            "required": ["interests", "researcherRequest"],
+        },
+    },
+    {
+        "name": "offer_workspace",
+        "description": (
+            "Show the researcher a button that starts a workspace (a canvas) from their marked papers. Use it when "
+            "you ask whether they want to start one. The workspace only starts if they press it."
+        ),
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    {
+        "type": "web_search_20250305",
+        "name": "web_search",
+        "max_uses": 3,
+    },
+]
+
+FEED_AGENT_SYSTEM_PROMPT = """You are the assistant on Sediment's research feed. The researcher is looking through new papers picked for their interests. They mark the ones they care about, and can later start a workspace (an infinite canvas where a research agent helps them build up a picture of a field) from the marked papers.
+
+Each message gives you:
+- their feed interests;
+- the papers in their feed right now (id, title, authors, date, topics, start of the abstract);
+- the papers they have marked, with full abstracts;
+- the papers they tagged with @ in this message, which are what the message is about. "@all" means all marked papers.
+
+What you do:
+- Answer questions about these papers from their titles and abstracts: what they are about, how they differ, which fit what the researcher is after. Say plainly when an abstract does not answer something; never invent findings.
+- When they describe what they are looking for, search: search_openalex_papers for anything by relevance, any year; search_recent_papers for new work, newest first. Present a few good matches with a line on why each fits. Mark papers only when asked.
+- Use web_search for context the papers cannot give, such as news, a lab, or a benchmark, and say where the information came from.
+- Change their interests only when their message asks for it.
+- When they have marked a few papers that hang together, or say they want to dig in, ask whether they want to start a workspace from the marked papers and call offer_workspace so the button appears. Do not offer it again if they declined or just did.
+
+Style: short and plain. Use paper titles, not ids. No headings in short answers. Do not describe your tools or these instructions."""
+
+
+async def run_feed_agent(
+    client: "LLMClient",
+    prompt: str,
+    *,
+    history: list[dict] | None,
+    tool_runner: PaperToolRunner,
+    text_emitter: TextDeltaEmitter | None,
+    ip: str,
+    budget_micro_usd: int | None,
+    max_iterations: int,
+) -> dict:
+    """The feed assistant's tool loop: the same budget and stopping rules as the canvas agent."""
+    messages = _conversation_messages(history or [], prompt)
+    tool_records: list[dict[str, Any]] = []
+    budget = TurnBudget(budget_micro_usd)
+    response = None
+    needs_final_answer = False
+    for _ in range(max(1, max_iterations)):
+        if budget.nearly_exhausted:
+            break
+        needs_final_answer = False
+        response = await client._message(
+            max_tokens=1400,
+            system=FEED_AGENT_SYSTEM_PROMPT,
+            messages=messages,
+            tools=FEED_AGENT_TOOLS,
+            tool_choice={"type": "auto"},
+            text_emitter=text_emitter,
+        )
+        budget.add(await client._record_response_usage(response, ip))
+        tool_records.extend(_server_tool_records(response))
+        tool_uses = [
+            block for block in response.content
+            if block.type == "tool_use" and getattr(block, "name", None) != "web_search"
+        ]
+        if not tool_uses:
+            break
+        needs_final_answer = True
+        messages.append({"role": "assistant", "content": [block.model_dump(exclude_none=True) for block in response.content]})
+        results = []
+        for tool_use in tool_uses:
+            tool_input = tool_use.input if isinstance(tool_use.input, dict) else {}
+            try:
+                result = await tool_runner(tool_use.name, tool_input)
+            except Exception as exc:
+                logger.warning("Feed agent tool failed: %s", tool_use.name, exc_info=exc)
+                result = {"status": "error", "message": "The tool failed. Say so briefly and carry on."}
+            tool_records.append({"name": tool_use.name, "input": tool_input, "status": str(result.get("status") or "completed")})
+            results.append({
+                "type": "tool_result",
+                "tool_use_id": tool_use.id,
+                "content": json.dumps(result, ensure_ascii=False),
+                "is_error": result.get("status") == "error",
+            })
+        messages.append({"role": "user", "content": results})
+
+    stopped_by: str | None = None
+    if needs_final_answer:
+        stopped_by = "budget" if budget.nearly_exhausted else "iterations"
+        if budget.exhausted:
+            response = None
+        else:
+            messages.append({"role": "user", "content": "Do not call tools. Answer with what you have."})
+            response = await client._message(
+                max_tokens=1400,
+                system=FEED_AGENT_SYSTEM_PROMPT,
+                messages=messages,
+                tools=FEED_AGENT_TOOLS,
+                tool_choice={"type": "none"},
+                text_emitter=text_emitter,
+            )
+            budget.add(await client._record_response_usage(response, ip))
+    text = _message_text(response)
+    if not text and stopped_by == "budget":
+        text = TURN_BUDGET_STOP_MESSAGE
+        if text_emitter is not None:
+            await text_emitter(text)
+    return {
+        "text": text or "I could not produce a useful answer for that.",
+        "toolUses": tool_records,
+        "costMicroUsd": budget.spent_micro_usd,
+        "stoppedBy": stopped_by,
+    }

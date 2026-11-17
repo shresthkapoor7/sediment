@@ -10,7 +10,7 @@ from starlette.datastructures import Headers
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from .config import settings
-from .routers import feeds, changelog, chat, paper_access, papers, persistence, usage
+from .routers import feeds, feed_chat, changelog, chat, paper_access, papers, persistence, usage
 from .services.paper_ingestion import shutdown_paper_parse_executor
 
 logger = logging.getLogger(__name__)
@@ -185,6 +185,7 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
     return JSONResponse(status_code=500, content={"detail": "Internal server error."})
 
 app.include_router(feeds.router, prefix="/api")
+app.include_router(feed_chat.router, prefix="/api")
 app.include_router(changelog.router, prefix="/api")
 app.include_router(chat.router, prefix="/api")
 app.include_router(persistence.router, prefix="/api")

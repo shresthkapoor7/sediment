@@ -206,3 +206,10 @@
 
 /* Chat removes native scrolling; preserve its selected-card offset on the track. */
 .dialog[data-chat] .papers { transform: translateX(calc(var(--stack-anchor) * (var(--card-width) + var(--card-gap)) * -1)); }
+
+/* The assistant's replies: plain text on the left, unlike the researcher's bubbles. */
+.reply { max-width: 92%; margin: 0 auto 20px 0; font-size: 14px; line-height: 1.7; color: var(--text-primary); overflow-wrap: anywhere; }
+.reply p { margin: 0 0 10px; }
+.replyStatus { color: var(--text-tertiary); font-size: 12px; font-family: var(--font-mono), monospace; }
+.offer { margin-top: 6px; height: 34px; padding: 0 14px; border: 0; border-radius: 9px; background: var(--accent); color: var(--on-accent); font: inherit; font-size: 13px; font-weight: 550; cursor: pointer; }
+.offer:hover { opacity: .88; }

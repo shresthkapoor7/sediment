@@ -52,7 +52,7 @@ function StartMenu({ mode, onSelect }: { mode: StartMode; onSelect: (mode: Start
 }
 
 /** The home screen's entry point: choose where to start from, then one field and one button that follow the choice. */
-export function StartBar({ mode, onModeChange, markedCount, disabled, adding, searching, onSearch, onAddInterests }: {
+export function StartBar({ mode, onModeChange, markedCount, disabled, adding, searching, onSearch, onSynchronize, onAddInterests }: {
   mode: StartMode;
   onModeChange: (mode: StartMode) => void;
   /** Papers marked in the feed. */
@@ -63,6 +63,8 @@ export function StartBar({ mode, onModeChange, markedCount, disabled, adding, se
   adding: boolean;
   searching?: boolean;
   onSearch?: (query: string) => void;
+  /** Starts a workspace from the marked papers. */
+  onSynchronize?: () => void;
   /** Resolves true when the interests were saved. */
   onAddInterests: (text: string) => Promise<boolean>;
 }) {
@@ -79,14 +81,14 @@ export function StartBar({ mode, onModeChange, markedCount, disabled, adding, se
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    // Synchronize has nothing to run yet.
-    if (mode === "feed" || !value) return;
+    if (mode === "feed") { if (markedCount > 0) onSynchronize?.(); return; }
+    if (!value) return;
     if (mode === "paper") { onSearch?.(value); return; }
     if (await onAddInterests(value)) setText("");
   }
 
   const action = mode === "feed" ? "Synchronize" : mode === "paper" ? "Search" : adding ? "Adding…" : "Add";
-  const blocked = mode === "feed" ? markedCount === 0 : mode === "paper" ? !value || !onSearch || !!searching : !value || disabled;
+  const blocked = mode === "feed" ? markedCount === 0 || !onSynchronize || !!searching : mode === "paper" ? !value || !onSearch || !!searching : !value || disabled;
 
   return <form className={styles.start} onSubmit={submit} aria-label="Start from">
     <StartMenu mode={mode} onSelect={select} />

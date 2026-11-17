@@ -5,13 +5,36 @@ import type { FeedPaper } from "@/lib/feeds-api";
 import { PaperMentionInput, mentionedPapers } from "./PaperMentionInput";
 import { LogoMark } from "@/components/LogoMark";
 import { FeedPaperImage } from "./FeedPaperImage";
+import { MarkdownContent } from "@/components/MarkdownContent";
+import { streamFeedChat } from "@/lib/feed-chat-api";
 import styles from "./PaperStage.module.css";
 
-export function PaperStage({ papers, onRemove, onClear, onOpen }: {
+type StageMessage =
+  | { role: "user"; text: string; paper: string; paperIds: string[] }
+  | { role: "assistant"; text: string; pending: boolean; status?: string; offer?: boolean };
+
+const TOOL_STATUS: Record<string, string> = {
+  search_openalex_papers: "Searching OpenAlex",
+  search_recent_papers: "Searching recent papers",
+  mark_papers: "Marking papers",
+  update_interests: "Updating your interests",
+  offer_workspace: "Getting a workspace ready",
+  web_search: "Searching the web",
+};
+
+export function PaperStage({ papers, onRemove, onClear, onOpen, feedPapers, interests, domain, onMark, onInterests, onStartWorkspace }: {
   papers: FeedPaper[];
   onRemove: (paper: FeedPaper) => void;
   onClear: () => void;
   onOpen: (paper: FeedPaper) => void;
+  /** What the assistant sees besides the marked papers. */
+  feedPapers: FeedPaper[];
+  interests: string;
+  domain: string;
+  onMark: (papers: FeedPaper[]) => void;
+  onInterests: (interests: string) => void;
+  /** Start a workspace from the marked papers; offered by the assistant. */
+  onStartWorkspace?: () => void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const viewport = useRef<HTMLDivElement>(null);
@@ -20,7 +43,10 @@ export function PaperStage({ papers, onRemove, onClear, onOpen }: {
   const [stackAnchor, setStackAnchor] = useState(0);
   const [gathering, setGathering] = useState(false);
   const [chatMode, setChatMode] = useState(false);
-  const [messages, setMessages] = useState<{ text: string; paper: string; paperIds: string[] }[]>([]);
+  const [messages, setMessages] = useState<StageMessage[]>([]);
+  const [replying, setReplying] = useState(false);
+  const reply = useRef<AbortController | null>(null);
+  useEffect(() => () => reply.current?.abort(), []);
   const chatLog = useRef<HTMLDivElement>(null);
   const scrollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [chatScrolling, setChatScrolling] = useState(false);
@@ -33,13 +59,50 @@ export function PaperStage({ papers, onRemove, onClear, onOpen }: {
   const activePaper = papers[activeIndex];
   const draft = activePaper ? drafts[activePaper.id] || "" : "";
   const references = mentionedPapers(draft, papers);
-  const highlightedIds = draft.trim() ? references.map(paper => paper.id) : messages.at(-1)?.paperIds || [];
+  const lastAsked = [...messages].reverse().find((message): message is Extract<StageMessage, { role: "user" }> => message.role === "user");
+  const highlightedIds = draft.trim() ? references.map(paper => paper.id) : lastAsked?.paperIds || [];
+  function updateReply(patch: (message: Extract<StageMessage, { role: "assistant" }>) => Partial<Extract<StageMessage, { role: "assistant" }>>) {
+    setMessages(current => {
+      const index = current.length - 1;
+      const last = current[index];
+      if (!last || last.role !== "assistant") return current;
+      const next = [...current];
+      next[index] = { ...last, ...patch(last) };
+      return next;
+    });
+  }
+  async function send(text: string, targets: FeedPaper[]) {
+    const history = messages.flatMap(message => message.text.trim() ? [{ role: message.role, content: message.text }] : []);
+    setMessages(current => [
+      ...current,
+      { role: "user", text, paper: targets.map(paper => paper.title).join(" · "), paperIds: targets.map(paper => paper.id) },
+      { role: "assistant", text: "", pending: true, status: "Thinking" },
+    ]);
+    setReplying(true);
+    const controller = new AbortController();
+    reply.current = controller;
+    try {
+      await streamFeedChat({ question: text, interests, domain, feedPapers, markedPapers: papers, mentionedPaperIds: targets.map(paper => paper.id), history }, event => {
+        if (event.type === "text_delta") updateReply(last => ({ text: last.text + event.text, status: undefined }));
+        if (event.type === "tool_started") updateReply(() => ({ status: TOOL_STATUS[event.name] ?? "Working" }));
+        if (event.type === "mark_papers") onMark(event.papers);
+        if (event.type === "interests_change") onInterests(event.interests);
+        if (event.type === "workspace_offer") updateReply(() => ({ offer: true }));
+        if (event.type === "message_completed") updateReply(last => ({ text: last.text || event.response.text, pending: false, status: undefined }));
+      }, controller.signal);
+    } catch (error) {
+      if (!controller.signal.aborted) updateReply(last => ({ text: last.text || (error instanceof Error ? error.message : "Chat failed."), pending: false, status: undefined }));
+    } finally {
+      updateReply(() => ({ pending: false, status: undefined }));
+      setReplying(false);
+    }
+  }
   function askAgent(event: React.FormEvent) {
     event.preventDefault();
     const text = activePaper && drafts[activePaper.id]?.trim();
-    if (!text || !activePaper) return;
+    if (!text || !activePaper || replying) return;
     const targets = references.length ? references : [activePaper];
-    setMessages(current => [...current, { text, paper: targets.map(paper => paper.title).join(" · "), paperIds: targets.map(paper => paper.id) }]);
+    void send(text, targets);
     setDrafts(current => ({ ...current, [activePaper.id]: "" }));
     if (!chatMode) { setStackAnchor(activeIndex); setGathering(!window.matchMedia("(prefers-reduced-motion: reduce)").matches); }
     setChatMode(true);
@@ -48,7 +111,7 @@ export function PaperStage({ papers, onRemove, onClear, onOpen }: {
     if (chatLog.current) chatLog.current.scrollTop = chatLog.current.scrollHeight;
   }, [messages]);
   // An emptied collection ends the conversation; newly marked papers start fresh.
-  if (!papers.length && (chatMode || gathering || stackAnchor || messages.length)) {
+  if (!papers.length && !replying && (chatMode || gathering || stackAnchor || messages.length)) {
     setChatMode(false);
     setGathering(false);
     setStackAnchor(0);
@@ -177,13 +240,21 @@ export function PaperStage({ papers, onRemove, onClear, onOpen }: {
             if (scrollTimer.current) clearTimeout(scrollTimer.current);
             scrollTimer.current = setTimeout(() => setChatScrolling(false), 800);
           }} role="log" aria-live="polite" aria-label="Your messages">
-            {messages.map((message, index) => <div key={index} className={styles.message}><span>{message.paper}</span><p>{message.text}</p></div>)}
+            {messages.map((message, index) => message.role === "user"
+              ? <div key={index} className={styles.message}><span>{message.paper}</span><p>{message.text}</p></div>
+              : <div key={index} className={styles.reply}>
+                {message.text && <MarkdownContent>{message.text}</MarkdownContent>}
+                {message.status && <p className={styles.replyStatus}>{message.status}…</p>}
+                {message.offer && onStartWorkspace && papers.length > 0 && <button type="button" className={styles.offer} onClick={() => minimize(onStartWorkspace)}>
+                  Start a workspace from {papers.length} marked {papers.length === 1 ? "paper" : "papers"}
+                </button>}
+              </div>)}
           </div>
         </section>}
         {activePaper ? <form className={styles.composer} onSubmit={askAgent}>
             <span className={styles.agentLogo} aria-hidden="true"><LogoMark width="20" height="20" /></span>
             <PaperMentionInput papers={papers} value={draft} onChange={value => setDrafts(current => ({ ...current, [activePaper.id]: value }))} />
-            <button className={styles.send} type="submit" aria-label="Send message" disabled={!drafts[activePaper.id]?.trim()}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 19V5m-6 6 6-6 6 6" /></svg></button>
+            <button className={styles.send} type="submit" aria-label="Send message" disabled={!drafts[activePaper.id]?.trim() || replying}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 19V5m-6 6 6-6 6 6" /></svg></button>
           </form> : <p className={styles.empty}>No marked papers. Mark a paper beside Save to collect it here.</p>}
       </div>
     </dialog>

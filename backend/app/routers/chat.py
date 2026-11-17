@@ -609,10 +609,11 @@ async def _run_paper_chat(req: ChatRequest, request_ip: str, event_emitter: Chat
 
 
 def _is_new_canvas(req: GlobalChatRequest, context: ChatContext | None) -> bool:
-    """The first message of a canvas nobody has named: the one time the agent may name it unprompted."""
+    """The first message of a canvas nobody has named: the one time the agent may name it unprompted.
+    A canvas started from marked feed papers already has papers on it, so the paper count does not matter."""
     details = req.canvas
     untouched = details is not None and not details.titleSetBy and not details.descriptionSetBy
-    return untouched and not (context and context.history) and len(req.papers) == 0
+    return untouched and not (context and context.history)
 
 
 def _quotes_question(quote: object, question: str) -> bool:
