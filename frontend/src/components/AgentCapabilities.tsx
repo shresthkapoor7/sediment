@@ -60,6 +60,7 @@ export function AgentCapabilities({ items, disabled }: { items: AgentCapability[
         <div
           role="dialog"
           aria-label="What the agent can do"
+          className="no-scrollbar"
           style={{
             position: "absolute",
             top: "calc(100% + 0.375rem)",

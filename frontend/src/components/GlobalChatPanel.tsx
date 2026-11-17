@@ -971,7 +971,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
 
             {/* Messages */}
             <div style={{ position: "relative", flex: 1, minHeight: 0 }}>
-              <div ref={messagesRef} style={{ height: "100%", overflowY: "auto", padding: "0.5rem 1rem 1rem", display: "flex", flexDirection: "column", gap: "1rem" }}>
+              <div ref={messagesRef} className="no-scrollbar" style={{ height: "100%", overflowY: "auto", padding: "0.5rem 1rem 1rem", display: "flex", flexDirection: "column", gap: "1rem" }}>
               {messages.length === 0 && (
                 <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem", marginTop: "0.25rem" }}>
                   {loadingSuggestions ? (

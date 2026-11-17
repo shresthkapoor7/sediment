@@ -2638,3 +2638,7 @@ a.landing-brand:hover {
 .agent-capability:disabled { opacity: 0.5; cursor: default; }
 .agent-capability-label { font-size: 0.8125rem; font-weight: 550; color: var(--text-primary); }
 .agent-capability-hint { font-size: 0.75rem; line-height: 1.4; color: var(--text-tertiary); }
+
+/* Scrolls without showing a scrollbar. */
+.no-scrollbar { scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
