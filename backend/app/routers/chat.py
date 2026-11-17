@@ -608,17 +608,17 @@ async def _run_paper_chat(req: ChatRequest, request_ip: str, event_emitter: Chat
     return result
 
 
-CANVAS_DETAILS_REQUEST_RE = re.compile(r"\b(rename|renaming|name|title|describe|description)\b", re.IGNORECASE)
-
-
-def _may_set_canvas_details(req: GlobalChatRequest, context: ChatContext | None) -> bool:
-    """The agent may name a canvas unprompted only at the very start; later, only when the researcher asks."""
-    if CANVAS_DETAILS_REQUEST_RE.search(req.question):
-        return True
+def _is_new_canvas(req: GlobalChatRequest, context: ChatContext | None) -> bool:
+    """The first message of a canvas nobody has named: the one time the agent may name it unprompted."""
     details = req.canvas
     untouched = details is not None and not details.titleSetBy and not details.descriptionSetBy
-    first_message = not (context and context.history) and len(req.papers) == 0
-    return untouched and first_message
+    return untouched and not (context and context.history) and len(req.papers) == 0
+
+
+def _quotes_question(quote: object, question: str) -> bool:
+    """Whether the agent's quote really is part of the researcher's message, so it cannot invent a request."""
+    text = " ".join(str(quote or "").split()).lower()
+    return len(text) >= 3 and text in " ".join(question.split()).lower()
 
 
 CANVAS_TITLE_LENGTH = 80
@@ -891,6 +891,8 @@ async def _run_global_chat(req: GlobalChatRequest, request_ip: str, event_emitte
             return None
         note_connections.append(connection)
         return connection
+
+    new_canvas = _is_new_canvas(req, context)
 
     async def run_global_tool(name: str, tool_input: dict[str, Any]) -> dict[str, Any]:
         if name in FULL_TEXT_TOOL_NAMES and not settings.full_paper_access_enabled:
@@ -1175,6 +1177,13 @@ async def _run_global_chat(req: GlobalChatRequest, request_ip: str, event_emitte
             return result
 
         if name == "update_canvas_details":
+            if not new_canvas and not _quotes_question(tool_input.get("researcherRequest"), req.question):
+                result = {
+                    "status": "skipped",
+                    "reason": "Only rename or describe the canvas when the researcher asks in this message; quote their words in researcherRequest.",
+                }
+                await _emit(event_emitter, "tool_completed", {"name": name, "status": result["status"], "result": result})
+                return result
             details: dict[str, str] = {}
             title = " ".join(str(tool_input.get("title") or "").split())
             description = " ".join(str(tool_input.get("description") or "").split())
@@ -1613,7 +1622,6 @@ async def _run_global_chat(req: GlobalChatRequest, request_ip: str, event_emitte
             ),
             known_candidates=_known_candidates_from_context(context, set(paper_by_normalized_id)),
             canvas_details=req.canvas.model_dump() if req.canvas else None,
-            allow_canvas_details=_may_set_canvas_details(req, context),
             paper_colors={
                 resolved: str(item.get("borderColor"))
                 for item in raw_node_color_context

@@ -205,6 +205,10 @@ GLOBAL_AGENT_TOOLS = [
                     "type": "string",
                     "description": "One or two plain sentences on what the canvas is for: the question being explored.",
                 },
+                "researcherRequest": {
+                    "type": "string",
+                    "description": "The researcher's exact words in this message asking for the change. Not needed on a new canvas's first message.",
+                },
             },
         },
     },
@@ -623,7 +627,7 @@ Real research often combines bodies of work that have never cited each other. A 
 # Canvas name and description
 
 The canvas state shows the canvas's current name and description and who set each: "user" (the researcher), "agent" (you, earlier), or "default" (nothing chosen yet; a new canvas is named after the first message). Use update_canvas_details:
-- On the first message of a new canvas, when the name or description is still "default": give the canvas a short name and a one or two sentence description of the question being explored, in the same turn as your other work, and say so in a few words at the end of your reply. The tool is only offered then, or when the researcher asks about the name or description.
+- On the first message of a new canvas, when the name or description is still "default": give the canvas a short name and a one or two sentence description of the question being explored, in the same turn as your other work, and say so in a few words at the end of your reply. At any other time, use it only when the researcher's current message asks for it, and put their exact words asking for it in researcherRequest; the change is refused otherwise.
 - Never change anything the researcher set ("user") unless they ask you to.
 - Do not revise what you set earlier ("agent") unless they ask, or the focus of the board has clearly and lastingly changed.
 - When the researcher asks you to rename the canvas or change its description, do it.
@@ -1197,7 +1201,6 @@ Rules:
         known_candidates: list[dict[str, Any]] | None = None,
         canvas_details: dict[str, Any] | None = None,
         paper_colors: dict[str, str] | None = None,
-        allow_canvas_details: bool = True,
         budget_micro_usd: int | None = None,
         max_iterations: int = PAPER_AGENT_MAX_ITERATIONS,
     ) -> dict:
@@ -1282,7 +1285,7 @@ User message:
                 max_tokens=1600,
                 system=_agent_system_prompt(),
                 messages=messages,
-                tools=_agent_tools(allow_canvas_details),
+                tools=_agent_tools(),
                 tool_choice={"type": "auto"},
                 text_emitter=text_emitter,
             )
@@ -1355,7 +1358,7 @@ User message:
                     max_tokens=1600,
                     system=_agent_system_prompt(),
                     messages=messages,
-                    tools=_agent_tools(allow_canvas_details),
+                    tools=_agent_tools(),
                     tool_choice={"type": "none"},
                     text_emitter=text_emitter,
                 )
@@ -1825,10 +1828,8 @@ def _full_text_enabled() -> bool:
     return settings.full_paper_access_enabled
 
 
-def _agent_tools(allow_canvas_details: bool = True) -> list[dict]:
+def _agent_tools() -> list[dict]:
     hidden = set() if _full_text_enabled() else set(FULL_TEXT_TOOL_NAMES)
-    if not allow_canvas_details:
-        hidden.add("update_canvas_details")
     return [tool for tool in GLOBAL_AGENT_TOOLS if tool.get("name") not in hidden]
 
 
