@@ -12,6 +12,8 @@ import { ChatTabs, type ChatTabItem } from "./ChatTabs";
 import { DETAIL_PANEL_DEFAULT_WIDTH, DETAIL_PANEL_MAX_WIDTH, DETAIL_PANEL_MIN_WIDTH, DETAIL_PANEL_WIDTH_KEY } from "@/lib/detail-panel";
 import { isSpecialNote } from "@/lib/note-style";
 import {
+  CanvasDetails,
+  CanvasDetailsChange,
   GlobalChatStreamEvent,
   LineageChange,
   TimelineData,
@@ -55,32 +57,14 @@ interface GlobalChatPanelProps {
   onLineageChanges?: (changes: LineageChange[]) => void;
   onNoteChanges?: (changes: TimelineNoteChange[]) => void;
   onNodeColorChanges?: (changes: TimelineNodeColorChange[]) => void;
+  /** The canvas's name and description, sent so the agent can name a new canvas. */
+  canvasDetails?: CanvasDetails;
+  onCanvasDetailsChange?: (details: CanvasDetailsChange) => void;
   onUsageChanged?: () => void;
   graphId?: string | null;
   userId?: string | null;
 }
 
-const NOTE_CONTEXT_REQUEST_RE = /\b(notes?|canvas)\b/i;
-const NOTE_PRONOUN_ACTION_RE = /\b(add|create|write|make|edit|update|change|delete|remove|connect|disconnect|link|unlink)\s+(it|this|that)\b/i;
-const NODE_COLOR_CONTEXT_REQUEST_RE = /\b(colors?|colours?|highlight(?:ed)?|accent|blue|green|purple|amber|rose)\b/i;
-const NODE_COLOR_FOLLOWUP_RE = /\b(it|them|these|those)\b/i;
-
-function requiresTimelineNoteContext(question: string, messages: Message[]): boolean {
-  if (NOTE_CONTEXT_REQUEST_RE.test(question)) return true;
-  if (!NOTE_PRONOUN_ACTION_RE.test(question)) return false;
-  return messages.slice(-4).some((message) => (
-    NOTE_CONTEXT_REQUEST_RE.test(message.text)
-    || message.toolEvents?.some((tool) => tool.name === "create_timeline_notes" || tool.name === "update_timeline_notes")
-  ));
-}
-
-function requiresTimelineNodeColorContext(question: string, messages: Message[]): boolean {
-  if (NODE_COLOR_CONTEXT_REQUEST_RE.test(question)) return true;
-  if (!NODE_COLOR_FOLLOWUP_RE.test(question)) return false;
-  return messages.slice(-4).some((message) => (
-    message.toolEvents?.some((tool) => tool.name === "update_timeline_node_colors")
-  ));
-}
 
 function traceSummaryMessage(summary: NonNullable<TimelineData["traceSummary"]>): string {
   const steps = summary.steps
@@ -212,7 +196,7 @@ function capMessages(messages: Message[]): Message[] {
 const LOCAL_SESSION_KEY = "local";
 const MAX_CHATS = 12;
 
-export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMentionedPaperIdsChange, mentionRequest, kickoff, onKickoffSent, onLineageChanges, onNoteChanges, onNodeColorChanges, onUsageChanged, graphId, userId }: GlobalChatPanelProps) {
+export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMentionedPaperIdsChange, mentionRequest, kickoff, onKickoffSent, onLineageChanges, onNoteChanges, onNodeColorChanges, canvasDetails, onCanvasDetailsChange, onUsageChanged, graphId, userId }: GlobalChatPanelProps) {
   // Each chat keeps its own messages, so switching tabs or a reply arriving in another chat never mixes them.
   const [messagesBySession, setMessagesBySession] = useState<Record<string, Message[]>>({});
   const [tabs, setTabs] = useState<ChatTabItem[]>([]);
@@ -706,8 +690,9 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
       const title = words.length <= 40 ? words : `${words.slice(0, 39).trimEnd()}…`;
       setTabs((current) => current.map((tab) => (tab.id === activeSessionId && !tab.title ? { ...tab, title } : tab)));
     }
-    const noteContext = requiresTimelineNoteContext(q, messages) ? buildNoteContext() : undefined;
-    const nodeColorContext = requiresTimelineNodeColorContext(q, messages) ? buildNodeColorContext() : undefined;
+    // Notes and colours are small; the agent always gets the live ones, so it never answers from a stale save.
+    const noteContext = buildNoteContext();
+    const nodeColorContext = buildNodeColorContext();
     setInput("");
     setMentionedPaperIds([]);
     setMentionOpen(false);
@@ -752,6 +737,12 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
     let lineageChangesApplied = 0;
     let noteChangesApplied = false;
     let nodeColorChangesApplied = false;
+    let canvasDetailsApplied = false;
+    const applyCanvasDetails = (details: CanvasDetailsChange | null | undefined) => {
+      if (canvasDetailsApplied || !details || (!details.title && !details.description)) return;
+      canvasDetailsApplied = true;
+      onCanvasDetailsChange?.(details);
+    };
     const applyReturnedLineageChanges = (changes: LineageChange[] | undefined) => {
       const pending = (changes ?? []).slice(lineageChangesApplied);
       if (pending.length === 0) return;
@@ -775,6 +766,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
         q,
         (event: GlobalChatStreamEvent) => {
           if (event.type === "status") appendStatus(event.message);
+          if (event.type === "canvas_details") applyCanvasDetails(event.details);
           if (event.type === "canvas_change") {
             lineageChangesApplied += 1;
             onLineageChanges?.([event.lineageChange]);
@@ -801,6 +793,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
             applyReturnedLineageChanges(event.response.lineageChanges);
             applyReturnedNoteChanges(event.response.noteChanges);
             applyReturnedNodeColorChanges(event.response.nodeColorChanges);
+            applyCanvasDetails(event.response.canvasDetails);
             updateAssistant({
               text: event.response.text,
               citations: event.response.citations ?? [],
@@ -816,6 +809,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
         noteContext,
         nodeColorContext,
         buildEdges(),
+        canvasDetails,
       );
       if (res) {
         applyReturnedLineageChanges(res.lineageChanges);

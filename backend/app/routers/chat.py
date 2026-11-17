@@ -608,6 +608,16 @@ async def _run_paper_chat(req: ChatRequest, request_ip: str, event_emitter: Chat
     return result
 
 
+CANVAS_TITLE_LENGTH = 80
+CANVAS_DESCRIPTION_LENGTH = 500
+NOTE_TEXT_START_LENGTH = 160
+
+
+def _note_text_start(text: object) -> str:
+    compact = " ".join(str(text or "").split())
+    return compact if len(compact) <= NOTE_TEXT_START_LENGTH else compact[: NOTE_TEXT_START_LENGTH - 1].rstrip() + "…"
+
+
 def _tool_status_message(name: str, state: str) -> str:
     if name == "search_openalex_papers":
         return "Searching OpenAlex" if state == "started" else "OpenAlex search finished"
@@ -617,6 +627,8 @@ def _tool_status_message(name: str, state: str) -> str:
         return "Finding papers that cite it" if state == "started" else "Citing papers found"
     if name == "update_canvas_papers":
         return "Updating the canvas" if state == "started" else "Canvas updated"
+    if name == "update_canvas_details":
+        return "Naming the canvas" if state == "started" else "Canvas named"
     if name == "update_timeline_node_colors":
         return "Coloring timeline nodes" if state == "started" else "Timeline nodes colored"
     if name == "read_timeline_node_colors":
@@ -833,6 +845,7 @@ async def _run_global_chat(req: GlobalChatRequest, request_ip: str, event_emitte
             "id": note["id"],
             "kind": note["kind"],
             "color": note["color"],
+            "textStart": _note_text_start(note.get("text")),
             "connectedPaperIds": [
                 connection["paperId"]
                 for connection in note_connections
@@ -1144,6 +1157,22 @@ async def _run_global_chat(req: GlobalChatRequest, request_ip: str, event_emitte
                 "status": result["status"],
                 "result": _compact_tool_result_for_event(result),
             })
+            return result
+
+        if name == "update_canvas_details":
+            details: dict[str, str] = {}
+            title = " ".join(str(tool_input.get("title") or "").split())
+            description = " ".join(str(tool_input.get("description") or "").split())
+            if title:
+                details["title"] = title[:CANVAS_TITLE_LENGTH]
+            if description:
+                details["description"] = description[:CANVAS_DESCRIPTION_LENGTH]
+            if not details:
+                result = {"status": "skipped", "reason": "Give a title, a description, or both."}
+            else:
+                result = {"status": "completed", "canvasDetails": details}
+                await _emit(event_emitter, "canvas_details", {"details": details})
+            await _emit(event_emitter, "tool_completed", {"name": name, "status": result["status"], "result": result})
             return result
 
         if name == "read_timeline_node_colors":
@@ -1568,6 +1597,12 @@ async def _run_global_chat(req: GlobalChatRequest, request_ip: str, event_emitte
                 else _canvas_edges_from_graph(graph_data)
             ),
             known_candidates=_known_candidates_from_context(context, set(paper_by_normalized_id)),
+            canvas_details=req.canvas.model_dump() if req.canvas else None,
+            paper_colors={
+                resolved: str(item.get("borderColor"))
+                for item in raw_node_color_context
+                if item.get("borderColor") and (resolved := resolve_current_paper_id(item.get("paperId")))
+            },
             budget_micro_usd=turn_budget_micro_usd,
             max_iterations=settings.agent_max_iterations,
         )

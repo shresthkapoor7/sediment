@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { useState, useCallback, useEffect, useRef, type CSSProperties } from "react";
+import { useState, useCallback, useEffect, useMemo, useRef, type CSSProperties } from "react";
 import { m, AnimatePresence, useReducedMotion } from "framer-motion";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { LoadingLogoMark, LogoMark } from "@/components/LogoMark";
@@ -37,6 +37,7 @@ import { upgradeLegacyTimelineNoteLayout } from "@/lib/note-layout";
 import { applyTimelineGraphAction, applyTimelineLineageChanges, applyTimelineNodeColorChanges, applyTimelineNoteChanges } from "@/lib/timeline-actions";
 import { createEmptyTimeline } from "@/lib/timeline-builder";
 import {
+  CanvasDetailsChange,
   LineageChange,
   TimelineData,
   TimelineGraphAction,
@@ -87,6 +88,17 @@ export default function Home() {
   const graphTitleRef = useRef("");
   const [graphDescription, setGraphDescription] = useState("");
   const graphDescriptionRef = useRef("");
+  // Who last named and described the canvas. The agent may fill in a default, never overwrite the researcher.
+  const [titleSetBy, setTitleSetBy] = useState<"user" | "agent" | null>(null);
+  const [descriptionSetBy, setDescriptionSetBy] = useState<"user" | "agent" | null>(null);
+  const titleSetByRef = useRef<"user" | "agent" | null>(null);
+  const descriptionSetByRef = useRef<"user" | "agent" | null>(null);
+  const setDetailAuthors = useCallback((title: "user" | "agent" | null, description: "user" | "agent" | null) => {
+    titleSetByRef.current = title;
+    descriptionSetByRef.current = description;
+    setTitleSetBy(title);
+    setDescriptionSetBy(description);
+  }, []);
   const graphTitleEditCanceledRef = useRef(false);
   const isSavingGraphTitleRef = useRef(false);
   // Expose the landing scroll container to AppHeader as state (via a stable
@@ -113,6 +125,8 @@ export default function Home() {
     (query: string, data: TimelineData, title = query) => ({
       title,
       description: graphDescriptionRef.current,
+      titleSetBy: titleSetByRef.current,
+      descriptionSetBy: descriptionSetByRef.current,
       nodeCount: Object.keys(data.nodes).length,
       lastOpenedAt: new Date().toISOString(),
       appVersion: APP_VERSION,
@@ -173,6 +187,7 @@ export default function Home() {
         setGraphTitle(graph.metadata.title || graph.query);
         graphDescriptionRef.current = graph.metadata.description ?? "";
         setGraphDescription(graph.metadata.description ?? "");
+        setDetailAuthors(graph.metadata.titleSetBy ?? null, graph.metadata.descriptionSetBy ?? null);
         setSelectedSeedOpenalexId(graph.seedPaperId ?? null);
       })
       .catch((error) => {
@@ -281,6 +296,9 @@ export default function Home() {
     if (nextTitle === graphTitle) return;
 
     const previousTitle = graphTitle;
+    const previousTitleSetBy = titleSetByRef.current;
+    titleSetByRef.current = "user";
+    setTitleSetBy("user");
     graphTitleRef.current = nextTitle;
     setGraphTitle(nextTitle);
     setSaveState("saving");
@@ -299,6 +317,8 @@ export default function Home() {
       .catch(() => {
         graphTitleRef.current = previousTitle;
         setGraphTitle(previousTitle);
+        titleSetByRef.current = previousTitleSetBy;
+        setTitleSetBy(previousTitleSetBy);
         setSaveState("error");
       })
       .finally(() => {
@@ -320,8 +340,11 @@ export default function Home() {
     if (!graphId || !userId || !timelineData) return;
     const previous = graphDescriptionRef.current;
     if (next === previous) return;
+    const previousSetBy = descriptionSetByRef.current;
     graphDescriptionRef.current = next;
     setGraphDescription(next);
+    descriptionSetByRef.current = "user";
+    setDescriptionSetBy("user");
     setSaveState("saving");
     void updateSavedGraph(graphId, {
       userId,
@@ -334,9 +357,12 @@ export default function Home() {
       .catch(() => {
         graphDescriptionRef.current = previous;
         setGraphDescription(previous);
+        descriptionSetByRef.current = previousSetBy;
+        setDescriptionSetBy(previousSetBy);
         setSaveState("error");
       });
   }, [buildMetadata, graphId, searchedQuery, timelineData, userId]);
+
 
   // A new canvas starts empty. The query becomes the first message to the agent, which decides with
   // the researcher what goes on the board.
@@ -367,6 +393,7 @@ export default function Home() {
         setGraphTitle(savedGraph.metadata.title || title);
         graphDescriptionRef.current = "";
         setGraphDescription("");
+        setDetailAuthors(null, null);
         setGraphTitleDraft("");
         setIsEditingGraphTitle(false);
         setSelectedSeedOpenalexId(null);
@@ -401,6 +428,7 @@ export default function Home() {
     setGraphTitle("");
     graphDescriptionRef.current = "";
     setGraphDescription("");
+    setDetailAuthors(null, null);
     setGraphTitleDraft("");
     setIsEditingGraphTitle(false);
     setSelectedSeedOpenalexId(null);
@@ -444,7 +472,7 @@ export default function Home() {
 
   // Each canvas has its own history.
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- Drop the previous canvas's steps when another opens.
+     
     clearHistory();
   }, [graphId, clearHistory]);
 
@@ -480,6 +508,48 @@ export default function Home() {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [handleRedo, handleUndo]);
+
+  // The agent named or described the canvas. It is told not to touch what the researcher set; this is the
+  // backstop, so a title or description the researcher wrote is never replaced.
+  const handleAgentCanvasDetails = useCallback((details: CanvasDetailsChange) => {
+    const current = timelineDataRef.current;
+    if (!graphId || !userId || !current) return;
+    const title = details.title?.trim();
+    const description = details.description?.trim();
+    let changed = false;
+    if (title && title !== graphTitleRef.current) {
+      graphTitleRef.current = title;
+      setGraphTitle(title);
+      titleSetByRef.current = "agent";
+      setTitleSetBy("agent");
+      changed = true;
+    }
+    if (description && description !== graphDescriptionRef.current) {
+      graphDescriptionRef.current = description;
+      setGraphDescription(description);
+      descriptionSetByRef.current = "agent";
+      setDescriptionSetBy("agent");
+      changed = true;
+    }
+    if (!changed) return;
+    setSaveState("saving");
+    void updateSavedGraph(graphId, {
+      userId,
+      metadata: buildMetadata(searchedQuery, current, graphTitleRef.current || searchedQuery),
+    })
+      .then(() => {
+        setSaveState("saved");
+        saveStateTimeoutRef.current = window.setTimeout(() => setSaveState("idle"), 1800);
+      })
+      .catch(() => setSaveState("error"));
+  }, [buildMetadata, graphId, searchedQuery, userId]);
+
+  const canvasDetails = useMemo(() => ({
+    title: graphTitle || searchedQuery,
+    description: graphDescription,
+    titleSetBy,
+    descriptionSetBy,
+  }), [descriptionSetBy, graphDescription, graphTitle, searchedQuery, titleSetBy]);
 
   const handleTimelineGraphAction = useCallback(
     (action: TimelineGraphAction) => commitTimeline((current) => applyTimelineGraphAction(current, action, {
@@ -756,6 +826,8 @@ export default function Home() {
                 onLineageChanges={handleTimelineLineageChanges}
                 onNoteChanges={handleTimelineNoteChanges}
                 onNodeColorChanges={handleTimelineNodeColorChanges}
+                canvasDetails={canvasDetails}
+                onCanvasDetailsChange={handleAgentCanvasDetails}
                 lockedNodeOpenalexId={selectedSeedOpenalexId}
                 onUsageChanged={refreshCredits}
                 hoverPreviewEnabled={hoverPreviewEnabled}

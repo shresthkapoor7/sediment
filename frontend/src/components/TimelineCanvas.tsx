@@ -8,7 +8,7 @@ import { DETAIL_PANEL_DEFAULT_WIDTH, DETAIL_PANEL_MAX_WIDTH, DETAIL_PANEL_MIN_WI
 import { TIMELINE_MOBILE_BREAKPOINT_PX } from "@/lib/hover-preview";
 
 const MINIMAP_STORAGE_KEY = "sediment:minimap-enabled";
-import { TimelineData, ChatSuggestion, GraphPaper, PaperAccessResponse, PaperContentResponse, TimelineNode, PaperChatStreamEvent, TimelineGraphAction, NodeBorderColor, TimelineNote, LineageChange, TimelineNodeColorChange, TimelineNoteChange, SpecialNoteFile, SpecialNoteFileListResponse } from "@/lib/types";
+import { CanvasDetails, CanvasDetailsChange, TimelineData, ChatSuggestion, GraphPaper, PaperAccessResponse, PaperContentResponse, TimelineNode, PaperChatStreamEvent, TimelineGraphAction, NodeBorderColor, TimelineNote, LineageChange, TimelineNodeColorChange, TimelineNoteChange, SpecialNoteFile, SpecialNoteFileListResponse } from "@/lib/types";
 import { NODE_BORDER_COLOR_OPTIONS } from "@/lib/node-style";
 import { SPECIAL_NOTE_MIN_HEIGHT, TIMELINE_NOTE_DEFAULT_WIDTH, TIMELINE_NOTE_MIN_HEIGHT, isSpecialNote } from "@/lib/note-style";
 import peek from "./PaperPeek.module.css";
@@ -80,6 +80,8 @@ interface TimelineCanvasProps {
   onAgentKickoffSent?: () => void;
   onNoteChanges?: (changes: TimelineNoteChange[]) => void;
   onNodeColorChanges?: (changes: TimelineNodeColorChange[]) => void;
+  canvasDetails?: CanvasDetails;
+  onCanvasDetailsChange?: (details: CanvasDetailsChange) => void;
   lockedNodeOpenalexId?: string | null;
   onUsageChanged?: () => void;
   readOnly?: boolean;
@@ -115,6 +117,8 @@ export function TimelineCanvas({
   onAgentKickoffSent,
   onNoteChanges,
   onNodeColorChanges,
+  canvasDetails,
+  onCanvasDetailsChange,
   lockedNodeOpenalexId,
   onUsageChanged,
   readOnly = false,
@@ -2741,6 +2745,8 @@ export function TimelineCanvas({
           onLineageChanges={onLineageChanges}
           onNoteChanges={onNoteChanges}
           onNodeColorChanges={onNodeColorChanges}
+          canvasDetails={canvasDetails}
+          onCanvasDetailsChange={onCanvasDetailsChange}
           onUsageChanged={onUsageChanged}
           graphId={graphId}
           userId={userId}

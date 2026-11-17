@@ -254,6 +254,7 @@ export interface GlobalChatResponse {
   lineageChanges?: LineageChange[];
   noteChanges?: TimelineNoteChange[];
   nodeColorChanges?: TimelineNodeColorChange[];
+  canvasDetails?: CanvasDetailsChange | null;
   costMicroUsd?: number;
   stoppedBy?: "budget" | "iterations" | null;
 }
@@ -272,9 +273,24 @@ export interface LineageChange {
   skipped?: { paperId: string; reason: string }[];
 }
 
+/** A canvas name and/or description chosen by the agent. */
+export interface CanvasDetailsChange {
+  title?: string;
+  description?: string;
+}
+
+/** The canvas's name and description as the agent sees them, and who last set each. */
+export interface CanvasDetails {
+  title: string;
+  description: string;
+  titleSetBy: "user" | "agent" | null;
+  descriptionSetBy: "user" | "agent" | null;
+}
+
 export type GlobalChatStreamEvent =
   | { type: "message_started" }
   | { type: "canvas_change"; lineageChange: LineageChange }
+  | { type: "canvas_details"; details: CanvasDetailsChange }
   | { type: "status"; message: string }
   | { type: "tool_started"; name: string; input?: Record<string, unknown> }
   | { type: "tool_completed"; name: string; status?: string; result?: Record<string, unknown> }
@@ -390,8 +406,11 @@ export interface Expansion {
 
 export interface SavedGraphMetadata {
   title: string;
-  /** What the canvas is for, written by its owner. */
+  /** What the canvas is for, written by its owner or the agent. */
   description?: string;
+  /** Who last set the title and description; missing means the automatic default. */
+  titleSetBy?: "user" | "agent" | null;
+  descriptionSetBy?: "user" | "agent" | null;
   nodeCount: number;
   lastOpenedAt?: string | null;
   appVersion: string;

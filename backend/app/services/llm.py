@@ -192,6 +192,23 @@ GLOBAL_AGENT_TOOLS = [
         },
     },
     {
+        "name": "update_canvas_details",
+        "description": (
+            "Rename the canvas or set its description, which the researcher sees in the top bar and on their "
+            "workspaces page. Follow the rules under 'Canvas name and description'."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "title": {"type": "string", "description": "A short name for the canvas, 2-6 words."},
+                "description": {
+                    "type": "string",
+                    "description": "One or two plain sentences on what the canvas is for: the question being explored.",
+                },
+            },
+        },
+    },
+    {
         "name": "read_timeline_node_colors",
         "description": (
             "Read the visible timeline papers that have persistent border colors. Use this before answering a "
@@ -603,6 +620,14 @@ Real research often combines bodies of work that have never cited each other. A 
 - Use "inferred" only for a conceptual connection you can explain, and say in your reply that it is your inference.
 - When two clusters are related only through the researcher's own idea, leave them unlinked. The bridge between them is the researcher's contribution; a note connected to papers on both sides is the right way to record it, if they want one.
 
+# Canvas name and description
+
+The canvas state shows the canvas's current name and description and who set each: "user" (the researcher), "agent" (you, earlier), or "default" (nothing chosen yet; a new canvas is named after the first message). Use update_canvas_details:
+- When the name or description is still "default" and the researcher's goal has become clear, usually in your first or second reply: give the canvas a short name and a one or two sentence description of the question being explored. Do this once, in the same turn as your other work; say so in a few words at the end of your reply.
+- Never change anything the researcher set ("user") unless they ask you to.
+- Do not revise what you set earlier ("agent") unless they ask, or the focus of the board has clearly and lastingly changed.
+- When the researcher asks you to rename the canvas or change its description, do it.
+
 # Clusters
 
 When the board holds more than one body of work, put each in a named cluster by passing "groups" to update_canvas_papers. Each cluster appears as its own labelled region, which is how the researcher sees the shape of the board at a glance. Use short names of two to four words that a researcher would recognise, such as "Delusion formation" or "LLM sycophancy". Reuse an existing cluster's name exactly when adding to it; each canvas paper's current cluster is listed in the canvas state. A board about a single topic does not need clusters, and a cluster is not a link: papers in different clusters stay unlinked unless one cites the other. The researcher can drag papers anywhere, so do not describe positions.
@@ -628,7 +653,8 @@ Reading and grounding:
 
 Notes and colours:
 - Read notes with read_timeline_notes before answering questions about them or changing them. Create, edit, delete, connect or disconnect notes only when the researcher asks. A request to connect a note always goes through update_timeline_notes, even when a paper is tagged as its target; update_canvas_papers only links papers to papers.
-- Read colours with read_timeline_node_colors before answering questions about coloured papers. Change a paper's colour only when asked.
+- Each canvas paper's border colour, if it has one, is listed as "color" in the canvas state. "accent" is the neutral colour, shown as white in dark mode and black in light mode, so a researcher who says white or black means accent. read_timeline_node_colors returns the same information filtered by colour. Change a paper's colour only when asked.
+- The canvas state lists each note's kind, colour, the start of its text and the papers it is connected to. Read the full text with read_timeline_notes when the start is not enough.
 
 Tagged papers: papers the researcher tagged with @ are the subject of the message. Resolve "this paper", "it" and "they" against them instead of asking which paper is meant, unless the message is about a note.
 
@@ -1169,6 +1195,8 @@ Rules:
         timeline_note_index: list[dict[str, Any]] | None = None,
         canvas_edges: list[dict[str, Any]] | None = None,
         known_candidates: list[dict[str, Any]] | None = None,
+        canvas_details: dict[str, Any] | None = None,
+        paper_colors: dict[str, str] | None = None,
         budget_micro_usd: int | None = None,
         max_iterations: int = PAPER_AGENT_MAX_ITERATIONS,
     ) -> dict:
@@ -1194,6 +1222,7 @@ Rules:
                 "year": paper.get("year"),
                 "summary": (paper.get("summary", "") or "")[:220],
                 **({"group": paper["group"]} if paper.get("group") else {}),
+                **({"color": (paper_colors or {})[paper.get("openalexId")]} if (paper_colors or {}).get(paper.get("openalexId")) else {}),
             }
             for paper in selected_papers
         ]
@@ -1202,7 +1231,18 @@ Rules:
             if paper.get("openalexId") in mentioned_ids
         ]
 
-        prompt = f"""Papers on the canvas:
+        details = canvas_details or {}
+        canvas_header = json.dumps({
+            "name": details.get("title") or "",
+            "nameSetBy": details.get("titleSetBy") or "default",
+            "description": details.get("description") or "",
+            "descriptionSetBy": details.get("descriptionSetBy") or "default",
+        }, indent=2)
+
+        prompt = f"""Canvas:
+{canvas_header}
+
+Papers on the canvas:
 {json.dumps(bounded_papers, indent=2) if bounded_papers else "None yet. The canvas is empty."}
 
 Links between canvas papers (earlier paper -> later paper):
@@ -1214,7 +1254,7 @@ Papers the user tagged with @ in this message:
 Papers you found earlier in this conversation (not on the canvas; addable by ID without searching again):
 {json.dumps(known_candidates, indent=2) if known_candidates else "None"}
 
-Canvas note index (metadata only; use read_timeline_notes for note text):
+Canvas notes (kind, colour, start of the text, connected papers; read_timeline_notes has the full text):
 {json.dumps(timeline_note_index or [], indent=2)}
 
 Prior conversation summary:
@@ -1408,6 +1448,16 @@ User message:
             "lineageChanges": lineage_changes,
             "noteChanges": note_changes,
             "nodeColorChanges": node_color_changes,
+            "canvasDetails": next(
+                (
+                    record["result"].get("canvasDetails")
+                    for record in reversed(tool_records)
+                    if record.get("name") == "update_canvas_details"
+                    and record.get("status") == "completed"
+                    and isinstance(record.get("result"), dict)
+                ),
+                None,
+            ),
             "textStreamed": text_emitter is not None,
             "costMicroUsd": budget.spent_micro_usd,
             "stoppedBy": stopped_by,

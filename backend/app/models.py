@@ -323,6 +323,14 @@ class TimelineNodeColorChange(BaseModel):
     borderColor: Optional[Literal["accent", "blue", "green", "purple", "amber", "rose"]] = None
 
 
+class CanvasDetailsSnapshot(StrictRequestModel):
+    """The canvas's name and description as the browser shows them, and who last set each."""
+    title: str = Field(default="", max_length=MAX_METADATA_TITLE_LENGTH)
+    description: str = Field(default="", max_length=MAX_METADATA_DESCRIPTION_LENGTH)
+    titleSetBy: Optional[Literal["user", "agent"]] = None
+    descriptionSetBy: Optional[Literal["user", "agent"]] = None
+
+
 class TimelineNodeColorSnapshot(StrictRequestModel):
     paperId: str = Field(min_length=1, max_length=MAX_OPENALEX_ID_LENGTH)
     borderColor: Literal["accent", "blue", "green", "purple", "amber", "rose"]
@@ -346,6 +354,7 @@ class GlobalChatRequest(StrictRequestModel):
     mentionedPaperIds: list[str] = Field(default_factory=list, max_length=MAX_TIMELINE_PAPERS)
     noteContext: Optional[TimelineNoteContext] = None
     nodeColorContext: Optional[list[TimelineNodeColorSnapshot]] = Field(default=None, max_length=MAX_TIMELINE_PAPERS)
+    canvas: Optional[CanvasDetailsSnapshot] = None
 
     @model_validator(mode="after")
     def validate_persistence_context(self):
@@ -364,6 +373,8 @@ class GlobalChatResponse(BaseModel):
     lineageChanges: list[dict[str, Any]] = Field(default_factory=list)
     noteChanges: list[TimelineNoteChange] = Field(default_factory=list)
     nodeColorChanges: list[TimelineNodeColorChange] = Field(default_factory=list)
+    # A new canvas name and/or description the agent chose this turn.
+    canvasDetails: Optional[dict[str, str]] = None
     # What this message cost, and whether it was cut short by the per-message ceiling or the tool-round limit.
     costMicroUsd: int = 0
     stoppedBy: Optional[Literal["budget", "iterations"]] = None
@@ -470,6 +481,9 @@ def _clean_metadata(metadata: "SavedGraphMetadata") -> "SavedGraphMetadata":
 class SavedGraphMetadata(BaseModel):
     title: str = ""
     description: str = ""
+    # Who last set the title and description: "user", "agent", or None for the automatic default.
+    titleSetBy: Optional[Literal["user", "agent"]] = None
+    descriptionSetBy: Optional[Literal["user", "agent"]] = None
     nodeCount: int = 0
     lastOpenedAt: Optional[str] = None
     appVersion: str = Field(default_factory=lambda: settings.app_version)

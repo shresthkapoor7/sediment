@@ -401,10 +401,14 @@ class PersistentChatRouterTests(unittest.IsolatedAsyncioTestCase):
         }
 
         async def answer(_papers, _question, **kwargs):
-            self.assertEqual(kwargs["timeline_note_index"], [
-                {"id": "note-green", "kind": "field_note", "color": "green", "connectedPaperIds": ["W1"]},
-                {"id": "note-green-2", "kind": "todo", "color": "green", "connectedPaperIds": []},
-            ])
+            self.assertEqual(
+                [{key: value for key, value in note.items() if key != "textStart"} for note in kwargs["timeline_note_index"]],
+                [
+                    {"id": "note-green", "kind": "field_note", "color": "green", "connectedPaperIds": ["W1"]},
+                    {"id": "note-green-2", "kind": "todo", "color": "green", "connectedPaperIds": []},
+                ],
+            )
+            self.assertTrue(all(note["textStart"] for note in kwargs["timeline_note_index"]))
             green_notes = await kwargs["tool_runner"]("read_timeline_notes", {"colors": ["green"]})
             self.assertEqual({note["id"] for note in green_notes["notes"]}, {"note-green", "note-green-2"})
 
