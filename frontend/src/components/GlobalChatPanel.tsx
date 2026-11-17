@@ -370,6 +370,39 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
     if (latestNavigationId) setActiveNavigationId(latestNavigationId);
   }, [latestNavigationId]);
 
+  // The rail lights the question whose turn is on screen: the last one whose top has scrolled past
+  // the upper third of the chat. At the very bottom it is always the latest.
+  const navigationIdsKey = navigationItems.map((item) => item.id).join(",");
+  useEffect(() => {
+    const container = messagesRef.current;
+    if (!container || !navigationIdsKey) return;
+    const ids = navigationIdsKey.split(",");
+    let frame = 0;
+    const update = () => {
+      frame = 0;
+      const box = container.getBoundingClientRect();
+      if (container.scrollTop + container.clientHeight >= container.scrollHeight - 4) {
+        setActiveNavigationId(ids[ids.length - 1]);
+        return;
+      }
+      const line = box.top + container.clientHeight / 3;
+      let current = ids[0];
+      for (const id of ids) {
+        const element = document.getElementById(`${panelId}-message-${id}`);
+        if (element && element.getBoundingClientRect().top <= line) current = id;
+      }
+      setActiveNavigationId(current);
+    };
+    const onScroll = () => {
+      if (!frame) frame = window.requestAnimationFrame(update);
+    };
+    container.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      container.removeEventListener("scroll", onScroll);
+      if (frame) window.cancelAnimationFrame(frame);
+    };
+  }, [navigationIdsKey, panelId]);
+
   const jumpToMessage = useCallback((messageId: string) => {
     setActiveNavigationId(messageId);
     document.getElementById(`${panelId}-message-${messageId}`)?.scrollIntoView({
