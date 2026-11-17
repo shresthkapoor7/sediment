@@ -7,6 +7,7 @@ import dynamic from "next/dynamic";
 // renders markdown, not when the (already code-split) chat panel first mounts.
 const MarkdownContent = dynamic(() => import("./MarkdownContent").then((mod) => mod.MarkdownContent), { ssr: false });
 import { ConversationNavigator } from "./ConversationNavigator";
+import { AgentCapabilities } from "./AgentCapabilities";
 import { createChat, deleteChat, listChats, openChatSession, streamChatAboutTimeline, suggestTimelineQuestions } from "@/lib/api";
 import { ChatTabs, type ChatTabItem } from "./ChatTabs";
 import { DETAIL_PANEL_DEFAULT_WIDTH, DETAIL_PANEL_MAX_WIDTH, DETAIL_PANEL_MIN_WIDTH, DETAIL_PANEL_WIDTH_KEY } from "@/lib/detail-panel";
@@ -637,7 +638,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
   }, [resizeInput]);
 
   const startLineageEdit = useCallback(() => {
-    startTemplatedCommand("Add or delete papers in this lineage: ");
+    startTemplatedCommand("Add, remove or link papers: ");
   }, [startTemplatedCommand]);
 
   const startNoteEdit = useCallback(() => {
@@ -948,155 +949,24 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
                     fontSize: "0.625rem",
                     color: "var(--text-tertiary)",
                     fontFamily: "var(--font-mono), monospace",
-                    letterSpacing: "0.06em",
-                    textTransform: "uppercase",
-                  }}
-                >
-                  Context
-                </span>
-                <span
-                  style={{
-                    fontSize: "0.625rem",
-                    color: "var(--text-tertiary)",
-                    fontFamily: "var(--font-mono), monospace",
                   }}
                 >
                   {papers.length} paper{papers.length !== 1 ? "s" : ""} · {noteCount} note{noteCount !== 1 ? "s" : ""}
                 </span>
-              </div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: "0.375rem" }}>
-                <button
-                  type="button"
-                  onClick={startPaperMention}
+                <AgentCapabilities
                   disabled={isThinking}
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    borderRadius: "999px",
-                    border: "none",
-                    background: "var(--bg-tertiary)",
-                    color: "var(--text-secondary)",
-                    padding: "0.25rem 0.625rem",
-                    fontSize: "0.6875rem",
-                    fontFamily: "var(--font-sans), sans-serif",
-                    fontWeight: 500,
-                    cursor: isThinking ? "default" : "pointer",
-                    opacity: isThinking ? 0.55 : 1,
-                    transition: "border-color 0.15s, color 0.15s, background 0.15s",
-                  }}
-                  onMouseEnter={(event) => {
-                    if (isThinking) return;
-                    event.currentTarget.style.borderColor = "var(--border-hover)";
-                    event.currentTarget.style.color = "var(--text-primary)";
-                    event.currentTarget.style.background = "var(--border)";
-                  }}
-                  onMouseLeave={(event) => {
-                    event.currentTarget.style.borderColor = "var(--border)";
-                    event.currentTarget.style.color = "var(--text-secondary)";
-                    event.currentTarget.style.background = "var(--bg-tertiary)";
-                  }}
-                >
-                  @ paper mentions
-                </button>
-                <button
-                  type="button"
-                  onClick={startLineageEdit}
-                  disabled={isThinking}
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    borderRadius: "999px",
-                    border: "none",
-                    background: "var(--bg-tertiary)",
-                    color: "var(--text-secondary)",
-                    padding: "0.25rem 0.625rem",
-                    fontSize: "0.6875rem",
-                    fontFamily: "var(--font-sans), sans-serif",
-                    fontWeight: 500,
-                    cursor: isThinking ? "default" : "pointer",
-                    opacity: isThinking ? 0.55 : 1,
-                    transition: "border-color 0.15s, color 0.15s, background 0.15s",
-                  }}
-                  onMouseEnter={(event) => {
-                    if (isThinking) return;
-                    event.currentTarget.style.borderColor = "var(--border-hover)";
-                    event.currentTarget.style.color = "var(--text-primary)";
-                    event.currentTarget.style.background = "var(--border)";
-                  }}
-                  onMouseLeave={(event) => {
-                    event.currentTarget.style.borderColor = "var(--border)";
-                    event.currentTarget.style.color = "var(--text-secondary)";
-                    event.currentTarget.style.background = "var(--bg-tertiary)";
-                  }}
-                >
-                  Add/Delete papers
-                </button>
-                <button
-                  type="button"
-                  onClick={startNoteEdit}
-                  disabled={isThinking}
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    borderRadius: "999px",
-                    border: "none",
-                    background: "var(--bg-tertiary)",
-                    color: "var(--text-secondary)",
-                    padding: "0.25rem 0.625rem",
-                    fontSize: "0.6875rem",
-                    fontFamily: "var(--font-sans), sans-serif",
-                    fontWeight: 500,
-                    cursor: isThinking ? "default" : "pointer",
-                    opacity: isThinking ? 0.55 : 1,
-                    transition: "border-color 0.15s, color 0.15s, background 0.15s",
-                  }}
-                  onMouseEnter={(event) => {
-                    if (isThinking) return;
-                    event.currentTarget.style.borderColor = "var(--border-hover)";
-                    event.currentTarget.style.color = "var(--text-primary)";
-                    event.currentTarget.style.background = "var(--border)";
-                  }}
-                  onMouseLeave={(event) => {
-                    event.currentTarget.style.borderColor = "var(--border)";
-                    event.currentTarget.style.color = "var(--text-secondary)";
-                    event.currentTarget.style.background = "var(--bg-tertiary)";
-                  }}
-                >
-                  Manage notes
-                </button>
-                <button
-                  type="button"
-                  onClick={startPaperAccess}
-                  disabled={isThinking}
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    borderRadius: "999px",
-                    border: "none",
-                    background: "var(--bg-tertiary)",
-                    color: "var(--text-secondary)",
-                    padding: "0.25rem 0.625rem",
-                    fontSize: "0.6875rem",
-                    fontFamily: "var(--font-sans), sans-serif",
-                    fontWeight: 500,
-                    cursor: isThinking ? "default" : "pointer",
-                    opacity: isThinking ? 0.55 : 1,
-                    transition: "border-color 0.15s, color 0.15s, background 0.15s",
-                  }}
-                  onMouseEnter={(event) => {
-                    if (isThinking) return;
-                    event.currentTarget.style.borderColor = "var(--border-hover)";
-                    event.currentTarget.style.color = "var(--text-primary)";
-                    event.currentTarget.style.background = "var(--border)";
-                  }}
-                  onMouseLeave={(event) => {
-                    event.currentTarget.style.borderColor = "var(--border)";
-                    event.currentTarget.style.color = "var(--text-secondary)";
-                    event.currentTarget.style.background = "var(--bg-tertiary)";
-                  }}
-                >
-                  Access paper
-                </button>
+                  items={[
+                    { label: "Find and add papers", hint: "Search by title, topic or author, or paste a DOI or arXiv link.", onPick: () => startTemplatedCommand("Find papers about ") },
+                    { label: "Trace references and citations", hint: "What a paper builds on, and later work that cites it.", onPick: () => startTemplatedCommand("What does this build on, and what cites it: ") },
+                    { label: "Link and remove papers", hint: "Connect papers that cite each other, or take papers off the canvas.", onPick: startLineageEdit },
+                    { label: "Group into clusters", hint: "Sort the board into named clusters, or move papers between them.", onPick: () => startTemplatedCommand("Group the papers on this canvas into clusters") },
+                    { label: "Mention a paper", hint: "Type @ to point the agent at a specific paper.", onPick: startPaperMention },
+                    { label: "Read the full paper", hint: "Fetch open-access full text and answer from it.", onPick: startPaperAccess },
+                    { label: "Notes", hint: "Read, write, edit or connect notes on the canvas.", onPick: startNoteEdit },
+                    { label: "Colours", hint: "Ask about coloured papers, or colour them.", onPick: () => startTemplatedCommand("How do the papers coloured ") },
+                    { label: "Name and describe the canvas", hint: "Give this canvas a name and a short description.", onPick: () => startTemplatedCommand("Name and describe this canvas") },
+                  ]}
+                />
               </div>
             </div>
 
