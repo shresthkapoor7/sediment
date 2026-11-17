@@ -39,6 +39,20 @@ class ChatContext:
         return value if isinstance(value, str) and value.strip() else None
 
 
+async def default_graph_chat_session(db, graph_id: str, user_id: str) -> dict:
+    """The canvas's oldest chat, created if it has none. Two first visits can race to create it; the loser
+    removes its own copy and uses the winner's, so a canvas never starts with two default chats."""
+    existing = await db.list_graph_chat_sessions(graph_id, user_id)
+    if existing:
+        return existing[0]
+    created = await db.create_graph_chat_session(graph_id, user_id)
+    current = await db.list_graph_chat_sessions(graph_id, user_id)
+    oldest = current[0] if current else created
+    if oldest.get("id") != created.get("id"):
+        await db.delete_graph_chat_session(graph_id, user_id, created["id"])
+    return oldest
+
+
 class ChatMemoryService:
     def __init__(self, db: SupabaseClient | None = None) -> None:
         self.db = db or SupabaseClient()
@@ -62,8 +76,7 @@ class ChatMemoryService:
                 if not session:
                     raise ChatSessionNotFound(session_id)
             if not session:
-                existing = await self.db.list_graph_chat_sessions(graph_id, user_id)
-                session = existing[0] if existing else await self.db.create_graph_chat_session(graph_id, user_id)
+                session = await default_graph_chat_session(self.db, graph_id, user_id)
         else:
             session = await self.db.get_or_create_chat_session(
                 graph_id,

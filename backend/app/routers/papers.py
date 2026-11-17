@@ -91,8 +91,10 @@ async def search_papers(
             if identifier:
                 try:
                     work = await openalex.fetch_work(identifier)
-                except OpenAlexError:
-                    # An unknown DOI or ID is an empty result, not an outage.
+                except OpenAlexError as error:
+                    # An unknown DOI or ID is an empty result; an outage is still an outage.
+                    if error.status != 404:
+                        raise
                     work = None
                 works = [work] if work else []
             elif mode == "semantic":

@@ -30,7 +30,7 @@ from ..models import (
     GlobalChatResponse,
     PaperSummary,
 )
-from ..services.chat_memory import ChatContext, ChatMemoryService, ChatSessionNotFound, serialize_chat_context
+from ..services.chat_memory import ChatContext, ChatMemoryService, ChatSessionNotFound, default_graph_chat_session, serialize_chat_context
 from ..services.graph_retrieval import retrieve_graph_context
 from ..services.llm import FULL_TEXT_TOOL_NAMES, LLMClient, LLMParseError
 from ..services.openalex import OpenAlexClient, OpenAlexError
@@ -757,7 +757,7 @@ async def _run_global_chat(req: GlobalChatRequest, request_ip: str, event_emitte
                     **({"group": paper["group"]} if paper.get("group") else {}),
                 }
                 for paper in papers
-            ] if req.papers else list(saved_by_normalized_id.values())
+            ] if "papers" in req.model_fields_set else list(saved_by_normalized_id.values())
             paper_by_normalized_id = {
                 _normalize_openalex_id(paper.get("openalexId")): paper
                 for paper in papers
@@ -1752,7 +1752,8 @@ async def list_chats(graph_id: str, userId: str):
         await _require_owned_graph(db, graph_id, userId)
         sessions = await db.list_graph_chat_sessions(graph_id, userId)
         if not sessions:
-            sessions = [await db.create_graph_chat_session(graph_id, userId)]
+            await default_graph_chat_session(db, graph_id, userId)
+            sessions = await db.list_graph_chat_sessions(graph_id, userId)
         return [_chat_tab(session) for session in sessions]
     except SupabaseAPIError as exc:
         logger.warning("Chat list failed for graph_id=%r", graph_id, exc_info=exc)

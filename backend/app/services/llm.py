@@ -1452,16 +1452,7 @@ User message:
             "lineageChanges": lineage_changes,
             "noteChanges": note_changes,
             "nodeColorChanges": node_color_changes,
-            "canvasDetails": next(
-                (
-                    record["result"].get("canvasDetails")
-                    for record in reversed(tool_records)
-                    if record.get("name") == "update_canvas_details"
-                    and record.get("status") == "completed"
-                    and isinstance(record.get("result"), dict)
-                ),
-                None,
-            ),
+            "canvasDetails": _merged_canvas_details(tool_records),
             "textStreamed": text_emitter is not None,
             "costMicroUsd": budget.spent_micro_usd,
             "stoppedBy": stopped_by,
@@ -1765,6 +1756,17 @@ def _full_text_enabled() -> bool:
     from ..config import settings
 
     return settings.full_paper_access_enabled
+
+
+def _merged_canvas_details(tool_records: list[dict]) -> dict | None:
+    """Every accepted name and description change of a turn, later fields replacing earlier ones."""
+    merged: dict = {}
+    for record in tool_records:
+        if record.get("name") == "update_canvas_details" and record.get("status") == "completed":
+            result = record.get("result")
+            if isinstance(result, dict) and isinstance(result.get("canvasDetails"), dict):
+                merged.update(result["canvasDetails"])
+    return merged or None
 
 
 def _agent_tools() -> list[dict]:

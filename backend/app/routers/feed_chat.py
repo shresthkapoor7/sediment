@@ -36,8 +36,15 @@ _llm = LLMClient(api_key=settings.anthropic_api_key, model=settings.llm_model)
 MAX_FEED_PAPERS = 40
 MAX_MARKED_PAPERS = 30
 MAX_HISTORY = 16
+class AllSourcesSearch(OpenAlexSource):
+    """All of OpenAlex in the time window. OpenAlexSource's own name makes it the feed's exclusive
+    'everything else' tab, which leaves out arXiv, Hugging Face and journals; this one keeps them."""
+
+    name = "all"
+
+
 SOURCES = {
-    "all": OpenAlexSource,
+    "all": AllSourcesSearch,
     "openalex": OpenAlexSource,
     "arxiv": ArxivSource,
     "huggingface": HuggingFaceSource,
@@ -132,7 +139,7 @@ async def _run(req: FeedChatRequest, ip: str, emit) -> None:
                 days = min(max(int(tool_input.get("days") or 120), 7), 730)
                 limit = min(max(int(tool_input.get("limit") or 6), 1), 10)
                 today = date.today()
-                provider = SOURCES.get(source, OpenAlexSource)()
+                provider = SOURCES.get(source, AllSourcesSearch)()
                 domain = req.domain if req.domain in get_args(Domain) else "general"
                 page = await provider.search(SearchRequest(
                     query=query, since=today - timedelta(days=days), until=today, limit=limit, domain=domain,
@@ -237,6 +244,9 @@ async def feed_chat_stream(req: FeedChatRequest, request: Request):
         finally:
             if not task.done():
                 task.cancel()
+                # Drop undelivered events so a producer blocked on a full queue can finish.
+                while not queue.empty():
+                    queue.get_nowait()
                 with contextlib.suppress(asyncio.CancelledError):
                     await task
 
