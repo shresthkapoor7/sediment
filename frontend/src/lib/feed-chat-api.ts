@@ -9,7 +9,8 @@ export type FeedChatEvent =
   | { type: "text_delta"; text: string }
   | { type: "mark_papers"; papers: FeedPaper[] }
   | { type: "interests_change"; interests: string }
-  | { type: "workspace_offer" }
+  | { type: "papers_shown"; papers: FeedPaper[] }
+  | { type: "workspace_offer"; papers: FeedPaper[] }
   | { type: "message_completed"; response: { text: string } }
   | { type: "error"; detail: string; statusCode?: number };
 
@@ -31,6 +32,7 @@ const brief = (paper: FeedPaper) => ({
   authors: paper.authors.slice(0, 20),
   published: paper.published,
   topics: paper.topics.slice(0, 5),
+  url: paper.url,
 });
 
 /** Ask the feed assistant; events stream in as it works. */

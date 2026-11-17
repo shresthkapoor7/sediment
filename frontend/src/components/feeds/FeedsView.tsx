@@ -242,7 +242,7 @@ export function FeedsView({ embedded = false, ready = true, onSearch, onStartWor
       domain={feed?.domain ?? domain}
       onMark={found => selection.add(found.map(paper => feed?.papers.find(item => item.id === paper.id) ?? paper))}
       onInterests={text => { setInterests(text); void update("interests", "all", text); }}
-      onStartWorkspace={onStartWorkspace ? () => onStartWorkspace(selection.papers, feed?.interests ?? interests) : undefined}
+      onStartWorkspace={onStartWorkspace ? chosen => onStartWorkspace(chosen, feed?.interests ?? interests) : undefined}
     />
     {openedPaper && <FeedPaperDetail paper={openedPaper} intercepted onClose={() => setOpenedPaper(null)} />}
   </div>;

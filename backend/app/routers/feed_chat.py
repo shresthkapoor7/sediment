@@ -56,6 +56,7 @@ class FeedChatPaper(BaseModel):
     authors: list[str] = Field(default_factory=list, max_length=100)
     published: Optional[str] = Field(default=None, max_length=40)
     topics: list[str] = Field(default_factory=list, max_length=20)
+    url: Optional[str] = Field(default=None, max_length=2_000)
 
 
 class FeedChatTurn(BaseModel):
@@ -82,6 +83,7 @@ def _brief(paper: dict[str, Any], abstract_chars: int) -> dict[str, Any]:
         "authors": (paper.get("authors") or [])[:4],
         "published": paper.get("published"),
         "topics": (paper.get("topics") or [])[:3],
+        "url": paper.get("url"),
         "abstract": abstract if len(abstract) <= abstract_chars else abstract[: abstract_chars - 1].rstrip() + "…",
     }
 
@@ -153,12 +155,20 @@ async def _run(req: FeedChatRequest, ip: str, emit) -> None:
                 else:
                     await emit("interests_change", {"interests": interests})
                     result = {"status": "completed", "interests": interests}
+            elif name == "show_papers":
+                ids = [str(item) for item in (tool_input.get("paperIds") or [])][:10]
+                papers = [known[paper_id] for paper_id in ids if paper_id in known]
+                if papers:
+                    await emit("papers_shown", {"papers": papers})
+                result = {"status": "completed", "shown": [paper["title"] for paper in papers], "unknownIds": [i for i in ids if i not in known]}
             elif name == "offer_workspace":
-                if not marked_ids:
-                    result = {"status": "skipped", "reason": "Nothing is marked yet; ask them to mark papers first."}
+                ids = [str(item) for item in (tool_input.get("paperIds") or [])][:30]
+                papers = [known[paper_id] for paper_id in ids if paper_id in known] if ids else [known[i] for i in marked_ids if i in known]
+                if not papers:
+                    result = {"status": "skipped", "reason": "No papers to start from: give paperIds from your results, or ask them to mark papers."}
                 else:
-                    await emit("workspace_offer", {})
-                    result = {"status": "completed", "markedCount": len(marked_ids)}
+                    await emit("workspace_offer", {"papers": papers})
+                    result = {"status": "completed", "paperCount": len(papers)}
             else:
                 result = {"status": "error", "message": "Unknown tool."}
         except SourceError as exc:

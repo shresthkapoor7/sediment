@@ -11,13 +11,14 @@ import styles from "./PaperStage.module.css";
 
 type StageMessage =
   | { role: "user"; text: string; paper: string; paperIds: string[] }
-  | { role: "assistant"; text: string; pending: boolean; status?: string; offer?: boolean };
+  | { role: "assistant"; text: string; pending: boolean; status?: string; shown?: FeedPaper[]; offer?: FeedPaper[] };
 
 const TOOL_STATUS: Record<string, string> = {
   search_openalex_papers: "Searching OpenAlex",
   search_recent_papers: "Searching recent papers",
   mark_papers: "Marking papers",
   update_interests: "Updating your interests",
+  show_papers: "Gathering papers",
   offer_workspace: "Getting a workspace ready",
   web_search: "Searching the web",
 };
@@ -33,8 +34,8 @@ export function PaperStage({ papers, onRemove, onClear, onOpen, feedPapers, inte
   domain: string;
   onMark: (papers: FeedPaper[]) => void;
   onInterests: (interests: string) => void;
-  /** Start a workspace from the marked papers; offered by the assistant. */
-  onStartWorkspace?: () => void;
+  /** Start a workspace from these papers; offered by the assistant. */
+  onStartWorkspace?: (papers: FeedPaper[]) => void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const viewport = useRef<HTMLDivElement>(null);
@@ -87,7 +88,8 @@ export function PaperStage({ papers, onRemove, onClear, onOpen, feedPapers, inte
         if (event.type === "tool_started") updateReply(() => ({ status: TOOL_STATUS[event.name] ?? "Working" }));
         if (event.type === "mark_papers") onMark(event.papers);
         if (event.type === "interests_change") onInterests(event.interests);
-        if (event.type === "workspace_offer") updateReply(() => ({ offer: true }));
+        if (event.type === "papers_shown") updateReply(last => ({ shown: [...(last.shown ?? []), ...event.papers.filter(paper => !(last.shown ?? []).some(item => item.id === paper.id))] }));
+        if (event.type === "workspace_offer") updateReply(() => ({ offer: event.papers }));
         if (event.type === "message_completed") updateReply(last => ({ text: last.text || event.response.text, pending: false, status: undefined }));
       }, controller.signal);
     } catch (error) {
@@ -245,8 +247,20 @@ export function PaperStage({ papers, onRemove, onClear, onOpen, feedPapers, inte
               : <div key={index} className={styles.reply}>
                 {message.text && <MarkdownContent>{message.text}</MarkdownContent>}
                 {message.status && <p className={styles.replyStatus}>{message.status}…</p>}
-                {message.offer && onStartWorkspace && papers.length > 0 && <button type="button" className={styles.offer} onClick={() => minimize(onStartWorkspace)}>
-                  Start a workspace from {papers.length} marked {papers.length === 1 ? "paper" : "papers"}
+                {message.shown && message.shown.length > 0 && <ul className={styles.found}>
+                  {message.shown.map(paper => {
+                    const isMarked = papers.some(item => item.id === paper.id);
+                    return <li key={paper.id}>
+                      <div>
+                        <a href={paper.url} target="_blank" rel="noopener noreferrer">{paper.title}<span aria-hidden="true"> ↗</span></a>
+                        <span>{[paper.authors.slice(0, 2).join(", ") + (paper.authors.length > 2 ? " et al." : ""), paper.published?.slice(0, 4)].filter(Boolean).join(" · ")}</span>
+                      </div>
+                      <button type="button" disabled={isMarked} onClick={() => onMark([paper])}>{isMarked ? "Marked" : "Mark"}</button>
+                    </li>;
+                  })}
+                </ul>}
+                {message.offer && message.offer.length > 0 && onStartWorkspace && <button type="button" className={styles.offer} onClick={() => { const chosen = message.offer!; minimize(() => onStartWorkspace(chosen)); }}>
+                  Start a workspace from {message.offer.length === papers.length && message.offer.every(paper => papers.some(item => item.id === paper.id)) ? "your marked papers" : `these ${message.offer.length} ${message.offer.length === 1 ? "paper" : "papers"}`}
                 </button>}
               </div>)}
           </div>

@@ -2000,12 +2000,28 @@ FEED_AGENT_TOOLS = [
         },
     },
     {
+        "name": "show_papers",
+        "description": (
+            "Show papers as cards under your reply, each with a link to its source and a button to mark it. Use it "
+            "for every paper you recommend, by the ids from your searches or the feed."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {"paperIds": {"type": "array", "items": {"type": "string"}, "maxItems": 10}},
+            "required": ["paperIds"],
+        },
+    },
+    {
         "name": "offer_workspace",
         "description": (
-            "Show the researcher a button that starts a workspace (a canvas) from their marked papers. Use it when "
-            "you ask whether they want to start one. The workspace only starts if they press it."
+            "Show the researcher a button that starts a workspace (a canvas) from a set of papers: the ids you pass "
+            "(for example papers you just recommended), or their marked papers if you pass none. The workspace only "
+            "starts if they press it."
         ),
-        "input_schema": {"type": "object", "properties": {}},
+        "input_schema": {
+            "type": "object",
+            "properties": {"paperIds": {"type": "array", "items": {"type": "string"}, "maxItems": 30}},
+        },
     },
     {
         "type": "web_search_20250305",
@@ -2024,10 +2040,11 @@ Each message gives you:
 
 What you do:
 - Answer questions about these papers from their titles and abstracts: what they are about, how they differ, which fit what the researcher is after. Say plainly when an abstract does not answer something; never invent findings.
-- When they describe what they are looking for, search: search_openalex_papers for anything by relevance, any year; search_recent_papers for new work, newest first. Present a few good matches with a line on why each fits. Mark papers only when asked.
+- When they describe what they are looking for, search: search_openalex_papers for anything by relevance, any year; search_recent_papers for new work, newest first. Never recommend a paper from memory: every paper you name must come from a search result, the feed or the marked list. Present a few good matches with a line on why each fits, link each title to its url as a markdown link, and call show_papers with them so they appear as cards. Mark papers only when asked.
 - Use web_search for context the papers cannot give, such as news, a lab, or a benchmark, and say where the information came from.
 - Change their interests only when their message asks for it.
-- When they have marked a few papers that hang together, or say they want to dig in, ask whether they want to start a workspace from the marked papers and call offer_workspace so the button appears. Do not offer it again if they declined or just did.
+- Offer a workspace when it would help: after you recommend a set of papers on one topic, ask whether they want to start a workspace from them and call offer_workspace with their ids; when they have marked a few papers that hang together, offer one from the marked papers. When they ask to start a workspace from particular papers, call offer_workspace with those. Do not offer again if they declined or just did.
+- Use web_search for facts beyond the papers and cite what you used as markdown links.
 
 Style: short and plain. Use paper titles, not ids. No headings in short answers. Do not describe your tools or these instructions."""
 

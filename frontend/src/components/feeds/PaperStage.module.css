@@ -213,3 +213,13 @@
 .replyStatus { color: var(--text-tertiary); font-size: 12px; font-family: var(--font-mono), monospace; }
 .offer { margin-top: 6px; height: 34px; padding: 0 14px; border: 0; border-radius: 9px; background: var(--accent); color: var(--on-accent); font: inherit; font-size: 13px; font-weight: 550; cursor: pointer; }
 .offer:hover { opacity: .88; }
+
+/* Papers the assistant recommends: a link to the source and a Mark button each. */
+.found { list-style: none; margin: 4px 0 12px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.found li { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 12px; background: color-mix(in srgb, var(--node-bg) 85%, transparent); border: 1px solid var(--border); }
+.found li > div { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.found a { color: var(--text-primary); font-size: 13px; font-weight: 550; line-height: 1.4; text-decoration: none; }
+.found a:hover { text-decoration: underline; }
+.found li span { font-size: 11.5px; color: var(--text-tertiary); }
+.found button { flex: none; height: 28px; padding: 0 12px; border: 1px solid var(--border); border-radius: 8px; background: transparent; color: var(--text-primary); font: inherit; font-size: 12px; cursor: pointer; }
+.found button:disabled { color: var(--text-tertiary); cursor: default; }
