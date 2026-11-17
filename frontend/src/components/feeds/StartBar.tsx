@@ -5,9 +5,9 @@ import styles from "./FeedsView.module.css";
 
 export type StartMode = "feed" | "paper";
 
-// Feed is switched off for now; their code paths stay so they can be turned back on here.
+// The ways to start from the home bar.
 const MODES: { value: StartMode; label: string; disabled?: boolean }[] = [
-  { value: "feed", label: "Feed", disabled: true },
+  { value: "feed", label: "Feed" },
   { value: "paper", label: "Paper" },
 ];
 
