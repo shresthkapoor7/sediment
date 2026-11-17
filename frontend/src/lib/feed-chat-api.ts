@@ -43,7 +43,11 @@ export async function streamFeedChat(body: FeedChatRequest, onEvent: (event: Fee
     body: JSON.stringify({
       ...body,
       feedPapers: body.feedPapers.slice(0, 40).map(brief),
-      markedPapers: body.markedPapers.slice(0, 30).map(brief),
+      // Tagged papers first, so the cap never drops the paper a question is about.
+      markedPapers: [
+        ...body.markedPapers.filter((paper) => body.mentionedPaperIds.includes(paper.id)),
+        ...body.markedPapers.filter((paper) => !body.mentionedPaperIds.includes(paper.id)),
+      ].slice(0, 30).map(brief),
       mentionedPaperIds: body.mentionedPaperIds.slice(0, 30),
       history: body.history.slice(-16).map((turn) => ({ ...turn, content: turn.content.slice(0, 8000) })),
     }),
@@ -57,6 +61,7 @@ export async function streamFeedChat(body: FeedChatRequest, onEvent: (event: Fee
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
+  let completed = false;
   const consume = (raw: string) => {
     const lines = raw.split(/\r?\n/);
     const type = lines.find((line) => line.startsWith("event: "))?.slice(7).trim();
@@ -64,6 +69,7 @@ export async function streamFeedChat(body: FeedChatRequest, onEvent: (event: Fee
     if (!type || !data) return;
     const event = { type, ...JSON.parse(data) } as FeedChatEvent;
     onEvent(event);
+    if (event.type === "message_completed") completed = true;
     if (event.type === "error") throw new APIError(event.detail, event.statusCode ?? 500);
   };
   while (true) {
@@ -75,4 +81,5 @@ export async function streamFeedChat(body: FeedChatRequest, onEvent: (event: Fee
     if (done) break;
   }
   if (buffer.trim()) consume(buffer);
+  if (!completed) throw new APIError("The reply was cut off. Try again.", 502);
 }

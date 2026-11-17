@@ -19,7 +19,12 @@ function subscribe(callback: () => void) {
     window.removeEventListener(event, callback);
   };
 }
-const snapshot = () => { try { return localStorage.getItem(key) || "[]"; } catch { return "[]"; } };
+// Used when the browser refuses storage, so changes still last until the page reloads.
+let memory: string | null = null;
+const snapshot = () => {
+  if (memory !== null) return memory;
+  try { return localStorage.getItem(key) || "[]"; } catch { return "[]"; }
+};
 const serverSnapshot = () => "[]";
 
 function parse(raw: string): WorkspaceCategory[] {
@@ -38,7 +43,8 @@ function parse(raw: string): WorkspaceCategory[] {
 }
 
 function write(categories: WorkspaceCategory[]) {
-  try { localStorage.setItem(key, JSON.stringify(categories)); } catch { /* Restricted storage: changes last until reload. */ }
+  const raw = JSON.stringify(categories);
+  try { localStorage.setItem(key, raw); memory = null; } catch { memory = raw; }
   window.dispatchEvent(new Event(event));
 }
 const read = () => parse(snapshot());

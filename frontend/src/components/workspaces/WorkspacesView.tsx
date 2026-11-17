@@ -96,6 +96,7 @@ export function WorkspacesView() {
   const [userId, setUserId] = useState<string | null>(null);
   const [dragging, setDragging] = useState<string | null>(null);
   const [target, setTarget] = useState<DropTarget | null>(null);
+  const [listComplete, setListComplete] = useState(false);
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState("");
   const [draftLook, setDraftLook] = useState<CategoryLook>({});
@@ -118,23 +119,25 @@ export function WorkspacesView() {
     (async () => {
       const all: SavedGraphListItem[] = [];
       let offset = 0;
+      let complete = false;
       for (let page = 0; page < 40; page++) {
         const result = await listSavedGraphs(id, { limit: PAGE, offset });
         all.push(...result.items);
-        if (!result.hasMore || result.nextOffset == null) break;
+        if (!result.hasMore || result.nextOffset == null) { complete = true; break; }
         offset = result.nextOffset;
       }
-      if (!cancelled) setGraphs(all);
+      if (!cancelled) { setGraphs(all); setListComplete(complete); }
     })().catch(reason => { if (!cancelled) setError(reason instanceof Error ? reason.message : "Couldn’t load your canvases."); });
     return () => { cancelled = true; };
   }, []);
 
   // Once every canvas is known, forget categorised ids that were deleted elsewhere.
   useEffect(() => {
-    if (!graphs || pruned.current) return;
+    // A cut-off list would make unlisted canvases look deleted.
+    if (!graphs || !listComplete || pruned.current) return;
     pruned.current = true;
     workspaces.prune(new Set(graphs.map(graph => graph.id)));
-  }, [graphs, workspaces]);
+  }, [graphs, listComplete, workspaces]);
 
   useEffect(() => { if (adding) draftLane.current?.scrollIntoView({ block: "nearest", behavior: "smooth" }); }, [adding]);
 
@@ -198,7 +201,11 @@ export function WorkspacesView() {
       const upper = event.clientY < box.top + box.height / 2;
       before = column.graphs[upper ? index : index + 1]?.id ?? null;
     }
-    if (before === dragging) before = null;
+    // Over its own upper half the card stays where it is: drop it before its current next sibling.
+    if (before === dragging) {
+      const at = column.graphs.findIndex(graph => graph.id === dragging);
+      before = column.graphs[at + 1]?.id ?? null;
+    }
     setTarget(current => current && current.column === column.id && current.before === before ? current : { column: column.id, before });
   };
 

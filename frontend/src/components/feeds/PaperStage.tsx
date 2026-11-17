@@ -11,7 +11,7 @@ import styles from "./PaperStage.module.css";
 
 type StageMessage =
   | { role: "user"; text: string; paper: string; paperIds: string[] }
-  | { role: "assistant"; text: string; pending: boolean; status?: string; shown?: FeedPaper[]; offer?: FeedPaper[] };
+  | { role: "assistant"; text: string; pending: boolean; status?: string; error?: string; shown?: FeedPaper[]; offer?: FeedPaper[] };
 
 const TOOL_STATUS: Record<string, string> = {
   search_openalex_papers: "Searching OpenAlex",
@@ -93,7 +93,8 @@ export function PaperStage({ papers, onRemove, onClear, onOpen, feedPapers, inte
         if (event.type === "message_completed") updateReply(last => ({ text: last.text || event.response.text, pending: false, status: undefined }));
       }, controller.signal);
     } catch (error) {
-      if (!controller.signal.aborted) updateReply(last => ({ text: last.text || (error instanceof Error ? error.message : "Chat failed."), pending: false, status: undefined }));
+      // Keep any partial reply, and say plainly that it did not finish.
+      if (!controller.signal.aborted) updateReply(() => ({ error: error instanceof Error ? error.message : "Chat failed.", pending: false, status: undefined }));
     } finally {
       updateReply(() => ({ pending: false, status: undefined }));
       setReplying(false);
@@ -247,6 +248,7 @@ export function PaperStage({ papers, onRemove, onClear, onOpen, feedPapers, inte
               : <div key={index} className={styles.reply}>
                 {message.text && <MarkdownContent>{message.text}</MarkdownContent>}
                 {message.status && <p className={styles.replyStatus}>{message.status}…</p>}
+                {message.error && <p className={styles.replyError} role="alert">{message.error}</p>}
                 {message.shown && message.shown.length > 0 && <ul className={styles.found}>
                   {message.shown.map(paper => {
                     const isMarked = papers.some(item => item.id === paper.id);

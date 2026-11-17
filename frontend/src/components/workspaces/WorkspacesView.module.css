@@ -83,7 +83,7 @@ button.columnIcon[data-tinted]:hover { background: color-mix(in srgb, var(--tile
 .card:hover::after { opacity: 1; }
 .card:active { cursor: grabbing; }
 .cardDragging { opacity: .4; }
-.dropBefore::before, .dropEnd { content: ""; position: absolute; left: 0; right: 0; top: -5px; height: 2px; border-radius: 2px; background: var(--accent); z-index: 3; }
+.dropBefore::before, .dropEnd { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 2px; border-radius: 2px; background: var(--accent); z-index: 3; }
 .dropEnd { position: static; flex: none; margin-top: -2px; }
 
 /* the faint constellation: a dot grid with an abstract lineage drawn over it */

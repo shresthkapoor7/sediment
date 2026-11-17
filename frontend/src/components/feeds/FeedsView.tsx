@@ -59,7 +59,12 @@ export function FeedsView({ embedded = false, ready = true, onSearch, onStartWor
       try {
         let result = await fetchFeed(undefined, controller.signal);
         if (!result.interests && !controller.signal.aborted) {
-          result = await fetchFeed({ action: "interests", source: "all", domain: "ai", interests: "Artificial intelligence, machine learning, large language models" }, controller.signal);
+          // Start new visitors on a default topic. If that fails, keep the empty feed so they can type their own.
+          try {
+            result = await fetchFeed({ action: "interests", source: "all", domain: "ai", interests: "Artificial intelligence, machine learning, large language models" }, controller.signal);
+          } catch (err) {
+            if (controller.signal.aborted) throw err;
+          }
         }
         if (controller.signal.aborted) return;
         setSource("all");
