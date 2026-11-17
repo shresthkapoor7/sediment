@@ -41,6 +41,7 @@ import {
   CanvasDetailsChange,
   GraphPaper,
   LineageChange,
+  TimelineNote,
   TimelineData,
   TimelineGraphAction,
   TimelineNodeColorChange,
@@ -371,7 +372,7 @@ export default function Home() {
   // A new canvas. `seed` starts it with papers already on it (from the feed) and a first message about them;
   // otherwise it is blank and the query is the first message to the agent.
   const startCanvas = useCallback(
-    async (query: string, seed?: { papers: GraphPaper[]; message: string }) => {
+    async (query: string, seed?: { papers: GraphPaper[]; notes?: TimelineNote[]; message: string }) => {
       const text = query.trim();
       if (!text || !userId || isSearching) return;
       if (saveTimeoutRef.current) window.clearTimeout(saveTimeoutRef.current);
@@ -379,7 +380,7 @@ export default function Home() {
       // A pasted link or ID is not a name; the researcher can rename the canvas from the top bar.
       const looksLikeLink = /^(https?:\/\/|www\.|doi:|arxiv:|10\.\d{4,}\/)/i.test(text) || /^W\d{4,}$/i.test(text);
       const title = looksLikeLink ? "Untitled canvas" : text.length > 60 ? `${text.slice(0, 57).trimEnd()}…` : text;
-      const emptyData = (seed?.papers ?? []).reduce<TimelineData>(
+      const withPapers = (seed?.papers ?? []).reduce<TimelineData>(
         (data, paper, index) => applyTimelineGraphAction(data, {
           type: "add_paper",
           paper,
@@ -387,6 +388,10 @@ export default function Home() {
           y: 80 + Math.floor(index / 3) * 240,
         }),
         createEmptyTimeline(),
+      );
+      const emptyData = (seed?.notes ?? []).reduce<TimelineData>(
+        (data, note) => applyTimelineGraphAction(data, { type: "add_note", note }),
+        withPapers,
       );
       setIsSearching(true);
       setSearchError("");
@@ -441,15 +446,29 @@ export default function Home() {
       doi: paper.doi,
     }] : []);
     const list = papers.map((paper) => `- ${paper.title}${paper.published ? ` (${paper.published.slice(0, 4)})` : ""}`).join("\n");
-    const missing = papers.length - graphPapers.length;
+    // Papers OpenAlex does not know cannot be cards; keep each as a note so it is not lost.
+    const unplaced = papers.filter((paper) => !paper.openalex_id);
+    const rows = Math.ceil(graphPapers.length / 3);
+    const notes: TimelineNote[] = unplaced.map((paper, index) => ({
+      id: `feed-missing-${Date.now()}-${index}`,
+      kind: "todo",
+      color: "amber",
+      text: [
+        `Not in OpenAlex yet: **${paper.title}**`,
+        [paper.authors.slice(0, 3).join(", "), paper.published?.slice(0, 4)].filter(Boolean).join(" · "),
+        paper.url ? `[Source](${paper.url})` : "",
+      ].filter(Boolean).join("\n\n"),
+      x: 80 + (index % 3) * 400,
+      y: 80 + rows * 240 + Math.floor(index / 3) * 220,
+    }));
     const message = [
       `I started this workspace from ${papers.length} paper${papers.length === 1 ? "" : "s"} I marked in my feed:`,
       list,
-      missing ? `${missing} of them could not be placed on the canvas automatically; please find and add them.` : "",
+      unplaced.length ? `${unplaced.length} of them are not in OpenAlex, so they are on the canvas as notes instead of cards.` : "",
       interests.trim() ? `My feed interests: ${interests.trim()}.` : "",
       "Help me see how these relate and what I should look at next.",
     ].filter(Boolean).join("\n\n");
-    void startCanvas("From your feed", { papers: graphPapers, message });
+    void startCanvas("From your feed", { papers: graphPapers, notes, message });
   }, [startCanvas]);
 
   const handleReset = useCallback(() => {
