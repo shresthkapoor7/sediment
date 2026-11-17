@@ -34,11 +34,15 @@ export function CanvasGroupRegion({ label, count, frame, isDropTarget = false, g
 
   // Drag the name row to move the whole cluster. A press that barely travels is still a click.
   const dragRef = useRef<{ pointerId: number; lastX: number; lastY: number; startX: number; startY: number; moved: boolean; onName: boolean } | null>(null);
+  // Whether the row took this press (a mouse press it can drag); otherwise the click itself renames.
+  const rowPressRef = useRef(false);
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     event.stopPropagation();
+    rowPressRef.current = false;
     if (!onMove || draft !== null || event.button !== 0 || event.pointerType === "touch") return;
     const target = event.target instanceof Element ? event.target : null;
     if (target?.closest("[data-group-action='ungroup']")) return;
+    rowPressRef.current = true;
     dragRef.current = {
       pointerId: event.pointerId,
       lastX: event.clientX,
@@ -122,8 +126,11 @@ export function CanvasGroupRegion({ label, count, frame, isDropTarget = false, g
             className={styles.name}
             data-group-action="rename"
             onClick={(event) => {
-              // Mouse presses are handled by the row; this covers the keyboard.
-              if (event.detail === 0) setDraft(label);
+              // A mouse press is handled by the row (click to rename, drag to move). Keyboard, touch and
+              // a cluster that cannot move rename here.
+              const handledByRow = rowPressRef.current && event.detail !== 0;
+              rowPressRef.current = false;
+              if (!handledByRow) setDraft(label);
             }}
             title="Rename cluster, or drag to move it"
           >

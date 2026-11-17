@@ -13,6 +13,8 @@ interface TimelineNoteCardProps {
   isConnectedToActiveNode?: boolean;
   readOnly?: boolean;
   onMove?: (noteId: string, x: number, y: number) => void;
+  /** The drag ended. */
+  onMoveEnd?: () => void;
   /** Current canvas zoom, so drags and resizes cover the same distance as the pointer. */
   getZoom?: () => number;
   onResize?: (noteId: string, width: number, height: number) => void;
@@ -33,6 +35,7 @@ export function TimelineNoteCard({
   isConnectedToActiveNode = false,
   readOnly = false,
   onMove,
+  onMoveEnd,
   getZoom,
   onResize,
   onTextChange,
@@ -58,7 +61,13 @@ export function TimelineNoteCard({
   const [isEditingText, setIsEditingText] = useState(() => !readOnly && !note.text && !!note.createdAt && Date.now() - Date.parse(note.createdAt) < 5000);
   const [isHovered, setIsHovered] = useState(false);
   // Colour, delete and resize stay out of the way until the note is hovered or being edited.
-  const showControls = isHovered || isEditingText || isDragging || isResizing || kindMenuOpen;
+  // Keyboard focus on a control keeps the controls visible too, so a focused button is never invisible.
+  const [controlFocused, setControlFocused] = useState(false);
+  const showControls = isHovered || isEditingText || isDragging || isResizing || kindMenuOpen || controlFocused;
+  const controlFocusHandlers = {
+    onFocus: (event: React.FocusEvent<HTMLElement>) => { if (event.target.matches(":focus-visible")) setControlFocused(true); },
+    onBlur: () => setControlFocused(false),
+  };
 
   useEffect(() => {
     if (!kindMenuOpen) return;
@@ -121,7 +130,8 @@ export function TimelineNoteCard({
     event.stopPropagation();
     dragStartRef.current = null;
     setIsDragging(false);
-  }, []);
+    onMoveEnd?.();
+  }, [onMoveEnd]);
 
   const handleResizePointerDown = useCallback(
     (event: React.PointerEvent<HTMLButtonElement>) => {
@@ -426,6 +436,7 @@ export function TimelineNoteCard({
               opacity: showControls ? 1 : 0,
               transition: "opacity 0.12s",
             }}
+            {...controlFocusHandlers}
             onPointerDown={(event) => event.stopPropagation()}
           >
             <div style={{ display: "flex", gap: "0.25rem" }}>
@@ -509,6 +520,7 @@ export function TimelineNoteCard({
             onPointerMove={handleResizePointerMove}
             onPointerUp={finishResize}
             onPointerCancel={finishResize}
+            {...controlFocusHandlers}
             style={{
               position: "absolute",
               right: "0.5rem",

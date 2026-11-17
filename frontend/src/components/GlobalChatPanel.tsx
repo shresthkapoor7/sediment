@@ -9,7 +9,7 @@ const MarkdownContent = dynamic(() => import("./MarkdownContent").then((mod) => 
 import { ConversationNavigator } from "./ConversationNavigator";
 import { AgentCapabilities } from "./AgentCapabilities";
 import { createChat, deleteChat, listChats, openChatSession, streamChatAboutTimeline, suggestTimelineQuestions } from "@/lib/api";
-import { ChatTabs, type ChatTabItem } from "./ChatTabs";
+import { ChatTabs, chatPanelId, chatTabId, type ChatTabItem } from "./ChatTabs";
 import { DETAIL_PANEL_DEFAULT_WIDTH, DETAIL_PANEL_MAX_WIDTH, DETAIL_PANEL_MIN_WIDTH, DETAIL_PANEL_WIDTH_KEY } from "@/lib/detail-panel";
 import { isSpecialNote } from "@/lib/note-style";
 import {
@@ -51,7 +51,7 @@ interface GlobalChatPanelProps {
   onHighlight: (ids: string[]) => void;
   onMentionedPaperIdsChange?: (ids: string[]) => void;
   /** Ask the panel to tag a paper in the composer. Change `nonce` to repeat the request. */
-  mentionRequest?: { paperId: string; nonce: number } | null;
+  mentionRequest?: { paperId: string; nonce: number; quote?: string } | null;
   /** A message to send on the user's behalf as soon as the panel is ready, such as the home search. */
   kickoff?: { text: string; nonce: number } | null;
   onKickoffSent?: () => void;
@@ -529,7 +529,12 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
     if (!paper) return;
     const mentionText = `@${paper.title}`;
     /* eslint-disable react-hooks/set-state-in-effect -- Responds to an explicit request from the paper panel. */
-    setInput((current) => current.includes(mentionText) ? current : current.trim() ? `${current.trimEnd()} ${mentionText} ` : `${mentionText} `);
+    const quote = mentionRequest.quote?.trim();
+    const quoted = quote ? `${quote.split("\n").map((line) => `> ${line}`).join("\n")}\n\n` : "";
+    setInput((current) => {
+      if (quoted) return `${quoted}${mentionText} `;
+      return current.includes(mentionText) ? current : current.trim() ? `${current.trimEnd()} ${mentionText} ` : `${mentionText} `;
+    });
     setMentionedPaperIds((current) => current.includes(paper.openalexId) ? current : [...current, paper.openalexId]);
     setMentionOpen(false);
     setMentionQuery("");
@@ -540,6 +545,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
       if (!element) return;
       element.focus({ preventScroll: true });
       element.setSelectionRange(element.value.length, element.value.length);
+      resizeInput(element);
     }, 260);
     return () => window.clearTimeout(timer);
   }, [mentionNonce]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -976,6 +982,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
               onAdd={handleAddChat}
               onClose={handleCloseChat}
               onClosePanel={handleClose}
+              idPrefix={panelId}
             />
 
             <div
@@ -1028,7 +1035,13 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
 
             {/* Messages */}
             <div style={{ position: "relative", flex: 1, minHeight: 0 }}>
-              <div ref={attachMessages} className="no-scrollbar" style={{ height: "100%", overflowY: "auto", padding: "0.5rem 1rem 1rem", display: "flex", flexDirection: "column", gap: "1rem" }}>
+              <div
+                ref={attachMessages}
+                className="no-scrollbar"
+                role="tabpanel"
+                id={chatPanelId(panelId)}
+                aria-labelledby={chatTabId(panelId, sessionKey)}
+                style={{ height: "100%", overflowY: "auto", padding: "0.5rem 1rem 1rem", display: "flex", flexDirection: "column", gap: "1rem" }}>
               {messages.length === 0 && (
                 <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem", marginTop: "0.25rem" }}>
                   {loadingSuggestions ? (

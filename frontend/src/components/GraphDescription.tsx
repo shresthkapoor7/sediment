@@ -50,8 +50,14 @@ export function GraphDescription({ description, onSave }: GraphDescriptionProps)
         title={has ? description : "Add a description"}
         aria-label={has ? "Canvas description" : "Add a description"}
         onClick={() => {
+          if (open) {
+            // Closing with the icon keeps the edit, like clicking away does; Escape is the way to discard it.
+            if (onSave && draft.trim() !== description.trim()) onSave(draft.trim());
+            setOpen(false);
+            return;
+          }
           setDraft(description);
-          setOpen((value) => !value);
+          setOpen(true);
           window.requestAnimationFrame(() => field.current?.focus());
         }}
       >

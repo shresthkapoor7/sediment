@@ -113,8 +113,21 @@ export function CanvasMinimap({ items, getView, subscribe, onNavigate, right }: 
       data-canvas-ui="true"
       data-dragging={dragging ? "" : undefined}
       style={{ right }}
-      role="img"
-      aria-label="Canvas overview. Click or drag to move around."
+      role="group"
+      tabIndex={0}
+      aria-label="Canvas overview. Click or drag to move around, or use the arrow keys."
+      onKeyDown={(event) => {
+        const steps: Record<string, [number, number]> = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
+        const step = steps[event.key];
+        if (!step) return;
+        event.preventDefault();
+        // A quarter of the screen per press, a whole screen with Shift.
+        const amount = event.shiftKey ? 1 : 0.25;
+        onNavigate(
+          view.x + view.width / 2 + step[0] * view.width * amount,
+          view.y + view.height / 2 + step[1] * view.height * amount,
+        );
+      }}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerEnd}

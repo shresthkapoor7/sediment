@@ -153,7 +153,7 @@ export function TimelineCanvas({
   const [minimapEnabled, setMinimapEnabled] = useState(true);
   const viewListenersRef = useRef(new Set<() => void>());
   const [addPaperOpen, setAddPaperOpen] = useState(false);
-  const [agentMentionRequest, setAgentMentionRequest] = useState<{ paperId: string; nonce: number } | null>(null);
+  const [agentMentionRequest, setAgentMentionRequest] = useState<{ paperId: string; nonce: number; quote?: string } | null>(null);
   const [isOutOfView, setIsOutOfView] = useState(false);
   const [cursorStyle, setCursorStyle] = useState("default");
   const [activeNodeId, setActiveNodeId] = useState<number | null>(null);
@@ -941,13 +941,14 @@ export function TimelineCanvas({
   }, []);
 
   const askSedimentAboutSelectedExcerpt = useCallback((excerpt: string) => {
-    if (activeNodeId === null) return;
-    const selectedExcerpt = excerpt.trim().slice(0, 6_000);
-    if (!selectedExcerpt) return;
-    setSelectedExcerptByNode((current) => ({ ...current, [activeNodeId]: selectedExcerpt }));
+    // The selected passage goes to the agent's composer, quoted and tagged with its paper.
+    if (!activeNode) return;
+    const quote = excerpt.trim().slice(0, 6_000);
+    if (!quote) return;
     closePaperReader();
-    window.setTimeout(() => chatInputRef.current?.focus({ preventScroll: true }), 0);
-  }, [activeNodeId, closePaperReader]);
+    setAgentMentionRequest((current) => ({ paperId: activeNode.paper.openalexId, nonce: (current?.nonce ?? 0) + 1, quote }));
+    onGlobalChatOpenChange?.(true);
+  }, [activeNode, closePaperReader, onGlobalChatOpenChange]);
 
   const openPaperReader = useCallback(() => {
     if (!activeNode || !graphId || !userId || !isActivePaperCached) return;
@@ -1382,9 +1383,17 @@ export function TimelineCanvas({
     onGraphAction?.({ type: "rename_group", from, to });
   }, [onGraphAction, readOnly]);
 
+  // While a note is dragged, hold off moving the canvas origin (as for cards); the note computes its spot
+  // from where the drag began, so shifting under it would pull it away from the pointer.
+  const handleMoveNoteEnd = useCallback(() => {
+    draggingNodeRef.current = false;
+    setMoveEndTick((tick) => tick + 1);
+  }, []);
+
   const handleMoveNote = useCallback(
     (noteId: string, x: number, y: number) => {
       if (readOnly) return;
+      draggingNodeRef.current = true;
       onGraphAction?.({
         type: "update_note",
         noteId,
@@ -2012,6 +2021,7 @@ export function TimelineCanvas({
                   isConnectedToActiveNode={noteIdsConnectedToActiveNode.has(note.id)}
                   readOnly={readOnly}
                   onMove={handleMoveNote}
+                  onMoveEnd={handleMoveNoteEnd}
                   getZoom={getZoom}
                   onResize={handleResizeNote}
                   onTextChange={handleNoteTextChange}

@@ -17,7 +17,7 @@
 
 /* Quick actions: shown while the card is hovered or selected, so adding a note is one click. */
 .bar { position: absolute; left: 50%; transform: translateX(-50%); z-index: 18; display: flex; align-items: center; gap: 2px; height: 34px; padding: 0 5px; border-radius: 10px; background: var(--bg-tertiary); opacity: 0; pointer-events: none; transition: opacity .12s; cursor: default; }
-.wrap:hover .bar, .bar[data-show] { opacity: 1; pointer-events: auto; }
+.wrap:hover .bar, .bar[data-show], .bar:has(:focus-visible) { opacity: 1; pointer-events: auto; }
 .bar button { display: inline-flex; align-items: center; justify-content: center; gap: 5px; height: 24px; min-width: 24px; padding: 0 6px; border: 0; border-radius: 6px; background: transparent; color: var(--text-secondary); font-size: 11.5px; font-weight: 500; white-space: nowrap; cursor: pointer; transition: background .12s, color .12s; }
 .bar button:hover:not(:disabled) { background: color-mix(in srgb, var(--text-primary) 9%, transparent); color: var(--text-primary); }
 .bar button:disabled { opacity: .4; cursor: default; }

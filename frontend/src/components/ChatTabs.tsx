@@ -18,9 +18,14 @@ interface ChatTabsProps {
   onAdd: () => void;
   onClose: (id: string) => void;
   onClosePanel: () => void;
+  /** Ids for the tab/panel relationship: tabs are `${idPrefix}-tab-<id>`, the panel is `${idPrefix}-tabpanel`. */
+  idPrefix: string;
 }
 
-export function ChatTabs({ tabs, activeId, busyIds, canAdd, onSelect, onAdd, onClose, onClosePanel }: ChatTabsProps) {
+export const chatTabId = (idPrefix: string, id: string) => `${idPrefix}-tab-${id}`;
+export const chatPanelId = (idPrefix: string) => `${idPrefix}-tabpanel`;
+
+export function ChatTabs({ tabs, activeId, busyIds, canAdd, onSelect, onAdd, onClose, onClosePanel, idPrefix }: ChatTabsProps) {
   const activeRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     activeRef.current?.scrollIntoView({ block: "nearest", inline: "nearest" });
@@ -31,7 +36,24 @@ export function ChatTabs({ tabs, activeId, busyIds, canAdd, onSelect, onAdd, onC
 
   return (
     <div className={styles.strip}>
-      <div className={styles.tabs} role="tablist" aria-label="Chats">
+      <div
+        className={styles.tabs}
+        role="tablist"
+        aria-label="Chats"
+        onKeyDown={(event) => {
+          // Arrow keys move between chats; Tab leaves the strip (one tab stop, on the open chat).
+          const moves: Record<string, number> = { ArrowLeft: -1, ArrowRight: 1 };
+          const index = tabs.findIndex((tab) => tab.id === activeId);
+          let next = -1;
+          if (event.key in moves) next = (index + moves[event.key] + tabs.length) % tabs.length;
+          if (event.key === "Home") next = 0;
+          if (event.key === "End") next = tabs.length - 1;
+          if (next < 0 || !tabs[next]) return;
+          event.preventDefault();
+          onSelect(tabs[next].id);
+          document.getElementById(chatTabId(idPrefix, tabs[next].id))?.focus();
+        }}
+      >
         {tabs.map((tab) => {
           const active = tab.id === activeId;
           const title = tab.title?.trim() || "New chat";
@@ -47,7 +69,10 @@ export function ChatTabs({ tabs, activeId, busyIds, canAdd, onSelect, onAdd, onC
               <button
                 type="button"
                 role="tab"
+                id={chatTabId(idPrefix, tab.id)}
                 aria-selected={active}
+                aria-controls={chatPanelId(idPrefix)}
+                tabIndex={active ? 0 : -1}
                 className={styles.select}
                 onClick={() => onSelect(tab.id)}
                 title={title}

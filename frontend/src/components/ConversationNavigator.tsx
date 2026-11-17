@@ -67,7 +67,9 @@ export function ConversationNavigator({ items, onJump, activeId, onActiveChange 
         <button
           type="button"
           className={styles.hit}
-          aria-label={`Jump to a question (${items.length})`}
+          aria-label={hotItem
+            ? `Question ${hot! + 1} of ${items.length}: ${compact(hotItem.label)}. Press Enter to jump.`
+            : `Jump to a question (${items.length}). Use the arrow keys to choose.`}
           onMouseMove={(event) => setHot(indexFromPointer(event.clientY))}
           onMouseLeave={() => setHot(null)}
           onBlur={() => setHot(null)}
@@ -106,6 +108,10 @@ export function ConversationNavigator({ items, onJump, activeId, onActiveChange 
         >
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m3 4.5 3 3 3-3" /></svg>
         </button>
+        {/* Announces the question chosen with the arrow keys; the visual preview is hidden from screen readers. */}
+        <span className={styles.srOnly} role="status" aria-live="polite">
+          {hotItem ? `Question ${hot! + 1} of ${items.length}: ${compact(hotItem.label)}` : ""}
+        </span>
         {hotItem && (
           <div className={styles.preview} style={{ top: `${topPercent(hot!)}%` }} aria-hidden="true">
             <span className={styles.previewTitle}>{compact(hotItem.label)}</span>

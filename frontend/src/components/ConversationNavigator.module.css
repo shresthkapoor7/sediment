@@ -16,3 +16,4 @@
 .previewDetail { margin-top: 0.25rem; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; font-size: 0.75rem; line-height: 1.45; color: var(--text-secondary); }
 .root:hover .step, .root:focus-within .step { opacity: 1; }
 .root .step:disabled { opacity: 0; } .root:hover .step:disabled { opacity: .3; cursor: default; }
+.srOnly { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
