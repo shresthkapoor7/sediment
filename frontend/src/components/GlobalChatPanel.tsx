@@ -382,11 +382,15 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
       if (!frame) frame = window.requestAnimationFrame(update);
     };
     container.addEventListener("scroll", onScroll, { passive: true });
+    // Mark the right question straight away, not only after the first scroll.
+    frame = window.requestAnimationFrame(update);
     return () => {
       container.removeEventListener("scroll", onScroll);
       if (frame) window.cancelAnimationFrame(frame);
     };
-  }, [navigationIdsKey, panelId]);
+    // The chat list only exists while the panel is open, and is a different list per chat tab; re-attach
+    // whenever either changes, or after a reload the rail would never follow the scroll.
+  }, [navigationIdsKey, panelId, open, sessionKey]);
 
   const jumpToMessage = useCallback((messageId: string) => {
     setActiveNavigationId(messageId);
