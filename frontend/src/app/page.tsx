@@ -509,8 +509,8 @@ export default function Home() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [handleRedo, handleUndo]);
 
-  // The agent named or described the canvas. It is told not to touch what the researcher set; this is the
-  // backstop, so a title or description the researcher wrote is never replaced.
+  // The agent named or described the canvas. Its instructions keep it off anything the researcher set unless
+  // they ask, which is also why this cannot block it: "rename this canvas" has to work.
   const handleAgentCanvasDetails = useCallback((details: CanvasDetailsChange) => {
     const current = timelineDataRef.current;
     if (!graphId || !userId || !current) return;
