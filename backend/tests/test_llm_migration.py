@@ -11,14 +11,14 @@ class HaikuMigrationTests(unittest.IsolatedAsyncioTestCase):
         response = SimpleNamespace(
             content=[
                 SimpleNamespace(type="thinking", thinking="", signature="signed"),
-                SimpleNamespace(type="text", text='{"needs_clarification": false, "refined_query": "chain-of-thought prompting"}'),
+                SimpleNamespace(type="text", text='{"refined_query": "chain-of-thought prompting"}'),
             ],
             usage=SimpleNamespace(input_tokens=10, output_tokens=10),
             stop_reason="end_turn",
         )
         client.client.messages.create = AsyncMock(return_value=response)
         with patch.object(client, "_record_response_usage", AsyncMock()):
-            result = await client.clarify_query("chain of thought")
+            result = await client._prompt_json("Clean up the query: chain of thought")
         self.assertEqual(result["refined_query"], "chain-of-thought prompting")
         kwargs = client.client.messages.create.await_args.kwargs
         self.assertEqual(kwargs["thinking"], {"type": "adaptive"})

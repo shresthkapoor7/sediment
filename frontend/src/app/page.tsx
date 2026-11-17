@@ -14,7 +14,7 @@ import { FeedsView } from "@/components/feeds/FeedsView";
 import type { FeedPaper } from "@/lib/feeds-api";
 import { whenIdle } from "@/lib/when-idle";
 
-// Graph view + clarification modal are never shown on the landing page — load their
+// The graph view is never shown on the landing page — load its
 // chunks (which pull in the chat panel, paper reader, react-markdown and KaTeX) on demand.
 const TimelineCanvas = dynamic(
   () => import("@/components/TimelineCanvas").then((mod) => mod.TimelineCanvas),

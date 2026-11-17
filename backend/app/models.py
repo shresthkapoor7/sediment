@@ -426,17 +426,6 @@ class ChatSessionResponse(BaseModel):
     messages: list[ChatMessageRecord] = Field(default_factory=list)
 
 
-class ClarifyRequest(StrictRequestModel):
-    query: str = Field(min_length=1, max_length=MAX_QUERY_LENGTH)
-
-
-class ClarifyResponse(BaseModel):
-    needs_clarification: bool
-    refined_query: Optional[str] = None
-    question: Optional[str] = None
-    options: Optional[list[str]] = None
-
-
 class UserUpsertRequest(StrictRequestModel):
     id: str = Field(min_length=1, max_length=MAX_USER_ID_LENGTH)
 
