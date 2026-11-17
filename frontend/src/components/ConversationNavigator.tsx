@@ -52,7 +52,7 @@ export function ConversationNavigator({ items, onJump, activeId, onActiveChange 
   };
 
   return (
-    <div className={styles.root} data-canvas-ui="true" style={{ left: 0 }}>
+    <div className={styles.root} data-canvas-ui="true">
       <div ref={railRef} className={styles.rail} style={{ height }}>
         <button
           type="button"
