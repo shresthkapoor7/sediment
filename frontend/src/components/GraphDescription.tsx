@@ -61,7 +61,6 @@ export function GraphDescription({ description, onSave }: GraphDescriptionProps)
       </button>
       {open && (
         <div className="graph-description-popover" role="dialog" aria-label="Canvas description">
-          <div className="graph-description-label">Description</div>
           {onSave ? (
             <>
               <textarea
@@ -69,7 +68,7 @@ export function GraphDescription({ description, onSave }: GraphDescriptionProps)
                 value={draft}
                 maxLength={MAX_GRAPH_DESCRIPTION_LENGTH}
                 rows={4}
-                placeholder="What is this canvas for? The question you are chasing, the angle, what to look out for."
+                placeholder="What is this canvas for?"
                 onChange={(event) => setDraft(event.target.value)}
                 onKeyDown={(event) => {
                   if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
@@ -81,7 +80,7 @@ export function GraphDescription({ description, onSave }: GraphDescriptionProps)
               />
               <div className="graph-description-hint">
                 <span>{draft.length}/{MAX_GRAPH_DESCRIPTION_LENGTH}</span>
-                <span>Saves when you click away · ⌘↵</span>
+                <span>⌘↵ to save</span>
               </div>
             </>
           ) : (

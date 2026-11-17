@@ -191,7 +191,8 @@ export function AppHeader({
             )}
 
             {timelineData && (graphTitle || searchedQuery) && (
-              isEditingGraphTitle ? (
+              <div className="app-header-graph-center">
+              {isEditingGraphTitle ? (
                 <form
                   className="app-header-graph-title-form"
                   onSubmit={(event) => {
@@ -229,10 +230,11 @@ export function AppHeader({
                 <span className="app-header-graph-query" title={graphTitle || searchedQuery}>
                   {graphTitle || searchedQuery}
                 </span>
-              )
-            )}
-            {timelineData && !isEditingGraphTitle && (
-              <GraphDescription description={graphDescription} onSave={onSaveGraphDescription} />
+              )}
+              {!isEditingGraphTitle && (
+                <GraphDescription description={graphDescription} onSave={onSaveGraphDescription} />
+              )}
+              </div>
             )}
 
             {!timelineData && (
