@@ -354,9 +354,15 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
   const [inputHeight, setInputHeight] = useState(24);
   const panelId = useId();
   const [activeNavigationId, setActiveNavigationId] = useState<string | null>(null);
-  const navigationItems = messages
-    .filter((message) => message.role === "user" && message.text.trim())
-    .map((message) => ({ id: String(message.id), label: message.text.trim() }));
+  const navigationItems = messages.flatMap((message, index) => {
+    if (message.role !== "user" || !message.text.trim()) return [];
+    // The reply is the last assistant message before the next question.
+    let detail: string | undefined;
+    for (let next = index + 1; next < messages.length && messages[next].role !== "user"; next += 1) {
+      if (messages[next].text.trim()) detail = messages[next].text;
+    }
+    return [{ id: String(message.id), label: message.text.trim(), detail }];
+  });
   const latestNavigationId = navigationItems[navigationItems.length - 1]?.id ?? null;
 
   useEffect(() => {
@@ -1170,14 +1176,6 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
               )}
               </div>
               <ConversationNavigator
-                side="left"
-                items={navigationItems}
-                activeId={activeNavigationId ?? latestNavigationId}
-                onActiveChange={setActiveNavigationId}
-                onJump={jumpToMessage}
-              />
-              <ConversationNavigator
-                side="right"
                 items={navigationItems}
                 activeId={activeNavigationId ?? latestNavigationId}
                 onActiveChange={setActiveNavigationId}
