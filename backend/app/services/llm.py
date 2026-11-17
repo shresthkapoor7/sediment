@@ -1279,9 +1279,9 @@ User message:
             needs_final_answer = False
             response = await self._message(
                 max_tokens=1600,
-                system=GLOBAL_AGENT_SYSTEM_PROMPT,
+                system=_agent_system_prompt(),
                 messages=messages,
-                tools=GLOBAL_AGENT_TOOLS,
+                tools=_agent_tools(),
                 tool_choice={"type": "auto"},
                 text_emitter=text_emitter,
             )
@@ -1352,9 +1352,9 @@ User message:
                 })
                 response = await self._message(
                     max_tokens=1600,
-                    system=GLOBAL_AGENT_SYSTEM_PROMPT,
+                    system=_agent_system_prompt(),
                     messages=messages,
-                    tools=GLOBAL_AGENT_TOOLS,
+                    tools=_agent_tools(),
                     tool_choice={"type": "none"},
                     text_emitter=text_emitter,
                 )
@@ -1803,6 +1803,46 @@ def _tools_with_cache_breakpoint(tools: list[dict]) -> list[dict]:
         {**tools[-1], "cache_control": {"type": "ephemeral"}},
     ]
 
+
+
+FULL_TEXT_TOOL_NAMES = frozenset({
+    "check_paper_access",
+    "retrieve_paper_content",
+    "search_paper_content",
+    "search_graph_paper_content",
+})
+
+_FULL_TEXT_RULES = (
+    "- Use search_graph_paper_content or search_paper_content for claims that need the paper's own words",
+    "- Check access with check_paper_access before offering full text.",
+)
+
+
+def _full_text_enabled() -> bool:
+    from ..config import settings
+
+    return settings.full_paper_access_enabled
+
+
+def _agent_tools() -> list[dict]:
+    if _full_text_enabled():
+        return GLOBAL_AGENT_TOOLS
+    return [tool for tool in GLOBAL_AGENT_TOOLS if tool.get("name") not in FULL_TEXT_TOOL_NAMES]
+
+
+def _agent_system_prompt() -> str:
+    """The agent's instructions; without full-text tools, the rules about them become one line saying so."""
+    if _full_text_enabled():
+        return GLOBAL_AGENT_SYSTEM_PROMPT
+    lines = [
+        line for line in GLOBAL_AGENT_SYSTEM_PROMPT.split("\n")
+        if not line.startswith(_FULL_TEXT_RULES)
+    ]
+    lines.append(
+        "\nFull paper text is turned off for now. Answer from titles, abstracts, references and the canvas. "
+        "If the researcher asks you to read or quote a full paper, say that full-text reading is not available yet."
+    )
+    return "\n".join(lines)
 
 _INDEPENDENT_TOOL_NAMES = frozenset({
     "search_openalex_papers",

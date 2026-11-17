@@ -961,7 +961,6 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
                     { label: "Link and remove papers", hint: "Connect papers that cite each other, or take papers off the canvas.", onPick: startLineageEdit },
                     { label: "Group into clusters", hint: "Sort the board into named clusters, or move papers between them.", onPick: () => startTemplatedCommand("Group the papers on this canvas into clusters") },
                     { label: "Mention a paper", hint: "Type @ to point the agent at a specific paper.", onPick: startPaperMention },
-                    { label: "Read the full paper", hint: "Fetch open-access full text and answer from it.", onPick: startPaperAccess },
                     { label: "Notes", hint: "Read, write, edit or connect notes on the canvas.", onPick: startNoteEdit },
                     { label: "Colours", hint: "Ask about coloured papers, or colour them.", onPick: () => startTemplatedCommand("How do the papers coloured ") },
                     { label: "Name and describe the canvas", hint: "Give this canvas a name and a short description.", onPick: () => startTemplatedCommand("Name and describe this canvas") },

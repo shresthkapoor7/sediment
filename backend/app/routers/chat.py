@@ -32,7 +32,7 @@ from ..models import (
 )
 from ..services.chat_memory import ChatContext, ChatMemoryService, ChatSessionNotFound, serialize_chat_context
 from ..services.graph_retrieval import retrieve_graph_context
-from ..services.llm import LLMClient, LLMParseError
+from ..services.llm import FULL_TEXT_TOOL_NAMES, LLMClient, LLMParseError
 from ..services.openalex import OpenAlexClient, OpenAlexError
 from ..services.paper_access import PaperAccessChecker
 from ..services.paper_ingestion import IngestionError, PaperIngestionService
@@ -880,6 +880,8 @@ async def _run_global_chat(req: GlobalChatRequest, request_ip: str, event_emitte
         return connection
 
     async def run_global_tool(name: str, tool_input: dict[str, Any]) -> dict[str, Any]:
+        if name in FULL_TEXT_TOOL_NAMES and not settings.full_paper_access_enabled:
+            return {"status": "disabled", "reason": "Full paper text is turned off for now."}
         await _emit(event_emitter, "tool_started", {"name": name, "input": tool_input})
         await _emit(event_emitter, "status", {"message": _tool_status_message(name, "started")})
 

@@ -33,6 +33,8 @@ class Settings(BaseSettings):
     agent_turn_budget_usd: float = 0.20
     # Tool rounds the agent may take in one message before it must answer.
     agent_max_iterations: int = 8
+    # Full-paper reading (checking access, fetching and searching complete text). Off for now.
+    full_paper_access_enabled: bool = False
     burst_limit_requests: int = 8
     burst_limit_window_seconds: int = 60
     actor_key_secret: SecretStr = Field(...)

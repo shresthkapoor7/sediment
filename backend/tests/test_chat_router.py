@@ -5,6 +5,7 @@ import unittest
 from unittest.mock import AsyncMock, patch
 
 from app.models import ChatRequest, GlobalChatRequest
+from app.routers import chat as chat_router
 from app.routers.chat import _compact_tool_result_for_event, _note_context_from_graph, chat, chat_global
 from app.services.chat_memory import ChatContext
 
@@ -251,6 +252,7 @@ class PersistentChatRouterTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response.highlightedPaperIds, ["W3"])
         self.assertEqual(response.lineageChanges[1]["edges"][0]["childOpenalexId"], "W3")
 
+    @patch.object(chat_router.settings, "full_paper_access_enabled", True)
     async def test_global_agent_can_search_cached_text_across_the_graph(self) -> None:
         memory = AsyncMock()
         memory.append.side_effect = [{"sequence_number": 1}, {"sequence_number": 2}]
@@ -657,6 +659,7 @@ class PersistentChatRouterTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(response.highlightedPaperIds, ["W1"])
 
+    @patch.object(chat_router.settings, "full_paper_access_enabled", True)
     async def test_global_pending_confirmation_without_paper_id_uses_mentioned_paper(self) -> None:
         memory = AsyncMock()
         memory.append.side_effect = [
