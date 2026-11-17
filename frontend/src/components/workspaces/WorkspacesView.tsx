@@ -251,6 +251,7 @@ export function WorkspacesView() {
                   <div className={styles.preview}><GraphPreview id={graph.id} count={graph.metadata.nodeCount} /></div>
                   <div className={styles.cardBody}>
                     <button type="button" className={styles.title} onClick={() => open(graph)}>{titleOf(graph)}</button>
+                    {graph.metadata.description && <p className={styles.description} title={graph.metadata.description}>{graph.metadata.description}</p>}
                     <p className={styles.meta}>
                       <span>{graph.metadata.nodeCount} {graph.metadata.nodeCount === 1 ? "node" : "nodes"}</span>
                       <i aria-hidden="true">·</i>

@@ -390,6 +390,8 @@ export interface Expansion {
 
 export interface SavedGraphMetadata {
   title: string;
+  /** What the canvas is for, written by its owner. */
+  description?: string;
   nodeCount: number;
   lastOpenedAt?: string | null;
   appVersion: string;

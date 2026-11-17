@@ -5,6 +5,7 @@ import { useState } from "react";
 import { m, AnimatePresence } from "framer-motion";
 import { LogoMark } from "@/components/LogoMark";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { GraphDescription } from "@/components/GraphDescription";
 import { TimelineData } from "@/lib/types";
 
 const MotionLink = m.create(Link);
@@ -16,6 +17,8 @@ interface AppHeaderProps {
   mobile: boolean;
   searchedQuery: string;
   graphTitle: string;
+  graphDescription: string;
+  onSaveGraphDescription?: (description: string) => void;
   graphTitleDraft: string;
   isEditingGraphTitle: boolean;
   canEditGraphTitle: boolean;
@@ -41,6 +44,8 @@ export function AppHeader({
   mobile,
   searchedQuery,
   graphTitle,
+  graphDescription,
+  onSaveGraphDescription,
   graphTitleDraft,
   isEditingGraphTitle,
   canEditGraphTitle,
@@ -225,6 +230,9 @@ export function AppHeader({
                   {graphTitle || searchedQuery}
                 </span>
               )
+            )}
+            {timelineData && !isEditingGraphTitle && (
+              <GraphDescription description={graphDescription} onSave={onSaveGraphDescription} />
             )}
 
             {!timelineData && (

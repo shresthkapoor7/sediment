@@ -26,6 +26,7 @@ MAX_USER_ID_LENGTH = 128
 MAX_GRAPH_ID_LENGTH = 128
 MAX_SHARE_ID_LENGTH = 64
 MAX_METADATA_TITLE_LENGTH = 200
+MAX_METADATA_DESCRIPTION_LENGTH = 500
 MAX_GRAPH_JSON_BYTES = 1_000_000
 
 
@@ -454,8 +455,21 @@ class SpecialNoteFileUrl(BaseModel):
     url: str
 
 
+def _clean_metadata(metadata: "SavedGraphMetadata") -> "SavedGraphMetadata":
+    title = metadata.title.strip()
+    if len(title) > MAX_METADATA_TITLE_LENGTH:
+        raise ValueError(f"Metadata title must be at most {MAX_METADATA_TITLE_LENGTH} characters.")
+    description = metadata.description.strip()
+    if len(description) > MAX_METADATA_DESCRIPTION_LENGTH:
+        raise ValueError(f"Metadata description must be at most {MAX_METADATA_DESCRIPTION_LENGTH} characters.")
+    metadata.title = title
+    metadata.description = description
+    return metadata
+
+
 class SavedGraphMetadata(BaseModel):
     title: str = ""
+    description: str = ""
     nodeCount: int = 0
     lastOpenedAt: Optional[str] = None
     appVersion: str = Field(default_factory=lambda: settings.app_version)
@@ -481,11 +495,7 @@ class SaveGraphRequest(StrictRequestModel):
     @field_validator("metadata")
     @classmethod
     def validate_metadata(cls, metadata: SavedGraphMetadata) -> SavedGraphMetadata:
-        title = metadata.title.strip()
-        if len(title) > MAX_METADATA_TITLE_LENGTH:
-            raise ValueError(f"Metadata title must be at most {MAX_METADATA_TITLE_LENGTH} characters.")
-        metadata.title = title
-        return metadata
+        return _clean_metadata(metadata)
 
 
 class UpdateGraphRequest(StrictRequestModel):
@@ -520,11 +530,7 @@ class UpdateGraphRequest(StrictRequestModel):
     def validate_optional_metadata(cls, metadata: Optional[SavedGraphMetadata]) -> Optional[SavedGraphMetadata]:
         if metadata is None:
             return None
-        title = metadata.title.strip()
-        if len(title) > MAX_METADATA_TITLE_LENGTH:
-            raise ValueError(f"Metadata title must be at most {MAX_METADATA_TITLE_LENGTH} characters.")
-        metadata.title = title
-        return metadata
+        return _clean_metadata(metadata)
 
     @model_validator(mode="after")
     def ensure_update_has_fields(self) -> "UpdateGraphRequest":

@@ -85,6 +85,8 @@ export default function Home() {
   const saveStateTimeoutRef = useRef<number | null>(null);
   const graphTitleInputRef = useRef<HTMLInputElement | null>(null);
   const graphTitleRef = useRef("");
+  const [graphDescription, setGraphDescription] = useState("");
+  const graphDescriptionRef = useRef("");
   const graphTitleEditCanceledRef = useRef(false);
   const isSavingGraphTitleRef = useRef(false);
   // Expose the landing scroll container to AppHeader as state (via a stable
@@ -110,6 +112,7 @@ export default function Home() {
   const buildMetadata = useCallback(
     (query: string, data: TimelineData, title = query) => ({
       title,
+      description: graphDescriptionRef.current,
       nodeCount: Object.keys(data.nodes).length,
       lastOpenedAt: new Date().toISOString(),
       appVersion: APP_VERSION,
@@ -168,6 +171,8 @@ export default function Home() {
         setGraphId(graph.id);
         setGraphOwnerId(graph.userId);
         setGraphTitle(graph.metadata.title || graph.query);
+        graphDescriptionRef.current = graph.metadata.description ?? "";
+        setGraphDescription(graph.metadata.description ?? "");
         setSelectedSeedOpenalexId(graph.seedPaperId ?? null);
       })
       .catch((error) => {
@@ -311,6 +316,28 @@ export default function Home() {
     userId,
   ]);
 
+  const saveGraphDescription = useCallback((next: string) => {
+    if (!graphId || !userId || !timelineData) return;
+    const previous = graphDescriptionRef.current;
+    if (next === previous) return;
+    graphDescriptionRef.current = next;
+    setGraphDescription(next);
+    setSaveState("saving");
+    void updateSavedGraph(graphId, {
+      userId,
+      metadata: buildMetadata(searchedQuery, timelineData, graphTitleRef.current || searchedQuery),
+    })
+      .then(() => {
+        setSaveState("saved");
+        saveStateTimeoutRef.current = window.setTimeout(() => setSaveState("idle"), 1800);
+      })
+      .catch(() => {
+        graphDescriptionRef.current = previous;
+        setGraphDescription(previous);
+        setSaveState("error");
+      });
+  }, [buildMetadata, graphId, searchedQuery, timelineData, userId]);
+
   // A new canvas starts empty. The query becomes the first message to the agent, which decides with
   // the researcher what goes on the board.
   const startCanvas = useCallback(
@@ -338,6 +365,8 @@ export default function Home() {
         setGraphId(savedGraph.id);
         setGraphOwnerId(savedGraph.userId);
         setGraphTitle(savedGraph.metadata.title || title);
+        graphDescriptionRef.current = "";
+        setGraphDescription("");
         setGraphTitleDraft("");
         setIsEditingGraphTitle(false);
         setSelectedSeedOpenalexId(null);
@@ -370,6 +399,8 @@ export default function Home() {
     setGraphId(null);
     setGraphOwnerId(null);
     setGraphTitle("");
+    graphDescriptionRef.current = "";
+    setGraphDescription("");
     setGraphTitleDraft("");
     setIsEditingGraphTitle(false);
     setSelectedSeedOpenalexId(null);
@@ -528,6 +559,8 @@ export default function Home() {
       mobile={mobile}
       searchedQuery={searchedQuery}
       graphTitle={graphTitle}
+      graphDescription={graphDescription}
+      onSaveGraphDescription={canEditGraphTitle ? saveGraphDescription : undefined}
       graphTitleDraft={graphTitleDraft}
       isEditingGraphTitle={isEditingGraphTitle}
       canEditGraphTitle={canEditGraphTitle}
