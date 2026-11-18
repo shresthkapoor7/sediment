@@ -19,9 +19,9 @@ Follow [docs/development.md](docs/development.md) to run the frontend and backen
 3. Run the checks before you push:
 
    ```bash
-   # the same commands CI runs
-   cd backend && PYTHONPATH=. python -m unittest discover -s tests
-   cd frontend && npm run lint && npm run build
+   # the same checks CI runs, from the repository root
+   (cd backend && PYTHONPATH=. python -m unittest discover -s tests)
+   (cd frontend && npm run lint && node scripts/test-feeds-api.mjs && node scripts/test-feed-bookmarks.mjs && npm run build)
    ```
 
 4. Add or update backend tests when you change behaviour there.

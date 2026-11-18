@@ -14,7 +14,17 @@ sediment/
 
 ## Running locally
 
+Commands start from the repository root. Run the backend and frontend in separate terminals.
+
 ### Backend
+
+Create `backend/.env` first: the backend will not start without the required variables listed below. Generate `ACTOR_KEY_SECRET` once and keep it stable across restarts and deployments:
+
+```bash
+openssl rand -hex 32
+```
+
+Then:
 
 ```bash
 cd backend
@@ -24,13 +34,9 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
 
-Generate `ACTOR_KEY_SECRET` once and keep it stable across restarts and deployments:
-
-```bash
-openssl rand -hex 32
-```
-
 ### Frontend
+
+In a second terminal, from the repository root:
 
 ```bash
 cd frontend
@@ -80,9 +86,9 @@ Limits are set in `backend/app/config.py`: `daily_usage_limit_usd` (spend per an
 ## Tests
 
 ```bash
-# the same commands CI runs (.github/workflows/test.yml)
-cd backend && PYTHONPATH=. python -m unittest discover -s tests
-cd frontend && npm run lint && npm run build
+# the same checks CI runs (.github/workflows/test.yml), from the repository root
+(cd backend && PYTHONPATH=. python -m unittest discover -s tests)
+(cd frontend && npm run lint && node scripts/test-feeds-api.mjs && node scripts/test-feed-bookmarks.mjs && npm run build)
 ```
 
 ## Evaluations

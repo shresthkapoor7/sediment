@@ -35,17 +35,19 @@ Read more in [docs/architecture.md](docs/architecture.md).
 
 Sediment is a Next.js frontend and a FastAPI backend, with Supabase for storage.
 
+First put your Anthropic key, Supabase project and an `ACTOR_KEY_SECRET` (`openssl rand -hex 32`) in `backend/.env`; [docs/development.md](docs/development.md) lists every variable. Then, from the repository root:
+
 ```bash
-# backend
+# terminal 1: backend
 cd backend && python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 uvicorn app.main:app --reload
-
-# frontend
-cd frontend && npm install && npm run dev
 ```
 
-You need an Anthropic API key and a Supabase project. Environment variables, tests and evaluations are in [docs/development.md](docs/development.md).
+```bash
+# terminal 2: frontend
+cd frontend && npm install && npm run dev
+```
 
 ## Contributing
 
