@@ -47,6 +47,10 @@ cd frontend && npm install && npm run dev
 
 You need an Anthropic API key and a Supabase project. Environment variables, tests and evaluations are in [docs/development.md](docs/development.md).
 
+## Contributing
+
+Bug reports and pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md).
+
 ## License
 
 [AGPL-3.0](LICENSE)
