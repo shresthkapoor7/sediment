@@ -1497,7 +1497,7 @@ a.landing-brand:hover {
   width: 100%;
   max-width: 71.25rem;
   margin: 0 auto;
-  padding: 0 2rem 6rem;
+  padding: 0 2rem 1.5rem;
   box-sizing: border-box;
 }
 
@@ -2644,7 +2644,7 @@ a.landing-brand:hover {
 .no-scrollbar::-webkit-scrollbar { display: none; }
 
 /* Landing page footer: a quiet credit. */
-.landing-footer { padding: 2.5rem 1.5rem 3rem; text-align: center; font-size: 0.75rem; color: var(--text-tertiary); }
+.landing-footer { padding: 0 1.5rem 2.5rem; text-align: center; font-size: 0.75rem; color: var(--text-tertiary); }
 .landing-footer a { color: var(--text-secondary); text-decoration: none; }
 .landing-footer a:hover { color: var(--text-primary); text-decoration: underline; }
 
