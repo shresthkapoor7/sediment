@@ -498,7 +498,8 @@ function SpecialNotePreview({
         width: "calc(100% - 1.5rem)",
         flex: 1,
         minHeight: "8.5rem",
-        margin: "0.625rem 0.75rem 0",
+        // Same gap below as at the sides, now that the controls live in the floating bar.
+        margin: "0.625rem 0.75rem 0.75rem",
         overflow: "hidden",
         border: "0.0625rem solid var(--border)",
         borderRadius: "0.5rem",
