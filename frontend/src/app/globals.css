@@ -2647,3 +2647,10 @@ a.landing-brand:hover {
 .landing-footer { padding: 2.5rem 1.5rem 3rem; text-align: center; font-size: 0.75rem; color: var(--text-tertiary); }
 .landing-footer a { color: var(--text-secondary); text-decoration: none; }
 .landing-footer a:hover { color: var(--text-primary); text-decoration: underline; }
+
+/* Small borderless buttons in the file-note dialogs, matching the Add paper dialog. */
+.sn-ghost { display: inline-flex; align-items: center; justify-content: center; gap: 6px; flex-shrink: 0; min-width: 28px; height: 28px; padding: 0; border: 0; border-radius: 7px; background: transparent; color: var(--text-secondary); font: inherit; font-size: 12px; text-decoration: none; cursor: pointer; }
+.sn-ghost:hover { background: var(--bg-tertiary); color: var(--text-primary); }
+.sn-ghost:disabled { opacity: .5; cursor: default; }
+.sn-ghost-text { padding: 0 10px; }
+.sn-ghost:focus:not(:focus-visible) { outline: none; }

@@ -103,7 +103,7 @@ export function SpecialNoteUploadDialog({
             display: "grid",
             placeItems: "center",
             padding: "1.5rem",
-            background: "rgba(0,0,0,0.58)",
+            background: "color-mix(in srgb, var(--bg-primary) 62%, transparent)",
             backdropFilter: "blur(4px)",
           }}
         >
@@ -117,20 +117,19 @@ export function SpecialNoteUploadDialog({
             exit={{ opacity: 0, y: 12, scale: 0.98 }}
             transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
             style={{
-              width: "min(100%, 30rem)",
-              borderRadius: "0.75rem",
-              border: "0.0625rem solid var(--border)",
-              background: "var(--bg-primary)",
-              boxShadow: "0 1rem 3rem rgba(0,0,0,0.28)",
-              padding: "1.5rem",
+              width: "min(100%, 28rem)",
+              borderRadius: "14px",
+              background: "var(--bg-secondary)",
+              boxShadow: "0 24px 60px rgba(0, 0, 0, .28)",
+              padding: "18px 18px 16px",
             }}
           >
             <header style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "1rem" }}>
               <div>
-                <h2 id="special-note-dialog-title" style={{ color: "var(--text-primary)", fontSize: "1.125rem", fontWeight: 700, letterSpacing: "-0.02em" }}>
-                  Add special note
+                <h2 id="special-note-dialog-title" style={{ color: "var(--text-primary)", fontSize: "15px", fontWeight: 600, letterSpacing: "-0.01em" }}>
+                  Attach a file
                 </h2>
-                <p style={{ maxWidth: "34ch", marginTop: "0.375rem", color: "var(--text-secondary)", fontSize: "0.8125rem", lineHeight: 1.5 }}>
+                <p style={{ maxWidth: "36ch", marginTop: "4px", color: "var(--text-secondary)", fontSize: "13px", lineHeight: 1.5 }}>
                   Keep a private file beside the papers it relates to.
                 </p>
               </div>
@@ -139,9 +138,9 @@ export function SpecialNoteUploadDialog({
                 onClick={onClose}
                 disabled={isUploading}
                 aria-label="Close special note dialog"
-                style={closeButtonStyle(isUploading)}
+                className="sn-ghost"
               >
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden="true">
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden="true">
                   <path d="m4 4 8 8M12 4l-8 8" />
                 </svg>
               </button>
@@ -151,27 +150,28 @@ export function SpecialNoteUploadDialog({
               role="note"
               style={{
                 display: "flex",
-                gap: "0.625rem",
-                marginTop: "1.25rem",
-                border: "0.0625rem solid color-mix(in srgb, var(--cat-amber) 45%, var(--border))",
-                borderRadius: "0.5rem",
-                background: "color-mix(in srgb, var(--cat-amber) 11%, var(--bg-secondary))",
-                color: "var(--text-primary)",
-                padding: "0.75rem",
+                gap: "8px",
+                marginTop: "14px",
+                color: "var(--text-tertiary)",
               }}
             >
-              <svg width="17" height="17" viewBox="0 0 20 20" fill="none" stroke="var(--cat-amber)" strokeWidth="1.65" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flexShrink: 0, marginTop: "0.0625rem" }}>
+              <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="var(--cat-amber)" strokeWidth="1.65" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flexShrink: 0, marginTop: "0.0625rem" }}>
                 <path d="M10 3.25 18 17H2l8-13.75Z" />
                 <path d="M10 7.25v4.5M10 14.5h.01" />
               </svg>
-              <p style={{ fontSize: "0.75rem", lineHeight: 1.5 }}>
-                Do not add anything sensitive. Special notes are private to you, but should not be used for passwords, financial details, or other confidential data.
+              <p style={{ fontSize: "12px", lineHeight: 1.5 }}>
+                Files are private to you, but don&apos;t upload passwords, financial details or other confidential data.
               </p>
             </aside>
 
-            <p style={{ marginTop: "1rem", color: "var(--text-secondary)", fontSize: "0.75rem", lineHeight: 1.45 }}>
-              <strong style={{ color: "var(--text-primary)", fontWeight: 600 }}>{formatBytes(usedBytes)}</strong> of {formatBytes(limitBytes)} used across all your special notes. Delete an existing file before exceeding the limit.
-            </p>
+            <div style={{ marginTop: "14px" }}>
+              <div aria-hidden="true" style={{ height: "4px", borderRadius: "999px", background: "var(--bg-tertiary)", overflow: "hidden" }}>
+                <div style={{ width: `${Math.min(100, (usedBytes / Math.max(limitBytes, 1)) * 100)}%`, height: "100%", borderRadius: "999px", background: "var(--text-secondary)" }} />
+              </div>
+              <p style={{ marginTop: "6px", color: "var(--text-tertiary)", fontSize: "12px" }}>
+                {formatBytes(usedBytes)} of {formatBytes(limitBytes)} used across your files
+              </p>
+            </div>
 
             <input
               ref={inputRef}
@@ -199,26 +199,25 @@ export function SpecialNoteUploadDialog({
               style={{
                 display: "grid",
                 placeItems: "center",
-                minHeight: "10rem",
-                marginTop: "1rem",
-                border: `0.09375rem dashed ${isDragging ? "var(--accent)" : "var(--border-hover)"}`,
-                borderRadius: "0.5rem",
-                background: isDragging ? "var(--accent-soft)" : "var(--bg-secondary)",
+                minHeight: "9rem",
+                marginTop: "14px",
+                borderRadius: "10px",
+                background: isDragging ? "color-mix(in srgb, var(--text-primary) 9%, var(--bg-tertiary))" : "var(--bg-tertiary)",
                 padding: "1rem",
                 textAlign: "center",
-                transition: "background 0.16s ease, border-color 0.16s ease",
+                transition: "background 0.16s ease",
               }}
             >
               <div>
-                <div style={{ display: "inline-flex", width: "2.75rem", height: "2.75rem", alignItems: "center", justifyContent: "center", borderRadius: "0.75rem", background: "var(--bg-primary)", color: "var(--accent)", boxShadow: "0 0.0625rem 0.125rem rgba(0,0,0,0.06)" }}>
-                  <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.55" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <div style={{ display: "inline-flex", color: "var(--text-tertiary)" }}>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.55" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                     <path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M5 20h14" />
                   </svg>
                 </div>
-                <p style={{ marginTop: "0.75rem", color: "var(--text-primary)", fontSize: "0.8125rem", fontWeight: 600 }}>
-                  {isUploading ? "Uploading special note…" : "Drop files here or choose from your device"}
+                <p style={{ marginTop: "8px", color: "var(--text-primary)", fontSize: "13px", fontWeight: 550 }}>
+                  {isUploading ? "Uploading…" : "Drop files here"}
                 </p>
-                <p style={{ marginTop: "0.25rem", color: "var(--text-secondary)", fontSize: "0.6875rem", lineHeight: 1.45 }}>
+                <p style={{ marginTop: "4px", color: "var(--text-tertiary)", fontSize: "12px", lineHeight: 1.45 }}>
                   PDF · JPG · PNG · WebP · GIF · XLSX · XLS · ODS · CSV
                 </p>
                 <button
@@ -249,35 +248,19 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(bytes >= 10 * 1024 * 1024 ? 0 : 1)} MB`;
 }
 
-function closeButtonStyle(disabled: boolean): CSSProperties {
-  return {
-    display: "inline-flex",
-    width: "2.75rem",
-    height: "2.75rem",
-    flexShrink: 0,
-    alignItems: "center",
-    justifyContent: "center",
-    border: "0.0625rem solid var(--border)",
-    borderRadius: "0.5rem",
-    background: "var(--bg-secondary)",
-    color: "var(--text-secondary)",
-    cursor: disabled ? "default" : "pointer",
-    opacity: disabled ? 0.55 : 1,
-  };
-}
-
 function chooseButtonStyle(disabled: boolean): CSSProperties {
   return {
-    minHeight: "2.75rem",
-    marginTop: "0.75rem",
-    border: "0.0625rem solid var(--accent)",
-    borderRadius: "0.5rem",
+    height: "30px",
+    marginTop: "12px",
+    border: 0,
+    borderRadius: "8px",
     background: "var(--accent)",
     color: "var(--on-accent)",
     cursor: disabled ? "default" : "pointer",
-    fontSize: "0.75rem",
-    fontWeight: 600,
-    padding: "0 0.875rem",
+    font: "inherit",
+    fontSize: "12px",
+    fontWeight: 550,
+    padding: "0 14px",
     opacity: disabled ? 0.6 : 1,
   };
 }

@@ -107,7 +107,8 @@ export function SpecialNoteViewerModal({ file, url, onClose }: SpecialNoteViewer
             alignItems: "center",
             justifyContent: "center",
             padding: "1.5rem",
-            background: "rgba(8, 7, 5, 0.62)",
+            background: "color-mix(in srgb, var(--bg-primary) 62%, transparent)",
+            backdropFilter: "blur(4px)",
           }}
         >
           <m.section
@@ -128,20 +129,17 @@ export function SpecialNoteViewerModal({ file, url, onClose }: SpecialNoteViewer
               display: "flex",
               flexDirection: "column",
               overflow: "hidden",
-              borderRadius: "0.5rem",
-              border: "0.0625rem solid var(--border)",
-              background: "var(--bg-primary)",
-              boxShadow: "0 1rem 2.5rem rgba(0,0,0,0.16)",
+              borderRadius: "14px",
+              background: "var(--bg-secondary)",
+              boxShadow: "0 24px 60px rgba(0, 0, 0, .28)",
             }}
           >
             <header
               style={{
                 display: "flex",
                 alignItems: "center",
-                gap: "0.75rem",
-                minHeight: "3.75rem",
-                padding: "0.75rem 0.875rem 0.75rem 1rem",
-                borderBottom: "0.0625rem solid var(--border)",
+                gap: "0.375rem",
+                padding: "12px 12px 10px 18px",
               }}
             >
               <div style={{ minWidth: 0, flex: 1 }}>
@@ -150,9 +148,10 @@ export function SpecialNoteViewerModal({ file, url, onClose }: SpecialNoteViewer
                     overflow: "hidden",
                     margin: 0,
                     color: "var(--text-primary)",
-                    fontFamily: "var(--font-sans), sans-serif",
-                    fontSize: "0.9375rem",
-                    fontWeight: 650,
+                    fontFamily: "inherit",
+                    fontSize: "14px",
+                    fontWeight: 550,
+                    letterSpacing: "-0.01em",
                     textOverflow: "ellipsis",
                     whiteSpace: "nowrap",
                   }}
@@ -162,32 +161,15 @@ export function SpecialNoteViewerModal({ file, url, onClose }: SpecialNoteViewer
                 <p
                   style={{
                     margin: "0.125rem 0 0",
-                    color: "var(--text-secondary)",
-                    fontFamily: "var(--font-mono), monospace",
-                    fontSize: "0.625rem",
-                    letterSpacing: "0.07em",
-                    textTransform: "uppercase",
+                    color: "var(--text-tertiary)",
+                    fontSize: "12px",
                   }}
                 >
-                  {file.fileType === "spreadsheet" ? "Spreadsheet" : file.fileType}
+                  {file.fileType === "spreadsheet" ? "Spreadsheet" : file.fileType === "pdf" ? "PDF" : "Image"}
                 </p>
               </div>
-              <a
-                href={url}
-                download={file.filename}
-                style={{
-                  flexShrink: 0,
-                  borderRadius: "0.375rem",
-                  border: "0.0625rem solid var(--border)",
-                  color: "var(--text-primary)",
-                  fontFamily: "var(--font-mono), monospace",
-                  fontSize: "0.625rem",
-                  letterSpacing: "0.06em",
-                  padding: "0.5rem 0.625rem",
-                  textDecoration: "none",
-                  textTransform: "uppercase",
-                }}
-              >
+              <a href={url} download={file.filename} className="sn-ghost sn-ghost-text">
+                <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M8 2.5v7.5M5 7.5l3 3 3-3M3 13h10" /></svg>
                 Download
               </a>
               <button
@@ -195,21 +177,9 @@ export function SpecialNoteViewerModal({ file, url, onClose }: SpecialNoteViewer
                 type="button"
                 onClick={onClose}
                 aria-label="Close special note preview"
-                style={{
-                  display: "inline-flex",
-                  width: "2.25rem",
-                  height: "2.25rem",
-                  flexShrink: 0,
-                  alignItems: "center",
-                  justifyContent: "center",
-                  border: "0.0625rem solid var(--border)",
-                  borderRadius: "0.375rem",
-                  background: "transparent",
-                  color: "var(--text-primary)",
-                  cursor: "pointer",
-                }}
+                className="sn-ghost"
               >
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden="true">
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden="true">
                   <path d="m4 4 8 8M12 4l-8 8" />
                 </svg>
               </button>
@@ -222,6 +192,8 @@ export function SpecialNoteViewerModal({ file, url, onClose }: SpecialNoteViewer
                 display: file.fileType === "spreadsheet" ? "flex" : "grid",
                 placeItems: "center",
                 overflow: "auto",
+                margin: "0 8px 8px",
+                borderRadius: "10px",
                 background: "var(--bg-tertiary)",
               }}
             >
