@@ -8,7 +8,7 @@ Find papers, lay them out, and build up a picture of a field with an AI agent wo
 
 [**Try it → sediment-ai.com**](https://www.sediment-ai.com/)
 
-<a href="https://www.sediment-ai.com/"><img src="./home.jpg" alt="Sediment" width="860" /></a>
+<a href="https://www.sediment-ai.com/"><img src="./assets/canvas.jpg" alt="A Sediment canvas: papers grouped into clusters, notes linked to papers, and the agent explaining how two clusters connect" width="860" /></a>
 
 </div>
 
