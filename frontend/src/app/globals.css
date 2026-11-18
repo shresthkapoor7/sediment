@@ -2642,3 +2642,8 @@ a.landing-brand:hover {
 /* Scrolls without showing a scrollbar. */
 .no-scrollbar { scrollbar-width: none; }
 .no-scrollbar::-webkit-scrollbar { display: none; }
+
+/* Landing page footer: a quiet credit. */
+.landing-footer { padding: 2.5rem 1.5rem 3rem; text-align: center; font-size: 0.75rem; color: var(--text-tertiary); }
+.landing-footer a { color: var(--text-secondary); text-decoration: none; }
+.landing-footer a:hover { color: var(--text-primary); text-decoration: underline; }

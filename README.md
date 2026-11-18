@@ -56,3 +56,7 @@ Bug reports and pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md
 ## License
 
 [AGPL-3.0](LICENSE)
+
+---
+
+Created by [@shresthkapoor7](https://github.com/shresthkapoor7) · [shresth.space](https://shresth.space)

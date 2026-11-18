@@ -833,6 +833,11 @@ export default function Home() {
               <section className="landing-feed" aria-label="Paper feed">
                 <FeedsView embedded ready={feedReady} onSearch={(query) => void startCanvas(query)} onStartWorkspace={startCanvasFromFeed} searching={isSearching} />
               </section>
+
+              <footer className="landing-footer">
+                Built by{" "}
+                <a href="https://shresth.space" rel="author">Shresth Kapoor</a>
+              </footer>
             </m.div>
           ) : isSearching || isRestoring ? (
             /* Loading state */
