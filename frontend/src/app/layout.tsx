@@ -35,9 +35,25 @@ const sourceSerif = Source_Serif_4({
   style: "italic",
 });
 
+const SITE_URL = process.env.NEXT_PUBLIC_APP_URL || "https://www.sediment-ai.com";
+const description = "An infinite canvas for literature review: search OpenAlex, map paper lineages, and work through a field with an agent on your board.";
+
 export const metadata: Metadata = {
-  title: "Sediment | Knowledge, layered",
-  description: "Trace any research concept back through time.",
+  metadataBase: new URL(SITE_URL),
+  title: "Sediment | Canvas for modern research",
+  description,
+  openGraph: {
+    url: SITE_URL,
+    title: "Sediment",
+    description,
+    siteName: "Sediment",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Sediment",
+    description,
+  },
   appleWebApp: {
     capable: true,
     title: "Sediment",
