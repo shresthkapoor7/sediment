@@ -1,6 +1,7 @@
 {
   "name": "sediment",
   "version": "0.1.0",
+  "author": "Shresth Kapoor (https://shresth.space)",
   "private": true,
   "scripts": {
     "dev": "next dev",

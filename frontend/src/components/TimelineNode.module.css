@@ -1,0 +1,44 @@
+/* A paper on the canvas: a flat, borderless card (a plain fill one step off the canvas) with a quick-action bar under it. */
+.wrap { position: absolute; cursor: pointer; touch-action: none; }
+.card { position: relative; margin: 4px; padding: 16px 18px; display: flex; flex-direction: column; overflow: hidden; user-select: none; background: var(--bg-tertiary); border-radius: 12px; outline: 1.5px solid transparent; outline-offset: -1.5px; transition: outline-color .15s, background .15s; }
+.card[data-tint] { background: color-mix(in srgb, var(--card-stroke) 16%, var(--bg-tertiary)); }
+.wrap:hover .card { background: color-mix(in srgb, var(--text-primary) 4%, var(--bg-tertiary)); }
+.wrap:hover .card[data-tint] { background: color-mix(in srgb, var(--card-stroke) 22%, var(--bg-tertiary)); }
+.card[data-state="active"] { outline-color: var(--card-stroke, var(--text-primary)); }
+.card[data-state="marked"] { outline-color: var(--text-secondary); outline-style: dashed; }
+
+.meta { display: flex; align-items: center; gap: 8px; height: 14px; font-family: var(--font-mono), monospace; font-size: 10.5px; letter-spacing: .04em; color: var(--text-tertiary); }
+.year { color: var(--card-stroke, var(--text-secondary)); font-weight: 500; }
+.cites { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; }
+.dot { width: 5px; height: 5px; border-radius: 50%; background: var(--text-primary); }
+.title { margin-top: 10px; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; font-size: 15px; font-weight: 600; line-height: 1.32; letter-spacing: -.02em; color: var(--text-primary); }
+.summary { margin-top: 8px; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; font-size: 12px; line-height: 1.5; color: var(--text-secondary); }
+.authors { margin-top: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11.5px; line-height: 16px; color: var(--text-tertiary); }
+
+/* Quick actions: shown while the card is hovered or selected, so adding a note is one click. */
+.bar { position: absolute; left: 50%; transform: translateX(-50%); z-index: 18; display: flex; align-items: center; gap: 2px; height: 34px; padding: 0 5px; border-radius: 10px; background: var(--bg-tertiary); opacity: 0; pointer-events: none; transition: opacity .12s; cursor: default; }
+.wrap:hover .bar, .bar[data-show], .bar:has(:focus-visible) { opacity: 1; pointer-events: auto; }
+/* Covers the gap between the card and its bar, so moving the pointer down to the bar does not hide it. */
+.bar::before { content: ""; position: absolute; left: 0; right: 0; top: -14px; height: 14px; }
+.bar button { display: inline-flex; align-items: center; justify-content: center; gap: 5px; height: 24px; min-width: 24px; padding: 0 6px; border: 0; border-radius: 6px; background: transparent; color: var(--text-secondary); font-size: 11.5px; font-weight: 500; white-space: nowrap; cursor: pointer; transition: background .12s, color .12s; }
+.bar button:hover:not(:disabled) { background: color-mix(in srgb, var(--text-primary) 9%, transparent); color: var(--text-primary); }
+.bar button:disabled { opacity: .4; cursor: default; }
+.bar .danger:hover:not(:disabled) { color: var(--cat-rose); }
+.sep { width: 1px; height: 16px; margin: 0 4px; background: var(--border-hover); }
+.swatches { display: flex; align-items: center; gap: 6px; padding: 0 2px; }
+.bar .swatch { width: 12px; min-width: 12px; height: 12px; padding: 0; border-radius: 50%; }
+.bar .swatch:hover:not(:disabled) { transform: scale(1.2); }
+.bar .swatch[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--bg-tertiary), 0 0 0 3.5px var(--text-primary); }
+
+/* While a card is being dragged it rides above the others and its action bar stays out of the way. */
+.wrap[data-dragging] { cursor: grabbing; z-index: 30; }
+.wrap[data-dragging] .bar { opacity: 0; pointer-events: none; }
+
+/* Cluster menu, opening under the action bar. */
+.groupAnchor { position: relative; display: flex; }
+.groupMenu { position: absolute; top: 32px; left: 0; z-index: 40; display: flex; flex-direction: column; gap: 2px; width: 220px; padding: 6px; border-radius: 10px; background: var(--bg-tertiary); box-shadow: 0 12px 32px rgba(0, 0, 0, .28); }
+.bar .groupMenu button { justify-content: space-between; width: 100%; height: 28px; padding: 0 8px; font-size: 12px; text-align: left; }
+.bar .groupMenu button span { overflow: hidden; text-overflow: ellipsis; }
+.groupMenu input { width: 100%; height: 28px; margin: 2px 0; padding: 0 8px; border: 0; border-radius: 6px; background: color-mix(in srgb, var(--text-primary) 7%, transparent); color: var(--text-primary); font: inherit; font-size: 12px; }
+.groupMenu input::placeholder { color: var(--text-tertiary); }
+.bar .groupMenu .groupLeave { color: var(--text-tertiary); }

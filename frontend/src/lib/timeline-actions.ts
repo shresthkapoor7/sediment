@@ -1,6 +1,7 @@
 import { GraphEdge, GraphPaper, LineageChange, NodeBorderColor, TimelineData, TimelineGraphAction, TimelineNode, TimelineNodeColorChange, TimelineNote, TimelineNoteChange } from "./types";
-import { GAP_X, LANE_HEIGHT, NODE_DIMENSIONS, PADDING_X, PADDING_Y } from "./layout-constants";
+import { GAP_X, LANE_HEIGHT, MAX_CANVAS_PAPERS, NODE_DIMENSIONS, PADDING_X, PADDING_Y } from "./layout-constants";
 import { estimateTimelineNoteDimensions, layoutTimelineNotes } from "./note-layout";
+import { computeGroupRegions, groupKey, regionAt, regionFrame } from "./groups";
 
 interface TimelineGraphActionOptions {
   lockedOpenalexIds?: string[];
@@ -16,6 +17,70 @@ export function applyTimelineGraphAction(
   }
   if (action.type === "delete_node") {
     return applyNodeDeletion(data, action.nodeId, options);
+  }
+  if (action.type === "add_paper") {
+    return applyPaperAddition(data, action);
+  }
+  if (action.type === "move_node") {
+    const node = data.nodes[action.nodeId];
+    if (!node || (node.x === action.x && node.y === action.y)) return data;
+    return { ...data, nodes: { ...data.nodes, [node.id]: { ...node, x: action.x, y: action.y } } };
+  }
+  if (action.type === "set_node_group") {
+    const node = data.nodes[action.nodeId];
+    const group = cleanGroupLabel(action.group);
+    if (!node || (node.group ?? null) === group) return data;
+    const updated = { ...node };
+    if (group) updated.group = group;
+    else delete updated.group;
+    const nodes = { ...data.nodes, [node.id]: updated };
+    const notes = Object.values(data.notes ?? {});
+    // A frame should hold exactly its cluster: bring a joining paper in, and move a leaving one out.
+    // Leave the old frame first (not for a change of letter case, which is the same cluster), then join.
+    if (node.group && !sameGroup(node.group, group ?? undefined)) seatOutsideGroup(nodes, notes, node.id, node.group);
+    if (group) seatInsideGroup(nodes, notes, node.id);
+    return { ...data, nodes };
+  }
+  if (action.type === "move_group") {
+    if (!action.dx && !action.dy) return data;
+    let changed = false;
+    const nodes = Object.fromEntries(Object.entries(data.nodes).map(([id, node]) => {
+      if (!sameGroup(node.group, action.label)) return [Number(id), node];
+      changed = true;
+      return [Number(id), { ...node, x: node.x + action.dx, y: node.y + action.dy }];
+    }));
+    return changed ? { ...data, nodes } : data;
+  }
+  if (action.type === "rename_group") {
+    const to = cleanGroupLabel(action.to);
+    // Reuse the spelling of a cluster that already carries the new name, so the two merge.
+    const existing = to
+      ? Object.values(data.nodes).find((node) => !sameGroup(node.group, action.from) && sameGroup(node.group, to))?.group
+      : undefined;
+    let changed = false;
+    const nodes = Object.fromEntries(Object.entries(data.nodes).map(([id, node]) => {
+      if (!sameGroup(node.group, action.from)) return [Number(id), node];
+      changed = true;
+      const updated = { ...node };
+      if (to) updated.group = existing ?? to;
+      else delete updated.group;
+      return [Number(id), updated];
+    }));
+    return changed ? { ...data, nodes } : data;
+  }
+  if (action.type === "shift_canvas") {
+    if (!action.dx && !action.dy) return data;
+    return {
+      ...data,
+      nodes: Object.fromEntries(Object.entries(data.nodes).map(([id, node]) => [
+        Number(id),
+        { ...node, x: node.x + action.dx, y: node.y + action.dy },
+      ])),
+      notes: Object.fromEntries(Object.entries(data.notes ?? {}).map(([id, note]) => [
+        id,
+        { ...note, x: note.x + action.dx, y: note.y + action.dy },
+      ])),
+    };
   }
   if (action.type === "add_note") {
     const next = applyNoteAddition(data, action);
@@ -179,7 +244,7 @@ function applyTimelineLineageChange(
 
   const additions = (change.addedPapers ?? []).filter(isUsableGraphPaper);
   const edges = (change.edges ?? []).filter(isUsableGraphEdge);
-  if (additions.length === 0 && edges.length === 0) return next;
+  if (additions.length === 0 && edges.length === 0 && !change.groups?.length) return next;
 
   const nodes = cloneNodes(next.nodes);
   const adjacency = cloneAdjacency(next.adjacency);
@@ -193,6 +258,8 @@ function applyTimelineLineageChange(
   for (const paper of additions) {
     const normalizedId = normalizeOpenalexId(paper.openalexId);
     if (!normalizedId || numericIdByOpenalexId.has(normalizedId)) continue;
+    // Never past the cap, counted against the canvas as it is now (the user may have added papers meanwhile).
+    if (Object.keys(nodes).length >= MAX_CANVAS_PAPERS) break;
     const nodeId = nextNumericId(nodes);
     const node: TimelineNode = {
       id: nodeId,
@@ -222,36 +289,24 @@ function applyTimelineLineageChange(
     edgeRelations[edgeKey(parentId, childId)] = strongerRelation(edgeRelations[edgeKey(parentId, childId)], edge.relation);
   }
 
-  const columnWidth = NODE_DIMENSIONS.width + GAP_X;
-  const defaultX = Math.max(PADDING_X, ...Object.values(next.nodes).map((node) => node.x + columnWidth));
-  for (let pass = 0; pass < addedNodeIds.length + 1; pass += 1) {
-    for (const nodeId of addedNodeIds) {
-      const node = nodes[nodeId];
-      if (!node) continue;
-      const parentIds = Object.entries(adjacency)
-        .filter(([, children]) => children.includes(nodeId))
-        .map(([parentId]) => Number(parentId))
-        .filter((parentId) => Boolean(nodes[parentId]));
-      const childIds = (adjacency[nodeId] ?? []).filter((childId) => Boolean(nodes[childId]));
-      const parentNodes = parentIds.map((parentId) => nodes[parentId]);
-      const childNodes = childIds.map((childId) => nodes[childId]);
-      const x = parentNodes.length > 0
-        ? Math.max(...parentNodes.map((parent) => parent.x + columnWidth))
-        : childNodes.length > 0
-          ? Math.min(...childNodes.map((child) => child.x - columnWidth))
-          : defaultX;
-      const generation = parentNodes.length > 0
-        ? Math.max(...parentNodes.map((parent) => parent.generation)) + 1
-        : childNodes.length > 0
-          ? Math.max(0, Math.min(...childNodes.map((child) => child.generation)) - 1)
-          : Math.max(...Object.values(next.nodes).map((existing) => existing.generation), 0) + 1;
-      nodes[nodeId] = {
-        ...node,
-        x,
-        generation,
-        parentId: parentIds[0] ?? null,
-      };
+  // Cluster names: applied to papers already on the canvas as well as the new ones.
+  const regroupedNodeIds: number[] = [];
+  for (const group of change.groups ?? []) {
+    const label = typeof group?.label === "string" ? group.label.trim().slice(0, 48) : "";
+    if (!label || !Array.isArray(group.paperIds)) continue;
+    for (const paperId of group.paperIds) {
+      const nodeId = numericIdByOpenalexId.get(normalizeOpenalexId(paperId));
+      if (!nodeId || !nodes[nodeId] || sameGroup(nodes[nodeId].group, label)) continue;
+      nodes[nodeId] = { ...nodes[nodeId], group: label };
+      if (!addedNodeIds.includes(nodeId)) regroupedNodeIds.push(nodeId);
     }
+  }
+
+  placeAddedNodes(nodes, adjacency, addedNodeIds, Object.values(next.notes ?? {}));
+  // Papers that were already on the board move into the frame of the cluster they just joined.
+  const pendingIds = new Set(addedNodeIds);
+  for (const nodeId of regroupedNodeIds) {
+    seatInsideGroup(nodes, Object.values(next.notes ?? {}), nodeId, pendingIds);
   }
 
   return {
@@ -260,6 +315,220 @@ function applyTimelineLineageChange(
     adjacency,
     edgeRelations,
     lanes: Math.max(next.lanes, nextLane),
+  };
+}
+
+const REGION_GAP_X = 200;
+const CARD_CLEARANCE = 24;
+
+interface Box { x: number; y: number; width: number; height: number }
+
+/**
+ * The first free spot at or below (x, y) for a card: clear of every other card and note, and outside
+ * the frame of any cluster the card does not belong to.
+ */
+function findFreeY(
+  others: TimelineNode[],
+  notes: TimelineNote[],
+  group: string | undefined,
+  x: number,
+  y: number,
+): number {
+  const { width, height } = NODE_DIMENSIONS;
+  const boxes: Box[] = [
+    ...others.map((node) => ({ x: node.x, y: node.y, width, height })),
+    ...notes.map((note) => ({ x: note.x, y: note.y, width: note.width ?? 260, height: note.height ?? 160 })),
+  ];
+  const frames = computeGroupRegions(others)
+    .filter((region) => region.key !== groupKey(group))
+    .map(regionFrame);
+  const blocked = (cy: number) => boxes.some((box) => (
+    x < box.x + box.width + CARD_CLEARANCE && x + width + CARD_CLEARANCE > box.x
+    && cy < box.y + box.height + CARD_CLEARANCE && cy + height + CARD_CLEARANCE > box.y
+  )) || frames.some((frame) => (
+    x < frame.x + frame.width && x + width > frame.x && cy < frame.y + frame.height && cy + height > frame.y
+  ));
+  let freeY = y;
+  for (let attempt = 0; attempt < 400 && blocked(freeY); attempt += 1) freeY += LANE_HEIGHT / 2;
+  return freeY;
+}
+
+/** Move a paper under the rest of its cluster, unless it already sits inside that cluster's frame. */
+function seatInsideGroup(
+  nodes: Record<number, TimelineNode>,
+  notes: TimelineNote[],
+  nodeId: number,
+  ignoreNodeIds: Set<number> = new Set(),
+): void {
+  const node = nodes[nodeId];
+  // Papers just added this change do not define the cluster's frame yet, but they still take up room.
+  const others = Object.values(nodes).filter((other) => other.id !== nodeId);
+  const mates = others.filter((other) => !ignoreNodeIds.has(other.id) && sameGroup(other.group, node.group));
+  const [region] = computeGroupRegions(mates);
+  if (!region || regionAt([region], node)?.key === region.key) return;
+  const x = region.minX;
+  const y = findFreeY(others, notes, node.group, x, region.maxY + LANE_HEIGHT - NODE_DIMENSIONS.height);
+  nodes[nodeId] = { ...node, x, y };
+}
+
+/** Move a paper that left a cluster out of that cluster's frame, to its right. */
+function seatOutsideGroup(
+  nodes: Record<number, TimelineNode>,
+  notes: TimelineNote[],
+  nodeId: number,
+  formerGroup: string,
+): void {
+  const node = nodes[nodeId];
+  const others = Object.values(nodes).filter((other) => other.id !== nodeId);
+  const [region] = computeGroupRegions(others.filter((other) => sameGroup(other.group, formerGroup)));
+  if (!region || !regionAt([region], node)) return;
+  const frame = regionFrame(region);
+  const x = frame.x + frame.width + GAP_X;
+  nodes[nodeId] = { ...node, x, y: findFreeY(others, notes, undefined, x, node.y) };
+}
+
+function cleanGroupLabel(value: string | null | undefined): string | null {
+  const label = (value ?? "").trim().replace(/\s+/g, " ").slice(0, 48);
+  return label || null;
+}
+
+function sameGroup(a: string | undefined, b: string | undefined): boolean {
+  return Boolean(a && b && a.trim().toLowerCase() === b.trim().toLowerCase());
+}
+
+/**
+ * Decide where newly added papers go. A paper linked to one that already has a place sits beside it,
+ * in reading order. A paper joining an existing cluster goes under that cluster. Anything else starts
+ * a new column to the right of the board, one column per cluster, so unrelated work stays apart.
+ */
+function placeAddedNodes(
+  nodes: Record<number, TimelineNode>,
+  adjacency: Record<number, number[]>,
+  addedNodeIds: number[],
+  notes: TimelineNote[],
+): void {
+  if (addedNodeIds.length === 0) return;
+  const { width, height } = NODE_DIMENSIONS;
+  const columnWidth = width + GAP_X;
+  const pending = new Set(addedNodeIds);
+  const placed = Object.values(nodes).filter((node) => !pending.has(node.id));
+  const settle = (nodeId: number, x: number, y: number, patch: Partial<TimelineNode> = {}) => {
+    const group = patch.group ?? nodes[nodeId].group;
+    const freeY = findFreeY(placed, notes, group, x, y);
+    nodes[nodeId] = { ...nodes[nodeId], ...patch, x, y: freeY };
+    placed.push(nodes[nodeId]);
+    pending.delete(nodeId);
+  };
+  const parentsOf = (nodeId: number) => Object.entries(adjacency)
+    .filter(([, children]) => children.includes(nodeId))
+    .map(([parentId]) => Number(parentId));
+
+  // Columns opened by this change, one per cluster name ("" for papers with no cluster).
+  const newColumnX = new Map<string, number>();
+  const boardTop = placed.length > 0 ? Math.min(...placed.map((node) => node.y)) : PADDING_Y;
+
+  while (pending.size > 0) {
+    let progressed = false;
+    for (const nodeId of [...pending]) {
+      const parent = parentsOf(nodeId).map((id) => nodes[id]).find((node) => node && !pending.has(node.id));
+      const child = (adjacency[nodeId] ?? []).map((id) => nodes[id]).find((node) => node && !pending.has(node.id));
+      // A linked paper with no cluster of its own joins the cluster of the paper it is linked to.
+      const inherited = nodes[nodeId].group ? {} : { group: (parent ?? child)?.group };
+      if (parent) {
+        settle(nodeId, parent.x + columnWidth, parent.y, { ...inherited, parentId: parent.id, generation: parent.generation + 1 });
+        progressed = true;
+      } else if (child) {
+        settle(nodeId, child.x - columnWidth, child.y, { ...inherited, generation: Math.max(0, child.generation - 1) });
+        progressed = true;
+      }
+    }
+    if (progressed || pending.size === 0) continue;
+
+    // Nothing left is linked to a placed paper: seat the next one by its cluster.
+    const nodeId = [...pending][0];
+    const node = nodes[nodeId];
+    const mates = placed.filter((other) => sameGroup(other.group, node.group));
+    if (mates.length > 0) {
+      settle(nodeId, Math.min(...mates.map((mate) => mate.x)), Math.max(...mates.map((mate) => mate.y)) + LANE_HEIGHT);
+      continue;
+    }
+    const key = (node.group ?? "").trim().toLowerCase();
+    let columnX = newColumnX.get(key);
+    if (columnX === undefined) {
+      const taken = [
+        ...placed.map((other) => other.x + width),
+        ...notes.map((note) => note.x + (note.width ?? 260)),
+      ];
+      const rightEdge = taken.length > 0 ? Math.max(...taken) : null;
+      columnX = rightEdge === null ? PADDING_X : rightEdge + REGION_GAP_X;
+      newColumnX.set(key, columnX);
+    }
+    settle(nodeId, columnX, boardTop);
+  }
+}
+
+function applyPaperAddition(
+  data: TimelineData,
+  action: Extract<TimelineGraphAction, { type: "add_paper" }>,
+): TimelineData {
+  if (!isUsableGraphPaper(action.paper)) return data;
+  const normalizedId = normalizeOpenalexId(action.paper.openalexId);
+  const existing = Object.values(data.nodes);
+  if (existing.some((node) => normalizeOpenalexId(node.paper.openalexId) === normalizedId)) return data;
+
+  const nodeId = nextNumericId(data.nodes);
+  const lane = Math.max(data.lanes, ...existing.map((node) => node.lane + 1), 0);
+  const target = action.connectToNodeId != null ? data.nodes[action.connectToNodeId] : undefined;
+  const columnWidth = NODE_DIMENSIONS.width + GAP_X;
+
+  // Links run from the earlier paper to the later one. With no usable years, the new paper follows.
+  const newYear = action.paper.year ?? 0;
+  const newIsParent = Boolean(target && newYear > 0 && target.paper.year > 0 && newYear < target.paper.year);
+
+  let x = action.x;
+  let y = action.y;
+  if (target) {
+    x = newIsParent ? target.x - columnWidth : target.x + columnWidth;
+    y = target.y;
+  }
+  // Step down until the card is clear of every other card and note.
+  const occupied = [
+    ...existing.map((node) => ({ x: node.x, y: node.y, width: NODE_DIMENSIONS.width, height: NODE_DIMENSIONS.height })),
+    ...Object.values(data.notes ?? {}).map((note) => ({ x: note.x, y: note.y, width: note.width ?? 260, height: note.height ?? 160 })),
+  ];
+  const overlaps = (cx: number, cy: number) => occupied.some((box) => (
+    cx < box.x + box.width + 24 && cx + NODE_DIMENSIONS.width + 24 > box.x
+    && cy < box.y + box.height + 24 && cy + NODE_DIMENSIONS.height + 24 > box.y
+  ));
+  for (let attempt = 0; attempt < 200 && overlaps(x, y); attempt += 1) y += LANE_HEIGHT;
+
+  const node: TimelineNode = {
+    id: nodeId,
+    paper: graphPaperToTimelinePaper(action.paper, nodeId),
+    x,
+    y,
+    lane,
+    parentId: target && !newIsParent ? target.id : null,
+    expanded: false,
+    generation: target ? Math.max(0, target.generation + (newIsParent ? -1 : 1)) : 0,
+    ...(target?.group ? { group: target.group } : {}),
+  };
+
+  const adjacency = cloneAdjacency(data.adjacency);
+  adjacency[nodeId] = [];
+  const edgeRelations = { ...(data.edgeRelations ?? {}) };
+  if (target) {
+    const [parentId, childId] = newIsParent ? [nodeId, target.id] : [target.id, nodeId];
+    adjacency[parentId] = [...(adjacency[parentId] ?? []), childId];
+    edgeRelations[edgeKey(parentId, childId)] = "influenced";
+  }
+
+  return {
+    ...data,
+    nodes: { ...data.nodes, [nodeId]: node },
+    adjacency,
+    edgeRelations,
+    lanes: lane + 1,
   };
 }
 
@@ -383,8 +652,7 @@ function applyNodeDeletion(
   if (
     !node ||
     nodeId === data.rootId ||
-    lockedOpenalexIds.has(node.paper.openalexId) ||
-    Object.keys(data.nodes).length <= 1
+    lockedOpenalexIds.has(node.paper.openalexId)
   ) {
     return data;
   }
@@ -452,11 +720,12 @@ function applyNodeDeletion(
     const current = nodes[affectedNodeId];
     if (!current) return;
     const generation = computeGenerationFromParents(affectedNodeId, nodes);
+    // Keep where the researcher put it; only a changed generation moves it sideways.
+    if (generation === current.generation) return;
     nodes[affectedNodeId] = {
       ...current,
       generation,
       x: PADDING_X + generation * (NODE_DIMENSIONS.width + GAP_X),
-      y: PADDING_Y + current.lane * LANE_HEIGHT,
     };
   });
 
@@ -491,7 +760,7 @@ function applyNoteAddition(
     ...(data.notes ?? {}),
     [action.note.id]: {
       ...action.note,
-      text: action.note.text || "New research note",
+      text: action.note.text ?? "",
       width: action.note.width ?? dimensions.width,
       height: action.note.height ?? dimensions.height,
     },

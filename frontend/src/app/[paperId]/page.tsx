@@ -1,6 +1,5 @@
-import { FeedPaperRoute } from "@/components/feeds/FeedPaperRoute";
-export { paperMetadata as generateMetadata } from "@/components/feeds/FeedPaperRoute";
+import { redirect } from "next/navigation";
 
-export default function PaperPage({ params }: { params: Promise<{ paperId: string }> }) {
-  return <FeedPaperRoute params={params} />;
+export default function PaperPage() {
+  redirect("/");
 }

@@ -84,10 +84,6 @@ export interface TimelineNoteConnection {
   relation?: TimelineNoteRelation;
 }
 
-export interface TraceNote extends TimelineNoteSummary {
-  connections: TimelineNoteConnection[];
-}
-
 export interface TraceSummary {
   traceMode: "standard" | "deep";
   rationale: string;
@@ -151,6 +147,47 @@ export type TimelineGraphAction =
       nodeId: number;
     }
   | {
+      /** The user dragged a paper card to a new spot. */
+      type: "move_node";
+      nodeId: number;
+      x: number;
+      y: number;
+    }
+  | {
+      /** Put a paper in a cluster, creating the cluster if the name is new; null takes it out. */
+      type: "set_node_group";
+      nodeId: number;
+      group: string | null;
+    }
+  | {
+      /** Drag a whole cluster: every paper in it moves by the same amount. */
+      type: "move_group";
+      label: string;
+      dx: number;
+      dy: number;
+    }
+  | {
+      /** Rename a cluster, merging into one that already has the new name; null dissolves it. */
+      type: "rename_group";
+      from: string;
+      to: string | null;
+    }
+  | {
+      /** Slide everything by the same amount, to keep the board's content in positive coordinates. */
+      type: "shift_canvas";
+      dx: number;
+      dy: number;
+    }
+  | {
+      /** A paper the user picked by hand. It may stand alone or link to one existing paper. */
+      type: "add_paper";
+      paper: GraphPaper;
+      /** Where to drop it (canvas coordinates) when it is not linked to anything. */
+      x: number;
+      y: number;
+      connectToNodeId?: number | null;
+    }
+  | {
       type: "add_note";
       note: TimelineNote;
       connectToNodeId?: number | null;
@@ -182,13 +219,6 @@ export type TimelineGraphAction =
       noteId: string;
       nodeId: number;
     };
-
-export interface SeedCandidate {
-  openalexId: string;
-  title: string;
-  year: number | null;
-  reason?: string | null;
-}
 
 export interface ChatSuggestion {
   topic: string;
@@ -224,17 +254,43 @@ export interface GlobalChatResponse {
   lineageChanges?: LineageChange[];
   noteChanges?: TimelineNoteChange[];
   nodeColorChanges?: TimelineNodeColorChange[];
+  canvasDetails?: CanvasDetailsChange | null;
+  costMicroUsd?: number;
+  stoppedBy?: "budget" | "iterations" | null;
+}
+
+export interface PaperGroupAssignment {
+  label: string;
+  paperIds: string[];
 }
 
 export interface LineageChange {
   addedPapers: GraphPaper[];
   removedPaperIds: string[];
   edges: GraphEdge[];
+  /** Cluster names for papers on the canvas after this change. */
+  groups?: PaperGroupAssignment[];
   skipped?: { paperId: string; reason: string }[];
+}
+
+/** A canvas name and/or description chosen by the agent. */
+export interface CanvasDetailsChange {
+  title?: string;
+  description?: string;
+}
+
+/** The canvas's name and description as the agent sees them, and who last set each. */
+export interface CanvasDetails {
+  title: string;
+  description: string;
+  titleSetBy: "user" | "agent" | null;
+  descriptionSetBy: "user" | "agent" | null;
 }
 
 export type GlobalChatStreamEvent =
   | { type: "message_started" }
+  | { type: "canvas_change"; lineageChange: LineageChange }
+  | { type: "canvas_details"; details: CanvasDetailsChange }
   | { type: "status"; message: string }
   | { type: "tool_started"; name: string; input?: Record<string, unknown> }
   | { type: "tool_completed"; name: string; status?: string; result?: Record<string, unknown> }
@@ -259,33 +315,6 @@ export interface PersistentChatSession {
   paperOpenalexId?: string | null;
   summary?: string | null;
   messages: PersistentChatMessage[];
-}
-
-export interface TraversalSettings {
-  depth: number;
-  breadth: number;
-  referenceLimit: number;
-  topN: number;
-}
-
-export interface SearchMeta {
-  query: string;
-  mode: "resolved" | "resolved_inferred" | "needs_disambiguation" | "no_results";
-  confidence?: "high" | "medium" | "low" | null;
-  cacheHit: boolean;
-  traceMode?: "standard" | "deep";
-}
-
-export interface LineageGraphResponse {
-  seedPaperId: string | null;
-  papers: GraphPaper[];
-  edges: GraphEdge[];
-  rootIds: string[];
-  meta: SearchMeta;
-  disambiguation?: SeedCandidate[] | null;
-  traceNotes?: TraceNote[];
-  traceSummary?: TraceSummary | null;
-  traceEvidence?: TraceEvidence | null;
 }
 
 export interface Paper {
@@ -321,6 +350,8 @@ export interface TimelineNode {
   expanded: boolean;
   generation: number;
   annotation?: TimelineNodeAnnotation;
+  /** Name of the cluster this paper belongs to. Papers sharing a name sit in one labelled region. */
+  group?: string;
 }
 
 export interface TimelineData {
@@ -332,6 +363,8 @@ export interface TimelineData {
   lanes: number;
   rootId: number;
   expansions: Expansion[];
+  /** Which card size and spacing the stored positions were laid out with. */
+  layoutVersion?: number;
   traceSummary?: TraceSummary;
   traceEvidence?: TraceEvidence;
 }
@@ -373,6 +406,11 @@ export interface Expansion {
 
 export interface SavedGraphMetadata {
   title: string;
+  /** What the canvas is for, written by its owner or the agent. */
+  description?: string;
+  /** Who last set the title and description; missing means the automatic default. */
+  titleSetBy?: "user" | "agent" | null;
+  descriptionSetBy?: "user" | "agent" | null;
   nodeCount: number;
   lastOpenedAt?: string | null;
   appVersion: string;

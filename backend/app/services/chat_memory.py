@@ -14,6 +14,10 @@ SUMMARY_BATCH_MIN_MESSAGES = 10
 SUMMARY_BATCH_MAX_MESSAGES = 40
 
 
+class ChatSessionNotFound(Exception):
+    """The requested chat does not exist on this canvas."""
+
+
 @dataclass
 class ChatContext:
     session: dict
@@ -35,6 +39,20 @@ class ChatContext:
         return value if isinstance(value, str) and value.strip() else None
 
 
+async def default_graph_chat_session(db, graph_id: str, user_id: str) -> dict:
+    """The canvas's oldest chat, created if it has none. Two first visits can race to create it; the loser
+    removes its own copy and uses the winner's, so a canvas never starts with two default chats."""
+    existing = await db.list_graph_chat_sessions(graph_id, user_id)
+    if existing:
+        return existing[0]
+    created = await db.create_graph_chat_session(graph_id, user_id)
+    current = await db.list_graph_chat_sessions(graph_id, user_id)
+    oldest = current[0] if current else created
+    if oldest.get("id") != created.get("id"):
+        await db.delete_graph_chat_session(graph_id, user_id, created["id"])
+    return oldest
+
+
 class ChatMemoryService:
     def __init__(self, db: SupabaseClient | None = None) -> None:
         self.db = db or SupabaseClient()
@@ -47,13 +65,25 @@ class ChatMemoryService:
         paper_openalex_id: str | None = None,
         *,
         message_limit: int = RECENT_MESSAGE_LIMIT,
+        session_id: str | None = None,
     ) -> ChatContext:
-        session = await self.db.get_or_create_chat_session(
-            graph_id,
-            user_id,
-            scope,
-            paper_openalex_id,
-        )
+        if scope == "graph":
+            # A canvas can hold several agent chats. Open the one asked for, else the oldest, else start one.
+            # The caller has already checked that the canvas belongs to this user.
+            session = None
+            if session_id:
+                session = await self.db.get_graph_chat_session(graph_id, user_id, session_id)
+                if not session:
+                    raise ChatSessionNotFound(session_id)
+            if not session:
+                session = await default_graph_chat_session(self.db, graph_id, user_id)
+        else:
+            session = await self.db.get_or_create_chat_session(
+                graph_id,
+                user_id,
+                scope,
+                paper_openalex_id,
+            )
         messages = await self.db.list_chat_messages(session["id"], user_id, limit=message_limit)
         return ChatContext(session=session, messages=messages)
 
@@ -103,9 +133,8 @@ class ChatMemoryService:
             summary = await llm.summarize_conversation(context.summary, messages, ip=ip)
         except Exception as exc:
             logger.warning(
-                "Conversation summarization failed for session_id=%r user_id=%r",
+                "Conversation summarization failed for session_id=%r",
                 context.session.get("id"),
-                user_id,
                 exc_info=exc,
             )
             return
@@ -121,6 +150,7 @@ def serialize_chat_context(context: ChatContext) -> dict:
     session = context.session
     return {
         "sessionId": session["id"],
+        "title": session.get("title"),
         "scope": session["scope"],
         "paperOpenalexId": session.get("paper_openalex_id"),
         "summary": session.get("summary"),

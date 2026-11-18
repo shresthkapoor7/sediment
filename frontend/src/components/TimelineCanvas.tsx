@@ -3,18 +3,32 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { m, AnimatePresence } from "framer-motion";
 import { MarkdownContent } from "./MarkdownContent";
-import { SPECIAL_NOTE_SIGNED_URL_TTL_MS, deleteSpecialNoteFile, fetchCachedPaperContent, fetchPaperAccess, fetchSpecialNoteFileUrl, listSpecialNoteFiles, openChatSession, streamChatAboutPaper, uploadSpecialNoteFile } from "@/lib/api";
+import { APIError, SPECIAL_NOTE_SIGNED_URL_TTL_MS, deleteSpecialNoteFile, fetchCachedPaperContent, fetchPaperAccess, fetchSpecialNoteFileUrl, listSpecialNoteFiles, openChatSession, streamChatAboutPaper, uploadSpecialNoteFile } from "@/lib/api";
 import { DETAIL_PANEL_DEFAULT_WIDTH, DETAIL_PANEL_MAX_WIDTH, DETAIL_PANEL_MIN_WIDTH, DETAIL_PANEL_WIDTH_KEY } from "@/lib/detail-panel";
 import { TIMELINE_MOBILE_BREAKPOINT_PX } from "@/lib/hover-preview";
-import { TimelineData, ChatSuggestion, PaperAccessResponse, PaperContentResponse, TimelineNode, PaperChatStreamEvent, TimelineGraphAction, NodeBorderColor, TimelineNote, LineageChange, TimelineNodeColorChange, TimelineNoteChange, SpecialNoteFile, SpecialNoteFileListResponse } from "@/lib/types";
+
+const MINIMAP_STORAGE_KEY = "sediment:minimap-enabled";
+import { CanvasDetails, CanvasDetailsChange, TimelineData, ChatSuggestion, GraphPaper, PaperAccessResponse, PaperContentResponse, TimelineNode, PaperChatStreamEvent, TimelineGraphAction, NodeBorderColor, TimelineNote, LineageChange, TimelineNodeColorChange, TimelineNoteChange, SpecialNoteFile, SpecialNoteFileListResponse } from "@/lib/types";
 import { NODE_BORDER_COLOR_OPTIONS } from "@/lib/node-style";
 import { SPECIAL_NOTE_MIN_HEIGHT, TIMELINE_NOTE_DEFAULT_WIDTH, TIMELINE_NOTE_MIN_HEIGHT, isSpecialNote } from "@/lib/note-style";
-import { NODE_DIMENSIONS } from "@/lib/layout-constants";
+import peek from "./PaperPeek.module.css";
+import { NODE_DIMENSIONS, PADDING_X, PADDING_Y } from "@/lib/layout-constants";
+
+// The nearest the board's content may sit to its origin before everything is slid over.
+const CANVAS_MIN_X = PADDING_X;
+const CANVAS_MIN_Y = PADDING_Y;
+
 import { TimelineNodeCard } from "./TimelineNode";
 import { TimelineEdgeLine } from "./TimelineEdge";
 import { TimelineNoteCard } from "./TimelineNote";
 import { TimelineNoteEdgeLine } from "./TimelineNoteEdge";
 import { GlobalChatPanel } from "./GlobalChatPanel";
+import { AddPaperDialog } from "./AddPaperDialog";
+import { CanvasGroupRegion } from "./CanvasGroupRegion";
+import { CanvasMinimap, type MinimapItem } from "./CanvasMinimap";
+import { CanvasHistory } from "./CanvasHistory";
+import type { HistoryItem } from "@/lib/canvas-history";
+import { computeGroupRegions, groupKey, isNearRegion, regionAt, regionFrame } from "@/lib/groups";
 import { ConversationNavigator } from "./ConversationNavigator";
 import { PaperReaderModal } from "./PaperReaderModal";
 import { SpecialNoteUploadDialog } from "./SpecialNoteUploadDialog";
@@ -57,13 +71,18 @@ function capNodeMessages(messages: ChatMessage[]): ChatMessage[] {
 
 interface TimelineCanvasProps {
   data: TimelineData;
-  onExpandNode: (nodeId: number, query: string) => void;
   onGraphAction?: (action: TimelineGraphAction) => void;
+  /** Undo and redo for the canvas; omitted where the canvas cannot be edited. */
+  history?: { undoItems: HistoryItem[]; redoItems: HistoryItem[]; onUndo: (steps: number) => void; onRedo: (steps: number) => void };
   onLineageChanges?: (changes: LineageChange[]) => void;
+  /** A first message for the agent, sent automatically when a new canvas opens. */
+  agentKickoff?: { text: string; nonce: number } | null;
+  onAgentKickoffSent?: () => void;
   onNoteChanges?: (changes: TimelineNoteChange[]) => void;
   onNodeColorChanges?: (changes: TimelineNodeColorChange[]) => void;
+  canvasDetails?: CanvasDetails;
+  onCanvasDetailsChange?: (details: CanvasDetailsChange) => void;
   lockedNodeOpenalexId?: string | null;
-  isExpanding: boolean;
   onUsageChanged?: () => void;
   readOnly?: boolean;
   hoverPreviewEnabled?: boolean;
@@ -91,13 +110,16 @@ type PaperAccessState = PaperAccessResponse | {
 
 export function TimelineCanvas({
   data,
-  onExpandNode,
   onGraphAction,
+  history,
   onLineageChanges,
+  agentKickoff,
+  onAgentKickoffSent,
   onNoteChanges,
   onNodeColorChanges,
+  canvasDetails,
+  onCanvasDetailsChange,
   lockedNodeOpenalexId,
-  isExpanding,
   onUsageChanged,
   readOnly = false,
   hoverPreviewEnabled = true,
@@ -128,6 +150,10 @@ export function TimelineCanvas({
   const suppressNodeClickRef = useRef(false);
 
   const [zoomDisplay, setZoomDisplay] = useState(1);
+  const [minimapEnabled, setMinimapEnabled] = useState(true);
+  const viewListenersRef = useRef(new Set<() => void>());
+  const [addPaperOpen, setAddPaperOpen] = useState(false);
+  const [agentMentionRequest, setAgentMentionRequest] = useState<{ paperId: string; nonce: number; quote?: string } | null>(null);
   const [isOutOfView, setIsOutOfView] = useState(false);
   const [cursorStyle, setCursorStyle] = useState("default");
   const [activeNodeId, setActiveNodeId] = useState<number | null>(null);
@@ -168,6 +194,11 @@ export function TimelineCanvas({
     limitBytes: SPECIAL_NOTE_STORAGE_LIMIT_BYTES,
   });
   const [specialNotePreviewUrls, setSpecialNotePreviewUrls] = useState<Record<string, SpecialNotePreviewUrl>>({});
+  // Files whose note is still on the canvas but whose upload is gone (deleted, then the note came back by undo).
+  const [missingSpecialFileIds, setMissingSpecialFileIds] = useState<Set<string>>(new Set());
+  const markSpecialFileMissing = useCallback((fileId: string) => {
+    setMissingSpecialFileIds((current) => current.has(fileId) ? current : new Set(current).add(fileId));
+  }, []);
   const specialNotePreviewRequestsRef = useRef(new Set<string>());
   const [specialNoteViewer, setSpecialNoteViewer] = useState<{ file: SpecialNoteFile; url: string } | null>(null);
   const [deletingSpecialNoteId, setDeletingSpecialNoteId] = useState<string | null>(null);
@@ -239,9 +270,12 @@ export function TimelineCanvas({
   useEffect(() => {
     if (previousClosePaperPanelSignalRef.current === closePaperPanelSignal) return;
     previousClosePaperPanelSignalRef.current = closePaperPanelSignal;
+    // The agent (left) and the paper (right) sit side by side on desktop; on a phone each fills the screen.
+    if (!isMobileViewport) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Closing the paper panel in response to a parent signal.
     setActiveNodeId(null);
     setPaperReaderOpen(false);
-  }, [closePaperPanelSignal]);
+  }, [closePaperPanelSignal, isMobileViewport]);
 
   useEffect(() => {
     if (!graphId || !userId || activeNodeId === null) return;
@@ -378,7 +412,57 @@ export function TimelineCanvas({
       const outOfView = !(x >= -TOLERANCE && y >= -TOLERANCE && contentRight <= clientWidth + TOLERANCE && contentBottom <= clientHeight + TOLERANCE);
       setIsOutOfView(outOfView);
     }
+    viewListenersRef.current.forEach((listener) => listener());
   }, [maxX, maxY]);
+
+  useEffect(() => {
+    try {
+      if (window.localStorage.getItem(MINIMAP_STORAGE_KEY) === "false") {
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- Hydrate the persisted minimap preference.
+        setMinimapEnabled(false);
+      }
+    } catch {
+      // Storage can be blocked; the minimap just stays on.
+    }
+  }, []);
+
+  const toggleMinimap = useCallback(() => {
+    setMinimapEnabled((value) => {
+      try {
+        window.localStorage.setItem(MINIMAP_STORAGE_KEY, String(!value));
+      } catch {
+        // Not persisting is fine.
+      }
+      return !value;
+    });
+  }, []);
+
+  const subscribeToView = useCallback((listener: () => void) => {
+    viewListenersRef.current.add(listener);
+    return () => {
+      viewListenersRef.current.delete(listener);
+    };
+  }, []);
+
+  const getMinimapView = useCallback(() => {
+    const el = containerRef.current;
+    if (!el) return null;
+    const z = zoomRef.current;
+    return {
+      x: -panRef.current.x / z,
+      y: -panRef.current.y / z,
+      width: el.clientWidth / z,
+      height: el.clientHeight / z,
+    };
+  }, []);
+
+  const navigateFromMinimap = useCallback((x: number, y: number) => {
+    const el = containerRef.current;
+    if (!el) return;
+    const z = zoomRef.current;
+    panRef.current = { x: el.clientWidth / 2 - x * z, y: el.clientHeight / 2 - y * z };
+    applyTransform();
+  }, [applyTransform]);
 
   // Wheel: zoom (pinch / ctrl+scroll) or pan (plain scroll)
   useEffect(() => {
@@ -387,6 +471,8 @@ export function TimelineCanvas({
 
     const onWheel = (e: WheelEvent) => {
       if (isPanningRef.current) return;
+      // A dialog over the canvas scrolls its own content.
+      if (e.target instanceof Element && e.target.closest("[role='dialog']")) return;
 
       if (e.ctrlKey || e.metaKey) {
         e.preventDefault();
@@ -589,11 +675,11 @@ export function TimelineCanvas({
   const handleNodeClick = useCallback((id: number) => {
     if (suppressNodeClickRef.current) return;
     setActiveNodeId((prev) => (prev === id ? null : id));
-    onGlobalChatOpenChange?.(false);
+    if (isMobileViewport) onGlobalChatOpenChange?.(false);
     setHoveredNode(null);
     setChatInput("");
     setIsThinking(Object.keys(activePaperStreamsRef.current).length > 0);
-  }, [onGlobalChatOpenChange]);
+  }, [isMobileViewport, onGlobalChatOpenChange]);
 
   const clearHoverHideTimeout = useCallback(() => {
     if (hoverHideTimeoutRef.current) {
@@ -751,7 +837,7 @@ export function TimelineCanvas({
       .filter((file) => {
         const requestKey = `${graphId}:${file.id}`;
         const cached = specialNotePreviewUrls[file.id];
-        return (!cached || cached.expiresAt <= now) && !specialNotePreviewRequestsRef.current.has(requestKey);
+        return (!cached || cached.expiresAt <= now) && !missingSpecialFileIds.has(file.id) && !specialNotePreviewRequestsRef.current.has(requestKey);
       });
     if (!missingPreviewFiles.length) return;
     const requestKeys = missingPreviewFiles.map((file) => `${graphId}:${file.id}`);
@@ -765,12 +851,18 @@ export function TimelineCanvas({
     ).then((results) => {
       if (cancelled) return;
       const previews = results.flatMap((result) => result.status === "fulfilled" ? [result.value] : []);
+      // Store the previews that worked before marking any missing file, so that change can't drop them.
       if (previews.length) {
         setSpecialNotePreviewUrls((current) => ({
           ...current,
           ...Object.fromEntries(previews.map((preview) => [preview.id, { url: preview.url, expiresAt: preview.expiresAt }])),
         }));
       }
+      results.forEach((result, index) => {
+        if (result.status === "rejected" && result.reason instanceof APIError && result.reason.status === 404) {
+          markSpecialFileMissing(missingPreviewFiles[index].id);
+        }
+      });
       // A document-style thumbnail remains available when a preview URL cannot be created.
     }).finally(() => {
       requestKeys.forEach((key) => specialNotePreviewRequestsRef.current.delete(key));
@@ -778,7 +870,7 @@ export function TimelineCanvas({
     return () => {
       cancelled = true;
     };
-  }, [graphId, readOnly, specialNotePreviewUrls, specialNotes, userId]);
+  }, [graphId, markSpecialFileMissing, missingSpecialFileIds, readOnly, specialNotePreviewUrls, specialNotes, userId]);
 
   // Derive edges from adjacency list (single source of truth)
   const edgesForRender = Object.entries(data.adjacency).flatMap(
@@ -839,7 +931,7 @@ export function TimelineCanvas({
       block: "start",
     });
   }, [activeNodeId]);
-  const graphActionsDisabled = readOnly || isExpanding;
+  const graphActionsDisabled = readOnly;
   const activePaperHref = activeNode ? getPaperHref(activeNode) : null;
   const activePaperAccess = activeNode
     ? paperAccessById[activeNode.paper.openalexId] ?? {
@@ -860,13 +952,14 @@ export function TimelineCanvas({
   }, []);
 
   const askSedimentAboutSelectedExcerpt = useCallback((excerpt: string) => {
-    if (activeNodeId === null) return;
-    const selectedExcerpt = excerpt.trim().slice(0, 6_000);
-    if (!selectedExcerpt) return;
-    setSelectedExcerptByNode((current) => ({ ...current, [activeNodeId]: selectedExcerpt }));
+    // The selected passage goes to the agent's composer, quoted and tagged with its paper.
+    if (!activeNode) return;
+    const quote = excerpt.trim().slice(0, 6_000);
+    if (!quote) return;
     closePaperReader();
-    window.setTimeout(() => chatInputRef.current?.focus({ preventScroll: true }), 0);
-  }, [activeNodeId, closePaperReader]);
+    setAgentMentionRequest((current) => ({ paperId: activeNode.paper.openalexId, nonce: (current?.nonce ?? 0) + 1, quote }));
+    onGlobalChatOpenChange?.(true);
+  }, [activeNode, closePaperReader, onGlobalChatOpenChange]);
 
   const openPaperReader = useCallback(() => {
     if (!activeNode || !graphId || !userId || !isActivePaperCached) return;
@@ -1057,8 +1150,7 @@ export function TimelineCanvas({
       !targetNode ||
       graphActionsDisabled ||
       nodeId === data.rootId ||
-      targetNode.paper.openalexId === lockedNodeOpenalexId ||
-      Object.keys(data.nodes).length <= 1
+      targetNode.paper.openalexId === lockedNodeOpenalexId
     ) {
       return;
     }
@@ -1067,19 +1159,42 @@ export function TimelineCanvas({
     setActiveNodeId((current) => (current === nodeId ? null : current));
   }, [data.nodes, data.rootId, graphActionsDisabled, lockedNodeOpenalexId, onGraphAction]);
 
+  const handleAddPaper = useCallback((paper: GraphPaper, linkToNodeId: number | null) => {
+    if (graphActionsDisabled) return;
+    // Unlinked papers land in the middle of what the user is looking at.
+    const container = containerRef.current;
+    const zoom = zoomRef.current || 1;
+    const centerX = ((container?.clientWidth ?? 0) / 2 - panRef.current.x) / zoom;
+    const centerY = ((container?.clientHeight ?? 0) / 2 - panRef.current.y) / zoom;
+    onGraphAction?.({
+      type: "add_paper",
+      paper,
+      x: Math.round(centerX - NODE_DIMENSIONS.width / 2),
+      y: Math.round(centerY - NODE_DIMENSIONS.height / 2),
+      connectToNodeId: linkToNodeId,
+    });
+  }, [graphActionsDisabled, onGraphAction]);
+
+  const canvasPaperOptions = useMemo(
+    () => Object.values(data.nodes)
+      .map((node) => ({ nodeId: node.id, openalexId: node.paper.openalexId, title: node.paper.title, year: node.paper.year }))
+      .sort((a, b) => a.title.localeCompare(b.title)),
+    [data.nodes],
+  );
+
   const handleAddNoteForNode = useCallback((nodeId: number) => {
     const targetNode = data.nodes[nodeId];
     if (!targetNode || graphActionsDisabled) return;
     const noteId = `note-${Date.now()}-${++noteIdRef.current}`;
     const note: TimelineNote = {
       id: noteId,
-      text: "Add note (markdown supported)",
+      text: "",
       kind: "field_note",
       x: targetNode.x + NODE_DIMENSIONS.width + 56,
       y: targetNode.y,
       width: TIMELINE_NOTE_DEFAULT_WIDTH,
       height: TIMELINE_NOTE_MIN_HEIGHT,
-      color: "paper",
+      color: "amber",
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -1166,9 +1281,130 @@ export function TimelineCanvas({
     }
   }, [data.nodes, data.noteEdges, data.notes, graphId, onGraphAction, specialNoteTargetNodeId, userId]);
 
+  const getZoom = useCallback(() => zoomRef.current, []);
+  const draggingNodeRef = useRef(false);
+
+  const [draggingNodeId, setDraggingNodeId] = useState<number | null>(null);
+  const handleMoveNode = useCallback((nodeId: number, x: number, y: number) => {
+    if (readOnly) return;
+    draggingNodeRef.current = true;
+    setDraggingNodeId(nodeId);
+    setHoveredNode(null);
+    onGraphAction?.({ type: "move_node", nodeId, x, y });
+  }, [onGraphAction, readOnly]);
+
+  const [moveEndTick, setMoveEndTick] = useState(0);
+  const handleMoveNodeEnd = useCallback((nodeId: number) => {
+    draggingNodeRef.current = false;
+    setDraggingNodeId(null);
+    setMoveEndTick((tick) => tick + 1);
+    // A cluster's frame holds exactly its papers: dropping a card inside another one joins it, and
+    // dragging a member well away from its cluster takes it out. A member only a little past the
+    // edge stays, which stretches the cluster.
+    const node = data.nodes[nodeId];
+    if (!node || readOnly) return;
+    const others = computeGroupRegions(Object.values(data.nodes), nodeId);
+    const target = regionAt(others, node);
+    const own = node.group ? others.find((region) => region.key === groupKey(node.group)) : undefined;
+    if (target) {
+      if (groupKey(node.group) !== target.key) onGraphAction?.({ type: "set_node_group", nodeId, group: target.label });
+    } else if (own && !isNearRegion(own, node)) {
+      onGraphAction?.({ type: "set_node_group", nodeId, group: null });
+    }
+  }, [data.nodes, onGraphAction, readOnly]);
+
+  const handleMoveGroup = useCallback((label: string, dx: number, dy: number) => {
+    if (readOnly) return;
+    draggingNodeRef.current = true;
+    onGraphAction?.({ type: "move_group", label, dx, dy });
+  }, [onGraphAction, readOnly]);
+
+  const handleMoveGroupEnd = useCallback(() => {
+    draggingNodeRef.current = false;
+    setMoveEndTick((tick) => tick + 1);
+  }, []);
+
+  // Keep the board's content in positive coordinates, which fit-to-view and the layers assume. When
+  // something ends up left of or above the origin, slide everything over and move the view with it,
+  // so nothing appears to jump.
+  const contentMinX = Math.min(...Object.values(data.nodes).map((node) => node.x), ...Object.values(data.notes ?? {}).map((note) => note.x), Infinity);
+  const contentMinY = Math.min(...Object.values(data.nodes).map((node) => node.y), ...Object.values(data.notes ?? {}).map((note) => note.y), Infinity);
+  useEffect(() => {
+    if (readOnly || draggingNodeRef.current) return;
+    if (!Number.isFinite(contentMinX) || !Number.isFinite(contentMinY)) return;
+    const dx = contentMinX < CANVAS_MIN_X ? CANVAS_MIN_X - contentMinX : 0;
+    const dy = contentMinY < CANVAS_MIN_Y ? CANVAS_MIN_Y - contentMinY : 0;
+    if (!dx && !dy) return;
+    panRef.current = {
+      x: panRef.current.x - dx * zoomRef.current,
+      y: panRef.current.y - dy * zoomRef.current,
+    };
+    applyTransform();
+    onGraphAction?.({ type: "shift_canvas", dx, dy });
+  }, [applyTransform, contentMinX, contentMinY, moveEndTick, onGraphAction, readOnly]);
+
+  // Named clusters, drawn behind their papers. While a card is dragged it is left out of its own
+  // cluster's frame (unless it is the only member), so the frames show where it would land.
+  const { groupRegions, dropTargetKey } = useMemo(() => {
+    const all = Object.values(data.nodes);
+    const dragged = draggingNodeId !== null ? data.nodes[draggingNodeId] : undefined;
+    if (!dragged) return { groupRegions: computeGroupRegions(all), dropTargetKey: null as string | null };
+    const others = computeGroupRegions(all, dragged.id);
+    const target = regionAt(others, dragged);
+    const own = dragged.group ? others.find((region) => region.key === groupKey(dragged.group)) : undefined;
+    // A member that is still near its cluster stays in it, so the frame stretches with the card.
+    const staying = !target && Boolean(dragged.group) && (!own || isNearRegion(own, dragged));
+    return {
+      groupRegions: staying ? computeGroupRegions(all) : others,
+      dropTargetKey: target?.key ?? null,
+    };
+  }, [data.nodes, draggingNodeId]);
+
+  const groupLabels = useMemo(() => groupRegions.map((region) => region.label), [groupRegions]);
+
+  const minimapItems = useMemo<MinimapItem[]>(() => {
+    const items: MinimapItem[] = [];
+    for (const region of groupRegions) {
+      const frame = regionFrame(region);
+      items.push({ id: `group:${region.key}`, kind: "group", ...frame });
+    }
+    for (const node of Object.values(data.nodes)) {
+      items.push({ id: `node:${node.id}`, kind: "card", x: node.x, y: node.y, width: NODE_DIMENSIONS.width, height: NODE_DIMENSIONS.height });
+    }
+    for (const note of Object.values(data.notes ?? {})) {
+      items.push({
+        id: `note:${note.id}`,
+        kind: "note",
+        x: note.x,
+        y: note.y,
+        width: note.width ?? TIMELINE_NOTE_DEFAULT_WIDTH,
+        height: note.height ?? TIMELINE_NOTE_MIN_HEIGHT,
+      });
+    }
+    return items;
+  }, [data.nodes, data.notes, groupRegions]);
+
+  const handleSetNodeGroup = useCallback((nodeId: number, group: string | null) => {
+    if (readOnly) return;
+    onGraphAction?.({ type: "set_node_group", nodeId, group });
+  }, [onGraphAction, readOnly]);
+
+  const handleRenameGroup = useCallback((from: string, to: string | null) => {
+    if (readOnly) return;
+    onGraphAction?.({ type: "rename_group", from, to });
+  }, [onGraphAction, readOnly]);
+
+  // While a note is dragged, hold off moving the canvas origin (as for cards); the note computes its spot
+  // from where the drag began, so shifting under it would pull it away from the pointer.
+  const handleMoveNoteEnd = useCallback(() => {
+    draggingNodeRef.current = false;
+    setMoveEndTick((tick) => tick + 1);
+  }, []);
+
   const handleMoveNote = useCallback(
     (noteId: string, x: number, y: number) => {
       if (readOnly) return;
+      draggingNodeRef.current = true;
       onGraphAction?.({
         type: "update_note",
         noteId,
@@ -1252,6 +1488,20 @@ export function TimelineCanvas({
             onGraphAction?.({ type: "delete_note", noteId });
           })
           .catch((error) => {
+            // The file is already gone (deleted earlier, the note restored by undo): just remove the note.
+            if (error instanceof APIError && error.status === 404) {
+              markSpecialFileMissing(note.specialNote!.id);
+              // Count the space as free again, once: only if the file is still listed.
+              setSpecialNoteUsage((current) => current.items.some((item) => item.id === note.specialNote!.id)
+                ? {
+                  ...current,
+                  items: current.items.filter((item) => item.id !== note.specialNote!.id),
+                  usedBytes: Math.max(0, current.usedBytes - note.specialNote!.sizeBytes),
+                }
+                : current);
+              onGraphAction?.({ type: "delete_note", noteId });
+              return;
+            }
             setSpecialNoteError(error instanceof Error ? error.message : "Could not delete this special note.");
           })
           .finally(() => setDeletingSpecialNoteId(null));
@@ -1259,12 +1509,12 @@ export function TimelineCanvas({
       }
       onGraphAction?.({ type: "delete_note", noteId });
     },
-    [data.notes, deletingSpecialNoteId, graphId, onGraphAction, readOnly, userId],
+    [data.notes, deletingSpecialNoteId, graphId, markSpecialFileMissing, onGraphAction, readOnly, userId],
   );
 
   const handleOpenSpecialNote = useCallback((note: TimelineNote) => {
     const file = note.specialNote;
-    if (!file || !graphId || !userId || readOnly) return;
+    if (!file || !graphId || !userId || readOnly || missingSpecialFileIds.has(file.id)) return;
     const existingUrl = specialNotePreviewUrls[file.id];
     if (existingUrl && existingUrl.expiresAt > Date.now()) {
       setSpecialNoteViewer({ file, url: existingUrl.url });
@@ -1279,9 +1529,13 @@ export function TimelineCanvas({
         setSpecialNoteViewer({ file, url });
       })
       .catch((error) => {
+        if (error instanceof APIError && error.status === 404) {
+          markSpecialFileMissing(file.id);
+          return;
+        }
         setSpecialNoteError(error instanceof Error ? error.message : "Could not open this special note.");
       });
-  }, [graphId, readOnly, specialNotePreviewUrls, userId]);
+  }, [graphId, markSpecialFileMissing, missingSpecialFileIds, readOnly, specialNotePreviewUrls, userId]);
 
   const handleToggleNoteConnection = useCallback(
     (noteId: string) => {
@@ -1294,16 +1548,6 @@ export function TimelineCanvas({
       );
     },
     [activeNodeId, data.noteEdges, onGraphAction, readOnly],
-  );
-
-  const hasExistingExpansion = useCallback(
-    (sourceNodeId: number, query: string) =>
-      data.expansions.some(
-        (expansion) =>
-          expansion.sourceNodeId === sourceNodeId &&
-          expansion.query.trim().toLowerCase() === query.trim().toLowerCase(),
-      ),
-    [data.expansions]
   );
 
   const hoveredTimelineNode = hoveredNode ? data.nodes[hoveredNode.nodeId] : null;
@@ -1332,24 +1576,80 @@ export function TimelineCanvas({
         overflow: "hidden",
         cursor: cursorStyle,
         background: "var(--bg-canvas)",
-        borderRadius: "0.5rem",
         position: "relative",
         // touchAction is set on the <svg> only so chat panels inside can still scroll
       }}
     >
+      {allNodes.length === 0 && allNotes.length === 0 && (
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            display: "grid",
+            placeItems: "center",
+            pointerEvents: "none",
+            padding: "0 1.5rem",
+            textAlign: "center",
+          }}
+        >
+          <p style={{ maxWidth: "22rem", fontSize: "0.875rem", lineHeight: 1.6, color: "var(--text-tertiary)" }}>
+            {readOnly
+              ? "This canvas is empty."
+              : "Nothing here yet. Tell the agent what you are working on, or add a paper yourself."}
+          </p>
+        </div>
+      )}
+
       {/* Controls + zoom indicator */}
       <div
         data-canvas-ui="true"
         style={{
           position: "absolute",
           bottom: "1rem",
-          left: "1rem",
+          left: "50%",
+          transform: "translateX(-50%)",
+          padding: "0.1875rem",
+          borderRadius: "0.625rem",
+          background: "var(--bg-tertiary)",
           display: "flex",
           gap: "0.25rem",
           zIndex: 10,
           alignItems: "center",
         }}
       >
+        {!readOnly && (
+          <button
+            type="button"
+            data-canvas-ui="true"
+            onClick={() => setAddPaperOpen(true)}
+            disabled={graphActionsDisabled}
+            title="Add a paper"
+            style={{
+              height: "1.75rem",
+              display: "flex",
+              alignItems: "center",
+              gap: "0.375rem",
+              padding: "0 0.625rem 0 0.5rem",
+              marginRight: "0.25rem",
+              background: "var(--accent)",
+              border: "none",
+              borderRadius: "0.4375rem",
+              color: "var(--on-accent)",
+              cursor: graphActionsDisabled ? "default" : "pointer",
+              opacity: graphActionsDisabled ? 0.5 : 1,
+              fontSize: "0.75rem",
+              fontWeight: 550,
+              fontFamily: "inherit",
+              whiteSpace: "nowrap",
+              touchAction: "manipulation",
+            }}
+          >
+            <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
+              <path d="M6 1.5v9M1.5 6h9" />
+            </svg>
+            Add paper
+          </button>
+        )}
         {/* eslint-disable-next-line react-hooks/refs -- Zoom controls intentionally read imperative canvas refs in event handlers. */}
         {[
           {
@@ -1401,8 +1701,8 @@ export function TimelineCanvas({
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              background: "var(--bg-secondary)",
-              border: "0.0625rem solid var(--border)",
+              background: "transparent",
+              border: "none",
               borderRadius: "0.375rem",
               color: "var(--text-secondary)",
               cursor: "pointer",
@@ -1448,14 +1748,14 @@ export function TimelineCanvas({
             alignItems: "center",
             justifyContent: "center",
             background: isOutOfView ? "var(--accent-soft)" : "var(--bg-secondary)",
-            border: `0.0625rem solid ${isOutOfView ? "var(--accent)" : "var(--border)"}`,
+            border: "none",
             borderRadius: "0.375rem",
             color: isOutOfView ? "var(--accent)" : "var(--text-secondary)",
             cursor: "pointer",
             fontSize: "0.875rem",
             fontFamily: "inherit",
             transition: "all 0.2s ease",
-            boxShadow: isOutOfView ? "0 0 0 0.1875rem var(--accent-soft)" : "none",
+            
             touchAction: "manipulation",
           }}
           onMouseEnter={(e) => {
@@ -1473,8 +1773,8 @@ export function TimelineCanvas({
           fontSize: "0.6875rem",
           fontFamily: "var(--font-mono), monospace",
           color: "var(--text-tertiary)",
-          background: "var(--bg-secondary)",
-          border: "0.0625rem solid var(--border)",
+          background: "transparent",
+          border: "none",
           borderRadius: "0.375rem",
           padding: "0.25rem 0.5rem",
           userSelect: "none",
@@ -1483,6 +1783,12 @@ export function TimelineCanvas({
         }}>
           {zoomDisplay}%
         </div>
+
+        {history && !readOnly && (
+          <div style={{ marginLeft: "0.25rem" }}>
+            <CanvasHistory {...history} />
+          </div>
+        )}
 
         {onToggleHoverPreview && (
           <button
@@ -1497,7 +1803,7 @@ export function TimelineCanvas({
               height: "1.75rem",
               padding: 0,
               background: hoverPreviewEnabled ? "var(--accent-soft)" : "var(--bg-secondary)",
-              border: `0.0625rem solid ${hoverPreviewEnabled ? "var(--accent)" : "var(--border)"}`,
+              border: "none",
               borderRadius: "0.375rem",
               color: hoverPreviewEnabled ? "var(--accent)" : "var(--text-tertiary)",
               cursor: "pointer",
@@ -1517,6 +1823,35 @@ export function TimelineCanvas({
           </button>
         )}
 
+        <button
+          type="button"
+          className="hide-mobile"
+          onClick={toggleMinimap}
+          title={minimapEnabled ? "Hide minimap" : "Show minimap"}
+          aria-pressed={minimapEnabled}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            width: "1.75rem",
+            height: "1.75rem",
+            padding: 0,
+            background: minimapEnabled ? "var(--accent-soft)" : "var(--bg-secondary)",
+            border: "none",
+            borderRadius: "0.375rem",
+            color: minimapEnabled ? "var(--accent)" : "var(--text-tertiary)",
+            cursor: "pointer",
+            transition: "all 0.15s",
+            marginLeft: "0.25rem",
+            userSelect: "none",
+          }}
+        >
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <rect x="1.5" y="3" width="13" height="10" rx="2" />
+            <rect x="8" y="7" width="4.5" height="3.5" rx="0.75" />
+          </svg>
+        </button>
+
         <AnimatePresence>
           {saveState !== "idle" && (
             <m.div
@@ -1534,8 +1869,8 @@ export function TimelineCanvas({
                 marginLeft: "0.25rem",
                 padding: "0 0.5rem",
                 borderRadius: "0.375rem",
-                border: "0.0625rem solid var(--border)",
-                background: "var(--bg-secondary)",
+                border: "none",
+                background: "transparent",
                 color:
                   saveState === "error"
                     ? "#d16f5b"
@@ -1572,6 +1907,16 @@ export function TimelineCanvas({
         </AnimatePresence>
       </div>
 
+      {minimapEnabled && !isMobileViewport && (
+        <CanvasMinimap
+          items={minimapItems}
+          getView={getMinimapView}
+          subscribe={subscribeToView}
+          onNavigate={navigateFromMinimap}
+          right={activeNode ? `calc(${resolvedDetailPanelWidth} + 1rem)` : "1rem"}
+        />
+      )}
+
       <svg
         ref={svgRef}
         width="100%"
@@ -1602,7 +1947,6 @@ export function TimelineCanvas({
             if (!from || !to) return null;
             const isActive =
               activeRelated.has(edge.from) && activeRelated.has(edge.to);
-            const isCrossLane = from.lane !== to.lane;
             return (
               <TimelineEdgeLine
                 key={`${edge.from}-${edge.to}-${i}`}
@@ -1610,7 +1954,6 @@ export function TimelineCanvas({
                 to={to}
                 index={i}
                 isActive={isActive}
-                isCrossLane={isCrossLane}
                 isInferred={edge.relation === "inferred"}
                 annotationColor={from.annotation?.borderColor ?? null}
               />
@@ -1655,12 +1998,30 @@ export function TimelineCanvas({
             willChange: "transform",
           }}
         >
+          {groupRegions.map((region) => (
+            <CanvasGroupRegion
+              key={region.key}
+              label={region.label}
+              count={region.count}
+              frame={regionFrame(region)}
+              isDropTarget={region.key === dropTargetKey}
+              getZoom={getZoom}
+              onRename={!readOnly && onGraphAction ? handleRenameGroup : undefined}
+              onMove={!readOnly && onGraphAction ? handleMoveGroup : undefined}
+              onMoveEnd={handleMoveGroupEnd}
+            />
+          ))}
           {nodeArray.map((node, i) => (
             <TimelineNodeCard
               key={node.id}
               node={node}
               index={i}
               onClick={handleNodeClick}
+              groups={groupLabels}
+              onSetGroup={!readOnly && onGraphAction ? handleSetNodeGroup : undefined}
+              onMove={!readOnly && onGraphAction ? handleMoveNode : undefined}
+              onMoveEnd={handleMoveNodeEnd}
+              getZoom={getZoom}
               onHoverStart={handleNodeHoverStart}
               onHoverEnd={handleNodeHoverEnd}
               isActive={activeRelated.has(node.id)}
@@ -1669,11 +2030,9 @@ export function TimelineCanvas({
               isSelected={activeNodeId === node.id}
               shouldAnimate={node.generation === latestGeneration}
               canEdit={!readOnly && Boolean(onGraphAction)}
-              isEditMenuOpen={editingNodeId === node.id}
               isGraphActionDisabled={graphActionsDisabled}
               isLocked={node.id === data.rootId || node.paper.openalexId === lockedNodeOpenalexId}
               isOnlyNode={Object.keys(data.nodes).length <= 1}
-              onEditMenuToggle={(nodeId) => setEditingNodeId((current) => (current === nodeId ? null : nodeId))}
               onSetBorderColor={handleSetNodeBorderColorForNode}
               onAddNote={handleAddNoteForNode}
               onAddSpecialNote={handleAddSpecialNoteForNode}
@@ -1691,6 +2050,8 @@ export function TimelineCanvas({
                   isConnectedToActiveNode={noteIdsConnectedToActiveNode.has(note.id)}
                   readOnly={readOnly}
                   onMove={handleMoveNote}
+                  onMoveEnd={handleMoveNoteEnd}
+                  getZoom={getZoom}
                   onResize={handleResizeNote}
                   onTextChange={handleNoteTextChange}
                   onKindChange={handleNoteKindChange}
@@ -1699,6 +2060,7 @@ export function TimelineCanvas({
                   onDelete={handleDeleteNote}
                   onOpenSpecialNote={handleOpenSpecialNote}
                   specialNotePreviewUrl={note.specialNote ? specialNotePreviewUrls[note.specialNote.id]?.url : undefined}
+                  specialNoteFileMissing={Boolean(note.specialNote && missingSpecialFileIds.has(note.specialNote.id))}
                   isSpecialNoteDeleting={note.specialNote?.id === deletingSpecialNoteId}
                 />
               );
@@ -2071,12 +2433,10 @@ export function TimelineCanvas({
               bottom: 0,
               width: resolvedDetailPanelWidth,
               maxWidth: "100%",
-              background: "var(--bg-primary)",
-              borderLeft: "0.0625rem solid var(--border)",
+              background: "var(--bg-secondary)",
               zIndex: 20,
               display: "flex",
               flexDirection: "column",
-              boxShadow: "-0.5rem 0 2rem rgba(0,0,0,0.08)",
             }}
           >
             {!isMobileViewport && (
@@ -2116,7 +2476,6 @@ export function TimelineCanvas({
                 alignItems: "center",
                 gap: "0.5rem",
                 padding: "0.625rem 1rem",
-                borderBottom: "0.0625rem solid var(--border)",
                 flexShrink: 0,
                 minHeight: "3.25rem",
               }}
@@ -2137,98 +2496,9 @@ export function TimelineCanvas({
                   <path d="M6 4l4 4-4 4" />
                 </svg>
               </button>
-              <span
-                style={{
-                  fontSize: "0.6875rem",
-                  color: "var(--text-tertiary)",
-                  fontFamily: "var(--font-mono), monospace",
-                  letterSpacing: "0.04em",
-                  flexShrink: 0,
-                }}
-              >
-                {activeNode.paper.year}
-              </span>
-              <div
-                style={{
-                  flex: 1,
-                  minWidth: 0,
-                  fontSize: "0.8125rem",
-                  color: "var(--text-primary)",
-                  fontFamily: "var(--font-sans), sans-serif",
-                  fontWeight: 500,
-                  lineHeight: 1.35,
-                }}
-                title={activeNode.paper.title}
-              >
-                {activeNode.paper.title}
-              </div>
+              <div style={{ flex: 1 }} />
               <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "0.25rem", flexShrink: 0 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "0.375rem" }}>
-                  {activePaperHref && (
-                    <a
-                      href={activePaperHref}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      title="Open"
-                      aria-label="Open"
-                      style={{
-                        flexShrink: 0,
-                        color: "var(--text-tertiary)",
-                        textDecoration: "none",
-                        background: "var(--bg-secondary)",
-                        border: "0.0625rem solid var(--border)",
-                        borderRadius: "0.3125rem",
-                        width: "1.875rem",
-                        height: "1.875rem",
-                        boxSizing: "border-box",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        transition: "all 0.15s",
-                      }}
-                      onMouseEnter={(e) => { (e.currentTarget as HTMLAnchorElement).style.borderColor = "var(--accent)"; (e.currentTarget as HTMLAnchorElement).style.color = "var(--accent)"; }}
-                      onMouseLeave={(e) => { (e.currentTarget as HTMLAnchorElement).style.borderColor = "var(--border)"; (e.currentTarget as HTMLAnchorElement).style.color = "var(--text-tertiary)"; }}
-                    >
-                      <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.55" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                        <path d="M3 13 13 3M13 3H6M13 3v7" />
-                      </svg>
-                    </a>
-                  )}
-                  {isActivePaperCached && (
-                    <button
-                      type="button"
-                      onClick={openPaperReader}
-                      title="Paper"
-                      aria-label="Paper"
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        width: "1.875rem",
-                        height: "1.875rem",
-                        padding: 0,
-                        borderRadius: "0.3125rem",
-                        border: "0.0625rem solid var(--border)",
-                        background: "var(--bg-secondary)",
-                        color: "var(--text-tertiary)",
-                        cursor: "pointer",
-                        transition: "all 0.15s",
-                      }}
-                      onMouseEnter={(event) => {
-                        event.currentTarget.style.borderColor = "var(--accent)";
-                        event.currentTarget.style.color = "var(--accent)";
-                      }}
-                      onMouseLeave={(event) => {
-                        event.currentTarget.style.borderColor = "var(--border)";
-                        event.currentTarget.style.color = "var(--text-tertiary)";
-                      }}
-                    >
-                      <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                        <path d="M3 2.5h7.25A2.75 2.75 0 0 1 13 5.25v8.25H5.5A2.5 2.5 0 0 0 3 16V2.5Z" />
-                        <path d="M3 13.5h7.5A2.5 2.5 0 0 1 13 16M5.5 5.25H10M5.5 7.75H10" />
-                      </svg>
-                    </button>
-                  )}
                   {isMobileViewport && !readOnly && onGraphAction && (
                     <div style={{ position: "relative", flexShrink: 0 }}>
                       <button
@@ -2352,403 +2622,64 @@ export function TimelineCanvas({
                     </div>
                   )}
                 </div>
-                {activePaperAccess && (
-                  <span
-                    tabIndex={0}
-                    title={activePaperAccess.message}
-                    aria-label={`${paperAccessLabel(activePaperAccess)}. ${activePaperAccess.message}`}
-                    style={{
-                      fontSize: "0.5625rem",
-                      lineHeight: 1.2,
-                      fontFamily: "var(--font-mono), monospace",
-                      color: paperAccessColor(activePaperAccess),
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {paperAccessLabel(activePaperAccess)}
-                  </span>
-                )}
                 </div>
               </div>
 
-            {/* Scrollable chat area */}
-            <div style={{ position: "relative", flex: 1, minHeight: 0 }}>
-              <div
-                style={{
-                  height: "100%",
-                  overflowY: "auto",
-                  padding: "1.25rem 1.25rem 0.5rem",
-                  touchAction: "pan-y",
-                }}
-              >
-
-              {/* Paper context — shown as a subtle block at the top */}
-              <div
-                style={{
-                  background: "var(--bg-secondary)",
-                  borderRadius: "0.375rem",
-                  padding: "0.875rem 1rem",
-                  marginBottom: "1.25rem",
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "0.625rem",
-                }}
-              >
-                {/* Type badge */}
-                {activeNode.paper.type && (
-                  <span style={{
-                    alignSelf: "flex-start",
-                    fontSize: "0.625rem",
-                    fontFamily: "var(--font-mono), monospace",
-                    letterSpacing: "0.06em",
-                    textTransform: "uppercase",
-                    color: "var(--accent)",
-                    background: "var(--accent-soft)",
-                    border: "0.0625rem solid var(--accent)",
-                    borderRadius: "0.25rem",
-                    padding: "0.125rem 0.375rem",
-                  }}>
-                    {activeNode.paper.type.replace(/-/g, " ")}
-                  </span>
-                )}
-
-                {/* AI Summary */}
-                <div>
-                  <p style={{ fontSize: "0.625rem", color: "var(--text-tertiary)", fontFamily: "var(--font-mono), monospace", letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: "0.3125rem" }}>
-                    AI Summary
-                  </p>
-                  <MarkdownContent style={{ fontSize: "0.8125rem", color: "var(--text-primary)", lineHeight: 1.6, fontFamily: "var(--font-sans), sans-serif", fontStyle: "italic", overflowWrap: "break-word" }}>
-                    {activeNode.paper.summary}
-                  </MarkdownContent>
+            {/* What the paper is. Questions about it go to the agent. */}
+            <div style={{ flex: 1, minHeight: 0 }}>
+              <div className={peek.body}>
+                <div className={peek.meta}>
+                  <span>{activeNode.paper.year}</span>
+                  {activeNode.paper.type && <span>{activeNode.paper.type.replace(/-/g, " ")}</span>}
+                  {activePaperAccess && <span title={activePaperAccess.message}>{paperAccessLabel(activePaperAccess)}</span>}
                 </div>
-
-                {/* Abstract */}
-                {activeNode.paper.detail && (
-                  <div>
-                    <p style={{ fontSize: "0.625rem", color: "var(--text-tertiary)", fontFamily: "var(--font-mono), monospace", letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: "0.3125rem" }}>
-                      Abstract
-                    </p>
-                    <MarkdownContent style={{ fontSize: "0.78125rem", color: "var(--text-secondary)", lineHeight: 1.7, fontFamily: "var(--font-sans), sans-serif", overflowWrap: "break-word" }}>
-                      {activeNode.paper.detail}
-                    </MarkdownContent>
-                  </div>
-                )}
-
-                {/* Concepts */}
-                {activeNode.paper.concepts && activeNode.paper.concepts.length > 0 && (
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: "0.3125rem" }}>
-                    {activeNode.paper.concepts.map((c) => (
-                      <span key={c} style={{
-                        fontSize: "0.625rem",
-                        fontFamily: "var(--font-sans), sans-serif",
-                        color: "var(--text-tertiary)",
-                        background: "var(--bg-primary)",
-                        border: "0.0625rem solid var(--border)",
-                        borderRadius: "0.25rem",
-                        padding: "0.125rem 0.375rem",
-                      }}>
-                        {c}
-                      </span>
-                    ))}
-                  </div>
-                )}
-
-                {/* Authors */}
+                <h2>{activeNode.paper.title}</h2>
                 {activeNode.paper.authors && activeNode.paper.authors.length > 0 && (
-                  <p style={{ fontSize: "0.6875rem", color: "var(--text-tertiary)", fontFamily: "var(--font-sans), sans-serif" }}>
-                    {activeNode.paper.authors.join(", ")}
-                  </p>
+                  <p className={peek.authors}>{activeNode.paper.authors.join(", ")}</p>
                 )}
-              </div>
-
-              {/* Chat messages */}
-              {(chatHistories[activeNodeId] ?? []).map((msg) => (
-                <m.div
-                  id={`paper-chat-${activeNodeId}-${msg.id}`}
-                  key={msg.id}
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-                  style={{ marginBottom: "1rem" }}
-                >
-                  {msg.role === "user" ? (
-                    <div style={{ display: "flex", justifyContent: "flex-end" }}>
-                      <div
-                        style={{
-                          background: "var(--accent-soft)",
-                          border: "0.0625rem solid var(--accent)",
-                          borderRadius: "0.75rem 0.75rem 0.125rem 0.75rem",
-                          padding: "0.5625rem 0.8125rem",
-                          maxWidth: "80%",
-                          fontSize: "0.8125rem",
-                          color: "var(--text-primary)",
-                          fontFamily: "var(--font-sans), sans-serif",
-                          lineHeight: 1.5,
-                        }}
-                      >
-                        {msg.selectedExcerpt && (
-                          <div
-                            style={{
-                              marginBottom: "0.5rem",
-                              padding: "0.375rem 0.5rem",
-                              borderLeft: "0.125rem solid var(--accent)",
-                              borderRadius: "0.25rem",
-                              background: "color-mix(in srgb, var(--bg-primary) 48%, transparent)",
-                              color: "var(--text-secondary)",
-                              fontSize: "0.71875rem",
-                              fontStyle: "italic",
-                            }}
-                          >
-                            {excerptPreview(msg.selectedExcerpt, 220)}
-                          </div>
-                        )}
-                        {msg.content}
-                      </div>
-                    </div>
-                  ) : (
-                    <div>
-                      {msg.content ? (
-                        <MarkdownContent style={{ fontSize: "0.84375rem", color: "var(--text-primary)", lineHeight: 1.7, fontFamily: "var(--font-sans), sans-serif", marginBottom: msg.suggestion ? "0.875rem" : 0 }}>
-                          {msg.content}
-                        </MarkdownContent>
-                      ) : (
-                        <p style={{ fontSize: "0.8125rem", color: "var(--text-tertiary)", fontFamily: "var(--font-sans), sans-serif", marginBottom: "0.5rem" }}>
-                          Working…
-                        </p>
-                      )}
-
-                      {(msg.pending || (msg.toolEvents?.length ?? 0) > 0 || (msg.statusEvents?.length ?? 0) > 0) && (
-                        <div
-                          style={{
-                            display: "flex",
-                            flexDirection: "column",
-                            gap: "0.375rem",
-                            margin: "0.625rem 0 0.75rem",
-                          }}
-                        >
-                          {(msg.statusEvents ?? []).slice(-2).map((status, index) => (
-                            <div key={`${msg.id}-status-${index}`} style={{ display: "flex", alignItems: "center", gap: "0.375rem", color: "var(--text-tertiary)", fontSize: "0.6875rem", fontFamily: "var(--font-mono), monospace" }}>
-                              <span style={{ width: "0.375rem", height: "0.375rem", borderRadius: "50%", background: msg.pending ? "var(--accent)" : "var(--text-tertiary)", display: "inline-block" }} />
-                              {status}
-                            </div>
-                          ))}
-                          {(msg.toolEvents ?? []).map((tool) => (
-                            <div key={`${msg.id}-${tool.name}`} style={{ display: "flex", alignItems: "center", gap: "0.375rem", color: "var(--text-secondary)", fontSize: "0.71875rem", fontFamily: "var(--font-sans), sans-serif" }}>
-                              <span style={{ color: tool.status === "started" || tool.status === "processing" ? "var(--accent)" : tool.status === "error" ? "var(--danger, #b45309)" : "var(--text-tertiary)" }}>
-                                {tool.status === "started" || tool.status === "processing" ? "↻" : tool.status === "error" ? "!" : "✓"}
-                              </span>
-                              {tool.label}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-
-                      {needsFullPaperConfirmation(msg) && !readOnly && (
-                        <button
-                          type="button"
-                          onClick={() => sendPaperQuestion("Yes, access and index the complete paper.")}
-                          disabled={isThinking}
-                          style={{
-                            background: "var(--accent)",
-                            color: "white",
-                            border: "none",
-                            borderRadius: "0.4375rem",
-                            padding: "0.4375rem 0.75rem",
-                            fontSize: "0.75rem",
-                            fontWeight: 500,
-                            fontFamily: "var(--font-sans), sans-serif",
-                            cursor: isThinking ? "default" : "pointer",
-                            opacity: isThinking ? 0.6 : 1,
-                            margin: "0 0 0.875rem",
-                          }}
-                        >
-                          Access full paper
-                        </button>
-                      )}
-
-                      {msg.citations && msg.citations.length > 0 && (
-                        <div style={{ display: "flex", flexWrap: "wrap", gap: "0.375rem", margin: "0.625rem 0 0.875rem" }}>
-                          {msg.citations.slice(0, 6).map((citation, index) => {
-                            const href = citationHref(citation);
-                            const Chip = href ? "a" : "span";
-                            return (
-                            <Chip
-                              key={`${msg.id}-citation-${citationLabel(citation)}-${index}`}
-                              href={href}
-                              target={href ? "_blank" : undefined}
-                              rel={href ? "noopener noreferrer" : undefined}
-                              title={citationTooltip(citation)}
-                              style={{
-                                fontSize: "0.625rem",
-                                fontFamily: "var(--font-mono), monospace",
-                                color: "var(--text-tertiary)",
-                                background: "var(--bg-secondary)",
-                                border: "0.0625rem solid var(--border)",
-                                borderRadius: "999px",
-                                padding: "0.1875rem 0.4375rem",
-                                textDecoration: "none",
-                              }}
-                            >
-                              {citationLabel(citation)}
-                            </Chip>
-                          );})}
-                        </div>
-                      )}
-                    </div>
+                <div className={peek.actions}>
+                  {activePaperHref && (
+                    <a className={peek.primary} href={activePaperHref} target="_blank" rel="noopener noreferrer">
+                      {getOpenLabel(activeNode.paper.type)}
+                      <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 13 13 3M13 3H6M13 3v7" /></svg>
+                    </a>
                   )}
-                </m.div>
-              ))}
-
-              {/* Thinking indicator */}
-              <AnimatePresence>
-                {isThinking && (
-                  <m.div
-                    initial={{ opacity: 0, y: 6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0 }}
-                    style={{ display: "flex", gap: "0.25rem", alignItems: "center", paddingBottom: "0.75rem" }}
-                  >
-                    {[0, 1, 2].map((i) => (
-                      <div
-                        key={i}
-                        className="sediment-typing-dot"
-                        style={{ width: "0.375rem", height: "0.375rem", borderRadius: "0.1875rem", background: "var(--text-tertiary)", animationDelay: `${i * 0.2}s` }}
-                      />
-                    ))}
-                  </m.div>
+                  {isActivePaperCached && <button type="button" onClick={openPaperReader}>Read here</button>}
+                  {!readOnly && onGlobalChatOpenChange && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAgentMentionRequest((current) => ({ paperId: activeNode.paper.openalexId, nonce: (current?.nonce ?? 0) + 1 }));
+                        onGlobalChatOpenChange(true);
+                      }}
+                    >
+                      Ask the agent
+                    </button>
+                  )}
+                </div>
+                <section className={peek.section}>
+                  <h3>Summary</h3>
+                  <div className={peek.text}><MarkdownContent>{activeNode.paper.summary}</MarkdownContent></div>
+                </section>
+                {activeNode.paper.detail && (
+                  <section className={peek.section}>
+                    <h3>Abstract</h3>
+                    <div className={peek.text}><MarkdownContent>{activeNode.paper.detail}</MarkdownContent></div>
+                  </section>
                 )}
-              </AnimatePresence>
-
-              <div ref={chatEndRef} />
+                {activeNode.paper.concepts && activeNode.paper.concepts.length > 0 && (
+                  <ul className={peek.topics}>
+                    {activeNode.paper.concepts.map((concept) => <li key={concept}>{concept}</li>)}
+                  </ul>
+                )}
+                <dl className={peek.facts}>
+                  {typeof activeNode.paper.citedByCount === "number" && <div><dt>Cited by</dt><dd>{activeNode.paper.citedByCount.toLocaleString()}</dd></div>}
+                  {typeof activeNode.paper.referencesCount === "number" && <div><dt>References</dt><dd>{activeNode.paper.referencesCount.toLocaleString()}</dd></div>}
+                  {activeNode.paper.doi && <div><dt>DOI</dt><dd><a href={`https://doi.org/${activeNode.paper.doi.replace(/^https?:\/\/doi\.org\//, "")}`} target="_blank" rel="noopener noreferrer">{activeNode.paper.doi.replace(/^https?:\/\/doi\.org\//, "")}</a></dd></div>}
+                  <div><dt>Source</dt><dd>{getPaperSourceLabel(activeNode)}</dd></div>
+                </dl>
               </div>
-              <ConversationNavigator
-                side="left"
-                items={paperNavigationItems}
-                activeId={activePaperNavigationId}
-                onActiveChange={(messageId) => {
-                  if (activeNodeId === null) return;
-                  setActivePaperNavigationIds((current) => ({ ...current, [activeNodeId]: messageId }));
-                }}
-                onJump={jumpToPaperMessage}
-              />
-              <ConversationNavigator
-                side="right"
-                items={paperNavigationItems}
-                activeId={activePaperNavigationId}
-                onActiveChange={(messageId) => {
-                  if (activeNodeId === null) return;
-                  setActivePaperNavigationIds((current) => ({ ...current, [activeNodeId]: messageId }));
-                }}
-                onJump={jumpToPaperMessage}
-              />
             </div>
-
-            {/* Input bar */}
-            {!readOnly && <div style={{ padding: "0.75rem 1rem", borderTop: "0.0625rem solid var(--border)", flexShrink: 0 }}>
-              {activeSelectedExcerpt && (
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "flex-start",
-                    gap: "0.5rem",
-                    marginBottom: "0.5rem",
-                    padding: "0.5rem 0.625rem",
-                    borderRadius: "0.625rem",
-                    background: "var(--bg-secondary)",
-                    border: "0.0625rem solid var(--border)",
-                    color: "var(--text-secondary)",
-                  }}
-                >
-                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flexShrink: 0, marginTop: "0.0625rem", color: "var(--accent)" }}>
-                    <path d="M2 5.5h8.5M7 2l3.5 3.5L7 9" />
-                  </svg>
-                  <span style={{ flex: 1, minWidth: 0, fontSize: "0.71875rem", lineHeight: 1.45, fontFamily: "var(--font-sans), sans-serif" }}>
-                    “{excerptPreview(activeSelectedExcerpt, 240)}”
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedExcerptByNode((current) => {
-                      if (activeNodeId === null) return current;
-                      const { [activeNodeId]: _excerpt, ...remaining } = current;
-                      return remaining;
-                    })}
-                    aria-label="Remove selected excerpt"
-                    title="Remove excerpt"
-                    style={{
-                      width: "1.25rem",
-                      height: "1.25rem",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      padding: 0,
-                      flexShrink: 0,
-                      border: "none",
-                      background: "none",
-                      color: "var(--text-tertiary)",
-                      cursor: "pointer",
-                    }}
-                  >
-                    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" aria-hidden="true">
-                      <path d="m3 3 10 10M13 3 3 13" />
-                    </svg>
-                  </button>
-                </div>
-              )}
-              <form onSubmit={handleChatSubmit}>
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "0.5rem",
-                    background: "var(--bg-secondary)",
-                    border: "0.0625rem solid var(--border)",
-                    borderRadius: "0.25rem",
-                    padding: "0.5625rem 0.75rem",
-                  }}
-                >
-                  <input
-                    ref={chatInputRef}
-                    type="text"
-                    value={chatInput}
-                    onChange={(e) => setChatInput(e.target.value)}
-                    placeholder={activeSelectedExcerpt ? "Ask Sediment about this excerpt..." : "Ask about this paper..."}
-                    disabled={isThinking}
-                    style={{
-                      flex: 1,
-                      background: "none",
-                      border: "none",
-                      outline: "none",
-                      color: "var(--text-primary)",
-                      fontSize: "0.8125rem",
-                      fontFamily: "var(--font-sans), sans-serif",
-                    }}
-                  />
-                  <button
-                    type="submit"
-                    disabled={isThinking || !chatInput.trim()}
-                    style={{
-                      background: "var(--accent)",
-                      border: "none",
-                      borderRadius: "0.375rem",
-                      width: "1.75rem",
-                      height: "1.75rem",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      cursor: chatInput.trim() ? "pointer" : "default",
-                      flexShrink: 0,
-                      opacity: chatInput.trim() ? 1 : 0,
-                      transition: "opacity 0.15s",
-                      pointerEvents: chatInput.trim() ? "auto" : "none",
-                    }}
-                  >
-                    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="var(--on-accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M14 8H2M8 2l6 6-6 6" />
-                    </svg>
-                  </button>
-                </div>
-              </form>
-            </div>}
           </m.div>
         )}
       </AnimatePresence>
@@ -2759,7 +2690,7 @@ export function TimelineCanvas({
         loading={paperReaderLoading}
         error={paperReaderError}
         onClose={closePaperReader}
-        onAskSediment={askSedimentAboutSelectedExcerpt}
+        onAskSediment={readOnly ? undefined : askSedimentAboutSelectedExcerpt}
       />
 
       <SpecialNoteViewerModal
@@ -2832,16 +2763,30 @@ export function TimelineCanvas({
         </div>
       )}
 
+      {addPaperOpen && !readOnly && (
+        <AddPaperDialog
+          papersOnCanvas={canvasPaperOptions}
+          defaultLinkNodeId={activeNodeId}
+          onAdd={handleAddPaper}
+          onClose={() => setAddPaperOpen(false)}
+        />
+      )}
+
       {!readOnly && (
         <GlobalChatPanel
           data={data}
-          open={globalChatOpen && activeNodeId === null}
+          open={globalChatOpen}
           onOpenChange={onGlobalChatOpenChange ?? (() => undefined)}
           onHighlight={handleGlobalHighlight}
           onMentionedPaperIdsChange={handleGlobalMentionedPaperIdsChange}
+          mentionRequest={agentMentionRequest}
+          kickoff={agentKickoff}
+          onKickoffSent={onAgentKickoffSent}
           onLineageChanges={onLineageChanges}
           onNoteChanges={onNoteChanges}
           onNodeColorChanges={onNodeColorChanges}
+          canvasDetails={canvasDetails}
+          onCanvasDetailsChange={onCanvasDetailsChange}
           onUsageChanged={onUsageChanged}
           graphId={graphId}
           userId={userId}

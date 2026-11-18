@@ -1,160 +1,34 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { m, AnimatePresence } from "framer-motion";
 import { LogoMark } from "@/components/LogoMark";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { TimelineData, TraversalSettings } from "@/lib/types";
+import { GraphDescription } from "@/components/GraphDescription";
+import { TimelineData } from "@/lib/types";
+
+const MotionLink = m.create(Link);
 
 const GITHUB_REPO_URL = "https://github.com/shresthkapoor7/sediment";
-
-const THUMB_SIZE = 13;
-
-// Single source of truth for the traversal-settings sliders so the desktop and
-// mobile panels can't drift on ranges. Only the label differs per surface.
-const TRAVERSAL_SLIDERS = [
-  { key: "depth", label: "Depth", min: 1, max: 2 },
-  { key: "breadth", label: "Breadth", min: 1, max: 4 },
-  { key: "referenceLimit", label: "Reference limit", compactLabel: "Ref limit", min: 5, max: 30 },
-  { key: "topN", label: "Top N", min: 1, max: 6 },
-] as const;
-
-function SettingsSlider({
-  item,
-  value,
-  onChange,
-}: {
-  item: { key: string; label: string; min: number; max: number };
-  value: number;
-  onChange: (v: number) => void;
-}) {
-  const pct = ((value - item.min) / (item.max - item.min)) * 100;
-  return (
-    <label style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "baseline",
-          fontSize: "0.71875rem",
-          color: "var(--text-secondary)",
-          fontFamily: "var(--font-sans), sans-serif",
-        }}
-      >
-        <span style={{ fontWeight: 500 }}>{item.label}</span>
-        <span
-          style={{
-            fontFamily: "var(--font-mono), monospace",
-            fontSize: "0.6875rem",
-            color: "var(--accent)",
-          }}
-        >
-          {value}
-        </span>
-      </div>
-      <div
-        style={{
-          position: "relative",
-          height: "1.25rem",
-          display: "flex",
-          alignItems: "center",
-        }}
-      >
-        {/* Track */}
-        <div
-          style={{
-            position: "absolute",
-            left: 0,
-            right: 0,
-            height: "0.1875rem",
-            top: "50%",
-            transform: "translateY(-50%)",
-            borderRadius: "0.125rem",
-            background: "var(--bg-tertiary)",
-          }}
-        />
-        {/* Fill */}
-        <div
-          style={{
-            position: "absolute",
-            left: 0,
-            height: "0.1875rem",
-            top: "50%",
-            transform: "translateY(-50%)",
-            borderRadius: "0.125rem",
-            background: "var(--accent)",
-            width: `${pct}%`,
-          }}
-        />
-        {/* Thumb */}
-        <div
-          style={{
-            position: "absolute",
-            width: THUMB_SIZE,
-            height: THUMB_SIZE,
-            top: "50%",
-            transform: "translateY(-50%)",
-            borderRadius: "50%",
-            background: "var(--accent)",
-            boxShadow: "0 0.0625rem 0.25rem rgba(0,0,0,0.3)",
-            pointerEvents: "none",
-            left: `calc(${pct}% - ${(pct / 100) * THUMB_SIZE}px)`,
-          }}
-        />
-        {/* Hidden native input */}
-        <input
-          type="range"
-          min={item.min}
-          max={item.max}
-          value={value}
-          onChange={(e) => onChange(Number(e.currentTarget.value))}
-          style={{
-            position: "absolute",
-            inset: 0,
-            width: "100%",
-            margin: 0,
-            opacity: 0,
-            cursor: "pointer",
-            height: "100%",
-          }}
-        />
-      </div>
-    </label>
-  );
-}
 
 interface AppHeaderProps {
   timelineData: TimelineData | null;
   mobile: boolean;
   searchedQuery: string;
   graphTitle: string;
+  graphDescription: string;
+  onSaveGraphDescription?: (description: string) => void;
   graphTitleDraft: string;
   isEditingGraphTitle: boolean;
   canEditGraphTitle: boolean;
   graphTitleInputRef: React.RefObject<HTMLInputElement | null>;
-  isSearching: boolean;
-  isExpanding: boolean;
-  historyOpen: boolean;
-  settingsOpen: boolean;
-  settings: TraversalSettings;
-  draftSettings: TraversalSettings;
-  defaultSettings: TraversalSettings;
-  sessionActionsOpen: boolean;
   mobileMenuOpen: boolean;
   globalChatOpen: boolean;
   credits: number;
-  showCreditsHint: boolean;
   shareState: "idle" | "sharing" | "copied" | "error";
-  selectedSeedOpenalexId: string | null;
   landingScrollEl: HTMLDivElement | null;
-  setHistoryOpen: React.Dispatch<React.SetStateAction<boolean>>;
-  setSettingsOpen: React.Dispatch<React.SetStateAction<boolean>>;
-  setSettings: React.Dispatch<React.SetStateAction<TraversalSettings>>;
-  setDraftSettings: React.Dispatch<React.SetStateAction<TraversalSettings>>;
-  setSessionActionsOpen: React.Dispatch<React.SetStateAction<boolean>>;
   setMobileMenuOpen: React.Dispatch<React.SetStateAction<boolean>>;
-  setShowCreditsHint: React.Dispatch<React.SetStateAction<boolean>>;
   setGraphTitleDraft: React.Dispatch<React.SetStateAction<string>>;
   handleReset: () => void;
   handleExport: () => void;
@@ -163,13 +37,6 @@ interface AppHeaderProps {
   startGraphTitleEdit: () => void;
   saveGraphTitle: () => void;
   cancelGraphTitleEdit: () => void;
-  runSearch: (
-    query: string,
-    seedOpenalexId?: string,
-    searchSettings?: TraversalSettings,
-    requestQuery?: string,
-    selectedTraceMode?: "standard" | "deep",
-  ) => void | Promise<void>;
 }
 
 export function AppHeader({
@@ -177,72 +44,35 @@ export function AppHeader({
   mobile,
   searchedQuery,
   graphTitle,
+  graphDescription,
+  onSaveGraphDescription,
   graphTitleDraft,
   isEditingGraphTitle,
   canEditGraphTitle,
   graphTitleInputRef,
-  isSearching,
-  isExpanding,
-  historyOpen,
-  settingsOpen,
-  settings,
-  draftSettings,
-  defaultSettings,
-  sessionActionsOpen,
   mobileMenuOpen,
   globalChatOpen,
   credits,
-  showCreditsHint,
-  shareState,
-  selectedSeedOpenalexId,
   landingScrollEl,
-  setHistoryOpen,
-  setSettingsOpen,
-  setSettings,
-  setDraftSettings,
-  setSessionActionsOpen,
   setMobileMenuOpen,
-  setShowCreditsHint,
   setGraphTitleDraft,
   handleReset,
   handleExport,
-  handleShare,
   handleToggleGlobalChat,
   startGraphTitleEdit,
   saveGraphTitle,
   cancelGraphTitleEdit,
-  runSearch,
 }: AppHeaderProps) {
-  // Compaction state lives here so scrolling the landing page (or toggling the
-  // graph dock) only re-renders the header — not the whole page tree.
-  const [isLandingHeaderCompact, setIsLandingHeaderCompact] = useState(false);
+  // Compaction state lives here so toggling the graph dock only re-renders the
+  // header — not the whole page tree. The home header never collapses: it scrolls
+  // away with the page.
+  // Home header: credits sit collapsed as a ring until clicked open into the bar meter.
+  const [creditsExpanded, setCreditsExpanded] = useState(false);
   const [isGraphHeaderCompact, setIsGraphHeaderCompact] = useState(false);
-
-  useEffect(() => {
-    // On the graph view the landing scroll container is gone — keep it expanded.
-    // Depending on the element itself (passed as state) means this re-attaches
-    // exactly when the landing container mounts, regardless of timelineData.
-    if (timelineData || !landingScrollEl) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- Reset state when the landing scroll container is absent.
-      setIsLandingHeaderCompact(false);
-      return;
-    }
-    const onScroll = () => setIsLandingHeaderCompact(landingScrollEl.scrollTop > 48);
-    onScroll();
-    landingScrollEl.addEventListener("scroll", onScroll, { passive: true });
-    return () => landingScrollEl.removeEventListener("scroll", onScroll);
-  }, [timelineData, landingScrollEl]);
-
-  // Apply is a no-op unless the draft differs from the active settings.
-  const settingsChanged =
-    draftSettings.depth !== settings.depth ||
-    draftSettings.breadth !== settings.breadth ||
-    draftSettings.referenceLimit !== settings.referenceLimit ||
-    draftSettings.topN !== settings.topN;
 
   return (
       <m.header
-        className={`app-header${!timelineData ? " app-header-landing" : ""}${timelineData ? " app-header-graph" : ""}${(!timelineData && isLandingHeaderCompact) || (timelineData && isGraphHeaderCompact) ? " app-header-compact" : ""}`}
+        className={`app-header${!timelineData ? " app-header-landing" : ""}${timelineData ? " app-header-graph" : ""}${timelineData && isGraphHeaderCompact ? " app-header-compact" : ""}`}
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
@@ -256,7 +86,7 @@ export function AppHeader({
           padding: "0.75rem clamp(1rem, 4vw, 3rem)",
           borderBottom: "0.0625rem solid var(--border)",
           background: "var(--bg-primary)",
-          zIndex: !timelineData && historyOpen ? 10 : 50,
+          zIndex: 50,
           flexShrink: 0,
         }}
       >
@@ -361,7 +191,8 @@ export function AppHeader({
             )}
 
             {timelineData && (graphTitle || searchedQuery) && (
-              isEditingGraphTitle ? (
+              <div className="app-header-graph-center">
+              {isEditingGraphTitle ? (
                 <form
                   className="app-header-graph-title-form"
                   onSubmit={(event) => {
@@ -399,13 +230,17 @@ export function AppHeader({
                 <span className="app-header-graph-query" title={graphTitle || searchedQuery}>
                   {graphTitle || searchedQuery}
                 </span>
-              )
+              )}
+              {!isEditingGraphTitle && (
+                <GraphDescription description={graphDescription} onSave={onSaveGraphDescription} />
+              )}
+              </div>
             )}
 
             {!timelineData && (
               <m.button
                 type="button"
-                className="app-header-labeled-action"
+                className="app-header-labeled-action app-header-home-brand"
                 initial={{ opacity: 0, y: -4 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.25 }}
@@ -427,12 +262,12 @@ export function AppHeader({
             )}
 
             {!timelineData && (
-              <m.button
-                className="app-header-labeled-action"
+              <MotionLink
+                href="/workspaces"
+                className="app-header-labeled-action app-header-workspaces"
                 initial={{ opacity: 0, y: -4 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.25 }}
-                onClick={() => setHistoryOpen((open) => !open)}
                 style={{
                   display: "flex",
                   alignItems: "center",
@@ -440,63 +275,6 @@ export function AppHeader({
                   padding: "0 0.75rem",
                   height: "2rem",
                   boxSizing: "border-box",
-                  background: historyOpen ? "var(--accent-soft)" : "none",
-                  border: `0.0625rem solid ${historyOpen ? "var(--accent)" : "var(--border)"}`,
-                  borderRadius: "0.4375rem",
-                  color: historyOpen
-                    ? "var(--accent)"
-                    : "var(--text-secondary)",
-                  fontSize: "0.75rem",
-                  fontFamily: "var(--font-sans), sans-serif",
-                  fontWeight: 500,
-                  cursor: "pointer",
-                  transition:
-                    "border-color 0.15s, color 0.15s, background 0.15s",
-                }}
-              >
-                <svg
-                  width="13"
-                  height="13"
-                  viewBox="0 0 16 16"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M2.5 3.5h11M2.5 8h11M2.5 12.5h11" />
-                  <path d="M4.5 3.5v9" opacity="0.35" />
-                </svg>
-                <span className="app-header-action-label">History</span>
-              </m.button>
-            )}
-
-            {!timelineData && (
-              <Link className="app-header-labeled-action feeds-nav-link" href="/feeds" aria-label="Feeds" title="Feeds">
-                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" aria-hidden="true"><rect x="2" y="2" width="5" height="7" rx="1" /><rect x="9" y="2" width="5" height="4" rx="1" /><rect x="2" y="11" width="5" height="3" rx="1" /><rect x="9" y="8" width="5" height="6" rx="1" /></svg>
-                <span className="app-header-action-label">Feeds <span className="feeds-new">New</span></span>
-              </Link>
-            )}
-
-            {!timelineData && (
-              <Link className="app-header-labeled-action feeds-nav-link" href="/discovery" aria-label="Discovery" title="Discovery">
-                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" aria-hidden="true"><path d="M5 8h3M8 4v8M8 4h3M8 12h3" /><rect x="1" y="6" width="4" height="4" rx=".75" /><rect x="11" y="2" width="4" height="4" rx=".75" /><rect x="11" y="10" width="4" height="4" rx=".75" /></svg>
-                <span className="app-header-action-label">Discovery <span className="feeds-new">New</span></span>
-              </Link>
-            )}
-
-            {!timelineData && (
-              <Link
-                className="app-header-labeled-action"
-                href="/changelog"
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.375rem",
-                  padding: "0 0.75rem",
-                  height: "2rem",
-                  boxSizing: "border-box",
-                  background: "none",
                   border: "0.0625rem solid var(--border)",
                   borderRadius: "0.4375rem",
                   color: "var(--text-secondary)",
@@ -504,58 +282,30 @@ export function AppHeader({
                   fontFamily: "var(--font-sans), sans-serif",
                   fontWeight: 500,
                   textDecoration: "none",
-                  transitionProperty: "border-color, color, background",
-                  transitionDuration: "0.15s",
+                  cursor: "pointer",
+                  transition: "border-color 0.15s, color 0.15s",
                 }}
               >
-                <svg
-                  width="13"
-                  height="13"
-                  viewBox="0 0 16 16"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M3 2.5h7l3 3v8H3z" />
-                  <path d="M10 2.5v3h3M5.5 8h5M5.5 10.5h5" />
-                </svg>
-                <span className="app-header-action-label">Changelog</span>
-              </Link>
+                <span className="app-header-action-label">Workspaces</span>
+              </MotionLink>
             )}
 
             {/* Credits indicator */}
             <div
-              className="app-header-credit"
+              className={`app-header-credit${creditsExpanded ? " app-header-credit-expanded" : ""}`}
               style={{ position: "relative" }}
-              onMouseEnter={() => setShowCreditsHint(true)}
-              onMouseLeave={() => setShowCreditsHint(false)}
+              title="Daily usage limit"
             >
-              {showCreditsHint && (
-                <div
-                  style={{
-                    position: "absolute",
-                    top: "calc(100% + 0.5rem)",
-                    right: 0,
-                    width: "8rem",
-                    padding: "0.5rem 0.625rem",
-                    borderRadius: "0.5rem",
-                    border: "0.0625rem solid var(--border-hover)",
-                    background: "var(--bg-secondary)",
-                    boxShadow:
-                      "0 0.5rem 1.5rem rgba(0,0,0,0.10), 0 0.125rem 0.375rem rgba(0,0,0,0.06)",
-                    color: "var(--text-secondary)",
-                    fontSize: "0.6875rem",
-                    lineHeight: 1.45,
-                    zIndex: 110,
-                    pointerEvents: "none",
-                  }}
-                >
-                  Daily usage credits
-                </div>
-              )}
               <div className="app-header-credit-indicator">
+                {!timelineData && (
+                  <button
+                    type="button"
+                    className="app-header-credit-toggle"
+                    onClick={() => setCreditsExpanded((open) => !open)}
+                    aria-expanded={creditsExpanded}
+                    aria-label={creditsExpanded ? "Collapse usage credits" : "Expand usage credits"}
+                  />
+                )}
                 <div className="app-header-credit-visual" aria-hidden="true">
                   <div
                     className="app-header-credit-bars"
@@ -627,261 +377,15 @@ export function AppHeader({
               </div>
             </div>
 
-            {/* Settings / graph session actions */}
-            <div style={{ position: "relative" }}>
-              <button
-                className={`app-header-labeled-action${timelineData ? " app-header-graph-icon-action" : ""}`}
-                onClick={() => {
-                  if (timelineData) {
-                    setSessionActionsOpen((open) => !open);
-                    setSettingsOpen(false);
-                    setDraftSettings(settings);
-                    return;
-                  }
-                  setDraftSettings(settings);
-                  setSettingsOpen((open) => !open);
-                }}
-                aria-label={timelineData ? "Session actions" : "Settings"}
-                aria-expanded={timelineData ? sessionActionsOpen : settingsOpen}
-                title={timelineData ? "Session actions" : undefined}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: timelineData ? 0 : "0.375rem",
-                  padding: timelineData ? 0 : "0 0.75rem",
-                  width: timelineData ? "2rem" : "auto",
-                  height: "2rem",
-                  boxSizing: "border-box",
-                  background: "none",
-                  border: "0.0625rem solid var(--border)",
-                  borderRadius: "0.4375rem",
-                  color: "var(--text-secondary)",
-                  fontSize: "0.75rem",
-                  fontFamily: "var(--font-sans), sans-serif",
-                  fontWeight: 500,
-                  cursor: "pointer",
-                  transition: "border-color 0.15s, color 0.15s",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.borderColor = "var(--accent)";
-                  e.currentTarget.style.color = "var(--accent)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.borderColor = "var(--border)";
-                  e.currentTarget.style.color = "var(--text-secondary)";
-                }}
-              >
-                {timelineData ? (
-                  <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-                    <circle cx="3" cy="8" r="1.35" />
-                    <circle cx="8" cy="8" r="1.35" />
-                    <circle cx="13" cy="8" r="1.35" />
-                  </svg>
-                ) : (
-                  <>
-                    <svg
-                      width="13"
-                      height="13"
-                      viewBox="0 0 16 16"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.5"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M6.5 1.5h3M6 14.5h4M3.5 5.5h9M2.5 10.5h11" />
-                      <circle cx="10.5" cy="5.5" r="1.5" />
-                      <circle cx="5.5" cy="10.5" r="1.5" />
-                    </svg>
-                    <span className="app-header-action-label">Settings</span>
-                  </>
-                )}
-              </button>
-
-              <AnimatePresence>
-                {(settingsOpen || sessionActionsOpen) && (
-                  <m.div
-                    initial={{ opacity: 0, y: -6, scale: 0.98 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: -6, scale: 0.98 }}
-                    transition={{ duration: 0.15, ease: "easeOut" }}
-                    style={{
-                      position: "absolute",
-                      top: "2.5rem",
-                      right: 0,
-                      width: timelineData ? "16rem" : "15rem",
-                      padding: "0.875rem 0.875rem 0.75rem",
-                      background: "var(--bg-secondary)",
-                      border: "0.0625rem solid var(--border-hover)",
-                      borderRadius: "0.625rem",
-                      boxShadow:
-                        "0 0.5rem 1.5rem rgba(0,0,0,0.10), 0 0.125rem 0.375rem rgba(0,0,0,0.06)",
-                      zIndex: 100,
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: "0.625rem",
-                    }}
-                  >
-                    {timelineData && (
-                      <p
-                        style={{
-                          fontSize: "0.625rem",
-                          color: "var(--text-tertiary)",
-                          fontFamily: "var(--font-mono), monospace",
-                          letterSpacing: "0.06em",
-                          textTransform: "uppercase",
-                        }}
-                      >
-                        Session actions
-                      </p>
-                    )}
-                    {timelineData && (
-                      <div
-                        style={{
-                          display: "flex",
-                          flexDirection: "column",
-                          gap: "0.125rem",
-                          paddingBottom: "0.625rem",
-                          borderBottom: "0.0625rem solid var(--border)",
-                        }}
-                      >
-                        <button
-                          onClick={() => {
-                            handleExport();
-                            setSessionActionsOpen(false);
-                          }}
-                          style={{
-                            display: "flex", alignItems: "center", gap: "0.625rem", width: "100%", height: "2rem", padding: "0 0.5rem", border: "none", borderRadius: "0.375rem", background: "none", color: "var(--text-primary)", cursor: "pointer", fontFamily: "var(--font-sans), sans-serif", fontSize: "0.75rem", fontWeight: 500, textAlign: "left",
-                          }}
-                        >
-                          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="var(--text-tertiary)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M8 2v9M4 7l4 4 4-4" /><path d="M2 13h12" /></svg>
-                          Export
-                        </button>
-                        <button
-                          onClick={() => void handleShare()}
-                          disabled={shareState === "sharing"}
-                          style={{
-                            display: "flex", alignItems: "center", gap: "0.625rem", width: "100%", height: "2rem", padding: "0 0.5rem", border: "none", borderRadius: "0.375rem", background: "none", color: shareState === "copied" ? "var(--accent)" : "var(--text-primary)", cursor: shareState === "sharing" ? "default" : "pointer", fontFamily: "var(--font-sans), sans-serif", fontSize: "0.75rem", fontWeight: 500, textAlign: "left",
-                          }}
-                        >
-                          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke={shareState === "copied" ? "var(--accent)" : "var(--text-tertiary)"} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M11 3a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM5 8a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM11 9a2 2 0 1 1 0 4 2 2 0 0 1 0-4z" /><path d="M9 4.5l-4 3M9 11.5l-4-3" /></svg>
-                          {shareState === "sharing" ? "Sharing…" : shareState === "copied" ? "Link copied" : shareState === "error" ? "Share failed" : "Share"}
-                        </button>
-                        <a
-                          href={GITHUB_REPO_URL}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          style={{ display: "flex", alignItems: "center", gap: "0.625rem", width: "100%", height: "2rem", padding: "0 0.5rem", borderRadius: "0.375rem", color: "var(--text-primary)", fontFamily: "var(--font-sans), sans-serif", fontSize: "0.75rem", fontWeight: 500, textDecoration: "none" }}
-                        >
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style={{ color: "var(--text-tertiary)" }} aria-hidden="true">
-                            <path d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.7c-2.78.6-3.36-1.34-3.36-1.34-.45-1.15-1.1-1.46-1.1-1.46-.9-.62.07-.61.07-.61 1 .07 1.53 1.03 1.53 1.03.89 1.53 2.34 1.09 2.91.83.09-.65.35-1.09.63-1.34-2.22-.25-4.55-1.11-4.55-4.94 0-1.09.39-1.98 1.03-2.68-.1-.25-.45-1.27.1-2.65 0 0 .84-.27 2.75 1.02A9.5 9.5 0 0 1 12 6.84c.85 0 1.71.11 2.5.34 1.91-1.29 2.75-1.02 2.75-1.02.55 1.38.2 2.4.1 2.65.64.7 1.03 1.59 1.03 2.68 0 3.84-2.34 4.69-4.57 4.94.36.31.68.92.68 1.85v2.74c0 .27.18.58.69.48A10 10 0 0 0 12 2z" />
-                          </svg>
-                          GitHub
-                        </a>
-                        <ThemeToggle className="app-header-graph-session-theme" showLabel fullWidth />
-                      </div>
-                    )}
-                    <p
-                      style={{
-                        fontSize: "0.625rem",
-                        color: "var(--text-tertiary)",
-                        fontFamily: "var(--font-mono), monospace",
-                        letterSpacing: "0.06em",
-                        textTransform: "uppercase",
-                      }}
-                    >
-                      traversal settings
-                    </p>
-                    {TRAVERSAL_SLIDERS.map((slider) => (
-                      <SettingsSlider
-                        key={slider.key}
-                        item={{ key: slider.key, label: slider.label, min: slider.min, max: slider.max }}
-                        value={draftSettings[slider.key]}
-                        onChange={(v) =>
-                          setDraftSettings((prev) => ({
-                            ...prev,
-                            [slider.key]: v,
-                          }))
-                        }
-                      />
-                    ))}
-                    <p
-                      style={{
-                        margin: "0.125rem 0 0",
-                        fontSize: "0.6875rem",
-                        lineHeight: 1.5,
-                        color: "var(--text-tertiary)",
-                      }}
-                    >
-                      Daily limits use an anonymous server-derived identifier
-                      for abuse prevention and API cost control.
-                    </p>
-                    <div
-                      style={{
-                        display: "flex",
-                        gap: "0.375rem",
-                        alignItems: "center",
-                        marginTop: "0.125rem",
-                        borderTop: "0.0625rem solid var(--border)",
-                        paddingTop: "0.625rem",
-                      }}
-                    >
-                      <button
-                        onClick={() => setDraftSettings(defaultSettings)}
-                        style={{
-                          height: "1.625rem",
-                          padding: "0 0.5rem",
-                          borderRadius: "0.375rem",
-                          border: "none",
-                          background: "none",
-                          color: "var(--text-tertiary)",
-                          cursor: "pointer",
-                          fontSize: "0.6875rem",
-                          fontFamily: "var(--font-sans), sans-serif",
-                          fontWeight: 500,
-                          letterSpacing: "0.01em",
-                        }}
-                      >
-                        Reset
-                      </button>
-                      <div style={{ flex: 1 }} />
-                      <button
-                        onClick={() => {
-                          if (isExpanding) return;
-                          setSettings(draftSettings);
-                          if (searchedQuery && !isSearching)
-                            void runSearch(
-                              searchedQuery,
-                              selectedSeedOpenalexId ?? undefined,
-                              draftSettings,
-                            );
-                          setSettingsOpen(false);
-                          setSessionActionsOpen(false);
-                        }}
-                        disabled={isExpanding || !settingsChanged}
-                        style={{
-                          height: "1.625rem",
-                          padding: "0 0.625rem",
-                          borderRadius: "0.375rem",
-                          border: "0.0625rem solid var(--accent)",
-                          background: "var(--accent-soft)",
-                          color: "var(--accent)",
-                          cursor: isExpanding || !settingsChanged ? "default" : "pointer",
-                          opacity: settingsChanged ? 1 : 0.45,
-                          fontSize: "0.6875rem",
-                          fontFamily: "var(--font-sans), sans-serif",
-                          fontWeight: 600,
-                          letterSpacing: "0.01em",
-                        }}
-                      >
-                        Apply
-                      </button>
-                    </div>
-                  </m.div>
-                )}
-              </AnimatePresence>
-            </div>
+            {/* Canvas actions sit in the bar itself. */}
+            {timelineData && (
+              <>
+                <button type="button" className="app-header-labeled-action" onClick={handleExport} title="Export markdown">
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M8 2.5v7.5M5 7.5l3 3 3-3M3 13h10" /></svg>
+                  <span className="app-header-action-label">Export</span>
+                </button>
+              </>
+            )}
 
             {timelineData && (
               <button
@@ -903,50 +407,6 @@ export function AppHeader({
                 )}
               </button>
             )}
-
-            <a
-              className="app-header-labeled-action app-header-github-action"
-              href={GITHUB_REPO_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label="View on GitHub"
-              style={{
-                display: timelineData ? "none" : "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                width: "2rem",
-                height: "2rem",
-                borderRadius: "0.4375rem",
-                border: "0.0625rem solid var(--border)",
-                color: "var(--text-secondary)",
-                transition: "border-color 0.15s, color 0.15s",
-                flexShrink: 0,
-              }}
-              onMouseEnter={(e) => {
-                (e.currentTarget as HTMLAnchorElement).style.borderColor =
-                  "var(--accent)";
-                (e.currentTarget as HTMLAnchorElement).style.color =
-                  "var(--accent)";
-              }}
-              onMouseLeave={(e) => {
-                (e.currentTarget as HTMLAnchorElement).style.borderColor =
-                  "var(--border)";
-                (e.currentTarget as HTMLAnchorElement).style.color =
-                  "var(--text-secondary)";
-              }}
-            >
-              <svg
-                width="15"
-                height="15"
-                viewBox="0 0 24 24"
-                fill="currentColor"
-              >
-                <path d="M12 2C6.477 2 2 6.477 2 12c0 4.418 2.865 8.166 6.839 9.489.5.092.682-.217.682-.482 0-.237-.009-.868-.013-1.703-2.782.604-3.369-1.342-3.369-1.342-.454-1.155-1.11-1.463-1.11-1.463-.908-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.831.092-.646.35-1.086.636-1.336-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.029-2.683-.103-.253-.446-1.27.098-2.647 0 0 .84-.269 2.75 1.025A9.578 9.578 0 0 1 12 6.836a9.59 9.59 0 0 1 2.504.337c1.909-1.294 2.747-1.025 2.747-1.025.546 1.377.203 2.394.1 2.647.64.699 1.028 1.592 1.028 2.683 0 3.842-2.339 4.687-4.566 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.741 0 .267.18.578.688.48C19.138 20.163 22 16.418 22 12c0-5.523-4.477-10-10-10z" />
-              </svg>
-              {!timelineData && (
-                <span className="app-header-action-label">GitHub</span>
-              )}
-            </a>
           </div>
 
           {/* Always-visible: theme toggle + mobile hamburger */}
@@ -971,18 +431,16 @@ export function AppHeader({
                 <span className="app-header-action-label app-header-sediment-label">Sediment</span>
               </button>
             )}
-            {!timelineData && (
-              <ThemeToggle
-                showLabel
-                className="app-header-labeled-action"
-              />
+            {!timelineData && mobile && (
+              <ThemeToggle className="app-header-labeled-action" />
             )}
 
             {timelineData && (
               <button
                 className="app-header-graph-icon-action"
                 onClick={handleToggleGlobalChat}
-                aria-label={globalChatOpen ? "Close timeline sidebar" : "Open timeline sidebar"}
+                aria-label={globalChatOpen ? "Close agent" : "Open agent"}
+                title={globalChatOpen ? "Close agent" : "Open agent"}
                 aria-pressed={globalChatOpen}
                 style={{
                   display: "flex",
@@ -990,21 +448,19 @@ export function AppHeader({
                   justifyContent: "center",
                   width: "2rem",
                   height: "2rem",
-                  background: globalChatOpen ? "var(--accent-soft)" : "none",
-                  border: `0.0625rem solid ${globalChatOpen ? "var(--accent)" : "var(--border)"}`,
+                  background: globalChatOpen ? "var(--bg-tertiary)" : "none",
+                  border: "none",
                   borderRadius: "0.4375rem",
-                  color: globalChatOpen ? "var(--accent)" : "var(--text-secondary)",
+                  color: globalChatOpen ? "var(--text-primary)" : "var(--text-secondary)",
                   cursor: "pointer",
                   padding: 0,
-                  transition: "border-color 0.15s, color 0.15s, background 0.15s",
+                  transition: "color 0.15s, background 0.15s",
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.borderColor = "var(--accent)";
-                  e.currentTarget.style.color = "var(--accent)";
+                  e.currentTarget.style.color = "var(--text-primary)";
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.borderColor = globalChatOpen ? "var(--accent)" : "var(--border)";
-                  e.currentTarget.style.color = globalChatOpen ? "var(--accent)" : "var(--text-secondary)";
+                  e.currentTarget.style.color = globalChatOpen ? "var(--text-primary)" : "var(--text-secondary)";
                 }}
               >
                 <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -1019,7 +475,6 @@ export function AppHeader({
               className="show-mobile"
               onClick={() => {
                 setMobileMenuOpen((o) => !o);
-                setDraftSettings(settings);
               }}
               aria-label="Menu"
               style={{
@@ -1098,7 +553,7 @@ export function AppHeader({
             >
               {/* Credits row */}
               <div
-                title="Daily usage credits"
+                title="Daily usage limit"
                 style={{
                   display: "flex",
                   alignItems: "center",
@@ -1169,61 +624,34 @@ export function AppHeader({
                 </div>
               </div>
 
-              {/* History */}
+              {/* Workspaces */}
               {!timelineData && (
-                <button
-                  onClick={() => {
-                    setHistoryOpen((o) => !o);
-                    setMobileMenuOpen(false);
-                  }}
+                <Link
+                  href="/workspaces"
+                  onClick={() => setMobileMenuOpen(false)}
                   style={{
                     display: "flex",
                     alignItems: "center",
                     gap: "0.625rem",
                     width: "100%",
                     padding: "0.625rem 0.5rem",
-                    background: "none",
-                    border: "none",
                     borderRadius: "0.5rem",
                     color: "var(--text-primary)",
                     fontSize: "0.875rem",
                     fontFamily: "var(--font-sans), sans-serif",
                     fontWeight: 500,
-                    cursor: "pointer",
-                    textAlign: "left",
-                    transition: "background 0.15s",
-                  }}
-                  onTouchStart={(e) => {
-                    e.currentTarget.style.background = "var(--bg-secondary)";
-                  }}
-                  onTouchEnd={(e) => {
-                    e.currentTarget.style.background = "none";
-                  }}
-                  onTouchCancel={(e) => {
-                    e.currentTarget.style.background = "none";
+                    textDecoration: "none",
                   }}
                 >
-                  <svg
-                    width="15"
-                    height="15"
-                    viewBox="0 0 16 16"
-                    fill="none"
-                    stroke="var(--text-tertiary)"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M2.5 3.5h11M2.5 8h11M2.5 12.5h11" />
-                    <path d="M4.5 3.5v9" opacity="0.35" />
-                  </svg>
-                  History
-                </button>
+                  <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="var(--text-tertiary)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="2" y="2.5" width="12" height="3.5" rx="1" /><rect x="2" y="8.5" width="5.5" height="5" rx="1" /><rect x="9" y="8.5" width="5" height="5" rx="1" /></svg>
+                  Workspaces
+                </Link>
               )}
 
               {!timelineData && (
                 <Link className="feeds-nav-link feeds-mobile-link" href="/feeds" onClick={() => setMobileMenuOpen(false)}>
                   <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="var(--text-tertiary)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="2" y="2" width="5" height="7" rx="1" /><rect x="9" y="2" width="5" height="4" rx="1" /><rect x="2" y="11" width="5" height="3" rx="1" /><rect x="9" y="8" width="5" height="6" rx="1" /></svg>
-                  <span>Feeds</span><span className="feeds-new">New</span>
+                  <span>Feeds</span>
                 </Link>
               )}
 
@@ -1268,110 +696,6 @@ export function AppHeader({
                   Changelog
                 </Link>
               )}
-
-              {/* Settings — inline sliders */}
-              <div style={{ padding: "0.5rem 0.5rem 0.25rem" }}>
-                <p
-                  style={{
-                    fontSize: "0.625rem",
-                    color: "var(--text-tertiary)",
-                    fontFamily: "var(--font-mono), monospace",
-                    letterSpacing: "0.06em",
-                    textTransform: "uppercase",
-                    marginBottom: "0.625rem",
-                  }}
-                >
-                  traversal settings
-                </p>
-                <div
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "0.625rem",
-                  }}
-                >
-                  {TRAVERSAL_SLIDERS.map((slider) => (
-                    <SettingsSlider
-                      key={slider.key}
-                      item={{
-                        key: slider.key,
-                        label: "compactLabel" in slider ? slider.compactLabel : slider.label,
-                        min: slider.min,
-                        max: slider.max,
-                      }}
-                      value={draftSettings[slider.key]}
-                      onChange={(v) =>
-                        setDraftSettings((prev) => ({ ...prev, [slider.key]: v }))
-                      }
-                    />
-                  ))}
-                </div>
-                <p
-                  style={{
-                    marginTop: "0.625rem",
-                    fontSize: "0.75rem",
-                    lineHeight: 1.5,
-                    color: "var(--text-tertiary)",
-                  }}
-                >
-                  Daily limits use an anonymous server-derived identifier for
-                  abuse prevention and API cost control.
-                </p>
-                <div
-                  style={{
-                    display: "flex",
-                    gap: "0.375rem",
-                    marginTop: "0.75rem",
-                  }}
-                >
-                  <button
-                    onClick={() => setDraftSettings(defaultSettings)}
-                    style={{
-                      flex: 1,
-                      height: "2.25rem",
-                      borderRadius: "0.5rem",
-                      border: "0.0625rem solid var(--border)",
-                      background: "none",
-                      color: "var(--text-secondary)",
-                      cursor: "pointer",
-                      fontSize: "0.8125rem",
-                      fontFamily: "var(--font-sans), sans-serif",
-                      fontWeight: 500,
-                    }}
-                  >
-                    Reset
-                  </button>
-                  <button
-                    onClick={() => {
-                      if (isExpanding) return;
-                      setSettings(draftSettings);
-                      if (searchedQuery && !isSearching)
-                        void runSearch(
-                          searchedQuery,
-                          selectedSeedOpenalexId ?? undefined,
-                          draftSettings,
-                        );
-                      setMobileMenuOpen(false);
-                    }}
-                    disabled={isExpanding || !settingsChanged}
-                    style={{
-                      flex: 1,
-                      height: "2.25rem",
-                      borderRadius: "0.5rem",
-                      border: "0.0625rem solid var(--accent)",
-                      background: "var(--accent)",
-                      color: "#fff",
-                      cursor: isExpanding || !settingsChanged ? "default" : "pointer",
-                      opacity: settingsChanged ? 1 : 0.45,
-                      fontSize: "0.8125rem",
-                      fontFamily: "var(--font-sans), sans-serif",
-                      fontWeight: 600,
-                    }}
-                  >
-                    Apply
-                  </button>
-                </div>
-              </div>
 
               {/* Divider before action buttons */}
               {timelineData && (
@@ -1512,69 +836,6 @@ export function AppHeader({
                 </button>
               )}
 
-              {/* Share */}
-              {timelineData && (
-                <button
-                  onClick={() => {
-                    void handleShare();
-                    setMobileMenuOpen(false);
-                  }}
-                  disabled={shareState === "sharing"}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "0.625rem",
-                    width: "100%",
-                    padding: "0.625rem 0.5rem",
-                    background: "none",
-                    border: "none",
-                    borderRadius: "0.5rem",
-                    color:
-                      shareState === "copied"
-                        ? "var(--accent)"
-                        : "var(--text-primary)",
-                    fontSize: "0.875rem",
-                    fontFamily: "var(--font-sans), sans-serif",
-                    fontWeight: 500,
-                    cursor: shareState === "sharing" ? "default" : "pointer",
-                    textAlign: "left",
-                  }}
-                  onTouchStart={(e) => {
-                    e.currentTarget.style.background = "var(--bg-secondary)";
-                  }}
-                  onTouchEnd={(e) => {
-                    e.currentTarget.style.background = "none";
-                  }}
-                  onTouchCancel={(e) => {
-                    e.currentTarget.style.background = "none";
-                  }}
-                >
-                  <svg
-                    width="15"
-                    height="15"
-                    viewBox="0 0 16 16"
-                    fill="none"
-                    stroke={
-                      shareState === "copied"
-                        ? "var(--accent)"
-                        : "var(--text-tertiary)"
-                    }
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M11 3a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM5 8a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM11 9a2 2 0 1 1 0 4 2 2 0 0 1 0-4z" />
-                    <path d="M9 4.5l-4 3M9 11.5l-4-3" />
-                  </svg>
-                  {shareState === "sharing"
-                    ? "Sharing..."
-                    : shareState === "copied"
-                      ? "Link copied!"
-                      : shareState === "error"
-                        ? "Share failed"
-                        : "Copy share link"}
-                </button>
-              )}
 
               {/* GitHub */}
               <a

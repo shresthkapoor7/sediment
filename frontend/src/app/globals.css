@@ -393,14 +393,12 @@ body {
     gap: 0 !important;
   }
 
+  /* Canvas header: a full-width bar. Sidebar toggle and title on the left, credits and menu on the right. */
   .app-header-graph {
-    position: absolute !important;
-    inset: 0 0 auto !important;
     width: 100%;
-    min-height: 0 !important;
-    padding: 0 !important;
+    min-height: 3rem !important;
+    padding: 0 0.75rem !important;
     border-bottom: none !important;
-    background: transparent !important;
     box-shadow: none !important;
   }
 
@@ -410,20 +408,30 @@ body {
   }
 
   .app-header-graph .app-header-actions {
-    position: absolute;
-    top: 0.75rem;
-    left: 50%;
-    transform: translateX(-50%);
+    flex: 1 1 auto;
+    min-width: 0;
     gap: 0.25rem !important;
-    width: max-content;
-    max-width: calc(100vw - 2rem);
-    padding: 0.3125rem 0.375rem;
-    border: 0.0625rem solid color-mix(in srgb, var(--border) 72%, transparent);
-    border-radius: 0.5rem;
-    background: color-mix(in srgb, var(--bg-primary) 88%, transparent);
-    box-shadow: 0 0.5rem 1.5rem rgba(0, 0, 0, 0.10);
-    backdrop-filter: blur(16px);
-    transition: padding 200ms ease, gap 200ms ease;
+  }
+
+  .app-header-graph .app-header-actions > div:not(.desktop-only) {
+    order: -1;
+  }
+
+  .app-header-graph .app-header-credit {
+    margin-left: auto;
+  }
+
+  .app-header.app-header-graph .app-header-graph-compact-toggle {
+    display: none !important;
+  }
+
+  .app-header.app-header-graph .app-header-graph-icon-action {
+    border: none !important;
+  }
+
+  .app-header-graph button:focus-visible {
+    outline: 1px solid var(--border-hover);
+    outline-offset: 0;
   }
 
   .app-header-graph .desktop-only {
@@ -466,57 +474,60 @@ body {
   .app-header-graph-query {
     display: inline-block;
     min-width: 0;
-    max-width: min(22vw, 20rem);
-    padding-bottom: 0.0625rem;
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    max-width: min(32vw, 26rem);
+    padding: 0.3125rem 0.625rem;
     overflow: hidden;
-    border-bottom: 0.0625rem solid color-mix(in srgb, var(--text-secondary) 48%, transparent);
-    color: var(--text-secondary);
-    font-family: var(--font-mono), monospace;
-    font-size: 0.75rem;
+    border: none;
+    border-radius: 0.5rem;
+    background: transparent;
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: 0.875rem;
     font-weight: 500;
-    letter-spacing: 0.02em;
+    line-height: 1.25rem;
     text-overflow: ellipsis;
     white-space: nowrap;
-    transition: max-width 200ms ease, opacity 150ms ease, padding 200ms ease, border-color 150ms ease;
+    transition: background 150ms ease, opacity 150ms ease;
   }
 
   .app-header-graph-title-button {
-    border: none;
-    background: transparent;
     cursor: text;
-    text-align: left;
+    text-align: center;
   }
 
   .app-header-graph-title-button:hover {
-    border-bottom-color: var(--accent);
-    color: var(--text-primary);
+    background: var(--bg-tertiary);
   }
 
   .app-header-graph-title-form {
-    min-width: 0;
-    max-width: min(22vw, 20rem);
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: min(32vw, 26rem);
   }
 
   .app-header-graph-title-input {
     width: 100%;
-    min-width: 8rem;
     box-sizing: border-box;
-    padding: 0 0 0.0625rem;
+    padding: 0.3125rem 0.625rem;
     border: none;
-    border-bottom: 0.0625rem solid var(--accent);
+    border-radius: 0.5rem;
     outline: none;
-    background: transparent;
+    background: var(--bg-tertiary);
     color: var(--text-primary);
-    font-family: var(--font-mono), monospace;
-    font-size: 0.75rem;
+    font-family: inherit;
+    font-size: 0.875rem;
     font-weight: 500;
-    letter-spacing: 0.02em;
+    line-height: 1.25rem;
+    text-align: center;
   }
 
   .app-header-compact .app-header-graph-query {
-    max-width: 0;
-    padding-bottom: 0;
-    border-bottom-color: transparent;
     opacity: 0;
   }
 
@@ -789,10 +800,20 @@ body {
 }
 
 button:focus-visible,
-a:focus-visible,
-input:focus-visible {
+a:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 3px;
+}
+
+/* Text fields never get a focus ring, glow or border change. */
+input:focus,
+input:focus-visible,
+textarea:focus,
+textarea:focus-visible,
+select:focus,
+select:focus-visible {
+  outline: none;
+  box-shadow: none;
 }
 
 /* ── Typography ── */
@@ -999,6 +1020,7 @@ details[open] > .chat-trace-summary::before {
 }
 
 .landing-scroll-root {
+  z-index: 1;
   overflow-y: auto;
   overflow-x: hidden;
   scroll-behavior: smooth;
@@ -1018,9 +1040,7 @@ details[open] > .chat-trace-summary::before {
 }
 
 html[data-theme="dark"] .landing-shell,
-html[data-theme="dark"] .feeds-shell,
-html[data-theme="dark"] .canvas-shell,
-html[data-theme="dark"] .graph-loading-shell {
+html[data-theme="dark"] .feeds-shell {
   --accent: #4B8BF4;
   --accent-hover: #6BA2F7;
   --accent-soft: rgba(75, 139, 244, 0.14);
@@ -1028,9 +1048,7 @@ html[data-theme="dark"] .graph-loading-shell {
   --edge-color-active: #4B8BF4;
 }
 
-html[data-theme="dark"] .canvas-shell,
-html[data-theme="dark"] .feeds-shell,
-html[data-theme="dark"] .graph-loading-shell {
+html[data-theme="dark"] .feeds-shell {
   --bg-primary: #0A0D10;
   --bg-canvas: #0A0D10;
   --canvas-dot: #1B2330;
@@ -1046,57 +1064,241 @@ html[data-theme="dark"] .feeds-shell {
   --border-hover: #34404D;
 }
 
-html[data-theme="dark"] .landing-hero-shell {
-  background-color: #0A0D10;
+
+/* Home screen palette — deep black and white (light mode inverts), no chroma. Scoped to the
+   landing state, the loading screen and the canvas; feeds keep the app's blue accent. */
+.landing-shell,
+.canvas-shell {
+  /* the hero no longer paints the page, so the shell does (the backdrop sits between) */
+  background: var(--bg-primary);
+  --font-sans: var(--font-geist-sans), system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  /* body resolves --font-sans at the root (Inter), so set the family here for inherited text too;
+     the cv/ss sets that body turns on are Inter's */
+  font-family: var(--font-sans);
+  font-feature-settings: normal;
+  --bg-primary: #fafafa;
+  --bg-secondary: #f4f4f4;
+  --bg-tertiary: #ececec;
+  --bg-canvas: #fafafa;
+  --text-primary: #0f0f0f;
+  --text-secondary: #4a4a4a;
+  --text-tertiary: #8a8a8a;
+  --border: #e4e4e4;
+  --border-hover: #cfcfcf;
+  --accent: #0f0f0f;
+  --accent-hover: #000000;
+  --accent-soft: rgba(15, 15, 15, 0.06);
+  --accent-glow: rgba(15, 15, 15, 0.1);
+  --on-accent: #fafafa;
+  --node-bg: #ffffff;
+  --node-border: #e4e4e4;
 }
 
-html[data-theme="dark"] .landing-shell .demo-final-section {
-  background-color: #0A0D10;
+html[data-theme="dark"] .landing-shell,
+html[data-theme="dark"] .canvas-shell {
+  --bg-primary: #0d0d0d;
+  --bg-secondary: #141414;
+  --bg-tertiary: #1c1c1c;
+  --bg-canvas: #0d0d0d;
+  --text-primary: #f2f2f2;
+  --text-secondary: #b4b4b4;
+  --text-tertiary: #767676;
+  --border: #2b2b2b;
+  --border-hover: #3d3d3d;
+  --accent: #f2f2f2;
+  --accent-hover: #ffffff;
+  --accent-soft: rgba(242, 242, 242, 0.08);
+  --accent-glow: rgba(242, 242, 242, 0.12);
+  --on-accent: #0d0d0d;
+  --node-bg: #111111;
+  --node-border: #2b2b2b;
+}
+
+/* Sticky-note fills: opaque and flat, so nothing shows through them. */
+:root {
+  --note-paper: #e9ecef;
+  --note-amber: #ffec99;
+  --note-blue: #c5e3ff;
+  --note-green: #c3f0ca;
+  --note-rose: #ffd0d0;
+}
+
+html[data-theme="dark"] {
+  --note-paper: #2c2c2c;
+  --note-amber: #4f4420;
+  --note-blue: #213a55;
+  --note-green: #22402d;
+  --note-rose: #4f2a32;
+}
+
+.canvas-shell {
+  --edge-color: #cfcfcf;
+  --edge-color-active: #0f0f0f;
+  --canvas-dot: #e2e2e2;
+}
+
+html[data-theme="dark"] .canvas-shell {
+  --edge-color: #3a3a3a;
+  --edge-color-active: #f2f2f2;
+  --canvas-dot: #1f1f1f;
+}
+
+/* Home layout, after muzzle: a quiet full-width bar (logo left, links right) and a hero that sits
+   near the top. Desktop only; the mobile dock and hero keep their own layout. */
+@media (min-width: 40.0625rem) {
+  /* just the headline and description; the feed starts right after them */
+  .landing-hero-shell {
+    justify-content: flex-start;
+    min-height: 0;
+    padding: clamp(8rem, 20vh, 13rem) 1.5rem 3rem;
+  }
+
+  .landing-hero-content {
+    transform: none;
+  }
+
+  .app-header-landing {
+    min-height: 4rem !important;
+    padding: 0 !important;
+  }
+
+  .app-header-landing .app-header-actions {
+    position: relative;
+    left: auto;
+    transform: none;
+    width: 100%;
+    max-width: 71.25rem;
+    height: 4rem;
+    margin: 0 auto;
+    padding: 0 2rem;
+    box-sizing: border-box;
+    gap: 0.5rem !important;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    backdrop-filter: none;
+  }
+
+  /* left: logo tile + wordmark; the rest is pushed right */
+  .app-header-landing .app-header-home-brand {
+    order: 0;
+    margin-right: auto;
+    gap: 0.625rem !important;
+    padding: 0 !important;
+  }
+
+  .app-header-landing .app-header-home-brand > .app-header-sediment-icon {
+    color: var(--text-primary);
+  }
+
+  .app-header-landing .app-header-home-brand .app-header-sediment-label {
+    font-size: 1rem !important;
+    font-weight: 600 !important;
+    letter-spacing: -0.01em;
+  }
+
+  /* right: the credits ring, then Workspaces */
+  .app-header-landing .app-header-credit { order: 1; margin-left: 0; }
+  .app-header-landing .app-header-workspaces { order: 2; }
+
+  .app-header-landing .app-header-workspaces {
+    background: transparent !important;
+    color: var(--text-tertiary) !important;
+    font-size: 0.8125rem !important;
+  }
+
+  .app-header-landing .app-header-workspaces:hover {
+    background: transparent !important;
+    color: var(--text-primary) !important;
+  }
+
+  /* credits: the ring by default (the compact form); clicking it swaps in the bars and count. A
+     slash after it separates the meter from Workspaces. */
+  .app-header-landing .app-header-credit {
+    display: flex;
+    align-items: center;
+    margin-right: -0.5rem;
+  }
+
+  .app-header-landing .app-header-credit::after {
+    content: "/";
+    content: "/" / "";
+    margin-inline: 0.25rem;
+    color: color-mix(in srgb, var(--text-tertiary) 55%, transparent);
+    font-size: 0.8125rem;
+    user-select: none;
+  }
+
+  .app-header-landing .app-header-credit-indicator {
+    position: relative;
+  }
+
+  .app-header-landing .app-header-credit-toggle {
+    position: absolute;
+    inset: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0.4375rem;
+    background: none;
+    cursor: pointer;
+  }
+
+  .app-header-landing .app-header-credit:not(.app-header-credit-expanded) .app-header-credit-indicator {
+    gap: 0;
+    padding-inline: 0.5rem;
+  }
+
+  .app-header-landing .app-header-credit:not(.app-header-credit-expanded) .app-header-credit-visual {
+    width: 1.125rem;
+  }
+
+  .app-header-landing .app-header-credit:not(.app-header-credit-expanded) .app-header-credit-bars {
+    opacity: 0;
+    transform: scaleX(0.35);
+  }
+
+  .app-header-landing .app-header-credit:not(.app-header-credit-expanded) .app-header-credit-ring {
+    width: 1.125rem;
+    height: 1.125rem;
+    opacity: 1;
+    transform: scale(1) rotate(0deg);
+    background: conic-gradient(var(--text-tertiary) var(--credit-progress), var(--border) 0);
+  }
+
+  .app-header-landing .app-header-credit:not(.app-header-credit-expanded):hover .app-header-credit-ring {
+    background: conic-gradient(var(--text-primary) var(--credit-progress), var(--border) 0);
+  }
+
+  /* the count stays readable by assistive tech while collapsed */
+  .app-header-landing .app-header-credit:not(.app-header-credit-expanded) .app-header-credit-count {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
 }
 
 html[data-theme="dark"] .landing-shell .trace-search-field {
-  background: #101419 !important;
-  border-color: #252D36 !important;
-}
-
-html[data-theme="dark"] .landing-shell .trace-search-field:focus-within {
-  border-color: #43505F !important;
-  box-shadow: none !important;
+  background: #111111 !important;
+  border-color: #2b2b2b !important;
 }
 
 html[data-theme="dark"] .landing-shell .trace-search-suggestion,
 html[data-theme="dark"] .landing-shell .trace-search-mode {
-  background: #11161C !important;
-  border-color: #252D36 !important;
+  background: #141414 !important;
+  border-color: #2b2b2b !important;
 }
 
 html[data-theme="dark"] .landing-shell .trace-search-suggestion:hover,
 html[data-theme="dark"] .landing-shell .trace-search-mode:hover {
-  background: #151B22 !important;
-  border-color: #34404D !important;
-}
-
-html[data-theme="dark"] .landing-page-lift-footer {
-  background: #356EC8 !important;
-  isolation: isolate;
-  overflow: hidden;
-}
-
-html[data-theme="dark"] .landing-page-lift-footer::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  opacity: 0.32;
-  mix-blend-mode: soft-light;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.82' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='.9'/%3E%3C/svg%3E");
-  background-size: 7rem 7rem;
-}
-
-html[data-theme="dark"] .landing-page-lift-footer > div {
-  position: relative;
-  z-index: 1;
+  background: #1c1c1c !important;
+  border-color: #3d3d3d !important;
 }
 
 html[data-theme="dark"] .changelog-page {
@@ -1111,7 +1313,7 @@ html[data-theme="dark"] .changelog-page {
   position: relative;
   z-index: 1;
   width: 100%;
-  max-width: 45rem;
+  max-width: 50rem;
   transform: translateY(1.5rem);
   display: flex;
   flex-direction: column;
@@ -1120,226 +1322,188 @@ html[data-theme="dark"] .changelog-page {
   gap: 1.5rem;
 }
 
-.landing-hero-grid {
+/* Home backdrop — a faint ASCII ridge behind the hero. A brighter copy of the same glyphs is
+   revealed in a soft circle around the pointer. */
+.landing-ascii {
+  --mx: 50%;
+  --my: 30%;
+  --glow: 0;
   position: absolute;
   inset: 0;
-  z-index: -2;
-  opacity: 0.28;
-  background-image:
-    linear-gradient(to right, color-mix(in srgb, var(--border) 72%, transparent) 1px, transparent 1px),
-    linear-gradient(to bottom, color-mix(in srgb, var(--border) 58%, transparent) 1px, transparent 1px);
-  background-size: 4rem 4rem;
-  -webkit-mask-image: linear-gradient(to bottom, transparent, black 12%, black 60%, transparent);
-  mask-image: linear-gradient(to bottom, transparent, black 12%, black 60%, transparent);
-}
-
-/* Sediment strata — horizontal layers that accumulate toward the base,
-   aligned to the grid and taking over as the grid fades out at the bottom. */
-.landing-hero-shell::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: -1;
+  z-index: 0;
+  overflow: hidden;
   pointer-events: none;
-  background-image: repeating-linear-gradient(
-    to bottom,
-    color-mix(in srgb, var(--border) 82%, transparent) 0,
-    color-mix(in srgb, var(--border) 82%, transparent) 0.0625rem,
-    transparent 0.0625rem,
-    transparent 4rem
-  );
-  -webkit-mask-image: linear-gradient(to bottom, transparent 46%, rgba(0, 0, 0, 0.4) 72%, rgba(0, 0, 0, 0.9) 100%);
-  mask-image: linear-gradient(to bottom, transparent 46%, rgba(0, 0, 0, 0.4) 72%, rgba(0, 0, 0, 0.9) 100%);
+  user-select: none;
 }
 
-/* Lineage graph — ghosted nodes and citation edges converging inward from
-   both sides, a live preview of what Sediment builds. Hidden behind the
-   centred content via a radial mask, revealed in the empty margins. */
-.landing-hero-graph {
+.landing-ascii-art {
+  --ascii-scale: 0.7;
+  position: absolute;
+  bottom: -6vh;
+  right: 0;
+  /* size to the text, not the box: a shrink-to-fit width would cap at the container and clip the
+     art from the right, which shows its blank left edge on narrow screens */
+  width: max-content;
+  margin: 0;
+  font-family: var(--font-mono), ui-monospace, monospace;
+  /* 180 columns of 0.6em glyphs span the width, 71 rows span the height; at scale 1 the ridge
+     covers the box, so scale down to leave room, anchored to the bottom right */
+  font-size: max(calc(0.926vw * var(--ascii-scale)), calc(1.408vh * var(--ascii-scale)));
+  line-height: 1;
+  /* widen the columns (never the height) so the 180 columns reach at least the full width */
+  letter-spacing: max(0px, calc(100vw / 180 - 0.6em));
+  white-space: pre;
+  color: var(--text-primary);
+  opacity: 0.13;
+  /* fade the edges so the ridge dissolves into the page */
+  -webkit-mask-image: radial-gradient(90% 85% at 60% 85%, #000 45%, transparent 100%);
+  mask-image: radial-gradient(90% 85% at 60% 85%, #000 45%, transparent 100%);
+}
+
+.landing-ascii-lit {
   position: absolute;
   inset: 0;
-  z-index: -1;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-  overflow: visible;
-  -webkit-mask-image: radial-gradient(68% 116% at 50% 44%, transparent 33%, rgba(0, 0, 0, 0.55) 60%, black 86%);
-  mask-image: radial-gradient(68% 116% at 50% 44%, transparent 33%, rgba(0, 0, 0, 0.55) 60%, black 86%);
+  opacity: calc(var(--glow) * 0.9);
+  transition: opacity 0.6s;
+  -webkit-mask-image: radial-gradient(200px circle at var(--mx) var(--my), #000, transparent);
+  mask-image: radial-gradient(200px circle at var(--mx) var(--my), #000, transparent);
 }
 
-.landing-hero-graph-edge {
-  fill: none;
-  stroke: var(--edge-color);
-  stroke-width: 1.1;
-  vector-effect: non-scaling-stroke;
+.landing-ascii-lit .landing-ascii-art {
+  opacity: 0.32;
 }
 
-.landing-hero-graph-edge.is-accent {
-  stroke: color-mix(in srgb, var(--accent) 55%, var(--edge-color));
-}
-
-.landing-hero-graph-glyph {
-  fill: none;
-  stroke: var(--border-hover);
-  stroke-width: 1.3;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  vector-effect: non-scaling-stroke;
-}
-
-.landing-hero-graph-glyph.is-accent {
-  stroke: color-mix(in srgb, var(--accent) 60%, var(--border-hover));
-}
-
-.landing-hero-graph-glyph-dot {
-  fill: var(--border-hover);
-}
-
-.landing-hero-graph-glyph-dot.is-accent {
-  fill: var(--accent);
-}
-
-.landing-hero-graph-node {
-  fill: var(--border-hover);
-}
-
-.landing-hero-graph-node.is-accent {
-  fill: var(--accent);
-}
-
-.landing-hero-graph-card {
-  fill: var(--node-bg);
-  stroke: var(--border-hover);
-  stroke-width: 1;
-  vector-effect: non-scaling-stroke;
-}
-
-.landing-hero-graph-card.is-accent {
-  stroke: var(--accent);
-}
-
-.landing-hero-graph-year {
-  fill: var(--text-tertiary);
-  font-family: var(--font-mono), monospace;
-  font-size: 15px;
-  letter-spacing: 0.06em;
-}
-
-/* Marginalia — faint field-note remarks and mini note cards */
-.landing-hero-graph-remark {
-  fill: var(--text-tertiary);
-  font-family: var(--font-mono), monospace;
-  font-size: 13px;
-  letter-spacing: 0.02em;
-}
-
-.landing-hero-graph-remark.is-accent {
-  fill: color-mix(in srgb, var(--accent) 68%, var(--text-tertiary));
-}
-
-.landing-hero-graph-note {
-  fill: var(--node-bg);
-  stroke: var(--border-hover);
-  stroke-width: 1;
-  vector-effect: non-scaling-stroke;
-}
-
-.landing-hero-graph-note-bar {
-  fill: var(--accent);
-}
-
-.landing-hero-graph-note-bar.is-amber {
-  fill: var(--cat-amber);
-}
-
-.landing-hero-graph-note-bar.is-green {
-  fill: var(--cat-green);
-}
-
-.landing-hero-graph-note-bar.is-rose {
-  fill: var(--cat-rose);
-}
-
-.landing-hero-graph-eq {
-  fill: color-mix(in srgb, var(--text-secondary) 42%, var(--text-tertiary));
-  font-family: var(--font-serif), serif;
-  font-style: italic;
-  font-size: 26px;
-  letter-spacing: 0.01em;
-}
-
-.landing-hero-graph-eq.is-accent {
-  fill: color-mix(in srgb, var(--accent) 60%, var(--text-tertiary));
-}
-
-.landing-hero-graph-note-line {
-  fill: var(--border-hover);
-}
-
-.landing-hero-graph-note-tag {
-  fill: var(--text-tertiary);
-  font-family: var(--font-mono), monospace;
-  font-size: 9px;
-  letter-spacing: 0.14em;
-}
-
-@media (max-width: 60rem) {
-  .landing-hero-graph {
-    display: none;
+@media (prefers-reduced-motion: reduce) {
+  .landing-ascii-lit {
+    transition: none;
   }
 }
 
 .landing-hero-copy {
-  max-width: 43rem;
+  max-width: 50rem;
   text-align: center;
-}
-
-.landing-eyebrow {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-bottom: 1.25rem;
-  padding: 0.3125rem 0.625rem;
-  border: 0.0625rem solid var(--border);
-  border-radius: 0.125rem;
-  color: var(--text-secondary);
-  font-family: var(--font-mono), monospace;
-  font-size: 0.6875rem;
-  font-weight: 500;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.landing-eyebrow span {
-  display: none;
 }
 
 .landing-hero-title {
   margin: 0;
   color: var(--text-primary);
   font-family: var(--font-sans), sans-serif;
-  font-size: clamp(2rem, 3.6vw, 3.25rem);
+  font-size: clamp(1.75rem, 4.8vw, 2.75rem);
   font-weight: 600;
   letter-spacing: -0.035em;
-  line-height: 1.04;
+  line-height: 1.12;
+  text-wrap: balance;
 }
 
-.landing-hero-title em {
-  color: var(--accent);
-  font-style: normal;
+/* One line once there is room, centered even when wider than its column, as muzzle's headline;
+   narrower screens wrap into balanced lines. */
+@media (min-width: 43.75rem) {
+  .landing-hero-title {
+    position: relative;
+    left: 50%;
+    width: max-content;
+    transform: translateX(-50%);
+    white-space: nowrap;
+  }
+}
+
+/* keeps the last word, the tree and the period together when the headline wraps */
+.landing-title-tail {
+  white-space: nowrap;
+}
+
+/* The hemispheres draw in, then the folds light up one after another shortly after load, like
+   muzzle's switch flipping on. The resting style is the lit state, so with reduced motion (or no
+   animation) it simply shows lit. */
+.landing-brain {
+  display: inline-block;
+  width: 0.95em;
+  height: 0.81em;
+  margin: 0 0.04em;
+  vertical-align: -0.1em;
+  overflow: visible;
+  color: var(--text-primary);
+  filter: drop-shadow(0 0 0.2em color-mix(in srgb, var(--text-primary) 40%, transparent));
+  animation: landing-brain-glow 0.8s ease 1.2s both;
+}
+
+.landing-brain-line {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 1 2;
+  animation: landing-brain-line 0.5s ease var(--delay, 1s) both;
+}
+
+@keyframes landing-brain-line {
+  from {
+    stroke-dashoffset: 1;
+    stroke: var(--text-tertiary);
+  }
+}
+
+@keyframes landing-brain-glow {
+  from {
+    filter: drop-shadow(0 0 0 transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-brain,
+  .landing-brain-line {
+    animation: none;
+  }
 }
 
 .landing-hero-description {
-  max-width: 30rem;
-  margin: 1.375rem auto 0;
+  max-width: 50rem;
+  margin: 1rem auto 0;
   color: var(--text-secondary);
-  font-size: 1rem;
-  line-height: 1.55;
-  letter-spacing: -0.01em;
+  font-size: clamp(14.5px, 1.3vw, 16.5px);
+  line-height: 1.65;
+  text-wrap: balance;
+}
+
+/* product names carry their mark inline and read brighter than the copy around them */
+.landing-brand {
+  color: var(--text-primary);
+  white-space: nowrap;
+  transition: color 0.15s;
+}
+
+a.landing-brand:hover {
+  color: var(--text-secondary);
+}
+
+.landing-brand-icon {
+  display: inline-block;
+  flex-shrink: 0;
+  width: 0.92em;
+  height: 0.92em;
+  margin-right: 0.3em;
+  vertical-align: -0.14em;
+}
+
+.landing-brand-mask {
+  background: currentColor;
+  -webkit-mask: var(--icon) no-repeat center / contain;
+  mask: var(--icon) no-repeat center / contain;
+}
+
+/* The feed under the hero: the Feeds view, sitting in the home palette. */
+.landing-feed {
+  width: 100%;
+  max-width: 71.25rem;
+  margin: 0 auto;
+  padding: 0 2rem 1.5rem;
+  box-sizing: border-box;
 }
 
 .landing-search-zone {
   width: 100%;
+  max-width: 45rem;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1358,11 +1522,6 @@ html[data-theme="dark"] .changelog-page {
 
 .trace-search-field {
   min-height: 3.25rem;
-}
-
-.trace-search-field:focus-within {
-  border-color: var(--accent) !important;
-  box-shadow: 0 0 0 0.1875rem var(--accent-soft) !important;
 }
 
 .trace-search-field input::placeholder {
@@ -2334,19 +2493,16 @@ html[data-theme="dark"] .changelog-page {
     color: var(--accent) !important;
   }
 
-  /* Keep the first action visible without crowding the scroll cue. */
+  /* Headline first, then the feed straight after it. */
   .landing-hero-shell {
-    min-height: 100%;
+    justify-content: flex-start;
+    min-height: 0;
     gap: 1.5rem;
-    padding: 3.25rem 1rem 5.5rem;
+    padding: 6rem 1rem 2rem;
   }
 
   .landing-hero-content {
     gap: 1.5rem;
-  }
-
-  .landing-hero-grid {
-    background-size: 2.5rem 2.5rem;
   }
 
   .landing-hero-title {
@@ -2458,3 +2614,43 @@ html[data-theme="dark"] .changelog-page {
 .feeds-mobile-link > svg { flex-shrink: 0; }
 .feeds-mobile-link:hover, .feeds-mobile-link:active { background: var(--bg-secondary); }
 .feeds-mobile-link:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+/* The canvas title and its description icon, centred together in the top bar. */
+.app-header-graph-center { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: flex; align-items: center; gap: 0.125rem; max-width: min(40vw, 30rem); }
+.app-header-graph-center .app-header-graph-query,
+.app-header-graph-center .app-header-graph-title-form { position: static; transform: none; min-width: 0; }
+.app-header-graph-center .app-header-graph-title-form { width: min(32vw, 26rem); }
+
+/* Canvas description: a small icon beside the title that opens an editable note. */
+.graph-description { position: relative; display: flex; align-items: center; flex: none; }
+.graph-description-trigger { display: grid; place-items: center; width: 1.5rem; height: 1.5rem; padding: 0; border: 0; border-radius: 0.375rem; background: transparent; color: var(--text-tertiary); cursor: pointer; transition: background 150ms ease, color 150ms ease; }
+.graph-description-trigger[data-filled] { color: var(--text-secondary); }
+.graph-description-trigger:hover, .graph-description-trigger[aria-expanded="true"] { background: var(--bg-tertiary); color: var(--text-primary); }
+.graph-description-popover { position: absolute; top: calc(100% + 0.625rem); left: 50%; transform: translateX(-50%); width: min(20rem, calc(100vw - 2rem)); padding: 0.375rem; border-radius: 0.75rem; background: var(--bg-secondary); box-shadow: 0 0 0 0.0625rem var(--border), 0 0.75rem 2rem rgba(0,0,0,0.28); z-index: 120; text-align: left; }
+.graph-description-popover textarea { display: block; width: 100%; box-sizing: border-box; resize: none; min-height: 5rem; max-height: 14rem; field-sizing: content; padding: 0.5rem 0.625rem; border: 0; outline: none; border-radius: 0.5rem; background: transparent; color: var(--text-primary); font: inherit; font-size: 0.8125rem; line-height: 1.55; }
+.graph-description-popover textarea::placeholder { color: var(--text-tertiary); }
+.graph-description-hint { display: flex; justify-content: space-between; padding: 0.375rem 0.625rem 0.25rem; border-top: 0.0625rem solid var(--border); font-size: 0.6875rem; color: var(--text-tertiary); }
+.graph-description-text { margin: 0; padding: 0.5rem 0.625rem; font-size: 0.8125rem; line-height: 1.55; color: var(--text-secondary); white-space: pre-wrap; }
+
+/* Agent panel: the list behind the "what can the agent do" button. */
+.agent-capability { display: flex; flex-direction: column; gap: 0.125rem; width: 100%; padding: 0.5rem 0.625rem; border: 0; border-radius: 0.5rem; background: transparent; text-align: left; cursor: pointer; font: inherit; }
+.agent-capability:hover:not(:disabled) { background: var(--bg-tertiary); }
+.agent-capability:disabled { opacity: 0.5; cursor: default; }
+.agent-capability-label { font-size: 0.8125rem; font-weight: 550; color: var(--text-primary); }
+.agent-capability-hint { font-size: 0.75rem; line-height: 1.4; color: var(--text-tertiary); }
+
+/* Scrolls without showing a scrollbar. */
+.no-scrollbar { scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+
+/* Landing page footer: a quiet credit. */
+.landing-footer { padding: 0 1.5rem 2.5rem; text-align: center; font-size: 0.75rem; color: var(--text-tertiary); }
+.landing-footer a { color: var(--text-secondary); text-decoration: none; }
+.landing-footer a:hover { color: var(--text-primary); text-decoration: underline; }
+
+/* Small borderless buttons in the file-note dialogs, matching the Add paper dialog. */
+.sn-ghost { display: inline-flex; align-items: center; justify-content: center; gap: 6px; flex-shrink: 0; min-width: 28px; height: 28px; padding: 0; border: 0; border-radius: 7px; background: transparent; color: var(--text-secondary); font: inherit; font-size: 12px; text-decoration: none; cursor: pointer; }
+.sn-ghost:hover { background: var(--bg-tertiary); color: var(--text-primary); }
+.sn-ghost:disabled { opacity: .5; cursor: default; }
+.sn-ghost-text { padding: 0 10px; }
+.sn-ghost:focus:not(:focus-visible) { outline: none; }

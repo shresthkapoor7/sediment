@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Optional
 import asyncio
+import time
 import logging
 import re
 from math import log10
@@ -34,7 +35,16 @@ ACCESS_SELECT = "id,doi,open_access,has_fulltext,has_content,content_urls,best_o
 
 
 class OpenAlexError(Exception):
-    pass
+    def __init__(self, message: str = "", status: Optional[int] = None):
+        super().__init__(message)
+        self.status = status
+
+
+# OpenAlex allows one semantic search per second for the shared key.
+_semantic_lock: Optional[asyncio.Lock] = None
+_SEMANTIC_INTERVAL_SECONDS = 1.0
+_last_semantic_request = 0.0
+RATE_LIMIT_RETRIES = 2
 
 
 def _extract_openalex_id(raw_id: str | None) -> Optional[str]:
@@ -108,12 +118,17 @@ def _filter_search_value(value: str) -> str:
 async def _get(session: aiohttp.ClientSession, url: str, params: dict) -> dict:
     await asyncio.sleep(REQUEST_DELAY)
     try:
-        async with session.get(url, params=params) as resp:
-            if resp.status == 200:
-                return await resp.json()
-            text = await resp.text()
-            logger.error("OpenAlex error %s for %s: %s", resp.status, url, text)
-            raise OpenAlexError(f"OpenAlex error {resp.status}")
+        for attempt in range(RATE_LIMIT_RETRIES + 1):
+            async with session.get(url, params=params) as resp:
+                if resp.status == 200:
+                    return await resp.json()
+                text = await resp.text()
+                if resp.status == 429 and attempt < RATE_LIMIT_RETRIES:
+                    await asyncio.sleep(1.0 * (attempt + 1))
+                    continue
+                logger.error("OpenAlex error %s for %s: %s", resp.status, url, text)
+                raise OpenAlexError(f"OpenAlex error {resp.status}", status=resp.status)
+        raise OpenAlexError("OpenAlex rate limit", status=429)
     except OpenAlexError:
         raise
     except asyncio.TimeoutError as exc:
@@ -281,6 +296,33 @@ class OpenAlexClient:
 
         return results[:limit * 2]  # give LLM more candidates to pick from
 
+    async def search_papers_semantic(self, query: str, limit: int = 10) -> list[dict]:
+        """Search by meaning rather than keywords: OpenAlex ranks works by embedding similarity to the text."""
+        params = {
+            **self._base_params(),
+            "search.semantic": query,
+            "per-page": str(limit),
+            "select": SEARCH_SELECT,
+        }
+        global _last_semantic_request, _semantic_lock
+        if _semantic_lock is None:
+            # Made on first use: a lock made at import would belong to no running loop on Python 3.9.
+            _semantic_lock = asyncio.Lock()
+        async with _semantic_lock:
+            wait = _SEMANTIC_INTERVAL_SECONDS - (time.monotonic() - _last_semantic_request)
+            if wait > 0:
+                await asyncio.sleep(wait)
+            try:
+                data = await _get(self._session_or_raise(), f"{BASE}/works", params)
+            finally:
+                _last_semantic_request = time.monotonic()
+        results: list[dict] = []
+        for work in data.get("results", []):
+            normalized = self._normalize_work(work)
+            if normalized:
+                results.append(normalized)
+        return results
+
     async def fetch_work(self, openalex_id: str) -> Optional[dict]:
         params = {**self._base_params(), "select": SEARCH_SELECT}
         data = await _get(self._session_or_raise(), f"{BASE}/works/{openalex_id}", params)
@@ -318,6 +360,23 @@ class OpenAlexClient:
         if not work:
             return []
         return await self.hydrate_works(work.get("referencedWorks", [])[:limit])
+
+    async def fetch_citing_papers(self, openalex_id: str, limit: int = 10) -> list[dict]:
+        """Later works that cite this paper, most cited first."""
+        params = {
+            **self._base_params(),
+            "filter": f"cites:{openalex_id}",
+            "sort": "cited_by_count:desc",
+            "per-page": str(limit),
+            "select": SEARCH_SELECT,
+        }
+        data = await _get(self._session_or_raise(), f"{BASE}/works", params)
+        results = []
+        for work in data.get("results", []):
+            normalized = self._normalize_work(work)
+            if normalized:
+                results.append(normalized)
+        return results
 
     async def fetch_related_earlier_papers(self, paper: dict, limit: int = 20) -> list[dict]:
         """Fallback for papers with no indexed references — search by topic/title keywords."""

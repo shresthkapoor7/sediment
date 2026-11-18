@@ -5,6 +5,7 @@ import unittest
 from unittest.mock import AsyncMock, patch
 
 from app.models import ChatRequest, GlobalChatRequest
+from app.routers import chat as chat_router
 from app.routers.chat import _compact_tool_result_for_event, _note_context_from_graph, chat, chat_global
 from app.services.chat_memory import ChatContext
 
@@ -119,7 +120,7 @@ class PersistentChatRouterTests(unittest.IsolatedAsyncioTestCase):
             )
             self.assertEqual(search_result["papers"][0]["openalexId"], "W3")
             change = await kwargs["tool_runner"](
-                "update_lineage",
+                "update_canvas_papers",
                 {
                     "addPaperIds": ["W3"],
                     "removePaperIds": ["W2", "W1"],
@@ -198,7 +199,7 @@ class PersistentChatRouterTests(unittest.IsolatedAsyncioTestCase):
 
         async def answer(_papers, _question, **kwargs):
             await kwargs["tool_runner"]("search_openalex_papers", {"query": "added paper"})
-            first = await kwargs["tool_runner"]("update_lineage", {
+            first = await kwargs["tool_runner"]("update_canvas_papers", {
                 "addPaperIds": ["W3"],
                 "edges": [
                     {"parentPaperId": "W3", "childPaperId": "W1", "relation": "influenced"},
@@ -211,7 +212,7 @@ class PersistentChatRouterTests(unittest.IsolatedAsyncioTestCase):
             self.assertIn({"paperId": "W3->W3", "reason": "edge_self_loop"}, first["skipped"])
             self.assertIn({"paperId": "W3->W1", "reason": "edge_invalid_relation"}, first["skipped"])
 
-            second = await kwargs["tool_runner"]("update_lineage", {
+            second = await kwargs["tool_runner"]("update_canvas_papers", {
                 "edges": [{"parentPaperId": "W1", "childPaperId": "W3", "relation": "inferred"}],
             })
             self.assertEqual(second["edges"], [{
@@ -220,7 +221,7 @@ class PersistentChatRouterTests(unittest.IsolatedAsyncioTestCase):
                 "relation": "inferred",
             }])
 
-            duplicate = await kwargs["tool_runner"]("update_lineage", {
+            duplicate = await kwargs["tool_runner"]("update_canvas_papers", {
                 "edges": [{"parentPaperId": "W3", "childPaperId": "W1", "relation": "influenced"}],
             })
             self.assertEqual(duplicate["edges"], [])
@@ -251,6 +252,7 @@ class PersistentChatRouterTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response.highlightedPaperIds, ["W3"])
         self.assertEqual(response.lineageChanges[1]["edges"][0]["childOpenalexId"], "W3")
 
+    @patch.object(chat_router.settings, "full_paper_access_enabled", True)
     async def test_global_agent_can_search_cached_text_across_the_graph(self) -> None:
         memory = AsyncMock()
         memory.append.side_effect = [{"sequence_number": 1}, {"sequence_number": 2}]
@@ -401,10 +403,14 @@ class PersistentChatRouterTests(unittest.IsolatedAsyncioTestCase):
         }
 
         async def answer(_papers, _question, **kwargs):
-            self.assertEqual(kwargs["timeline_note_index"], [
-                {"id": "note-green", "kind": "field_note", "color": "green", "connectedPaperIds": ["W1"]},
-                {"id": "note-green-2", "kind": "todo", "color": "green", "connectedPaperIds": []},
-            ])
+            self.assertEqual(
+                [{key: value for key, value in note.items() if key != "textStart"} for note in kwargs["timeline_note_index"]],
+                [
+                    {"id": "note-green", "kind": "field_note", "color": "green", "connectedPaperIds": ["W1"]},
+                    {"id": "note-green-2", "kind": "todo", "color": "green", "connectedPaperIds": []},
+                ],
+            )
+            self.assertTrue(all(note["textStart"] for note in kwargs["timeline_note_index"]))
             green_notes = await kwargs["tool_runner"]("read_timeline_notes", {"colors": ["green"]})
             self.assertEqual({note["id"] for note in green_notes["notes"]}, {"note-green", "note-green-2"})
 
@@ -414,7 +420,7 @@ class PersistentChatRouterTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(duplicate["connections"], [])
             self.assertIn({"noteId": "note-green", "reason": "note_connection_duplicate"}, duplicate["skipped"])
 
-            wrong_lineage = await kwargs["tool_runner"]("update_lineage", {
+            wrong_lineage = await kwargs["tool_runner"]("update_canvas_papers", {
                 "edges": [{"parentOpenalexId": "W1", "childOpenalexId": "W2", "relation": "influenced"}],
             })
             self.assertEqual(wrong_lineage["status"], "error")
@@ -653,6 +659,7 @@ class PersistentChatRouterTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(response.highlightedPaperIds, ["W1"])
 
+    @patch.object(chat_router.settings, "full_paper_access_enabled", True)
     async def test_global_pending_confirmation_without_paper_id_uses_mentioned_paper(self) -> None:
         memory = AsyncMock()
         memory.append.side_effect = [

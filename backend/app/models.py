@@ -15,7 +15,9 @@ MAX_CONCEPT_CONTEXT_LENGTH = 500
 MAX_CHAT_QUESTION_LENGTH = 1_000
 MAX_SELECTED_EXCERPT_LENGTH = 6_000
 MAX_PAPER_CONTENT_CHUNKS = 100
-MAX_TIMELINE_PAPERS = 25
+MAX_TIMELINE_PAPERS = 60
+MAX_CANVAS_EDGES = 300
+MAX_GROUP_LABEL_LENGTH = 48
 MAX_TIMELINE_NOTES = 100
 MAX_TIMELINE_NOTE_CONNECTIONS = MAX_TIMELINE_NOTES * 5
 MAX_NOTE_ID_LENGTH = 128
@@ -24,6 +26,7 @@ MAX_USER_ID_LENGTH = 128
 MAX_GRAPH_ID_LENGTH = 128
 MAX_SHARE_ID_LENGTH = 64
 MAX_METADATA_TITLE_LENGTH = 200
+MAX_METADATA_DESCRIPTION_LENGTH = 500
 MAX_GRAPH_JSON_BYTES = 1_000_000
 
 
@@ -203,6 +206,8 @@ class PaperSummary(StrictRequestModel):
     title: str = Field(min_length=1, max_length=MAX_TITLE_LENGTH)
     year: Optional[int] = None
     summary: str = Field(default="", max_length=MAX_SUMMARY_LENGTH)
+    # Name of the cluster the paper sits in on the canvas, if any.
+    group: Optional[str] = Field(default=None, max_length=MAX_GROUP_LABEL_LENGTH)
 
 
 class TimelineNoteSnapshot(StrictRequestModel):
@@ -318,19 +323,38 @@ class TimelineNodeColorChange(BaseModel):
     borderColor: Optional[Literal["accent", "blue", "green", "purple", "amber", "rose"]] = None
 
 
+class CanvasDetailsSnapshot(StrictRequestModel):
+    """The canvas's name and description as the browser shows them, and who last set each."""
+    title: str = Field(default="", max_length=MAX_METADATA_TITLE_LENGTH)
+    description: str = Field(default="", max_length=MAX_METADATA_DESCRIPTION_LENGTH)
+    titleSetBy: Optional[Literal["user", "agent"]] = None
+    descriptionSetBy: Optional[Literal["user", "agent"]] = None
+
+
 class TimelineNodeColorSnapshot(StrictRequestModel):
     paperId: str = Field(min_length=1, max_length=MAX_OPENALEX_ID_LENGTH)
     borderColor: Literal["accent", "blue", "green", "purple", "amber", "rose"]
 
 
+class CanvasEdgeSnapshot(StrictRequestModel):
+    parentPaperId: str = Field(min_length=1, max_length=MAX_OPENALEX_ID_LENGTH)
+    childPaperId: str = Field(min_length=1, max_length=MAX_OPENALEX_ID_LENGTH)
+
+
 class GlobalChatRequest(StrictRequestModel):
     graphId: Optional[str] = Field(default=None, max_length=MAX_GRAPH_ID_LENGTH)
     userId: Optional[str] = Field(default=None, max_length=MAX_USER_ID_LENGTH)
-    papers: list[PaperSummary] = Field(min_length=1, max_length=MAX_TIMELINE_PAPERS)
+    # The agent chat this message belongs to. Left out, the canvas's oldest chat is used.
+    sessionId: Optional[str] = Field(default=None, max_length=MAX_GRAPH_ID_LENGTH)
+    # A canvas may be empty: the agent is how the first papers get onto it.
+    papers: list[PaperSummary] = Field(default_factory=list, max_length=MAX_TIMELINE_PAPERS)
+    # Links between the papers above as the browser shows them right now.
+    edges: Optional[list[CanvasEdgeSnapshot]] = Field(default=None, max_length=MAX_CANVAS_EDGES)
     question: str = Field(min_length=1, max_length=MAX_CHAT_QUESTION_LENGTH)
     mentionedPaperIds: list[str] = Field(default_factory=list, max_length=MAX_TIMELINE_PAPERS)
     noteContext: Optional[TimelineNoteContext] = None
     nodeColorContext: Optional[list[TimelineNodeColorSnapshot]] = Field(default=None, max_length=MAX_TIMELINE_PAPERS)
+    canvas: Optional[CanvasDetailsSnapshot] = None
 
     @model_validator(mode="after")
     def validate_persistence_context(self):
@@ -349,12 +373,19 @@ class GlobalChatResponse(BaseModel):
     lineageChanges: list[dict[str, Any]] = Field(default_factory=list)
     noteChanges: list[TimelineNoteChange] = Field(default_factory=list)
     nodeColorChanges: list[TimelineNodeColorChange] = Field(default_factory=list)
+    # A new canvas name and/or description the agent chose this turn.
+    canvasDetails: Optional[dict[str, str]] = None
+    # What this message cost, and whether it was cut short by the per-message ceiling or the tool-round limit.
+    costMicroUsd: int = 0
+    stoppedBy: Optional[Literal["budget", "iterations"]] = None
 
 
 class ChatSessionRequest(StrictRequestModel):
     userId: str = Field(min_length=1, max_length=MAX_USER_ID_LENGTH)
     scope: Literal["paper", "graph"]
     paperOpenalexId: Optional[str] = Field(default=None, max_length=MAX_OPENALEX_ID_LENGTH)
+    # Which agent chat to open on a canvas. Left out, the oldest one is opened.
+    sessionId: Optional[str] = Field(default=None, max_length=MAX_GRAPH_ID_LENGTH)
 
     @model_validator(mode="after")
     def validate_scope(self):
@@ -375,23 +406,24 @@ class ChatMessageRecord(BaseModel):
     createdAt: str
 
 
+class ChatTab(BaseModel):
+    sessionId: str
+    title: Optional[str] = None
+    createdAt: str
+    updatedAt: str
+
+
+class ChatTabCreateRequest(StrictRequestModel):
+    userId: str = Field(min_length=1, max_length=MAX_USER_ID_LENGTH)
+
+
 class ChatSessionResponse(BaseModel):
     sessionId: str
+    title: Optional[str] = None
     scope: Literal["paper", "graph"]
     paperOpenalexId: Optional[str] = None
     summary: Optional[str] = None
     messages: list[ChatMessageRecord] = Field(default_factory=list)
-
-
-class ClarifyRequest(StrictRequestModel):
-    query: str = Field(min_length=1, max_length=MAX_QUERY_LENGTH)
-
-
-class ClarifyResponse(BaseModel):
-    needs_clarification: bool
-    refined_query: Optional[str] = None
-    question: Optional[str] = None
-    options: Optional[list[str]] = None
 
 
 class UserUpsertRequest(StrictRequestModel):
@@ -423,8 +455,24 @@ class SpecialNoteFileUrl(BaseModel):
     url: str
 
 
+def _clean_metadata(metadata: "SavedGraphMetadata") -> "SavedGraphMetadata":
+    title = metadata.title.strip()
+    if len(title) > MAX_METADATA_TITLE_LENGTH:
+        raise ValueError(f"Metadata title must be at most {MAX_METADATA_TITLE_LENGTH} characters.")
+    description = metadata.description.strip()
+    if len(description) > MAX_METADATA_DESCRIPTION_LENGTH:
+        raise ValueError(f"Metadata description must be at most {MAX_METADATA_DESCRIPTION_LENGTH} characters.")
+    metadata.title = title
+    metadata.description = description
+    return metadata
+
+
 class SavedGraphMetadata(BaseModel):
     title: str = ""
+    description: str = ""
+    # Who last set the title and description: "user", "agent", or None for the automatic default.
+    titleSetBy: Optional[Literal["user", "agent"]] = None
+    descriptionSetBy: Optional[Literal["user", "agent"]] = None
     nodeCount: int = 0
     lastOpenedAt: Optional[str] = None
     appVersion: str = Field(default_factory=lambda: settings.app_version)
@@ -450,11 +498,7 @@ class SaveGraphRequest(StrictRequestModel):
     @field_validator("metadata")
     @classmethod
     def validate_metadata(cls, metadata: SavedGraphMetadata) -> SavedGraphMetadata:
-        title = metadata.title.strip()
-        if len(title) > MAX_METADATA_TITLE_LENGTH:
-            raise ValueError(f"Metadata title must be at most {MAX_METADATA_TITLE_LENGTH} characters.")
-        metadata.title = title
-        return metadata
+        return _clean_metadata(metadata)
 
 
 class UpdateGraphRequest(StrictRequestModel):
@@ -489,11 +533,7 @@ class UpdateGraphRequest(StrictRequestModel):
     def validate_optional_metadata(cls, metadata: Optional[SavedGraphMetadata]) -> Optional[SavedGraphMetadata]:
         if metadata is None:
             return None
-        title = metadata.title.strip()
-        if len(title) > MAX_METADATA_TITLE_LENGTH:
-            raise ValueError(f"Metadata title must be at most {MAX_METADATA_TITLE_LENGTH} characters.")
-        metadata.title = title
-        return metadata
+        return _clean_metadata(metadata)
 
     @model_validator(mode="after")
     def ensure_update_has_fields(self) -> "UpdateGraphRequest":

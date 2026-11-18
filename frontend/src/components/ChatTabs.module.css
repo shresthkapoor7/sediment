@@ -1,0 +1,18 @@
+/* The agent panel's chats, as tabs. Flat: the open chat is one tone lighter, nothing has a stroke. */
+.strip { display: flex; align-items: center; gap: 4px; padding: 10px 10px 4px 12px; flex-shrink: 0; }
+.tabs { display: flex; align-items: center; gap: 2px; min-width: 0; flex: 1; overflow-x: auto; scrollbar-width: none; }
+.tabs::-webkit-scrollbar { display: none; }
+.tab { position: relative; display: flex; align-items: center; flex: 0 1 150px; min-width: 64px; height: 30px; border-radius: 8px; color: var(--text-tertiary); transition: background .12s, color .12s; }
+.tab:hover { background: color-mix(in srgb, var(--text-primary) 5%, transparent); color: var(--text-secondary); }
+.tab[data-active] { background: var(--bg-tertiary); color: var(--text-primary); }
+.select { flex: 1; min-width: 0; height: 100%; padding: 0 10px; border: 0; background: transparent; color: inherit; font: inherit; font-size: 12.5px; font-weight: 500; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+.tab[data-closable] .select { padding-right: 26px; }
+.busy { flex: none; width: 6px; height: 6px; margin-left: 10px; margin-right: -4px; border-radius: 50%; background: var(--text-secondary); animation: chat-tab-pulse 1s ease-in-out infinite; }
+@keyframes chat-tab-pulse { 50% { opacity: .25; } }
+.close { position: absolute; right: 5px; display: grid; place-items: center; width: 18px; height: 18px; border: 0; border-radius: 5px; background: transparent; color: var(--text-tertiary); cursor: pointer; opacity: 0; transition: opacity .12s; }
+.tab:hover .close, .tab[data-active] .close, .close:focus-visible { opacity: 1; }
+.close:hover { background: color-mix(in srgb, var(--text-primary) 10%, transparent); color: var(--text-primary); }
+.action { flex: none; display: grid; place-items: center; width: 28px; height: 28px; border: 0; border-radius: 7px; background: transparent; color: var(--text-secondary); cursor: pointer; }
+.action:hover:not(:disabled) { background: var(--bg-tertiary); color: var(--text-primary); }
+.action:disabled { opacity: .4; cursor: default; }
+@media (prefers-reduced-motion: reduce) { .busy { animation: none; } }

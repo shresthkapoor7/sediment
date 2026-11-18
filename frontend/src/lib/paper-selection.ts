@@ -12,6 +12,11 @@ export function usePaperSelection() {
     toggle: (paper: FeedPaper) => setPapers(current => current.some(item => item.id === paper.id)
       ? current.filter(item => item.id !== paper.id)
       : [...current, paper]),
+    /** Mark papers, skipping any already marked. */
+    add: (incoming: FeedPaper[]) => setPapers(current => [
+      ...current,
+      ...incoming.filter((paper, index) => !current.some(item => item.id === paper.id) && incoming.findIndex(item => item.id === paper.id) === index),
+    ]),
     clear: () => setPapers([]),
   };
 }

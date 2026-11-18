@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 
 export const TIMELINE_MOBILE_BREAKPOINT_PX = 640;
 
-const HOVER_PREVIEW_STORAGE_KEY = "sediment:hover-preview-enabled";
+const HOVER_PREVIEW_STORAGE_KEY = "sediment:hover-preview-enabled-v2";
 
 interface UseHoverPreviewToggleOptions {
   defaultEnabled?: boolean;
@@ -13,7 +13,7 @@ interface UseHoverPreviewToggleOptions {
 }
 
 export function useHoverPreviewToggle({
-  defaultEnabled = true,
+  defaultEnabled = false,
   persist = true,
   storageKey = HOVER_PREVIEW_STORAGE_KEY,
 }: UseHoverPreviewToggleOptions = {}) {

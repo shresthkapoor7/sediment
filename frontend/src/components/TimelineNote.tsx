@@ -5,6 +5,7 @@ import { m } from "framer-motion";
 import { SpecialNoteFile, TimelineNote } from "@/lib/types";
 import { NOTE_COLOR_OPTIONS, NOTE_KIND_OPTIONS, SPECIAL_NOTE_MIN_HEIGHT, TIMELINE_NOTE_DEFAULT_WIDTH, TIMELINE_NOTE_MIN_HEIGHT, isSpecialNote, noteColorStyle, noteKindLabel } from "@/lib/note-style";
 import { MarkdownContent } from "./MarkdownContent";
+import bar from "./TimelineNode.module.css";
 
 interface TimelineNoteCardProps {
   note: TimelineNote;
@@ -13,6 +14,10 @@ interface TimelineNoteCardProps {
   isConnectedToActiveNode?: boolean;
   readOnly?: boolean;
   onMove?: (noteId: string, x: number, y: number) => void;
+  /** The drag ended. */
+  onMoveEnd?: () => void;
+  /** Current canvas zoom, so drags and resizes cover the same distance as the pointer. */
+  getZoom?: () => number;
   onResize?: (noteId: string, width: number, height: number) => void;
   onTextChange?: (noteId: string, text: string) => void;
   onKindChange?: (noteId: string, kind: TimelineNote["kind"]) => void;
@@ -21,6 +26,8 @@ interface TimelineNoteCardProps {
   onDelete?: (noteId: string) => void;
   onOpenSpecialNote?: (note: TimelineNote) => void;
   specialNotePreviewUrl?: string;
+  /** The uploaded file no longer exists. */
+  specialNoteFileMissing?: boolean;
   isSpecialNoteDeleting?: boolean;
 }
 
@@ -31,6 +38,8 @@ export function TimelineNoteCard({
   isConnectedToActiveNode = false,
   readOnly = false,
   onMove,
+  onMoveEnd,
+  getZoom,
   onResize,
   onTextChange,
   onKindChange,
@@ -39,6 +48,7 @@ export function TimelineNoteCard({
   onDelete,
   onOpenSpecialNote,
   specialNotePreviewUrl,
+  specialNoteFileMissing,
   isSpecialNoteDeleting = false,
 }: TimelineNoteCardProps) {
   const specialNote = isSpecialNote(note);
@@ -51,7 +61,17 @@ export function TimelineNoteCard({
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
   const [kindMenuOpen, setKindMenuOpen] = useState(false);
-  const [isEditingText, setIsEditingText] = useState(false);
+  // A note that was just added (still empty) opens ready to type in.
+  const [isEditingText, setIsEditingText] = useState(() => !readOnly && !note.text && !!note.createdAt && Date.now() - Date.parse(note.createdAt) < 5000);
+  const [isHovered, setIsHovered] = useState(false);
+  // Colour, delete and resize stay out of the way until the note is hovered or being edited.
+  // Keyboard focus on a control keeps the controls visible too, so a focused button is never invisible.
+  const [controlFocused, setControlFocused] = useState(false);
+  const showControls = isHovered || isEditingText || isDragging || isResizing || kindMenuOpen || controlFocused;
+  const controlFocusHandlers = {
+    onFocus: (event: React.FocusEvent<HTMLElement>) => { if (event.target.matches(":focus-visible")) setControlFocused(true); },
+    onBlur: () => setControlFocused(false),
+  };
 
   useEffect(() => {
     if (!kindMenuOpen) return;
@@ -101,9 +121,10 @@ export function TimelineNoteCard({
       if (!start || start.pointerId !== event.pointerId || readOnly) return;
       event.preventDefault();
       event.stopPropagation();
-      onMove?.(note.id, start.x + event.clientX - start.clientX, start.y + event.clientY - start.clientY);
+      const zoom = getZoom?.() || 1;
+      onMove?.(note.id, start.x + (event.clientX - start.clientX) / zoom, start.y + (event.clientY - start.clientY) / zoom);
     },
-    [note.id, onMove, readOnly],
+    [getZoom, note.id, onMove, readOnly],
   );
 
   const finishDrag = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
@@ -113,7 +134,8 @@ export function TimelineNoteCard({
     event.stopPropagation();
     dragStartRef.current = null;
     setIsDragging(false);
-  }, []);
+    onMoveEnd?.();
+  }, [onMoveEnd]);
 
   const handleResizePointerDown = useCallback(
     (event: React.PointerEvent<HTMLButtonElement>) => {
@@ -139,12 +161,13 @@ export function TimelineNoteCard({
       if (!start || start.pointerId !== event.pointerId || readOnly) return;
       event.preventDefault();
       event.stopPropagation();
-      const nextWidth = Math.max(180, start.width + event.clientX - start.clientX);
+      const zoom = getZoom?.() || 1;
+      const nextWidth = Math.max(180, start.width + (event.clientX - start.clientX) / zoom);
       const minHeight = specialNote ? SPECIAL_NOTE_MIN_HEIGHT : TIMELINE_NOTE_MIN_HEIGHT;
-      const nextHeight = Math.max(minHeight, start.height + event.clientY - start.clientY);
+      const nextHeight = Math.max(minHeight, start.height + (event.clientY - start.clientY) / zoom);
       onResize?.(note.id, nextWidth, nextHeight);
     },
-    [note.id, onResize, readOnly, specialNote],
+    [getZoom, note.id, onResize, readOnly, specialNote],
   );
 
   const finishResize = useCallback((event: React.PointerEvent<HTMLButtonElement>) => {
@@ -168,6 +191,8 @@ export function TimelineNoteCard({
       onPointerMove={handlePointerMove}
       onPointerUp={finishDrag}
       onPointerCancel={finishDrag}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
       style={{
         position: "absolute",
         left: note.x,
@@ -185,12 +210,10 @@ export function TimelineNoteCard({
           position: "relative",
           height: readOnly && !note.height ? "auto" : height,
           minHeight: readOnly ? undefined : TIMELINE_NOTE_MIN_HEIGHT,
-          borderRadius: "0.375rem",
-          border: `0.0625rem solid ${colorStyle.border}`,
+          borderRadius: "0.25rem 0.25rem 0.25rem 0.875rem",
           background: colorStyle.background,
-          boxShadow: isDragging
-            ? "0 1.125rem 2.5rem rgba(0,0,0,0.24), 0 0 0 0.1875rem var(--accent-soft)"
-            : "0 0.5rem 1.25rem rgba(0,0,0,0.18)",
+          boxShadow: isDragging ? "0.25rem 0.375rem 0 rgba(0,0,0,0.22)" : "none",
+          transition: "box-shadow 0.12s",
           overflow: "visible",
           userSelect: isDragging ? "none" : "auto",
           display: "flex",
@@ -207,113 +230,17 @@ export function TimelineNoteCard({
             padding: "0.625rem 0.75rem 0",
           }}
         >
-          {readOnly || specialNote ? (
-            <span
-              style={{
-                fontSize: "0.625rem",
-                fontFamily: "var(--font-mono), monospace",
-                letterSpacing: "0.12em",
-                textTransform: "uppercase",
-                color: colorStyle.accent,
-              }}
-            >
-              {noteKindLabel(specialNote ? "special_note" : note.kind)}
-            </span>
-          ) : (
-            <div
-              data-note-control="true"
-              style={{
-                position: "relative",
-                minWidth: 0,
-              }}
-              onPointerDown={(event) => event.stopPropagation()}
-            >
-              <button
-                type="button"
-                onClick={() => setKindMenuOpen((open) => !open)}
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "0.35rem",
-                  maxWidth: "9.5rem",
-                  border: "none",
-                  outline: "none",
-                  background: "transparent",
-                  color: colorStyle.accent,
-                  cursor: "pointer",
-                  fontSize: "0.625rem",
-                  fontFamily: "var(--font-mono), monospace",
-                  letterSpacing: "0.12em",
-                  textTransform: "uppercase",
-                  padding: 0,
-                }}
-              >
-                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  {noteKindLabel(note.kind)}
-                </span>
-                <svg width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, opacity: 0.8 }}>
-                  <path d="M2 3l2 2 2-2" />
-                </svg>
-              </button>
-
-              {kindMenuOpen && (
-                <div
-                  role="menu"
-                  style={{
-                    position: "absolute",
-                    top: "calc(100% + 0.45rem)",
-                    left: "-0.35rem",
-                    width: "11.25rem",
-                    padding: "0.35rem",
-                    borderRadius: "0.375rem",
-                    border: "0.0625rem solid var(--border)",
-                    background: "color-mix(in srgb, var(--bg-primary) 98%, transparent)",
-                    boxShadow: "0 0.5rem 1.5rem rgba(0,0,0,0.10)",
-                    zIndex: 30,
-                  }}
-                >
-                  {NOTE_KIND_OPTIONS.map((kind) => {
-                    const selected = (note.kind ?? "field_note") === kind.key;
-                    return (
-                      <button
-                        key={kind.key}
-                        type="button"
-                        role="menuitemradio"
-                        aria-checked={selected}
-                        onClick={() => {
-                          onKindChange?.(note.id, kind.key);
-                          setKindMenuOpen(false);
-                        }}
-                        style={{
-                          width: "100%",
-                          display: "grid",
-                          gridTemplateColumns: "1rem 1fr",
-                          alignItems: "center",
-                          gap: "0.5rem",
-                          border: "none",
-                          borderRadius: "0.5rem",
-                          background: selected ? "var(--accent-soft)" : "transparent",
-                          color: selected ? "var(--accent)" : "var(--text-secondary)",
-                          cursor: "pointer",
-                          fontSize: "0.625rem",
-                          fontFamily: "var(--font-mono), monospace",
-                          letterSpacing: "0.08em",
-                          textTransform: "uppercase",
-                          textAlign: "left",
-                          padding: "0.5rem 0.55rem",
-                        }}
-                      >
-                        <span style={{ width: "1rem", display: "inline-flex", justifyContent: "center" }}>
-                          {selected ? "✓" : ""}
-                        </span>
-                        <span>{kind.shortLabel}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          )}
+          <span
+            style={{
+              fontSize: "0.625rem",
+              fontFamily: "var(--font-mono), monospace",
+              letterSpacing: "0.12em",
+              textTransform: "uppercase",
+              color: colorStyle.accent,
+            }}
+          >
+            {noteKindLabel(specialNote ? "special_note" : note.kind)}
+          </span>
 
           <span
             title={`${connectedNodeCount} connected node${connectedNodeCount === 1 ? "" : "s"}`}
@@ -332,7 +259,8 @@ export function TimelineNoteCard({
           <SpecialNotePreview
             file={note.specialNote}
             previewUrl={specialNotePreviewUrl}
-            disabled={readOnly}
+            missing={specialNoteFileMissing}
+            disabled={readOnly || Boolean(specialNoteFileMissing)}
             onOpen={() => onOpenSpecialNote?.(note)}
           />
         ) : !readOnly && isEditingText ? (
@@ -343,6 +271,7 @@ export function TimelineNoteCard({
             onPointerDown={(event) => event.stopPropagation()}
             onFocus={() => setIsEditingText(true)}
             onBlur={() => setIsEditingText(false)}
+            placeholder="Write a note…"
             autoFocus
             style={{
               position: "relative",
@@ -355,9 +284,9 @@ export function TimelineNoteCard({
               background: "transparent",
               color: "var(--text-primary)",
               fontFamily: "var(--font-sans), sans-serif",
-              fontSize: "0.9375rem",
-              fontWeight: 500,
-              lineHeight: 1.5,
+              fontSize: "0.875rem",
+              fontWeight: 400,
+              lineHeight: 1.55,
               letterSpacing: 0,
               padding: "0.5rem 0.75rem",
               cursor: "text",
@@ -389,73 +318,90 @@ export function TimelineNoteCard({
           >
             <MarkdownContent
               style={{
-                color: "var(--text-primary)",
+                color: note.text ? "var(--text-primary)" : "var(--text-tertiary)",
                 fontFamily: "var(--font-sans), sans-serif",
-                fontSize: "0.9375rem",
-                fontWeight: 500,
-                lineHeight: 1.5,
+                fontSize: "0.875rem",
+                fontWeight: 400,
+                lineHeight: 1.55,
                 letterSpacing: 0,
                 overflowWrap: "break-word",
               }}
             >
-              {note.text || "Add note (markdown supported)"}
+              {note.text || "Write a note…"}
             </MarkdownContent>
           </button>
         )}
 
         {!readOnly && (
+          // The same floating action bar as paper cards: kind, colour and delete, under the note.
           <div
             data-note-control="true"
-            style={{
-              position: "relative",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: "0.5rem",
-              padding: specialNote ? "0.75rem 0.625rem 0.625rem" : "0 0.625rem 0.625rem",
-            }}
+            className={bar.bar}
+            data-show={showControls ? "" : undefined}
+            style={{ top: "calc(100% + 10px)" }}
+            {...controlFocusHandlers}
             onPointerDown={(event) => event.stopPropagation()}
           >
-            <div style={{ display: "flex", gap: "0.25rem" }}>
+            {!specialNote && (
+              <>
+                <div className={bar.groupAnchor}>
+                  <button type="button" onClick={() => setKindMenuOpen((open) => !open)} aria-expanded={kindMenuOpen} title="Change note type">
+                    {NOTE_KIND_OPTIONS.find((kind) => kind.key === (note.kind ?? "field_note"))?.label ?? "Field note"}
+                    <svg width="9" height="9" viewBox="0 0 8 8" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M2 3l2 2 2-2" /></svg>
+                  </button>
+                  {kindMenuOpen && (
+                    <div className={bar.groupMenu} role="menu" style={{ width: 170 }}>
+                      {NOTE_KIND_OPTIONS.map((kind) => {
+                        const selected = (note.kind ?? "field_note") === kind.key;
+                        return (
+                          <button
+                            key={kind.key}
+                            type="button"
+                            role="menuitemradio"
+                            aria-checked={selected}
+                            onClick={() => {
+                              onKindChange?.(note.id, kind.key);
+                              setKindMenuOpen(false);
+                            }}
+                          >
+                            <span>{kind.label}</span>
+                            {selected && <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M2.5 6.5 5 9l4.5-6" /></svg>}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+                <span className={bar.sep} aria-hidden="true" />
+              </>
+            )}
+            <div className={bar.swatches}>
               {NOTE_COLOR_OPTIONS.map((color) => {
                 const selected = (note.color ?? "paper") === color.key;
                 return (
                   <button
                     key={color.key}
                     type="button"
-                    title={`Set note ${color.label.toLowerCase()}`}
-                    aria-label={`Set note ${color.label.toLowerCase()}`}
+                    className={bar.swatch}
+                    aria-pressed={selected}
+                    title={`${color.label} note`}
+                    aria-label={`Make the note ${color.label.toLowerCase()}`}
                     onClick={() => onColorChange?.(note.id, color.key)}
-                    style={{
-                      width: "1rem",
-                      height: "1rem",
-                      borderRadius: "999px",
-                      border: `0.09375rem solid ${selected ? "var(--text-primary)" : "var(--border)"}`,
-                      background: color.accent,
-                      cursor: "pointer",
-                      opacity: selected ? 1 : 0.72,
-                    }}
+                    style={{ background: color.accent }}
                   />
                 );
               })}
             </div>
-
+            <span className={bar.sep} aria-hidden="true" />
             <button
               type="button"
+              className={bar.danger}
               onClick={() => onDelete?.(note.id)}
               disabled={isSpecialNoteDeleting}
-              style={{
-                background: "transparent",
-                border: "none",
-                color: isSpecialNoteDeleting ? "var(--text-tertiary)" : "var(--cat-rose)",
-                cursor: isSpecialNoteDeleting ? "default" : "pointer",
-                fontSize: "0.625rem",
-                fontFamily: "var(--font-mono), monospace",
-                letterSpacing: "0.04em",
-                padding: "0.125rem",
-              }}
+              aria-label={specialNote ? "Delete file" : "Delete note"}
+              title={isSpecialNoteDeleting ? "Deleting…" : specialNote ? "Delete file" : "Delete note"}
             >
-              {isSpecialNoteDeleting ? "Deleting…" : specialNote ? "Delete file" : "Delete"}
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.5 8.5h6l.5-8.5" /></svg>
             </button>
           </div>
         )}
@@ -470,10 +416,9 @@ export function TimelineNoteCard({
               position: "relative",
               width: "calc(100% - 1.25rem)",
               margin: "0 0.625rem 0.625rem",
-              border: `0.0625rem solid ${isConnectedToActiveNode ? colorStyle.accent : "var(--border)"}`,
-              borderRadius: "0.25rem",
-              background: isConnectedToActiveNode ? "color-mix(in srgb, var(--accent-soft) 72%, transparent)" : "var(--bg-primary)",
-              color: isConnectedToActiveNode ? "var(--accent)" : "var(--text-secondary)",
+              borderRadius: "0.375rem",
+              background: "color-mix(in srgb, var(--text-primary) 8%, transparent)",
+              color: isConnectedToActiveNode ? "var(--text-primary)" : "var(--text-secondary)",
               cursor: "pointer",
               fontSize: "0.625rem",
               fontFamily: "var(--font-mono), monospace",
@@ -496,6 +441,7 @@ export function TimelineNoteCard({
             onPointerMove={handleResizePointerMove}
             onPointerUp={finishResize}
             onPointerCancel={finishResize}
+            {...controlFocusHandlers}
             style={{
               position: "absolute",
               right: "0.5rem",
@@ -504,7 +450,9 @@ export function TimelineNoteCard({
               height: "1rem",
               border: "none",
               background: "transparent",
-              cursor: isResizing ? "nwse-resize" : "nwse-resize",
+              cursor: "nwse-resize",
+              opacity: showControls ? 1 : 0,
+              transition: "opacity 0.12s",
               padding: 0,
               color: "var(--text-tertiary)",
             }}
@@ -523,16 +471,18 @@ export function TimelineNoteCard({
 function SpecialNotePreview({
   file,
   previewUrl,
+  missing,
   disabled,
   onOpen,
 }: {
   file: SpecialNoteFile;
   previewUrl?: string;
+  missing?: boolean;
   disabled: boolean;
   onOpen: () => void;
 }) {
-  const label = file.fileType === "pdf" ? "PDF" : file.fileType === "spreadsheet" ? "SHEET" : "IMAGE";
-  const accent = file.fileType === "pdf" ? "var(--cat-rose)" : file.fileType === "spreadsheet" ? "var(--cat-green)" : "var(--cat-blue)";
+  const label = missing ? "FILE DELETED" : file.fileType === "pdf" ? "PDF" : file.fileType === "spreadsheet" ? "SHEET" : "IMAGE";
+  const accent = missing ? "var(--text-tertiary)" : file.fileType === "pdf" ? "var(--cat-rose)" : file.fileType === "spreadsheet" ? "var(--cat-green)" : "var(--cat-blue)";
 
   return (
     <button
@@ -541,14 +491,15 @@ function SpecialNotePreview({
       disabled={disabled}
       onClick={onOpen}
       onPointerDown={(event) => event.stopPropagation()}
-      title={disabled ? file.filename : `Open ${file.filename}`}
+      title={missing ? `${file.filename} was deleted. Delete this note to remove it.` : disabled ? file.filename : `Open ${file.filename}`}
       style={{
         position: "relative",
         display: "block",
         width: "calc(100% - 1.5rem)",
         flex: 1,
         minHeight: "8.5rem",
-        margin: "0.625rem 0.75rem 0",
+        // Same gap below as at the sides, now that the controls live in the floating bar.
+        margin: "0.625rem 0.75rem 0.75rem",
         overflow: "hidden",
         border: "0.0625rem solid var(--border)",
         borderRadius: "0.5rem",
@@ -558,7 +509,25 @@ function SpecialNotePreview({
         textAlign: "left",
       }}
     >
-      {file.fileType === "image" && previewUrl ? (
+      {missing ? (
+        <div
+          style={{
+            display: "grid",
+            height: "100%",
+            placeItems: "center",
+            alignContent: "center",
+            gap: "0.375rem",
+            padding: "1rem",
+            textAlign: "center",
+            color: "var(--text-tertiary)",
+            fontSize: "0.75rem",
+            lineHeight: 1.5,
+          }}
+        >
+          <span style={{ color: "var(--text-secondary)", fontWeight: 550 }}>This file was deleted</span>
+          <span>The note came back, but its upload did not. Delete the note to remove it.</span>
+        </div>
+      ) : file.fileType === "image" && previewUrl ? (
         // eslint-disable-next-line @next/next/no-img-element -- Signed Supabase Storage URLs cannot use Next image optimization.
         <img
           src={previewUrl}

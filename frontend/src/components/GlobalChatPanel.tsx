@@ -1,17 +1,20 @@
 "use client";
 
-import { useState, useRef, useEffect, useId, useCallback, type ReactNode } from "react";
+import { useState, useRef, useEffect, useId, useCallback, useMemo, type ReactNode } from "react";
 import { m, AnimatePresence } from "framer-motion";
 import dynamic from "next/dynamic";
 // react-markdown + KaTeX are heavy; load them only when a message actually
 // renders markdown, not when the (already code-split) chat panel first mounts.
 const MarkdownContent = dynamic(() => import("./MarkdownContent").then((mod) => mod.MarkdownContent), { ssr: false });
 import { ConversationNavigator } from "./ConversationNavigator";
-import { LogoMark } from "./LogoMark";
-import { openChatSession, streamChatAboutTimeline, suggestTimelineQuestions } from "@/lib/api";
+import { AgentCapabilities } from "./AgentCapabilities";
+import { createChat, deleteChat, listChats, openChatSession, streamChatAboutTimeline, suggestTimelineQuestions } from "@/lib/api";
+import { ChatTabs, chatPanelId, chatTabId, type ChatTabItem } from "./ChatTabs";
 import { DETAIL_PANEL_DEFAULT_WIDTH, DETAIL_PANEL_MAX_WIDTH, DETAIL_PANEL_MIN_WIDTH, DETAIL_PANEL_WIDTH_KEY } from "@/lib/detail-panel";
 import { isSpecialNote } from "@/lib/note-style";
 import {
+  CanvasDetails,
+  CanvasDetailsChange,
   GlobalChatStreamEvent,
   LineageChange,
   TimelineData,
@@ -47,35 +50,22 @@ interface GlobalChatPanelProps {
   onOpenChange: (open: boolean) => void;
   onHighlight: (ids: string[]) => void;
   onMentionedPaperIdsChange?: (ids: string[]) => void;
+  /** Ask the panel to tag a paper in the composer. Change `nonce` to repeat the request. */
+  mentionRequest?: { paperId: string; nonce: number; quote?: string } | null;
+  /** A message to send on the user's behalf as soon as the panel is ready, such as the home search. */
+  kickoff?: { text: string; nonce: number } | null;
+  onKickoffSent?: () => void;
   onLineageChanges?: (changes: LineageChange[]) => void;
   onNoteChanges?: (changes: TimelineNoteChange[]) => void;
   onNodeColorChanges?: (changes: TimelineNodeColorChange[]) => void;
+  /** The canvas's name and description, sent so the agent can name a new canvas. */
+  canvasDetails?: CanvasDetails;
+  onCanvasDetailsChange?: (details: CanvasDetailsChange) => void;
   onUsageChanged?: () => void;
   graphId?: string | null;
   userId?: string | null;
 }
 
-const NOTE_CONTEXT_REQUEST_RE = /\b(notes?|canvas)\b/i;
-const NOTE_PRONOUN_ACTION_RE = /\b(add|create|write|make|edit|update|change|delete|remove|connect|disconnect|link|unlink)\s+(it|this|that)\b/i;
-const NODE_COLOR_CONTEXT_REQUEST_RE = /\b(colors?|colours?|highlight(?:ed)?|accent|blue|green|purple|amber|rose)\b/i;
-const NODE_COLOR_FOLLOWUP_RE = /\b(it|them|these|those)\b/i;
-
-function requiresTimelineNoteContext(question: string, messages: Message[]): boolean {
-  if (NOTE_CONTEXT_REQUEST_RE.test(question)) return true;
-  if (!NOTE_PRONOUN_ACTION_RE.test(question)) return false;
-  return messages.slice(-4).some((message) => (
-    NOTE_CONTEXT_REQUEST_RE.test(message.text)
-    || message.toolEvents?.some((tool) => tool.name === "create_timeline_notes" || tool.name === "update_timeline_notes")
-  ));
-}
-
-function requiresTimelineNodeColorContext(question: string, messages: Message[]): boolean {
-  if (NODE_COLOR_CONTEXT_REQUEST_RE.test(question)) return true;
-  if (!NODE_COLOR_FOLLOWUP_RE.test(question)) return false;
-  return messages.slice(-4).some((message) => (
-    message.toolEvents?.some((tool) => tool.name === "update_timeline_node_colors")
-  ));
-}
 
 function traceSummaryMessage(summary: NonNullable<TimelineData["traceSummary"]>): string {
   const steps = summary.steps
@@ -204,30 +194,99 @@ function capMessages(messages: Message[]): Message[] {
   ));
 }
 
-export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMentionedPaperIdsChange, onLineageChanges, onNoteChanges, onNodeColorChanges, onUsageChanged, graphId, userId }: GlobalChatPanelProps) {
-  const [messages, setMessages] = useState<Message[]>([]);
+const LOCAL_SESSION_KEY = "local";
+const MAX_CHATS = 12;
+
+/** The backend accepts questions up to 1,000 characters; a quoted passage keeps well inside that. */
+const MAX_QUOTE_LENGTH = 600;
+
+export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMentionedPaperIdsChange, mentionRequest, kickoff, onKickoffSent, onLineageChanges, onNoteChanges, onNodeColorChanges, canvasDetails, onCanvasDetailsChange, onUsageChanged, graphId, userId }: GlobalChatPanelProps) {
+  // Each chat keeps its own messages, so switching tabs or a reply arriving in another chat never mixes them.
+  const [messagesBySession, setMessagesBySession] = useState<Record<string, Message[]>>({});
+  const [tabs, setTabs] = useState<ChatTabItem[]>([]);
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const [thinkingKeys, setThinkingKeys] = useState<Set<string>>(() => new Set());
+  // An unsaved canvas has no stored chats; its one conversation lives under this key.
+  const sessionKey = activeSessionId ?? LOCAL_SESSION_KEY;
+  const messages = useMemo(() => messagesBySession[sessionKey] ?? [], [messagesBySession, sessionKey]);
+  const setSessionMessages = useCallback((key: string, update: Message[] | ((current: Message[]) => Message[])) => {
+    setMessagesBySession((all) => {
+      const current = all[key] ?? [];
+      const next = typeof update === "function" ? update(current) : update;
+      return next === current ? all : { ...all, [key]: next };
+    });
+  }, []);
+  const isThinking = thinkingKeys.has(sessionKey);
+  const [chatsError, setChatsError] = useState(false);
+  const [chatsReload, setChatsReload] = useState(0);
+  // Chats whose saved history has finished loading; a message sent earlier would be cut by the restore.
+  const [restoredSessions, setRestoredSessions] = useState<Set<string>>(new Set());
+  const graphIdRef = useRef<string | null>(graphId ?? null);
+  const closingChatRef = useRef(false);
+  const [historyFailed, setHistoryFailed] = useState<Set<string>>(new Set());
+  const [historyRetry, setHistoryRetry] = useState(0);
+  // Cleared on unmount, so a reply still streaming cannot reach whichever canvas is shown next.
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
+  const loadedSessionsRef = useRef<Set<string>>(new Set());
   const [input, setInput] = useState("");
   const [mentionedPaperIds, setMentionedPaperIds] = useState<string[]>([]);
   const [mentionQuery, setMentionQuery] = useState("");
   const [mentionOpen, setMentionOpen] = useState(false);
   const [inputFocused, setInputFocused] = useState(false);
-  const [isThinking, setIsThinking] = useState(false);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
   const msgIdRef = useRef(0);
-  const messagesRef = useRef<HTMLDivElement>(null);
+  const messagesRef = useRef<HTMLDivElement | null>(null);
+  // The list element itself, as state: it is created and destroyed as the panel opens, closes and changes
+  // tab, and the scroll tracking below has to follow whichever one is on screen.
+  const [messagesEl, setMessagesEl] = useState<HTMLDivElement | null>(null);
+  const attachMessages = useCallback((element: HTMLDivElement | null) => {
+    messagesRef.current = element;
+    setMessagesEl(element);
+  }, []);
   const [panelWidth, setPanelWidth] = useState(DETAIL_PANEL_DEFAULT_WIDTH);
   const panelWidthRef = useRef(DETAIL_PANEL_DEFAULT_WIDTH);
   const panelResizeStateRef = useRef<{ startX: number; startWidth: number } | null>(null);
 
+  // Load the canvas's chats when it opens.
   useEffect(() => {
     let cancelled = false;
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- Reset messages before loading the next remote session.
-    setMessages([]);
+    /* eslint-disable react-hooks/set-state-in-effect -- Reset per-canvas chat state before loading the next canvas. */
+    setMessagesBySession({});
+    setTabs([]);
+    setActiveSessionId(null);
+    setThinkingKeys(new Set());
+    /* eslint-enable react-hooks/set-state-in-effect */
+    loadedSessionsRef.current = new Set();
+    graphIdRef.current = graphId ?? null;
+    setChatsError(false); // eslint-disable-line react-hooks/set-state-in-effect -- Clear the last canvas's load error.
+    setRestoredSessions(new Set());
+    setHistoryFailed(new Set());
     if (!graphId || !userId) return () => { cancelled = true; };
-    void openChatSession(graphId, userId, "graph")
-      .then((session) => {
+    void listChats(graphId, userId)
+      .then((chats) => {
         if (cancelled) return;
+        setTabs(chats.map((chat) => ({ id: chat.sessionId, title: chat.title })));
+        setActiveSessionId(chats[0]?.sessionId ?? null);
+      })
+      .catch(() => {
+        if (!cancelled) setChatsError(true);
+      });
+    return () => { cancelled = true; };
+  }, [graphId, userId, chatsReload]);
+
+  // Load a chat's history the first time its tab is opened.
+  useEffect(() => {
+    if (!graphId || !userId || !activeSessionId) return;
+    if (loadedSessionsRef.current.has(activeSessionId)) return;
+    loadedSessionsRef.current.add(activeSessionId);
+    const sessionId = activeSessionId;
+    void openChatSession(graphId, userId, "graph", undefined, sessionId)
+      .then((session) => {
         const restored: Message[] = session.messages.map((message) => {
           const metadata = restoredGlobalMetadata(message.toolUses);
           return {
@@ -239,11 +298,57 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
             citations: message.citations,
           };
         });
-        setMessages((current) => capMessages(mergeMessagesById(current, restored)));
+        setSessionMessages(sessionId, (current) => capMessages(mergeMessagesById(current, restored)));
+        setRestoredSessions((current) => new Set(current).add(sessionId));
+      })
+      .catch(() => {
+        // Not restored: sending stays off until a retry loads the history.
+        loadedSessionsRef.current.delete(sessionId);
+        setHistoryFailed((current) => new Set(current).add(sessionId));
+      });
+  }, [activeSessionId, graphId, setSessionMessages, userId, historyRetry]);
+
+  const handleAddChat = useCallback(() => {
+    if (!graphId || !userId) return;
+    const requestedFor = graphId;
+    void createChat(graphId, userId)
+      .then((chat) => {
+        // Another canvas may have opened while this was being created.
+        if (graphIdRef.current !== requestedFor) return;
+        loadedSessionsRef.current.add(chat.sessionId);
+        setRestoredSessions((current) => new Set(current).add(chat.sessionId));
+        setTabs((current) => [...current, { id: chat.sessionId, title: chat.title }]);
+        setActiveSessionId(chat.sessionId);
+        window.setTimeout(() => inputRef.current?.focus({ preventScroll: true }), 0);
       })
       .catch(() => undefined);
-    return () => { cancelled = true; };
   }, [graphId, userId]);
+
+  const handleCloseChat = useCallback((sessionId: string) => {
+    // One close at a time, and never the last chat: two quick closes could otherwise remove both.
+    if (!graphId || !userId || closingChatRef.current || tabs.length <= 1) return;
+    closingChatRef.current = true;
+    void deleteChat(graphId, userId, sessionId)
+      .then(() => {
+        setTabs((current) => {
+          const index = current.findIndex((tab) => tab.id === sessionId);
+          const next = current.filter((tab) => tab.id !== sessionId);
+          setActiveSessionId((active) => (
+            active === sessionId ? (next[Math.min(index, next.length - 1)]?.id ?? null) : active
+          ));
+          return next;
+        });
+        setMessagesBySession((all) => {
+          const rest = { ...all };
+          delete rest[sessionId];
+          return rest;
+        });
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        closingChatRef.current = false;
+      });
+  }, [graphId, tabs.length, userId]);
 
   const traceSummaryKey = data.traceSummary
     ? `${data.traceSummary.traceMode}:${data.traceSummary.rationale}:${data.traceSummary.steps.join("|")}:${JSON.stringify(data.traceEvidence ?? {})}`
@@ -251,9 +356,12 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
 
   useEffect(() => {
     if (!data.traceSummary || !traceSummaryKey) return;
+    // The trace write-up belongs to the canvas's first chat.
+    const firstKey = graphId ? tabs[0]?.id : LOCAL_SESSION_KEY;
+    if (!firstKey) return;
     const id = `trace-summary:${traceSummaryKey}`;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- Add the derived trace summary when its source changes.
-    setMessages((current) => (
+    setSessionMessages(firstKey, (current) => (
       current.some((message) => message.id === id)
         ? current
         : [{
@@ -263,7 +371,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
           traceEvidence: data.traceEvidence,
         }, ...current]
     ));
-  }, [data.traceSummary, graphId, traceSummaryKey]);
+  }, [data.traceSummary, graphId, setSessionMessages, tabs, traceSummaryKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     onMentionedPaperIdsChange?.(inputFocused ? mentionedPaperIds : []);
@@ -273,15 +381,57 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
   const [inputHeight, setInputHeight] = useState(24);
   const panelId = useId();
   const [activeNavigationId, setActiveNavigationId] = useState<string | null>(null);
-  const navigationItems = messages
-    .filter((message) => message.role === "user" && message.text.trim())
-    .map((message) => ({ id: String(message.id), label: message.text.trim() }));
+  const navigationItems = messages.flatMap((message, index) => {
+    if (message.role !== "user" || !message.text.trim()) return [];
+    // The reply is the last assistant message before the next question.
+    let detail: string | undefined;
+    for (let next = index + 1; next < messages.length && messages[next].role !== "user"; next += 1) {
+      if (messages[next].text.trim()) detail = messages[next].text;
+    }
+    return [{ id: String(message.id), label: message.text.trim(), detail }];
+  });
   const latestNavigationId = navigationItems[navigationItems.length - 1]?.id ?? null;
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- Keep the active item synchronized with new navigation entries.
     if (latestNavigationId) setActiveNavigationId(latestNavigationId);
   }, [latestNavigationId]);
+
+  // The rail lights the question whose turn is on screen: the last one whose top has scrolled past
+  // the upper third of the chat. At the very bottom it is always the latest.
+  const navigationIdsKey = navigationItems.map((item) => item.id).join(",");
+  useEffect(() => {
+    const container = messagesEl;
+    if (!container || !navigationIdsKey) return;
+    const ids = navigationIdsKey.split(",");
+    let frame = 0;
+    const update = () => {
+      frame = 0;
+      const box = container.getBoundingClientRect();
+      if (container.scrollTop + container.clientHeight >= container.scrollHeight - 4) {
+        setActiveNavigationId(ids[ids.length - 1]);
+        return;
+      }
+      const line = box.top + container.clientHeight / 3;
+      let current = ids[0];
+      for (const id of ids) {
+        const element = document.getElementById(`${panelId}-message-${id}`);
+        if (element && element.getBoundingClientRect().top <= line) current = id;
+      }
+      setActiveNavigationId(current);
+    };
+    const onScroll = () => {
+      if (!frame) frame = window.requestAnimationFrame(update);
+    };
+    container.addEventListener("scroll", onScroll, { passive: true });
+    // Mark the right question straight away, not only after the first scroll.
+    frame = window.requestAnimationFrame(update);
+    return () => {
+      container.removeEventListener("scroll", onScroll);
+      if (frame) window.cancelAnimationFrame(frame);
+    };
+    // Re-run whenever the list element or its messages change (a reload loads history after the panel opens).
+  }, [navigationIdsKey, panelId, messagesEl, messages]);
 
   const jumpToMessage = useCallback((messageId: string) => {
     setActiveNavigationId(messageId);
@@ -345,7 +495,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
       const handlePointerMove = (moveEvent: PointerEvent) => {
         const current = panelResizeStateRef.current;
         if (!current) return;
-        const nextWidth = getClampedPanelWidth(current.startWidth - (moveEvent.clientX - current.startX));
+        const nextWidth = getClampedPanelWidth(current.startWidth + (moveEvent.clientX - current.startX));
         panelWidthRef.current = nextWidth;
         setPanelWidth(nextWidth);
       };
@@ -369,7 +519,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
 
   useEffect(() => {
     if (open) {
-      if (messages.length === 0 && suggestions.length === 0) {
+      if (messages.length === 0 && suggestions.length === 0 && papers.length > 0) {
         // eslint-disable-next-line react-hooks/set-state-in-effect -- Mark the request pending before fetching suggestions.
         setLoadingSuggestions(true);
         // eslint-disable-next-line react-hooks/immutability -- This effect intentionally reads the current derived paper list.
@@ -384,17 +534,70 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
     }
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const mentionNonce = mentionRequest?.nonce;
   useEffect(() => {
-    const messagesEl = messagesRef.current;
-    if (!messagesEl) return;
-    messagesEl.scrollTo({ top: messagesEl.scrollHeight, behavior: "smooth" });
+    if (!mentionRequest) return;
+    const paper = Object.values(data.nodes).find((n) => n.paper.openalexId === mentionRequest.paperId)?.paper;
+    if (!paper) return;
+    const mentionText = `@${paper.title}`;
+    /* eslint-disable react-hooks/set-state-in-effect -- Responds to an explicit request from the paper panel. */
+    // The whole message is capped, so a long passage is shortened here, visibly, leaving room for a question.
+    const rawQuote = mentionRequest.quote?.trim() ?? "";
+    const quote = rawQuote.length > MAX_QUOTE_LENGTH ? `${rawQuote.slice(0, MAX_QUOTE_LENGTH).trimEnd()}…` : rawQuote;
+    const quoted = quote ? `${quote.split("\n").map((line) => `> ${line}`).join("\n")}\n\n` : "";
+    setInput((current) => {
+      // Add the quote after anything already typed, never in place of it.
+      if (quoted) return current.trim() ? `${current.trimEnd()}\n\n${quoted}${mentionText} ` : `${quoted}${mentionText} `;
+      return current.includes(mentionText) ? current : current.trim() ? `${current.trimEnd()} ${mentionText} ` : `${mentionText} `;
+    });
+    setMentionedPaperIds((current) => current.includes(paper.openalexId) ? current : [...current, paper.openalexId]);
+    setMentionOpen(false);
+    setMentionQuery("");
+    /* eslint-enable react-hooks/set-state-in-effect */
+    // Wait for the panel to slide in before focusing the composer.
+    const timer = window.setTimeout(() => {
+      const element = inputRef.current;
+      if (!element) return;
+      element.focus({ preventScroll: true });
+      element.setSelectionRange(element.value.length, element.value.length);
+      resizeInput(element);
+    }, 260);
+    return () => window.clearTimeout(timer);
+  }, [mentionNonce]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Send the opening message once per request, after the canvas has an ID to save against.
+  const kickoffNonce = kickoff?.nonce;
+  const sentKickoffRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!kickoff || !open || !graphId || !userId || !activeSessionId || !restoredSessions.has(activeSessionId) || isThinking) return;
+    if (sentKickoffRef.current === kickoff.nonce) return;
+    // Deferred so the history reset that runs when a canvas opens cannot wipe the message.
+    const timer = window.setTimeout(() => {
+      if (sentKickoffRef.current === kickoff.nonce) return;
+      sentKickoffRef.current = kickoff.nonce;
+      onKickoffSent?.();
+      void send(kickoff.text);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [kickoffNonce, open, graphId, userId, activeSessionId, restoredSessions, isThinking]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    const element = messagesRef.current;
+    if (!element) return;
+    element.scrollTo({ top: element.scrollHeight, behavior: "smooth" });
   }, [messages, isThinking]);
+
+  // A chat opens at its latest message, like any chat app.
+  useEffect(() => {
+    if (messagesEl) messagesEl.scrollTop = messagesEl.scrollHeight;
+  }, [messagesEl, sessionKey]);
 
   const papers = Object.values(data.nodes).map((n) => ({
     openalexId: n.paper.openalexId,
     title: n.paper.title,
     year: n.paper.year,
-    summary: n.paper.summary,
+    summary: (n.paper.summary ?? "").slice(0, 500),
+    ...(n.group ? { group: n.group.slice(0, 48) } : {}),
   }));
   const noteCount = Object.values(data.notes ?? {}).filter(
     (note) => note.id && note.text.trim() && !isSpecialNote(note),
@@ -410,6 +613,14 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
       );
     })
     .slice(0, 8);
+  const buildEdges = useCallback(() => Object.entries(data.adjacency).flatMap(([parentId, children]) => {
+    const parent = data.nodes[Number(parentId)]?.paper.openalexId;
+    return children.flatMap((childId) => {
+      const child = data.nodes[childId]?.paper.openalexId;
+      return parent && child ? [{ parentPaperId: parent, childPaperId: child }] : [];
+    });
+  }).slice(0, 300), [data.adjacency, data.nodes]);
+
   const buildNoteContext = useCallback((): TimelineNoteContext => {
     const agentNotes = Object.values(data.notes ?? {})
       .filter((note) => note.id && note.text.trim() && !isSpecialNote(note));
@@ -486,7 +697,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
   }, [resizeInput]);
 
   const startLineageEdit = useCallback(() => {
-    startTemplatedCommand("Add or delete papers in this lineage: ");
+    startTemplatedCommand("Add, remove or link papers: ");
   }, [startTemplatedCommand]);
 
   const startNoteEdit = useCallback(() => {
@@ -519,12 +730,32 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
     }, 0);
   }, [resizeInput, updateMentionSearch]);
 
-  async function send() {
-    const focusedPaperIds = mentionedPaperIds;
-    const q = input.trim() || (focusedPaperIds.length > 0 ? "Tell me about the mentioned paper(s)." : "");
+  async function send(textOverride?: string) {
+    const focusedPaperIds = textOverride ? [] : mentionedPaperIds;
+    const q = textOverride?.trim() || input.trim() || (focusedPaperIds.length > 0 ? "Tell me about the mentioned paper(s)." : "");
     if (!q || isThinking) return;
-    const noteContext = requiresTimelineNoteContext(q, messages) ? buildNoteContext() : undefined;
-    const nodeColorContext = requiresTimelineNodeColorContext(q, messages) ? buildNodeColorContext() : undefined;
+    if (graphId && userId && (!activeSessionId || !restoredSessions.has(activeSessionId))) return;
+    // Results belong to the canvas this was sent from; drop any that arrive after another canvas opened.
+    const originGraphId = graphId ?? null;
+    const stillOnCanvas = () => mountedRef.current && graphIdRef.current === originGraphId;
+    // Everything below belongs to the chat this message was sent in, even if the user switches tabs.
+    const targetKey = sessionKey;
+    const setMessages = (update: Message[] | ((current: Message[]) => Message[])) => setSessionMessages(targetKey, update);
+    const setIsThinking = (thinking: boolean) => setThinkingKeys((current) => {
+      const next = new Set(current);
+      if (thinking) next.add(targetKey);
+      else next.delete(targetKey);
+      return next;
+    });
+    if (activeSessionId) {
+      // A chat is named after its first message, as the server does.
+      const words = q.replace(/\s+/g, " ");
+      const title = words.length <= 40 ? words : `${words.slice(0, 39).trimEnd()}…`;
+      setTabs((current) => current.map((tab) => (tab.id === activeSessionId && !tab.title ? { ...tab, title } : tab)));
+    }
+    // Notes and colours are small; the agent always gets the live ones, so it never answers from a stale save.
+    const noteContext = buildNoteContext();
+    const nodeColorContext = buildNodeColorContext();
     setInput("");
     setMentionedPaperIds([]);
     setMentionOpen(false);
@@ -565,21 +796,32 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
         return { ...message, toolEvents: next };
       }));
     };
-    let lineageChangesApplied = false;
+    // Canvas changes arrive while the agent is still working; the final response repeats them all.
+    let lineageChangesApplied = 0;
     let noteChangesApplied = false;
     let nodeColorChangesApplied = false;
+    let lastCanvasDetailsKey: string | null = null;
+    const applyCanvasDetails = (details: CanvasDetailsChange | null | undefined) => {
+      if (!details || (!details.title && !details.description) || !stillOnCanvas()) return;
+      // Each distinct change applies in order; the final response repeats the last one.
+      const key = JSON.stringify([details.title ?? "", details.description ?? ""]);
+      if (key === lastCanvasDetailsKey) return;
+      lastCanvasDetailsKey = key;
+      onCanvasDetailsChange?.(details);
+    };
     const applyReturnedLineageChanges = (changes: LineageChange[] | undefined) => {
-      if (lineageChangesApplied || !changes?.length) return;
-      lineageChangesApplied = true;
-      onLineageChanges?.(changes);
+      const pending = (changes ?? []).slice(lineageChangesApplied);
+      if (pending.length === 0 || !stillOnCanvas()) return;
+      lineageChangesApplied += pending.length;
+      onLineageChanges?.(pending);
     };
     const applyReturnedNoteChanges = (changes: TimelineNoteChange[] | undefined) => {
-      if (noteChangesApplied || !changes?.length) return;
+      if (noteChangesApplied || !changes?.length || !stillOnCanvas()) return;
       noteChangesApplied = true;
       onNoteChanges?.(changes);
     };
     const applyReturnedNodeColorChanges = (changes: TimelineNodeColorChange[] | undefined) => {
-      if (nodeColorChangesApplied || !changes?.length) return;
+      if (nodeColorChangesApplied || !changes?.length || !stillOnCanvas()) return;
       nodeColorChangesApplied = true;
       onNodeColorChanges?.(changes);
     };
@@ -590,6 +832,11 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
         q,
         (event: GlobalChatStreamEvent) => {
           if (event.type === "status") appendStatus(event.message);
+          if (event.type === "canvas_details") applyCanvasDetails(event.details);
+          if (event.type === "canvas_change") {
+            lineageChangesApplied += 1;
+            if (stillOnCanvas()) onLineageChanges?.([event.lineageChange]);
+          }
           if (event.type === "tool_started") {
             upsertTool({ name: event.name, status: "started", label: globalToolLabel(event.name) });
           }
@@ -612,6 +859,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
             applyReturnedLineageChanges(event.response.lineageChanges);
             applyReturnedNoteChanges(event.response.noteChanges);
             applyReturnedNodeColorChanges(event.response.nodeColorChanges);
+            applyCanvasDetails(event.response.canvasDetails);
             updateAssistant({
               text: event.response.text,
               citations: event.response.citations ?? [],
@@ -622,10 +870,12 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
             updateAssistant({ text: event.detail || "Chat failed", pending: false });
           }
         },
-        graphId && userId ? { graphId, userId } : undefined,
+        graphId && userId ? { graphId, userId, ...(activeSessionId ? { sessionId: activeSessionId } : {}) } : undefined,
         focusedPaperIds,
         noteContext,
         nodeColorContext,
+        buildEdges(),
+        canvasDetails,
       );
       if (res) {
         applyReturnedLineageChanges(res.lineageChanges);
@@ -680,7 +930,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
       style={{
         position: "absolute",
         top: 0,
-        right: 0,
+        left: 0,
         bottom: 0,
         zIndex: 22,
         pointerEvents: "none",
@@ -690,21 +940,19 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
         {open && (
           <m.div
             id={panelId}
-            initial={{ x: "100%" }}
+            initial={{ x: "-100%" }}
             animate={{ x: 0 }}
-            exit={{ x: "100%" }}
+            exit={{ x: "-100%" }}
             transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
             onWheelCapture={(e) => e.stopPropagation()}
             style={{
               position: "absolute",
               top: 0,
-              right: 0,
+              left: 0,
               bottom: 0,
               width: `min(${panelWidth}px, 100vw)`,
               height: "100%",
-              background: "var(--bg-primary)",
-              borderLeft: "0.0625rem solid var(--border)",
-              boxShadow: "-0.75rem 0 2.5rem rgba(0,0,0,0.16)",
+              background: "var(--bg-secondary)",
               display: "flex",
               flexDirection: "column",
               overflow: "hidden",
@@ -717,7 +965,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
               style={{
                 position: "absolute",
                 top: 0,
-                left: "-0.375rem",
+                right: "-0.375rem",
                 bottom: 0,
                 width: "0.75rem",
                 cursor: "ew-resize",
@@ -740,57 +988,24 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
               />
             </div>
 
-            {/* Header */}
-            <div style={{
-              position: "relative",
-              display: "flex",
-              alignItems: "center",
-              gap: "0.5rem",
-              padding: "0.625rem 0.875rem",
-              borderBottom: "0.0625rem solid var(--border)",
-              flexShrink: 0,
-            }}>
-              <div
-                style={{
-                  width: "1.25rem",
-                  height: "1.25rem",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  flexShrink: 0,
-                }}
-              >
-                <LogoMark width="18" height="18" style={{ color: "var(--text-primary)" }} />
-              </div>
-              <div style={{ position: "absolute", left: "50%", transform: "translateX(-50%)", maxWidth: "calc(100% - 7rem)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", pointerEvents: "none" }}>
-                <div style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--text-primary)", fontFamily: "var(--font-sans), sans-serif" }}>
-                  Sediment Agent
-                </div>
-              </div>
-              <div style={{ flex: 1 }} />
-              <button
-                onClick={handleClose}
-                aria-label="Close chat"
-                style={{
-                  background: "none", border: "none", cursor: "pointer",
-                  color: "var(--text-tertiary)", padding: "0.25rem", borderRadius: "0.375rem",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                }}
-              >
-                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
-                  <path d="M3 3l10 10M13 3L3 13" />
-                </svg>
-              </button>
-            </div>
+            <ChatTabs
+              tabs={graphId ? tabs : [{ id: LOCAL_SESSION_KEY, title: null }]}
+              activeId={sessionKey}
+              busyIds={thinkingKeys}
+              canAdd={Boolean(graphId && userId) && tabs.length > 0 && tabs.length < MAX_CHATS}
+              onSelect={setActiveSessionId}
+              onAdd={handleAddChat}
+              onClose={handleCloseChat}
+              onClosePanel={handleClose}
+              idPrefix={panelId}
+            />
 
             <div
               style={{
                 display: "flex",
                 flexDirection: "column",
                 gap: "0.5rem",
-                padding: "0.75rem 0.875rem",
-                borderBottom: "0.0625rem solid var(--border)",
-                background: "var(--bg-secondary)",
+                padding: "0.5rem 1rem 0.75rem",
                 flexShrink: 0,
               }}
             >
@@ -800,161 +1015,62 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
                     fontSize: "0.625rem",
                     color: "var(--text-tertiary)",
                     fontFamily: "var(--font-mono), monospace",
-                    letterSpacing: "0.06em",
-                    textTransform: "uppercase",
                   }}
                 >
-                  Context
+                  {activeSessionId && historyFailed.has(activeSessionId) ? (
+                    <>
+                      This chat’s history could not be loaded.{" "}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setHistoryFailed((current) => { const next = new Set(current); next.delete(activeSessionId); return next; });
+                          setHistoryRetry((value) => value + 1);
+                        }}
+                        style={{ border: "none", background: "none", padding: 0, color: "var(--text-primary)", font: "inherit", textDecoration: "underline", cursor: "pointer" }}
+                      >
+                        Retry
+                      </button>
+                    </>
+                  ) : chatsError ? (
+                    <>
+                      Chats could not be loaded.{" "}
+                      <button
+                        type="button"
+                        onClick={() => setChatsReload((value) => value + 1)}
+                        style={{ border: "none", background: "none", padding: 0, color: "var(--text-primary)", font: "inherit", textDecoration: "underline", cursor: "pointer" }}
+                      >
+                        Retry
+                      </button>
+                    </>
+                  ) : (
+                    <>{papers.length} paper{papers.length !== 1 ? "s" : ""} · {noteCount} note{noteCount !== 1 ? "s" : ""}</>
+                  )}
                 </span>
-                <span
-                  style={{
-                    fontSize: "0.625rem",
-                    color: "var(--text-tertiary)",
-                    fontFamily: "var(--font-mono), monospace",
-                  }}
-                >
-                  {papers.length} paper{papers.length !== 1 ? "s" : ""} · {noteCount} note{noteCount !== 1 ? "s" : ""}
-                </span>
-              </div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: "0.375rem" }}>
-                <button
-                  type="button"
-                  onClick={startPaperMention}
+                <AgentCapabilities
                   disabled={isThinking}
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    borderRadius: "0.25rem",
-                    border: "0.0625rem solid var(--border)",
-                    background: "transparent",
-                    color: "var(--text-tertiary)",
-                    padding: "0.25rem 0.55rem",
-                    fontSize: "0.6875rem",
-                    fontFamily: "var(--font-sans), sans-serif",
-                    fontWeight: 500,
-                    cursor: isThinking ? "default" : "pointer",
-                    opacity: isThinking ? 0.55 : 1,
-                    transition: "border-color 0.15s, color 0.15s, background 0.15s",
-                  }}
-                  onMouseEnter={(event) => {
-                    if (isThinking) return;
-                    event.currentTarget.style.borderColor = "var(--border-hover)";
-                    event.currentTarget.style.color = "var(--text-primary)";
-                    event.currentTarget.style.background = "var(--bg-tertiary)";
-                  }}
-                  onMouseLeave={(event) => {
-                    event.currentTarget.style.borderColor = "var(--border)";
-                    event.currentTarget.style.color = "var(--text-tertiary)";
-                    event.currentTarget.style.background = "transparent";
-                  }}
-                >
-                  @ paper mentions
-                </button>
-                <button
-                  type="button"
-                  onClick={startLineageEdit}
-                  disabled={isThinking}
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    borderRadius: "0.25rem",
-                    border: "0.0625rem solid var(--border)",
-                    background: "transparent",
-                    color: "var(--text-tertiary)",
-                    padding: "0.25rem 0.55rem",
-                    fontSize: "0.6875rem",
-                    fontFamily: "var(--font-sans), sans-serif",
-                    fontWeight: 500,
-                    cursor: isThinking ? "default" : "pointer",
-                    opacity: isThinking ? 0.55 : 1,
-                    transition: "border-color 0.15s, color 0.15s, background 0.15s",
-                  }}
-                  onMouseEnter={(event) => {
-                    if (isThinking) return;
-                    event.currentTarget.style.borderColor = "var(--border-hover)";
-                    event.currentTarget.style.color = "var(--text-primary)";
-                    event.currentTarget.style.background = "var(--bg-tertiary)";
-                  }}
-                  onMouseLeave={(event) => {
-                    event.currentTarget.style.borderColor = "var(--border)";
-                    event.currentTarget.style.color = "var(--text-tertiary)";
-                    event.currentTarget.style.background = "transparent";
-                  }}
-                >
-                  Add/Delete papers
-                </button>
-                <button
-                  type="button"
-                  onClick={startNoteEdit}
-                  disabled={isThinking}
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    borderRadius: "0.25rem",
-                    border: "0.0625rem solid var(--border)",
-                    background: "transparent",
-                    color: "var(--text-tertiary)",
-                    padding: "0.25rem 0.55rem",
-                    fontSize: "0.6875rem",
-                    fontFamily: "var(--font-sans), sans-serif",
-                    fontWeight: 500,
-                    cursor: isThinking ? "default" : "pointer",
-                    opacity: isThinking ? 0.55 : 1,
-                    transition: "border-color 0.15s, color 0.15s, background 0.15s",
-                  }}
-                  onMouseEnter={(event) => {
-                    if (isThinking) return;
-                    event.currentTarget.style.borderColor = "var(--border-hover)";
-                    event.currentTarget.style.color = "var(--text-primary)";
-                    event.currentTarget.style.background = "var(--bg-tertiary)";
-                  }}
-                  onMouseLeave={(event) => {
-                    event.currentTarget.style.borderColor = "var(--border)";
-                    event.currentTarget.style.color = "var(--text-tertiary)";
-                    event.currentTarget.style.background = "transparent";
-                  }}
-                >
-                  Manage notes
-                </button>
-                <button
-                  type="button"
-                  onClick={startPaperAccess}
-                  disabled={isThinking}
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    borderRadius: "0.25rem",
-                    border: "0.0625rem solid var(--border)",
-                    background: "transparent",
-                    color: "var(--text-tertiary)",
-                    padding: "0.25rem 0.55rem",
-                    fontSize: "0.6875rem",
-                    fontFamily: "var(--font-sans), sans-serif",
-                    fontWeight: 500,
-                    cursor: isThinking ? "default" : "pointer",
-                    opacity: isThinking ? 0.55 : 1,
-                    transition: "border-color 0.15s, color 0.15s, background 0.15s",
-                  }}
-                  onMouseEnter={(event) => {
-                    if (isThinking) return;
-                    event.currentTarget.style.borderColor = "var(--border-hover)";
-                    event.currentTarget.style.color = "var(--text-primary)";
-                    event.currentTarget.style.background = "var(--bg-tertiary)";
-                  }}
-                  onMouseLeave={(event) => {
-                    event.currentTarget.style.borderColor = "var(--border)";
-                    event.currentTarget.style.color = "var(--text-tertiary)";
-                    event.currentTarget.style.background = "transparent";
-                  }}
-                >
-                  Access paper
-                </button>
+                  items={[
+                    { label: "Find and add papers", hint: "Search by title, topic or author, or paste a DOI or arXiv link.", onPick: () => startTemplatedCommand("Find papers about ") },
+                    { label: "Trace references and citations", hint: "What a paper builds on, and later work that cites it.", onPick: () => startTemplatedCommand("What does this build on, and what cites it: ") },
+                    { label: "Link and remove papers", hint: "Connect papers that cite each other, or take papers off the canvas.", onPick: startLineageEdit },
+                    { label: "Group into clusters", hint: "Sort the board into named clusters, or move papers between them.", onPick: () => startTemplatedCommand("Group the papers on this canvas into clusters") },
+                    { label: "Mention a paper", hint: "Type @ to point the agent at a specific paper.", onPick: startPaperMention },
+                    { label: "Notes", hint: "Read, write, edit or connect notes on the canvas.", onPick: startNoteEdit },
+                    { label: "Colours", hint: "Ask about coloured papers, or colour them.", onPick: () => startTemplatedCommand("How do the papers coloured ") },
+                    { label: "Name and describe the canvas", hint: "Give this canvas a name and a short description.", onPick: () => startTemplatedCommand("Name and describe this canvas") },
+                  ]}
+                />
               </div>
             </div>
 
             {/* Messages */}
             <div style={{ position: "relative", flex: 1, minHeight: 0 }}>
-              <div ref={messagesRef} style={{ height: "100%", overflowY: "auto", padding: "0.625rem 0.875rem", display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+              <div
+                ref={attachMessages}
+                className="no-scrollbar"
+                role="tabpanel"
+                id={chatPanelId(panelId)}
+                aria-labelledby={chatTabId(panelId, sessionKey)}
+                style={{ height: "100%", overflowY: "auto", padding: "0.5rem 1rem 1rem", display: "flex", flexDirection: "column", gap: "1rem" }}>
               {messages.length === 0 && (
                 <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem", marginTop: "0.25rem" }}>
                   {loadingSuggestions ? (
@@ -973,11 +1089,10 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
                       onClick={() => { setInput(hint); inputRef.current?.focus({ preventScroll: true }); }}
                       style={{
                         textAlign: "left",
-                        background: "var(--bg-secondary)",
-                        border: "0.0625rem solid var(--border)",
-                        borderRadius: "0.5rem",
-                        padding: "0.4375rem 0.625rem",
-                        fontSize: "0.71875rem",
+                        background: "var(--bg-tertiary)",
+                        borderRadius: "0.5625rem",
+                        padding: "0.5625rem 0.75rem",
+                        fontSize: "0.75rem",
                         color: "var(--text-secondary)",
                         fontFamily: "var(--font-sans), sans-serif",
                         cursor: "pointer",
@@ -995,13 +1110,13 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
               {messages.map((msg) => (
                 <div id={`${panelId}-message-${msg.id}`} key={msg.id} style={{ display: "flex", flexDirection: "column", gap: "0.25rem", alignItems: msg.role === "user" ? "flex-end" : "flex-start" }}>
                   <div style={{
-                    maxWidth: "88%",
-                    padding: "0.4375rem 0.625rem",
-                    borderRadius: msg.role === "user" ? "0.625rem 0.625rem 0.1875rem 0.625rem" : "0.625rem 0.625rem 0.625rem 0.1875rem",
-                    background: msg.role === "user" ? "var(--accent)" : "var(--bg-secondary)",
-                    color: msg.role === "user" ? "var(--on-accent)" : "var(--text-primary)",
-                    fontSize: "0.78125rem",
-                    lineHeight: 1.5,
+                    maxWidth: msg.role === "user" ? "88%" : "100%",
+                    padding: msg.role === "user" ? "0.5rem 0.75rem" : 0,
+                    borderRadius: "0.75rem",
+                    background: msg.role === "user" ? "var(--bg-tertiary)" : "transparent",
+                    color: "var(--text-primary)",
+                    fontSize: "0.8125rem",
+                    lineHeight: 1.6,
                     fontFamily: "var(--font-sans), sans-serif",
                   }}>
                     {msg.role === "assistant" ? (
@@ -1056,14 +1171,6 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
               )}
               </div>
               <ConversationNavigator
-                side="left"
-                items={navigationItems}
-                activeId={activeNavigationId ?? latestNavigationId}
-                onActiveChange={setActiveNavigationId}
-                onJump={jumpToMessage}
-              />
-              <ConversationNavigator
-                side="right"
                 items={navigationItems}
                 activeId={activeNavigationId ?? latestNavigationId}
                 onActiveChange={setActiveNavigationId}
@@ -1072,7 +1179,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
             </div>
 
             {/* Input bar */}
-            <div style={{ position: "relative", padding: "0.75rem 1rem", borderTop: "0.0625rem solid var(--border)", flexShrink: 0 }}>
+            <div style={{ position: "relative", padding: "0.5rem 1rem 1rem", flexShrink: 0 }}>
               <AnimatePresence>
                 {mentionOpen && mentionOptions.length > 0 && (
                   <m.div
@@ -1175,10 +1282,9 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
                     alignItems: "flex-end",
                     gap: "0.5rem",
                     flexWrap: "nowrap",
-                    background: "var(--bg-secondary)",
-                    border: "0.0625rem solid var(--border)",
-                    borderRadius: "0.25rem",
-                    padding: "0.5625rem 0.75rem",
+                    background: "var(--bg-tertiary)",
+                    borderRadius: "0.875rem",
+                    padding: "0.75rem 0.75rem 0.75rem 0.875rem",
                   }}
                 >
                   <textarea
@@ -1204,7 +1310,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
                     onClick={(e) => updateMentionSearch(input, e.currentTarget.selectionStart)}
                     onKeyUp={(e) => updateMentionSearch(input, e.currentTarget.selectionStart)}
                     onKeyDown={handleKey}
-                    placeholder="Ask, or @ papers to focus context..."
+                    placeholder={papers.length === 0 ? "What are you working on?" : "Ask anything, @ to mention a paper"}
                     disabled={isThinking}
                     style={{
                       flex: 1,
@@ -1341,15 +1447,30 @@ function globalToolLabel(name: string, status?: string, result?: Record<string, 
     const count = typeof result?.paperCount === "number" ? result.paperCount : null;
     return count === null ? "Searching OpenAlex" : `Searched OpenAlex · ${count} candidates`;
   }
-  if (name === "update_lineage") {
+  if (name === "get_openalex_references") {
+    const count = typeof result?.paperCount === "number" ? result.paperCount : null;
+    return count === null ? "Reading references" : `Read references · ${count} papers`;
+  }
+  if (name === "get_openalex_citing_papers") {
+    const count = typeof result?.paperCount === "number" ? result.paperCount : null;
+    return count === null ? "Finding citing papers" : `Found ${count} citing papers`;
+  }
+  if (name === "update_canvas_papers") {
     const additions = typeof result?.addedPaperCount === "number" ? result.addedPaperCount : 0;
     const removals = Array.isArray(result?.removedPaperIds) ? result.removedPaperIds.length : 0;
-    if (status === "started") return "Updating lineage";
-    if (additions || removals) {
-      const parts = [additions ? `${additions} added` : "", removals ? `${removals} removed` : ""].filter(Boolean);
-      return `Lineage updated · ${parts.join(", ")}`;
+    const links = typeof result?.edgeCount === "number" ? result.edgeCount : 0;
+    if (status === "started") return "Updating canvas";
+    const clustered = Array.isArray(result?.groups) ? result.groups.length : 0;
+    if (additions || removals || links || clustered) {
+      const parts = [
+        additions ? `${additions} added` : "",
+        removals ? `${removals} removed` : "",
+        links ? `${links} linked` : "",
+        clustered ? `${clustered} ${clustered === 1 ? "cluster" : "clusters"} set` : "",
+      ].filter(Boolean);
+      return `Canvas updated · ${parts.join(", ")}`;
     }
-    return "Checked lineage update";
+    return "No canvas change";
   }
   if (name === "update_timeline_node_colors") {
     const count = typeof result?.nodeColorCount === "number" ? result.nodeColorCount : null;

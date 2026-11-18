@@ -1,0 +1,125 @@
+/* Same column as the home page: a 71.25rem frame with 2rem gutters, so the logo and content line up. */
+.shell { position: relative; height: 100dvh; overflow: hidden; color: var(--text-primary); }
+.backdrop { position: absolute; inset: 0; z-index: 0; }
+.page { position: relative; z-index: 1; height: 100%; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: var(--border-hover) transparent; }
+
+.topbar { display: flex; align-items: center; gap: .5rem; height: 4rem; max-width: 71.25rem; margin: 0 auto; padding: 0 2rem; box-sizing: border-box; }
+.brand { display: flex; align-items: center; gap: .625rem; margin-right: auto; color: var(--text-primary); text-decoration: none; font-size: 1rem; font-weight: 600; letter-spacing: -.01em; }
+.brand svg { color: var(--text-primary); }
+.here { padding: 0 .625rem; font-size: .8125rem; font-weight: 500; color: var(--text-primary); }
+
+.main { max-width: 71.25rem; margin: 0 auto; padding: 56px 2rem 96px; box-sizing: border-box; }
+.heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 36px; flex-wrap: wrap; }
+.headingText h1 { font-size: clamp(30px, 3.6vw, 44px); line-height: 1.1; letter-spacing: -.055em; font-weight: 550; margin: 0; }
+.headingText p { margin: 14px 0 0; font-size: 14px; line-height: 1.7; color: var(--text-secondary); }
+.stats { display: block; margin-top: 10px; font-family: var(--font-mono), monospace; font-size: 11px; letter-spacing: .02em; color: var(--text-tertiary); }
+.tools { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+/* keyboard hint */
+.tools kbd { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 6px; font-family: var(--font-mono), monospace; font-size: 11px; line-height: 1; }
+
+.search { display: flex; align-items: center; gap: 8px; height: 36px; width: 248px; padding: 0 8px 0 12px; border-radius: 9px; border: 1px solid var(--border); background: color-mix(in srgb, var(--node-bg) 60%, transparent); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); color: var(--text-tertiary); cursor: text; transition: border-color .15s; }
+.search:hover { border-color: var(--border-hover); }
+.search input { flex: 1; min-width: 0; height: 100%; border: 0; background: transparent; color: var(--text-primary); font: inherit; font-size: 13px; }
+.search input::placeholder { color: var(--text-tertiary); }
+.search kbd { background: var(--bg-secondary); color: var(--text-tertiary); }
+
+.primary, .secondary, .danger { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 36px; padding: 0 16px; border-radius: 9px; font: inherit; font-size: 13px; font-weight: 500; cursor: pointer; white-space: nowrap; transition: border-color .15s, background .15s, opacity .15s; }
+.primary { background: var(--accent); color: var(--on-accent); border: 1px solid transparent; padding-right: 10px; }
+.primary:hover:not(:disabled) { opacity: .9; }
+.primary:disabled { opacity: .45; cursor: not-allowed; }
+.primary kbd { background: color-mix(in srgb, var(--on-accent) 14%, transparent); color: color-mix(in srgb, var(--on-accent) 75%, transparent); }
+.secondary { background: color-mix(in srgb, var(--node-bg) 60%, transparent); color: var(--text-primary); border: 1px solid var(--border); }
+.secondary:hover { border-color: var(--border-hover); }
+
+.error, .status { font-size: 13px; color: var(--text-secondary); margin: 0 0 20px; }
+.empty { padding: 72px 16px; text-align: center; border: 1px solid var(--border); border-radius: 14px; background: color-mix(in srgb, var(--node-bg) 60%, transparent); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+.empty h2 { font-size: 18px; font-weight: 550; margin: 0; }
+.empty p { margin: 12px 0 20px; font-size: 13px; color: var(--text-secondary); }
+
+/* One grid for every lane: equal columns and a single 16px gutter both ways (the column count is set in the component). */
+.board { display: grid; gap: 16px; align-items: start; }
+.laneStack { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.column { position: relative; display: flex; flex-direction: column; padding: 8px; border-radius: 14px; background: color-mix(in srgb, var(--bg-secondary) 55%, transparent); transition: background .15s; min-width: 0; }
+.columnOver { background: color-mix(in srgb, var(--bg-tertiary) 85%, transparent); }
+.columnHeader { display: flex; align-items: center; gap: 8px; height: 44px; padding: 0 8px; box-sizing: border-box; }
+/* The folder tile, the count and the delete button share one 24px tile with 7px corners. */
+.columnIcon, .pill, .columnHeader .iconButton { box-sizing: border-box; display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 7px; border: 0; flex: none; }
+.columnIcon { background: var(--bg-tertiary); color: var(--text-secondary); }
+button.columnIcon { cursor: pointer; transition: background .15s, color .15s; }
+button.columnIcon:hover { background: color-mix(in srgb, var(--text-primary) 12%, var(--bg-tertiary)); color: var(--text-primary); }
+/* a chosen colour tints the tile and colours its icon */
+.columnIcon[data-tinted] { color: var(--tile); background: color-mix(in srgb, var(--tile) 16%, transparent); }
+button.columnIcon[data-tinted]:hover { background: color-mix(in srgb, var(--tile) 26%, transparent); color: var(--tile); }
+.tileWrap { position: relative; display: inline-flex; flex: none; }
+.pickerOpen { z-index: 10; }
+.columnHeader h2 { margin: 0; font-size: 14px; font-weight: 550; letter-spacing: -.01em; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.columnHeader h2, .columnHeader .rename { margin-right: auto; }
+.columnHeader h2 { flex: 0 1 auto; }
+.nameButton { background: none; border: 0; padding: 0; color: inherit; font: inherit; letter-spacing: inherit; cursor: text; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.draftColumn .placeholder { min-height: 72px; }
+.miniPrimary { height: 24px; padding: 0 10px; border: 0; border-radius: 7px; background: var(--accent); color: var(--on-accent); font: inherit; font-size: 12px; font-weight: 500; cursor: pointer; transition: opacity .15s; }
+.miniPrimary:hover:not(:disabled) { opacity: .9; }
+.miniPrimary:disabled { opacity: .4; cursor: not-allowed; }
+.rename { flex: 1; min-width: 0; height: 24px; padding: 0 8px; border: 0; border-radius: 7px; background: var(--bg-tertiary); color: var(--text-primary); font: inherit; font-size: 14px; font-weight: 550; }
+
+/* metadata pill: counts and dates read as data, not prose */
+.pill { width: auto; min-width: 24px; padding: 0 6px; background: var(--bg-tertiary); color: var(--text-secondary); font-family: var(--font-mono), monospace; font-size: 11px; line-height: 1; white-space: nowrap; }
+
+.iconButton { display: grid; place-items: center; width: 28px; height: 28px; border: 0; border-radius: 7px; background: transparent; color: var(--text-tertiary); cursor: pointer; transition: color .15s, background .15s, opacity .15s; }
+.iconButton:hover { color: var(--text-primary); background: color-mix(in srgb, var(--text-primary) 7%, transparent); }
+.columnHeader .iconButton { background: transparent; }
+.columnHeader .iconButton:hover { background: var(--bg-tertiary); }
+.reveal { opacity: 0; }
+.column:hover .reveal, .reveal:focus-visible { opacity: 1; }
+.danger { height: 24px; padding: 0 10px; font-size: 12px; background: transparent; color: var(--cat-rose); border: 1px solid color-mix(in srgb, var(--cat-rose) 40%, var(--border)); }
+
+.list { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; min-height: 56px; }
+
+/* canvas card: the same glass surface as the home feed cards */
+.card { position: relative; overflow: hidden; border: 1px solid var(--border); border-radius: 10px; background: color-mix(in srgb, var(--node-bg) 60%, transparent); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); cursor: grab; transition: border-color .2s, opacity .15s, box-shadow .2s; }
+.card::after { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; opacity: 0; transition: opacity .2s; background: linear-gradient(180deg, color-mix(in srgb, var(--text-primary) 7%, transparent), transparent 38%); padding: 1px; -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); mask-composite: exclude; }
+.card:hover { border-color: var(--border-hover); }
+.card:hover::after { opacity: 1; }
+.card:active { cursor: grabbing; }
+.cardDragging { opacity: .4; }
+.dropBefore::before, .dropEnd { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 2px; border-radius: 2px; background: var(--accent); z-index: 3; }
+.dropEnd { position: static; flex: none; margin-top: -2px; }
+
+/* the faint constellation: a dot grid with an abstract lineage drawn over it */
+.preview { position: relative; height: 72px; background-image: radial-gradient(color-mix(in srgb, var(--text-primary) 14%, transparent) 1px, transparent 1.2px); background-size: 14px 14px; background-position: 7px 7px; -webkit-mask-image: linear-gradient(180deg, #000 55%, transparent); mask-image: linear-gradient(180deg, #000 55%, transparent); }
+.graph { display: block; width: 100%; height: 100%; color: var(--text-primary); }
+.graph line { stroke: currentColor; stroke-width: 1; opacity: .26; }
+.graph circle { fill: currentColor; opacity: .55; }
+.graph .graphSeed { fill: none; stroke: currentColor; stroke-width: 1; opacity: .35; }
+.card:hover .graph line { opacity: .42; }
+.card:hover .graph circle { opacity: .8; }
+
+.cardBody { padding: 0 14px 10px; margin-top: -8px; }
+.title { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; max-width: 100%; padding: 0; border: 0; background: none; color: var(--text-primary); font: inherit; font-size: 14px; font-weight: 550; line-height: 1.4; letter-spacing: -.01em; text-align: left; cursor: pointer; overflow-wrap: anywhere; }
+.title::after { content: ""; position: absolute; inset: 0; z-index: 1; }
+.card:has(.title:focus-visible) { border-color: var(--border-hover); }
+.description { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; margin: 4px 0 0; font-size: 12.5px; line-height: 1.5; color: var(--text-secondary); overflow-wrap: anywhere; }
+.meta { display: flex; align-items: center; gap: 8px; margin: 8px 0 0; font-family: var(--font-mono), monospace; font-size: 11px; letter-spacing: .02em; color: var(--text-secondary); white-space: nowrap; }
+.meta i { font-style: normal; color: var(--text-tertiary); }
+.meta time { color: var(--text-tertiary); overflow: hidden; text-overflow: ellipsis; }
+.cardActions { position: relative; z-index: 2; display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 12px; }
+/* "Move to": a quiet 28px control with the same 7px radius as the icon buttons beside it */
+.move { position: relative; display: inline-flex; align-items: center; max-width: 70%; height: 28px; margin-left: -8px; border-radius: 7px; color: var(--text-tertiary); transition: color .15s, background .15s; }
+.move:hover { background: color-mix(in srgb, var(--text-primary) 7%, transparent); color: var(--text-primary); }
+.move svg { position: absolute; right: 8px; pointer-events: none; }
+.move select { appearance: none; -webkit-appearance: none; max-width: 100%; height: 100%; padding: 0 26px 0 8px; border: 0; border-radius: 7px; background: transparent; color: inherit; font: inherit; font-size: 12px; cursor: pointer; text-overflow: ellipsis; }
+.placeholder { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 64px; font-size: 12px; color: var(--text-tertiary); }
+
+/* No rings on text fields; keyboard focus on buttons and links stays visible but soft. */
+.shell input, .shell input:focus, .shell input:focus-visible { outline: none; box-shadow: none; }
+.shell select, .shell select:focus, .shell select:focus-visible { outline: none; }
+.shell button:focus-visible, .shell a:focus-visible { outline: 1px solid var(--border-hover); outline-offset: 2px; }
+
+@media (max-width: 640px) {
+  .topbar { padding: 0 1.25rem; }
+  .main { padding: 36px 1.25rem 64px; }
+  .search { width: 100%; }
+  .tools { width: 100%; }
+  .reveal { opacity: 1; }
+}

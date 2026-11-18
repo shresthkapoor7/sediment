@@ -5,13 +5,40 @@ import type { FeedPaper } from "@/lib/feeds-api";
 import { PaperMentionInput, mentionedPapers } from "./PaperMentionInput";
 import { LogoMark } from "@/components/LogoMark";
 import { FeedPaperImage } from "./FeedPaperImage";
+import { MarkdownContent } from "@/components/MarkdownContent";
+import { streamFeedChat } from "@/lib/feed-chat-api";
 import styles from "./PaperStage.module.css";
 
-export function PaperStage({ papers, onRemove, onClear, onOpen }: {
+/** The feed assistant accepts questions up to this length. */
+const MAX_QUESTION_LENGTH = 2000;
+
+type StageMessage =
+  | { role: "user"; text: string; paper: string; paperIds: string[] }
+  | { role: "assistant"; text: string; pending: boolean; status?: string; error?: string; shown?: FeedPaper[]; offer?: FeedPaper[] };
+
+const TOOL_STATUS: Record<string, string> = {
+  search_openalex_papers: "Searching OpenAlex",
+  search_recent_papers: "Searching recent papers",
+  mark_papers: "Marking papers",
+  update_interests: "Updating your interests",
+  show_papers: "Gathering papers",
+  offer_workspace: "Getting a workspace ready",
+  web_search: "Searching the web",
+};
+
+export function PaperStage({ papers, onRemove, onClear, onOpen, feedPapers, interests, domain, onMark, onInterests, onStartWorkspace }: {
   papers: FeedPaper[];
   onRemove: (paper: FeedPaper) => void;
   onClear: () => void;
   onOpen: (paper: FeedPaper) => void;
+  /** What the assistant sees besides the marked papers. */
+  feedPapers: FeedPaper[];
+  interests: string;
+  domain: string;
+  onMark: (papers: FeedPaper[]) => void;
+  onInterests: (interests: string) => void;
+  /** Start a workspace from these papers; offered by the assistant. */
+  onStartWorkspace?: (papers: FeedPaper[]) => void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const viewport = useRef<HTMLDivElement>(null);
@@ -20,7 +47,10 @@ export function PaperStage({ papers, onRemove, onClear, onOpen }: {
   const [stackAnchor, setStackAnchor] = useState(0);
   const [gathering, setGathering] = useState(false);
   const [chatMode, setChatMode] = useState(false);
-  const [messages, setMessages] = useState<{ text: string; paper: string; paperIds: string[] }[]>([]);
+  const [messages, setMessages] = useState<StageMessage[]>([]);
+  const [replying, setReplying] = useState(false);
+  const reply = useRef<AbortController | null>(null);
+  useEffect(() => () => reply.current?.abort(), []);
   const chatLog = useRef<HTMLDivElement>(null);
   const scrollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [chatScrolling, setChatScrolling] = useState(false);
@@ -33,13 +63,56 @@ export function PaperStage({ papers, onRemove, onClear, onOpen }: {
   const activePaper = papers[activeIndex];
   const draft = activePaper ? drafts[activePaper.id] || "" : "";
   const references = mentionedPapers(draft, papers);
-  const highlightedIds = draft.trim() ? references.map(paper => paper.id) : messages.at(-1)?.paperIds || [];
+  const lastAsked = [...messages].reverse().find((message): message is Extract<StageMessage, { role: "user" }> => message.role === "user");
+  const highlightedIds = draft.trim() ? references.map(paper => paper.id) : lastAsked?.paperIds || [];
+  function updateReply(patch: (message: Extract<StageMessage, { role: "assistant" }>) => Partial<Extract<StageMessage, { role: "assistant" }>>) {
+    setMessages(current => {
+      const index = current.length - 1;
+      const last = current[index];
+      if (!last || last.role !== "assistant") return current;
+      const next = [...current];
+      next[index] = { ...last, ...patch(last) };
+      return next;
+    });
+  }
+  async function send(text: string, targets: FeedPaper[]) {
+    // A reply that failed part-way is shown but not sent back as if the assistant had finished it.
+    const history = messages.flatMap(message => message.text.trim() && !(message.role === "assistant" && message.error)
+      ? [{ role: message.role, content: message.text }]
+      : []);
+    setMessages(current => [
+      ...current,
+      { role: "user", text, paper: targets.map(paper => paper.title).join(" · "), paperIds: targets.map(paper => paper.id) },
+      { role: "assistant", text: "", pending: true, status: "Thinking" },
+    ]);
+    setReplying(true);
+    const controller = new AbortController();
+    reply.current = controller;
+    try {
+      await streamFeedChat({ question: text, interests, domain, feedPapers, markedPapers: papers, mentionedPaperIds: targets.map(paper => paper.id), history }, event => {
+        if (event.type === "text_delta") updateReply(last => ({ text: last.text + event.text, status: undefined }));
+        if (event.type === "tool_started") updateReply(() => ({ status: TOOL_STATUS[event.name] ?? "Working" }));
+        if (event.type === "mark_papers") onMark(event.papers);
+        if (event.type === "interests_change") onInterests(event.interests);
+        if (event.type === "papers_shown") updateReply(last => ({ shown: [...(last.shown ?? []), ...event.papers.filter(paper => !(last.shown ?? []).some(item => item.id === paper.id))] }));
+        if (event.type === "workspace_offer") updateReply(() => ({ offer: event.papers }));
+        // The completed answer replaces text streamed before tool calls.
+        if (event.type === "message_completed") updateReply(last => ({ text: event.response.text || last.text, pending: false, status: undefined }));
+      }, controller.signal);
+    } catch (error) {
+      // Keep any partial reply, and say plainly that it did not finish.
+      if (!controller.signal.aborted) updateReply(() => ({ error: error instanceof Error ? error.message : "Chat failed.", pending: false, status: undefined }));
+    } finally {
+      updateReply(() => ({ pending: false, status: undefined }));
+      setReplying(false);
+    }
+  }
   function askAgent(event: React.FormEvent) {
     event.preventDefault();
     const text = activePaper && drafts[activePaper.id]?.trim();
-    if (!text || !activePaper) return;
+    if (!text || !activePaper || replying || text.length > MAX_QUESTION_LENGTH) return;
     const targets = references.length ? references : [activePaper];
-    setMessages(current => [...current, { text, paper: targets.map(paper => paper.title).join(" · "), paperIds: targets.map(paper => paper.id) }]);
+    void send(text, targets);
     setDrafts(current => ({ ...current, [activePaper.id]: "" }));
     if (!chatMode) { setStackAnchor(activeIndex); setGathering(!window.matchMedia("(prefers-reduced-motion: reduce)").matches); }
     setChatMode(true);
@@ -48,7 +121,7 @@ export function PaperStage({ papers, onRemove, onClear, onOpen }: {
     if (chatLog.current) chatLog.current.scrollTop = chatLog.current.scrollHeight;
   }, [messages]);
   // An emptied collection ends the conversation; newly marked papers start fresh.
-  if (!papers.length && (chatMode || gathering || stackAnchor || messages.length)) {
+  if (!papers.length && !replying && (chatMode || gathering || stackAnchor || messages.length)) {
     setChatMode(false);
     setGathering(false);
     setStackAnchor(0);
@@ -74,12 +147,16 @@ export function PaperStage({ papers, onRemove, onClear, onOpen }: {
     const center = scroller.scrollLeft + scroller.clientWidth / 2;
     const step = cards.length > 1 ? cards[1].offsetLeft - cards[0].offsetLeft : cards[0].offsetWidth;
     const distances = cards.map(card => Math.min(1, Math.abs(card.offsetLeft + card.offsetWidth / 2 - center) / step));
+    const nearest = cards.reduce((best, card, index) =>
+      Math.abs(card.offsetLeft + card.offsetWidth / 2 - center) <
+      Math.abs(cards[best].offsetLeft + cards[best].offsetWidth / 2 - center) ? index : best, 0);
     cards.forEach((card, index) => card.style.setProperty("--focus-distance", distances[index].toFixed(3)));
+    if (papers[nearest]) setActiveId(current => current === papers[nearest].id ? current : papers[nearest].id);
   }
   function scheduleFocusBlur() {
     if (focusFrame.current === null) focusFrame.current = requestAnimationFrame(syncFocusBlur);
   }
-  useEffect(() => { if (expanded) scheduleFocusBlur(); });
+  useEffect(() => { if (expanded && !chatMode) scheduleFocusBlur(); }, [expanded, chatMode, papers]);
   useEffect(() => () => { if (focusFrame.current !== null) cancelAnimationFrame(focusFrame.current); }, []);
   const [origin, setOrigin] = useState<CSSProperties>({});
 
@@ -139,15 +216,10 @@ export function PaperStage({ papers, onRemove, onClear, onOpen }: {
         <div ref={viewport} className={styles.viewport} onScroll={() => {
           if (chatMode) return;
           scheduleFocusBlur();
-          const scroller = viewport.current;
-          const cards = scroller?.querySelectorAll<HTMLElement>("article");
-          if (!scroller || !cards?.length) return;
-          let nearest = 0;
-          cards.forEach((card, index) => { if (Math.abs(card.offsetLeft - cards[0].offsetLeft - scroller.scrollLeft) < Math.abs(cards[nearest].offsetLeft - cards[0].offsetLeft - scroller.scrollLeft)) nearest = index; });
-          if (papers[nearest]) setActiveId(papers[nearest].id);
+
         }}>
         <div className={styles.papers}>
-          {papers.map((paper, index) => <article key={paper.id} className={styles.paper} onAnimationEnd={event => { if (event.target === event.currentTarget && gathering && chatMode) setGathering(false); }} data-mentioned={highlightedIds.includes(paper.id) || undefined} data-active={index === activeIndex} style={{ "--pile-index": index - activeIndex, "--stack-offset": stackAnchor - index, "--stack-depth": (index - activeIndex + papers.length) % papers.length, zIndex: chatMode ? papers.length - (index - activeIndex + papers.length) % papers.length : papers.length - Math.abs(index - activeIndex) } as CSSProperties} aria-label={paper.title} inert={chatMode && index !== activeIndex} onFocus={() => { if (!chatMode) focusPaper(index); }} onClick={() => { if (!chatMode) focusPaper(index); }}>
+          {papers.map((paper, index) => <article key={paper.id} className={styles.paper} onAnimationEnd={event => { if (event.target === event.currentTarget && gathering && chatMode) setGathering(false); }} data-mentioned={highlightedIds.includes(paper.id) || undefined} data-active={index === activeIndex} style={{ "--pile-index": index - activeIndex, "--stack-offset": stackAnchor - index, "--stack-depth": (index - activeIndex + papers.length) % papers.length, zIndex: chatMode ? papers.length - (index - activeIndex + papers.length) % papers.length : papers.length - Math.abs(index - activeIndex) } as CSSProperties} aria-label={paper.title} inert={chatMode && index !== activeIndex} onFocus={event => { if (!chatMode && !event.currentTarget.contains(event.relatedTarget as Node | null)) focusPaper(index); }} onClick={() => { if (!chatMode) focusPaper(index); }}>
             {chatMode && index === activeIndex && papers.length > 1 && <button type="button" className={styles.cycleCard} disabled={gathering} aria-label="Next paper in stack" onClick={event => {
               event.stopPropagation();
               setActiveId(papers[(activeIndex + 1) % papers.length].id);
@@ -171,20 +243,42 @@ export function PaperStage({ papers, onRemove, onClear, onOpen }: {
             <button aria-label="Next paper" disabled={activeIndex === papers.length - 1} onClick={() => move(1)}><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m10 6 6 6-6 6" /></svg></button>
           </nav>}
         </div>
-        {chatMode && <section className={styles.chat} aria-label="Feeds agent conversation">
-          <div className={styles.chatHeading}><div><LogoMark width="20" height="20" /><h2>Feeds agent</h2></div><button type="button" onClick={() => { setChatMode(false); setGathering(false); requestAnimationFrame(() => focusPaper(activeIndex, false)); }}>Back to papers</button></div>
+        {chatMode && <section className={styles.chat} aria-label="Sediment conversation">
+          <div className={styles.chatHeading}><div><LogoMark width="20" height="20" /><h2>Sediment</h2></div><button type="button" onClick={() => { setChatMode(false); setGathering(false); requestAnimationFrame(() => focusPaper(activeIndex, false)); }}>Back to papers</button></div>
           <div ref={chatLog} className={styles.chatLog} data-scrolling={chatScrolling || undefined} onScroll={() => {
             setChatScrolling(true);
             if (scrollTimer.current) clearTimeout(scrollTimer.current);
             scrollTimer.current = setTimeout(() => setChatScrolling(false), 800);
           }} role="log" aria-live="polite" aria-label="Your messages">
-            {messages.map((message, index) => <div key={index} className={styles.message}><span>{message.paper}</span><p>{message.text}</p></div>)}
+            {messages.map((message, index) => message.role === "user"
+              ? <div key={index} className={styles.message}><span>{message.paper}</span><p>{message.text}</p></div>
+              : <div key={index} className={styles.reply}>
+                {message.text && <MarkdownContent>{message.text}</MarkdownContent>}
+                {message.status && <p className={styles.replyStatus}>{message.status}…</p>}
+                {message.error && <p className={styles.replyError} role="alert">{message.error}</p>}
+                {message.shown && message.shown.length > 0 && <ul className={styles.found}>
+                  {message.shown.map(paper => {
+                    const isMarked = papers.some(item => item.id === paper.id);
+                    return <li key={paper.id}>
+                      <div>
+                        <a href={paper.url} target="_blank" rel="noopener noreferrer">{paper.title}<span aria-hidden="true"> ↗</span></a>
+                        <span>{[paper.authors.slice(0, 2).join(", ") + (paper.authors.length > 2 ? " et al." : ""), paper.published?.slice(0, 4)].filter(Boolean).join(" · ")}</span>
+                      </div>
+                      <button type="button" disabled={isMarked} onClick={() => onMark([paper])}>{isMarked ? "Marked" : "Mark"}</button>
+                    </li>;
+                  })}
+                </ul>}
+                {message.offer && message.offer.length > 0 && onStartWorkspace && <button type="button" className={styles.offer} onClick={() => { const chosen = message.offer!; minimize(() => onStartWorkspace(chosen)); }}>
+                  Start a workspace from {message.offer.length === papers.length && message.offer.every(paper => papers.some(item => item.id === paper.id)) ? "your marked papers" : `these ${message.offer.length} ${message.offer.length === 1 ? "paper" : "papers"}`}
+                </button>}
+              </div>)}
           </div>
         </section>}
         {activePaper ? <form className={styles.composer} onSubmit={askAgent}>
             <span className={styles.agentLogo} aria-hidden="true"><LogoMark width="20" height="20" /></span>
             <PaperMentionInput papers={papers} value={draft} onChange={value => setDrafts(current => ({ ...current, [activePaper.id]: value }))} />
-            <button className={styles.send} type="submit" aria-label="Send message" disabled={!drafts[activePaper.id]?.trim()}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 19V5m-6 6 6-6 6 6" /></svg></button>
+            <button className={styles.send} type="submit" aria-label="Send message" disabled={!drafts[activePaper.id]?.trim() || replying || draft.trim().length > MAX_QUESTION_LENGTH}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 19V5m-6 6 6-6 6 6" /></svg></button>
+            {draft.trim().length > MAX_QUESTION_LENGTH && <span className={styles.tooLong} role="status">{draft.trim().length}/{MAX_QUESTION_LENGTH} characters. Shorten the question to send it.</span>}
           </form> : <p className={styles.empty}>No marked papers. Mark a paper beside Save to collect it here.</p>}
       </div>
     </dialog>

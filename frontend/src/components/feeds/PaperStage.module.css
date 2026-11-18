@@ -70,14 +70,13 @@
 .composer label { display: block; font-size: 12px; font-weight: 500; }
 .composer label span { color: var(--text-secondary); font-weight: 400; margin-left: 4px; }
 .composer textarea { display: block; width: 100%; margin: 10px 0; padding: 6px 0; font: inherit; font-size: 13px; background: transparent; color: var(--text-primary); border: 0; }
-.composer textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 2px; }
 .composer > span { color: var(--text-tertiary); font-size: 10px; }
 .srOnly { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 @media (max-width: 640px) { .dialog { --card-width: min(310px, calc(100vw - 64px)); --card-gap: 16px; width: 100vw; max-height: calc(100dvh - 20px); } .surface { padding: 10px 0; } .header { padding: 0 20px; margin-bottom: 10px; } .figure img { height: 90px; } }
 @media (prefers-reduced-motion: reduce) { .papers, .paper { transition: none; } }
 
 .carousel { position: relative; }
-.viewport { overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; scrollbar-width: none; }
+.viewport { overflow-x: auto; overflow-y: hidden; scroll-snap-type: x proximity; overscroll-behavior-x: contain; scrollbar-width: none; overflow-anchor: none; }
 .viewport::-webkit-scrollbar { display: none; }
 .papers { position: relative; width: max-content; margin: 0; padding-inline: calc((100vw - var(--card-width)) / 2); transform: none; transition: none; }
 /* --focus-distance is scroll-linked (0 centered, 1 one card away) so blur eases with the swipe instead of flipping. */
@@ -196,7 +195,6 @@
 
 /* Keep scrolling inside the rounded shell, away from its edges and controls. */
 .composer { padding: 16px 54px 16px 50px; border: 1px solid var(--border); border-radius: 18px; background: var(--node-bg); }
-.composer:focus-within { border-color: var(--border-hover); }
 .composer textarea, .composer textarea:focus-visible { padding: 0 8px 0 0; min-height: 20px; max-height: 148px; border: 0; border-radius: 0; background: transparent; scrollbar-width: thin; }
 
 .chatLog { scrollbar-width: thin; scrollbar-color: transparent transparent; transition: scrollbar-color .2s ease; }
@@ -208,3 +206,22 @@
 
 /* Chat removes native scrolling; preserve its selected-card offset on the track. */
 .dialog[data-chat] .papers { transform: translateX(calc(var(--stack-anchor) * (var(--card-width) + var(--card-gap)) * -1)); }
+
+/* The assistant's replies: plain text on the left, unlike the researcher's bubbles. */
+.reply { max-width: 92%; margin: 0 auto 20px 0; font-size: 14px; line-height: 1.7; color: var(--text-primary); overflow-wrap: anywhere; }
+.reply p { margin: 0 0 10px; }
+.replyStatus { color: var(--text-tertiary); font-size: 12px; font-family: var(--font-mono), monospace; }
+.offer { margin-top: 6px; height: 34px; padding: 0 14px; border: 0; border-radius: 9px; background: var(--accent); color: var(--on-accent); font: inherit; font-size: 13px; font-weight: 550; cursor: pointer; }
+.offer:hover { opacity: .88; }
+
+/* Papers the assistant recommends: a link to the source and a Mark button each. */
+.found { list-style: none; margin: 4px 0 12px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.found li { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 12px; background: color-mix(in srgb, var(--node-bg) 85%, transparent); border: 1px solid var(--border); }
+.found li > div { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.found a { color: var(--text-primary); font-size: 13px; font-weight: 550; line-height: 1.4; text-decoration: none; }
+.found a:hover { text-decoration: underline; }
+.found li span { font-size: 11.5px; color: var(--text-tertiary); }
+.found button { flex: none; height: 28px; padding: 0 12px; border: 1px solid var(--border); border-radius: 8px; background: transparent; color: var(--text-primary); font: inherit; font-size: 12px; cursor: pointer; }
+.found button:disabled { color: var(--text-tertiary); cursor: default; }
+.replyError { color: var(--cat-rose); font-size: 13px; }
+.composer > .tooLong { position: absolute; left: 20px; bottom: calc(100% + 6px); font-size: 12px; color: var(--cat-rose); }

@@ -307,8 +307,6 @@ export default function SharedGraphPage() {
         {timelineData && (
           <TimelineCanvas
             data={timelineData}
-            isExpanding={false}
-            onExpandNode={() => {}}
             readOnly
             hoverPreviewEnabled={hoverPreviewEnabled}
             onToggleHoverPreview={onToggleHoverPreview}

@@ -1,8 +1,8 @@
 # Architecture diagrams
 
-Detailed subsystem flows for Sediment. See the [main architecture overview](../README.md#architecture) for how these components fit together.
+Detailed subsystem flows for Sediment. See [architecture.md](architecture.md) for the current system. The lineage-discovery flow below describes the earlier tracing mode, which has been replaced by the canvas agent.
 
-## Lineage discovery
+## Lineage discovery (historical)
 
 Lineage discovery turns a query into papers, relationships, and explanatory notes using OpenAlex metadata and references. It does not require downloading full papers.
 
@@ -65,7 +65,9 @@ flowchart TD
     RERANK --> EVIDENCE["Relevant chunks + citations<br/>Return to agent or API caller"]
 ```
 
-## Tests and evaluations
+## Tests and evaluations (historical)
+
+These evaluations target the earlier tracing APIs (search, deep trace, clarify, expand), which have been removed. They are kept for reference.
 
 Unit tests check backend behavior, while model evaluations measure the quality of generated lineage and explanations. The canonical evaluation covers lineage API workflows; it does not evaluate chat, document ingestion, database persistence, browser rendering, or deployment infrastructure.
 

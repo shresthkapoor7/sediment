@@ -50,7 +50,7 @@ export function PaperMentionInput({ value, onChange, papers }: { value: string; 
     requestAnimationFrame(() => { input.current?.focus(); input.current?.setSelectionRange(query.start + token.length, query.start + token.length); });
   }
   return <>
-    <textarea rows={1} ref={input} id="paper-question" role="combobox" aria-autocomplete="list" aria-expanded={!!query} aria-controls={query ? "paper-mentions" : undefined} aria-activedescendant={query && options[selected] ? `paper-mention-${selected}` : undefined} placeholder="Ask feeds agent · @all or @ a paper" aria-label="Ask feeds agent; use @all or mention papers" value={value}
+    <textarea rows={1} ref={input} id="paper-question" role="combobox" aria-autocomplete="list" aria-expanded={!!query} aria-controls={query ? "paper-mentions" : undefined} aria-activedescendant={query && options[selected] ? `paper-mention-${selected}` : undefined} placeholder="Ask @all or @ a paper" aria-label="Ask @all or mention a paper" value={value}
       onChange={event => { onChange(event.target.value); inspect(event.target.value, event.target.selectionStart ?? event.target.value.length); }}
       onClick={event => inspect(value, event.currentTarget.selectionStart ?? value.length)} onBlur={() => setQuery(null)}
       onKeyDown={event => {

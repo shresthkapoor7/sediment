@@ -1,0 +1,1 @@
+.row:hover { background: color-mix(in srgb, var(--text-primary) 7%, transparent) !important; }

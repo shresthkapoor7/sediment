@@ -12,7 +12,7 @@ from ..services.feeds import FeedService
 from ..services.feed_domains import Domain
 from ..services.feed_identity import issue_feed_credential, require_feed_actor
 from ..services.usage_limiter import limiter
-from .search import get_request_ip
+from ..request_ip import get_request_ip
 
 router = APIRouter()
 logger = logging.getLogger(__name__)

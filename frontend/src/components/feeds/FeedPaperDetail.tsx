@@ -12,19 +12,20 @@ function date(value: string) {
   return new Date(`${value.slice(0, 10)}T12:00:00Z`).toLocaleDateString(undefined, { dateStyle: "long", timeZone: "UTC" });
 }
 
-export function FeedPaperDetail({ paper, intercepted = false, missing = false, loading = false }: {
-  paper: FeedPaper | null; intercepted?: boolean; missing?: boolean; loading?: boolean;
+export function FeedPaperDetail({ paper, intercepted = false, missing = false, loading = false, onClose }: {
+  paper: FeedPaper | null; intercepted?: boolean; missing?: boolean; loading?: boolean; onClose?: () => void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const router = useRouter();
   const { saved, toggle } = useFeedBookmarks();
   const [error, setError] = useState("");
-  const close = () => intercepted ? router.back() : router.replace("/feeds");
+  const close = () => onClose ? onClose() : intercepted ? router.back() : router.replace("/feeds");
   useEffect(() => {
     if (!intercepted) return;
     const element = dialog.current;
     const previous = document.activeElement as HTMLElement | null;
     element?.showModal();
+    element?.focus({ preventScroll: true });
     return () => { element?.close(); previous?.focus({ preventScroll: true }); };
   }, [intercepted]);
   useEffect(() => {
@@ -36,7 +37,7 @@ export function FeedPaperDetail({ paper, intercepted = false, missing = false, l
   const external = paper && /^https?:\/\//.test(paper.url) ? paper.url : null;
   const content = (
     <div className={styles.surface}>
-      <header className={styles.header}><span>Sediment <span>/</span> Paper</span>{intercepted ? <button type="button" aria-label="Close paper details" onClick={close} autoFocus><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg></button> : <Link href="/feeds" aria-label="Back to feed"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg></Link>}</header>
+      <header className={styles.header}>{intercepted ? <button type="button" aria-label="Close paper details" onClick={close}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg></button> : <Link href="/feeds" aria-label="Back to feed"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg></Link>}<span>Sediment <span>/</span> Paper</span></header>
       {paper ? <article className={styles.content}>
         <div className={styles.meta}>{paper.preprint ? "Preprint" : "Research paper"}{paper.published && <><span>·</span><time dateTime={paper.published}>{date(paper.published)}</time></>}</div>
         <h1 id="paper-detail-title">{paper.title}</h1>
@@ -50,7 +51,7 @@ export function FeedPaperDetail({ paper, intercepted = false, missing = false, l
       </article> : <div className={styles.empty}><h1 id="paper-detail-title">{loading ? "Loading paper…" : missing ? "Paper not found" : "Couldn’t load this paper"}</h1><p role="status">{loading ? "Opening the saved paper details." : missing ? "This paper is no longer available in the feed library." : "Please try again in a moment."}</p>{!loading && !missing && <button onClick={() => router.refresh()}>Try again</button>}<button onClick={close}>Back to feed</button></div>}
     </div>
   );
-  return intercepted ? <dialog ref={dialog} className={`feeds-shell ${styles.dialog}`} aria-labelledby="paper-detail-title" onKeyDown={event => {
+  return intercepted ? <dialog ref={dialog} tabIndex={-1} className={`landing-shell ${styles.dialog}`} aria-labelledby="paper-detail-title" onKeyDown={event => {
       if (event.key !== "Tab") return;
       const controls = Array.from(event.currentTarget.querySelectorAll<HTMLElement>('button:not([disabled]), a[href], [tabindex="0"]'));
       const first = controls[0];

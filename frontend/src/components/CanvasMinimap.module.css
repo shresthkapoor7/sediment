@@ -1,0 +1,9 @@
+/* Bottom-right overview of the whole canvas. Cards are plain blocks; the lit rectangle is what you are looking at. */
+.minimap { position: absolute; bottom: 1rem; width: 11.25rem; height: 7.5rem; z-index: 10; border-radius: 0.625rem; background: var(--bg-tertiary); overflow: hidden; cursor: pointer; touch-action: none; user-select: none; transition: right .3s cubic-bezier(.16, 1, .3, 1); }
+.minimap[data-dragging] { cursor: grabbing; }
+.svg { display: block; width: 100%; height: 100%; }
+.group { fill: color-mix(in srgb, var(--text-primary) 7%, transparent); }
+.card { fill: color-mix(in srgb, var(--text-primary) 38%, transparent); }
+.note { fill: color-mix(in srgb, var(--accent) 55%, transparent); }
+.view { fill: color-mix(in srgb, var(--accent) 12%, transparent); stroke: var(--accent); stroke-width: 1.25; vector-effect: non-scaling-stroke; }
+.minimap:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }

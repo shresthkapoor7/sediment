@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Request, Response
 
 from ..services.usage_limiter import limiter
-from .search import get_request_ip
+from ..request_ip import get_request_ip
 
 router = APIRouter()
 

@@ -1,4 +1,4 @@
-import { NODE_DIMENSIONS, PADDING_X, PADDING_Y } from "./layout-constants";
+import { GAP_X, LANE_HEIGHT, LAYOUT_VERSION, LEGACY_PITCH, NODE_DIMENSIONS, PADDING_X, PADDING_Y } from "./layout-constants";
 import { TIMELINE_NOTE_DEFAULT_WIDTH, TIMELINE_NOTE_MIN_HEIGHT } from "./note-style";
 import { TimelineData, TimelineNote, TimelineNode } from "./types";
 
@@ -96,7 +96,29 @@ export function layoutTimelineNotes(data: TimelineData, noteIds?: string[]): Tim
 }
 
 /** Migrate saved cards that predate content-aware sizing and collision avoidance. */
-export function upgradeLegacyTimelineNoteLayout(data: TimelineData): TimelineData {
+/**
+ * Canvases saved before the cards grew have positions on the old, tighter pitch. Spread papers and
+ * notes out by the same ratio, once, so nothing overlaps and hand-placed notes keep their place.
+ */
+function upgradeLegacySpacing(data: TimelineData): TimelineData {
+  if ((data.layoutVersion ?? 1) >= LAYOUT_VERSION) return data;
+  const scaleX = (NODE_DIMENSIONS.width + GAP_X) / LEGACY_PITCH.x;
+  const scaleY = LANE_HEIGHT / LEGACY_PITCH.y;
+  const move = <T extends { x: number; y: number }>(item: T): T => ({
+    ...item,
+    x: Math.round(PADDING_X + (item.x - PADDING_X) * scaleX),
+    y: Math.round(PADDING_Y + (item.y - PADDING_Y) * scaleY),
+  });
+  return {
+    ...data,
+    layoutVersion: LAYOUT_VERSION,
+    nodes: Object.fromEntries(Object.entries(data.nodes).map(([id, node]) => [id, move(node)])),
+    notes: data.notes && Object.fromEntries(Object.entries(data.notes).map(([id, note]) => [id, move(note)])),
+  };
+}
+
+export function upgradeLegacyTimelineNoteLayout(saved: TimelineData): TimelineData {
+  const data = upgradeLegacySpacing(saved);
   const legacyNoteIds = Object.values(data.notes ?? {})
     .filter((note) => (
       note.width === undefined

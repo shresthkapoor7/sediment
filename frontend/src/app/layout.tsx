@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Script from "next/script";
-import { Inter, Geist_Mono, Source_Serif_4 } from "next/font/google";
+import { Inter, Geist, Geist_Mono, Source_Serif_4 } from "next/font/google";
 import { ThemeProvider } from "@/components/ThemeProvider";
+import { siteJsonLd } from "@/lib/jsonld";
 import "./globals.css";
 
 const inter = Inter({
@@ -10,6 +11,13 @@ const inter = Inter({
   display: "swap",
   style: ["normal", "italic"],
   axes: ["opsz"],
+});
+
+// The home screen's sans (see `.landing-shell` in globals.css); the rest of the app stays on Inter.
+const geistSans = Geist({
+  subsets: ["latin"],
+  variable: "--font-geist-sans",
+  display: "swap",
 });
 
 const geistMono = Geist_Mono({
@@ -27,9 +35,25 @@ const sourceSerif = Source_Serif_4({
   style: "italic",
 });
 
+const SITE_URL = process.env.NEXT_PUBLIC_APP_URL || "https://www.sediment-ai.com";
+const description = "An infinite canvas for literature review: search OpenAlex, map paper lineages, and work through a field with an agent on your board.";
+
 export const metadata: Metadata = {
-  title: "Sediment | Knowledge, layered",
-  description: "Trace any research concept back through time.",
+  metadataBase: new URL(SITE_URL),
+  title: "Sediment | Canvas for modern research",
+  description,
+  openGraph: {
+    url: SITE_URL,
+    title: "Sediment",
+    description,
+    siteName: "Sediment",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Sediment",
+    description,
+  },
   appleWebApp: {
     capable: true,
     title: "Sediment",
@@ -44,8 +68,8 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      data-theme="light"
-      className={`${inter.variable} ${geistMono.variable} ${sourceSerif.variable}`}
+      data-theme="dark"
+      className={`${inter.variable} ${geistSans.variable} ${geistMono.variable} ${sourceSerif.variable}`}
       suppressHydrationWarning
     >
       <head>
@@ -56,12 +80,18 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{
             __html: `
               (function() {
-                var t = 'light';
-                try { t = localStorage.getItem('sediment-theme') || 'light'; } catch (_) {}
-                if (t !== 'dark') t = 'light';
+                var t = 'dark';
+                try { t = localStorage.getItem('sediment-theme') || 'dark'; } catch (_) {}
+                if (t !== 'light') t = 'dark';
                 document.documentElement.setAttribute('data-theme', t);
               })();
             `,
+          }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify(siteJsonLd).replace(/</g, "\\u003c"),
           }}
         />
       </head>

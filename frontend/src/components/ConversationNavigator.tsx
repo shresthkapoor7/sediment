@@ -1,10 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useRef, useState } from "react";
+import styles from "./ConversationNavigator.module.css";
 
 export interface ConversationNavigationItem {
   id: string;
   label: string;
+  /** The start of the reply, shown under the question in the hover preview. */
+  detail?: string;
 }
 
 interface ConversationNavigatorProps {
@@ -12,180 +15,115 @@ interface ConversationNavigatorProps {
   onJump: (id: string) => void;
   activeId?: string | null;
   onActiveChange?: (id: string) => void;
-  side: "left" | "right";
-  label?: string;
 }
 
-export function ConversationNavigator({
-  items,
-  onJump,
-  activeId,
-  onActiveChange,
-  side,
-  label = "Jump through chat",
-}: ConversationNavigatorProps) {
-  const [open, setOpen] = useState(false);
-  const [hovered, setHovered] = useState(false);
-  const closeTimerRef = useRef<number | null>(null);
-  const visibleItems = useMemo(() => items.slice(-12), [items]);
+const SPACING = 10;
+const MAX_HEIGHT = 320;
 
-  useEffect(() => () => {
-    if (closeTimerRef.current !== null) {
-      window.clearTimeout(closeTimerRef.current);
-    }
-  }, []);
+/** For screen readers: the question as written, only whitespace tidied (so "Use C#" stays "Use C#"). */
+function spoken(text: string | undefined): string {
+  return (text ?? "").replace(/\s+/g, " ").trim();
+}
 
-  if (visibleItems.length < 2) return null;
+function compact(text: string | undefined): string {
+  return (text ?? "").replace(/[#*_`>]/g, "").replace(/\s+/g, " ").trim();
+}
 
-  const barCount = 7;
-  const selectedIndex = Math.max(0, visibleItems.findIndex((item) => item.id === activeId));
-  const selectedBarIndex = Math.round(
-    (selectedIndex / Math.max(visibleItems.length - 1, 1)) * (barCount - 1),
-  );
-  const isVisible = hovered || open;
+/** One line per question; hover to see it and the reply, click to jump. Modelled on T3 Code's chat minimap. */
+export function ConversationNavigator({ items, onJump, activeId, onActiveChange }: ConversationNavigatorProps) {
+  const [hot, setHot] = useState<number | null>(null);
+  const railRef = useRef<HTMLDivElement>(null);
 
-  const cancelClose = () => {
-    if (closeTimerRef.current === null) return;
-    window.clearTimeout(closeTimerRef.current);
-    closeTimerRef.current = null;
+  if (items.length < 2) return null;
+
+  const height = Math.min((items.length - 1) * SPACING, MAX_HEIGHT);
+  const topPercent = (index: number) => (index / (items.length - 1)) * 100;
+  const currentIndex = Math.max(0, items.findIndex((item) => item.id === activeId));
+  const focusIndex = hot ?? currentIndex;
+  const hotItem = hot === null ? null : items[hot];
+
+  const jump = (index: number) => {
+    const item = items[index];
+    if (!item) return;
+    onActiveChange?.(item.id);
+    onJump(item.id);
   };
 
-  const scheduleClose = () => {
-    setHovered(false);
-    if (!open) return;
-    cancelClose();
-    closeTimerRef.current = window.setTimeout(() => {
-      setOpen(false);
-      closeTimerRef.current = null;
-    }, 220);
+  const indexFromPointer = (clientY: number) => {
+    const rect = railRef.current?.getBoundingClientRect();
+    if (!rect || rect.height === 0) return 0;
+    const ratio = Math.min(Math.max((clientY - rect.top) / rect.height, 0), 1);
+    return Math.round(ratio * (items.length - 1));
   };
 
   return (
-    <div
-      data-canvas-ui="true"
-      onMouseEnter={() => {
-        cancelClose();
-        setHovered(true);
-      }}
-      onMouseLeave={scheduleClose}
-      style={{
-        position: "absolute",
-        top: "50%",
-        [side]: "0.125rem",
-        transform: "translateY(-50%)",
-        zIndex: 10,
-        width: "2rem",
-        height: "9rem",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-      }}
-    >
-      <button
-        type="button"
-        onClick={() => {
-          cancelClose();
-          setHovered(true);
-          setOpen((current) => !current);
-        }}
-        aria-label={label}
-        aria-expanded={open}
-        title={label}
-        style={{
-          width: "1.875rem",
-          height: "2rem",
-          padding: "0.1875rem 0",
-          border: "none",
-          background: "transparent",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "space-between",
-          cursor: "pointer",
-          opacity: isVisible ? 1 : 0,
-          transition: "opacity 0.16s ease",
-        }}
-      >
-        {Array.from({ length: barCount }, (_, index) => (
-          <span
-            key={index}
-            style={{
-              width: "1.6rem",
-              height: "0.1875rem",
-              borderRadius: "999px",
-              background: index === selectedBarIndex ? "var(--text-primary)" : "var(--border-hover)",
-              transition: "background 0.15s, width 0.15s",
-            }}
-          />
-        ))}
-      </button>
-
-      {open && (
-        <div
-          role="dialog"
-          aria-label="Chat navigation"
-          onMouseEnter={() => {
-            cancelClose();
-            setHovered(true);
-          }}
-          onMouseLeave={scheduleClose}
-          style={{
-            position: "absolute",
-            top: "50%",
-            [side]: "calc(100% + 0.5rem)",
-            transform: "translateY(-50%)",
-            zIndex: 40,
-            width: "min(24rem, calc(100vw - 2rem))",
-            maxHeight: "min(30rem, calc(100vh - 5rem))",
-            overflowY: "auto",
-            padding: "0.5rem",
-            borderRadius: "0.5rem",
-            border: "0.0625rem solid var(--border)",
-            background: "var(--bg-primary)",
-            boxShadow: "0 0.5rem 1.5rem rgba(0,0,0,0.10)",
-          }}
+    <div className={styles.root} data-canvas-ui="true">
+      <div ref={railRef} className={styles.rail} style={{ height }}>
+        <button
+          type="button"
+          className={`${styles.step} ${styles.prev}`}
+          aria-label="Previous question"
+          title="Previous question"
+          disabled={currentIndex <= 0}
+          onClick={() => jump(currentIndex - 1)}
         >
-          {visibleItems.map((item) => (
-            <button
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m3 7.5 3-3 3 3" /></svg>
+        </button>
+        <button
+          type="button"
+          className={styles.hit}
+          aria-label={hotItem
+            ? `Question ${hot! + 1} of ${items.length}: ${spoken(hotItem.label)}. Press Enter to jump.`
+            : `Jump to a question (${items.length}). Use the arrow keys to choose.`}
+          onMouseMove={(event) => setHot(indexFromPointer(event.clientY))}
+          onMouseLeave={() => setHot(null)}
+          onBlur={() => setHot(null)}
+          onClick={(event) => jump(indexFromPointer(event.clientY))}
+          onKeyDown={(event) => {
+            if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+              event.preventDefault();
+              const next = Math.min(Math.max(focusIndex + (event.key === "ArrowDown" ? 1 : -1), 0), items.length - 1);
+              setHot(next);
+            } else if ((event.key === "Enter" || event.key === " ") && hot !== null) {
+              event.preventDefault();
+              jump(hot);
+            }
+          }}
+        />
+        {items.map((item, index) => {
+          const distance = Math.abs(index - focusIndex);
+          const scale = distance === 0 ? 1 : distance === 1 ? 0.67 : distance === 2 ? 0.45 : 0.33;
+          return (
+            <span
               key={item.id}
-              type="button"
-              onClick={() => {
-                onActiveChange?.(item.id);
-                onJump(item.id);
-                setOpen(false);
-                setHovered(false);
-                cancelClose();
-              }}
-              title={item.label}
-              style={{
-                display: "block",
-                width: "100%",
-                padding: "0.625rem 0.75rem",
-                border: "none",
-                borderRadius: "0.25rem",
-                background: item.id === activeId ? "var(--bg-tertiary)" : "transparent",
-                color: "var(--text-primary)",
-                fontFamily: "var(--font-sans), sans-serif",
-                fontSize: "0.8125rem",
-                lineHeight: 1.35,
-                textAlign: "left",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-                cursor: "pointer",
-              }}
-              onMouseEnter={(event) => {
-                event.currentTarget.style.background = "var(--bg-tertiary)";
-              }}
-              onMouseLeave={(event) => {
-                event.currentTarget.style.background = item.id === activeId ? "var(--bg-tertiary)" : "transparent";
-              }}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
-      )}
+              className={styles.strip}
+              data-current={index === currentIndex ? "" : undefined}
+              data-hot={index === hot ? "" : undefined}
+              style={{ top: `${topPercent(index)}%`, transform: `translateY(-50%) scaleX(${scale})` }}
+            />
+          );
+        })}
+        <button
+          type="button"
+          className={`${styles.step} ${styles.next}`}
+          aria-label="Next question"
+          title="Next question"
+          disabled={currentIndex >= items.length - 1}
+          onClick={() => jump(currentIndex + 1)}
+        >
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m3 4.5 3 3 3-3" /></svg>
+        </button>
+        {/* Announces the question chosen with the arrow keys; the visual preview is hidden from screen readers. */}
+        <span className={styles.srOnly} role="status" aria-live="polite">
+          {hotItem ? `Question ${hot! + 1} of ${items.length}: ${spoken(hotItem.label)}` : ""}
+        </span>
+        {hotItem && (
+          <div className={styles.preview} style={{ top: `${topPercent(hot!)}%` }} aria-hidden="true">
+            <span className={styles.previewTitle}>{compact(hotItem.label)}</span>
+            {hotItem.detail && <div className={styles.previewDetail}>{compact(hotItem.detail)}</div>}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
