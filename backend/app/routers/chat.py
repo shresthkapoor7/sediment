@@ -218,6 +218,16 @@ def _lineage_search_candidate(paper: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _edges_between(edges: list[dict[str, str]], papers: list[dict[str, Any]]) -> list[dict[str, str]]:
+    """Saved links whose two papers are both still in the canvas the agent is shown."""
+    current = {_normalize_openalex_id(paper.get("openalexId")) for paper in papers}
+    return [
+        edge for edge in edges
+        if _normalize_openalex_id(edge.get("parentPaperId")) in current
+        and _normalize_openalex_id(edge.get("childPaperId")) in current
+    ]
+
+
 def _canvas_edges_from_graph(graph_data: object) -> list[dict[str, str]]:
     """Paper-to-paper links on the saved canvas, as OpenAlex ID pairs."""
     if not isinstance(graph_data, dict):
@@ -1593,12 +1603,17 @@ async def _run_global_chat(req: GlobalChatRequest, request_ip: str, event_emitte
 
     # One message may spend at most the fixed per-message ceiling, and never more than is left today.
     turn_budget_micro_usd = round(settings.agent_turn_budget_usd * 1_000_000)
+    remaining_micro_usd: int | None = None
     try:
         usage_summary = await limiter.get_summary(request_ip)
         remaining_micro_usd = round(float(usage_summary["remaining"]) * 1_000_000)
-        turn_budget_micro_usd = max(1, min(turn_budget_micro_usd, remaining_micro_usd))
     except HTTPException:
         logger.warning("Usage summary unavailable; using the per-message ceiling alone")
+    if remaining_micro_usd is not None:
+        # Nothing left today: do not start a model call at all.
+        if remaining_micro_usd <= 0:
+            raise HTTPException(status_code=429, detail="Today's usage limit is used up. It resets tomorrow.")
+        turn_budget_micro_usd = min(turn_budget_micro_usd, remaining_micro_usd)
 
     try:
         await _emit(event_emitter, "status", {"message": "Thinking"})
@@ -1620,7 +1635,7 @@ async def _run_global_chat(req: GlobalChatRequest, request_ip: str, event_emitte
             canvas_edges=(
                 [edge.model_dump() for edge in req.edges][:MAX_CANVAS_EDGES_IN_PROMPT]
                 if req.edges is not None
-                else _canvas_edges_from_graph(graph_data)
+                else _edges_between(_canvas_edges_from_graph(graph_data), papers)
             ),
             known_candidates=_known_candidates_from_context(context, set(paper_by_normalized_id)),
             canvas_details=req.canvas.model_dump() if req.canvas else None,

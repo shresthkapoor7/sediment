@@ -667,6 +667,10 @@ Tagged papers: papers the researcher tagged with @ are the subject of the messag
 Write short, plain replies. Lead with what you did or found. When you list candidate papers, give each as its title in bold, the year, and one line on why it is relevant. Do not restate the whole canvas. Finish with one concrete next step or question when there is a natural one, and leave it out when there is not."""
 
 TURN_BUDGET_SOFT_FRACTION = 0.8
+FEED_BUDGET_STOP_MESSAGE = (
+    "I reached the spending limit for a single message, so I stopped here. "
+    "Send another message and I will pick up where I left off."
+)
 TURN_BUDGET_STOP_MESSAGE = (
     "I reached the spending limit for a single message, so I stopped here. "
     "Anything already on the canvas is saved. Send another message and I will pick up where I left off."
@@ -2125,7 +2129,7 @@ async def run_feed_agent(
             budget.add(await client._record_response_usage(response, ip))
     text = _message_text(response)
     if not text and stopped_by == "budget":
-        text = TURN_BUDGET_STOP_MESSAGE
+        text = FEED_BUDGET_STOP_MESSAGE
         if text_emitter is not None:
             await text_emitter(text)
     return {

@@ -103,9 +103,14 @@ def _quotes(quote: object, question: str) -> bool:
 async def _run(req: FeedChatRequest, ip: str, emit) -> None:
     await limiter.claim_request(ip, "chat_feed")
     budget = round(settings.agent_turn_budget_usd * 1_000_000)
+    remaining: int | None = None
     with contextlib.suppress(Exception):
         summary = await limiter.get_summary(ip)
-        budget = max(1, min(budget, round(float(summary["remaining"]) * 1_000_000)))
+        remaining = round(float(summary["remaining"]) * 1_000_000)
+    if remaining is not None:
+        if remaining <= 0:
+            raise HTTPException(status_code=429, detail="Today's usage limit is used up. It resets tomorrow.")
+        budget = min(budget, remaining)
 
     # Every paper the agent may refer to by id: the feed, the marked papers, and what it finds this turn.
     known: dict[str, dict[str, Any]] = {}
