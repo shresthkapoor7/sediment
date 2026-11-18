@@ -9,6 +9,9 @@ import { MarkdownContent } from "@/components/MarkdownContent";
 import { streamFeedChat } from "@/lib/feed-chat-api";
 import styles from "./PaperStage.module.css";
 
+/** The feed assistant accepts questions up to this length. */
+const MAX_QUESTION_LENGTH = 2000;
+
 type StageMessage =
   | { role: "user"; text: string; paper: string; paperIds: string[] }
   | { role: "assistant"; text: string; pending: boolean; status?: string; error?: string; shown?: FeedPaper[]; offer?: FeedPaper[] };
@@ -73,7 +76,10 @@ export function PaperStage({ papers, onRemove, onClear, onOpen, feedPapers, inte
     });
   }
   async function send(text: string, targets: FeedPaper[]) {
-    const history = messages.flatMap(message => message.text.trim() ? [{ role: message.role, content: message.text }] : []);
+    // A reply that failed part-way is shown but not sent back as if the assistant had finished it.
+    const history = messages.flatMap(message => message.text.trim() && !(message.role === "assistant" && message.error)
+      ? [{ role: message.role, content: message.text }]
+      : []);
     setMessages(current => [
       ...current,
       { role: "user", text, paper: targets.map(paper => paper.title).join(" · "), paperIds: targets.map(paper => paper.id) },
@@ -90,7 +96,8 @@ export function PaperStage({ papers, onRemove, onClear, onOpen, feedPapers, inte
         if (event.type === "interests_change") onInterests(event.interests);
         if (event.type === "papers_shown") updateReply(last => ({ shown: [...(last.shown ?? []), ...event.papers.filter(paper => !(last.shown ?? []).some(item => item.id === paper.id))] }));
         if (event.type === "workspace_offer") updateReply(() => ({ offer: event.papers }));
-        if (event.type === "message_completed") updateReply(last => ({ text: last.text || event.response.text, pending: false, status: undefined }));
+        // The completed answer replaces text streamed before tool calls.
+        if (event.type === "message_completed") updateReply(last => ({ text: event.response.text || last.text, pending: false, status: undefined }));
       }, controller.signal);
     } catch (error) {
       // Keep any partial reply, and say plainly that it did not finish.
@@ -103,7 +110,7 @@ export function PaperStage({ papers, onRemove, onClear, onOpen, feedPapers, inte
   function askAgent(event: React.FormEvent) {
     event.preventDefault();
     const text = activePaper && drafts[activePaper.id]?.trim();
-    if (!text || !activePaper || replying) return;
+    if (!text || !activePaper || replying || text.length > MAX_QUESTION_LENGTH) return;
     const targets = references.length ? references : [activePaper];
     void send(text, targets);
     setDrafts(current => ({ ...current, [activePaper.id]: "" }));
@@ -270,7 +277,8 @@ export function PaperStage({ papers, onRemove, onClear, onOpen, feedPapers, inte
         {activePaper ? <form className={styles.composer} onSubmit={askAgent}>
             <span className={styles.agentLogo} aria-hidden="true"><LogoMark width="20" height="20" /></span>
             <PaperMentionInput papers={papers} value={draft} onChange={value => setDrafts(current => ({ ...current, [activePaper.id]: value }))} />
-            <button className={styles.send} type="submit" aria-label="Send message" disabled={!drafts[activePaper.id]?.trim() || replying}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 19V5m-6 6 6-6 6 6" /></svg></button>
+            <button className={styles.send} type="submit" aria-label="Send message" disabled={!drafts[activePaper.id]?.trim() || replying || draft.trim().length > MAX_QUESTION_LENGTH}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 19V5m-6 6 6-6 6 6" /></svg></button>
+            {draft.trim().length > MAX_QUESTION_LENGTH && <span className={styles.tooLong} role="status">{draft.trim().length}/{MAX_QUESTION_LENGTH} characters. Shorten the question to send it.</span>}
           </form> : <p className={styles.empty}>No marked papers. Mark a paper beside Save to collect it here.</p>}
       </div>
     </dialog>

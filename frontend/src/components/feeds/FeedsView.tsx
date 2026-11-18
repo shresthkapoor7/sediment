@@ -64,6 +64,8 @@ export function FeedsView({ embedded = false, ready = true, onSearch, onStartWor
             result = await fetchFeed({ action: "interests", source: "all", domain: "ai", interests: "Artificial intelligence, machine learning, large language models" }, controller.signal);
           } catch (err) {
             if (controller.signal.aborted) throw err;
+            // The save may have reached the server before failing: show what it holds now, not the empty snapshot.
+            try { result = await fetchFeed(undefined, controller.signal); } catch { /* keep the empty feed */ }
           }
         }
         if (controller.signal.aborted) return;

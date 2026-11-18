@@ -36,6 +36,7 @@ export function CanvasGroupRegion({ label, count, frame, isDropTarget = false, g
   const dragRef = useRef<{ pointerId: number; lastX: number; lastY: number; startX: number; startY: number; moved: boolean; onName: boolean } | null>(null);
   // Whether the row took this press (a mouse press it can drag); otherwise the click itself renames.
   const rowPressRef = useRef(false);
+  const nameButtonRef = useRef<HTMLButtonElement>(null);
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     event.stopPropagation();
     rowPressRef.current = false;
@@ -117,12 +118,17 @@ export function CanvasGroupRegion({ label, count, frame, isDropTarget = false, g
             onKeyDown={(event) => {
               event.stopPropagation();
               if (event.key === "Enter") commit();
-              if (event.key === "Escape") setDraft(null);
+              if (event.key === "Escape") {
+                setDraft(null);
+                // Cancelling returns focus to the name button that opened the editor.
+                window.requestAnimationFrame(() => nameButtonRef.current?.focus());
+              }
             }}
           />
         ) : onRename ? (
           <button
             type="button"
+            ref={nameButtonRef}
             className={styles.name}
             data-group-action="rename"
             onClick={(event) => {

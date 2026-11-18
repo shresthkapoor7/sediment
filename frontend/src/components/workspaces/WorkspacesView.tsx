@@ -13,6 +13,8 @@ import styles from "./WorkspacesView.module.css";
 
 type Column = { id: string; name: string; graphs: SavedGraphListItem[]; look?: CategoryLook };
 type DropTarget = { column: string; before: string | null };
+/** A drop target meaning "where it already is". */
+const SELF_DROP = "__self__";
 
 const PAGE = 50;
 
@@ -201,18 +203,18 @@ export function WorkspacesView() {
       const upper = event.clientY < box.top + box.height / 2;
       before = column.graphs[upper ? index : index + 1]?.id ?? null;
     }
-    // Over its own upper half the card stays where it is: drop it before its current next sibling.
-    if (before === dragging) {
-      const at = column.graphs.findIndex(graph => graph.id === dragging);
-      before = column.graphs[at + 1]?.id ?? null;
-    }
+    // Over itself the card stays where it is. Search can hide its neighbours, so no anchor is safe: drop is a no-op.
+    if (index !== null && column.graphs[index]?.id === dragging) before = SELF_DROP;
+    else if (before === dragging) before = SELF_DROP;
     setTarget(current => current && current.column === column.id && current.before === before ? current : { column: column.id, before });
   };
 
   const drop = (event: DragEvent, column: Column) => {
     event.preventDefault();
     const id = dragging ?? event.dataTransfer.getData("text/plain");
-    if (id) workspaces.move(id, column.id, target?.column === column.id ? target.before : null);
+    if (id && !(target?.column === column.id && target.before === SELF_DROP)) {
+      workspaces.move(id, column.id, target?.column === column.id ? target.before : null);
+    }
     setDragging(null);
     setTarget(null);
   };
