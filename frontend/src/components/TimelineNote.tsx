@@ -5,6 +5,7 @@ import { m } from "framer-motion";
 import { SpecialNoteFile, TimelineNote } from "@/lib/types";
 import { NOTE_COLOR_OPTIONS, NOTE_KIND_OPTIONS, SPECIAL_NOTE_MIN_HEIGHT, TIMELINE_NOTE_DEFAULT_WIDTH, TIMELINE_NOTE_MIN_HEIGHT, isSpecialNote, noteColorStyle, noteKindLabel } from "@/lib/note-style";
 import { MarkdownContent } from "./MarkdownContent";
+import bar from "./TimelineNode.module.css";
 
 interface TimelineNoteCardProps {
   note: TimelineNote;
@@ -229,113 +230,17 @@ export function TimelineNoteCard({
             padding: "0.625rem 0.75rem 0",
           }}
         >
-          {readOnly || specialNote ? (
-            <span
-              style={{
-                fontSize: "0.625rem",
-                fontFamily: "var(--font-mono), monospace",
-                letterSpacing: "0.12em",
-                textTransform: "uppercase",
-                color: colorStyle.accent,
-              }}
-            >
-              {noteKindLabel(specialNote ? "special_note" : note.kind)}
-            </span>
-          ) : (
-            <div
-              data-note-control="true"
-              style={{
-                position: "relative",
-                minWidth: 0,
-              }}
-              onPointerDown={(event) => event.stopPropagation()}
-            >
-              <button
-                type="button"
-                onClick={() => setKindMenuOpen((open) => !open)}
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "0.35rem",
-                  maxWidth: "9.5rem",
-                  border: "none",
-                  outline: "none",
-                  background: "transparent",
-                  color: colorStyle.accent,
-                  cursor: "pointer",
-                  fontSize: "0.625rem",
-                  fontFamily: "var(--font-mono), monospace",
-                  letterSpacing: "0.12em",
-                  textTransform: "uppercase",
-                  padding: 0,
-                }}
-              >
-                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  {noteKindLabel(note.kind)}
-                </span>
-                <svg width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, opacity: 0.8 }}>
-                  <path d="M2 3l2 2 2-2" />
-                </svg>
-              </button>
-
-              {kindMenuOpen && (
-                <div
-                  role="menu"
-                  style={{
-                    position: "absolute",
-                    top: "calc(100% + 0.45rem)",
-                    left: "-0.35rem",
-                    width: "11.25rem",
-                    padding: "0.35rem",
-                    borderRadius: "0.375rem",
-                    border: "0.0625rem solid var(--border)",
-                    background: "color-mix(in srgb, var(--bg-primary) 98%, transparent)",
-                    boxShadow: "0 0.5rem 1.5rem rgba(0,0,0,0.10)",
-                    zIndex: 30,
-                  }}
-                >
-                  {NOTE_KIND_OPTIONS.map((kind) => {
-                    const selected = (note.kind ?? "field_note") === kind.key;
-                    return (
-                      <button
-                        key={kind.key}
-                        type="button"
-                        role="menuitemradio"
-                        aria-checked={selected}
-                        onClick={() => {
-                          onKindChange?.(note.id, kind.key);
-                          setKindMenuOpen(false);
-                        }}
-                        style={{
-                          width: "100%",
-                          display: "grid",
-                          gridTemplateColumns: "1rem 1fr",
-                          alignItems: "center",
-                          gap: "0.5rem",
-                          border: "none",
-                          borderRadius: "0.5rem",
-                          background: selected ? "var(--accent-soft)" : "transparent",
-                          color: selected ? "var(--accent)" : "var(--text-secondary)",
-                          cursor: "pointer",
-                          fontSize: "0.625rem",
-                          fontFamily: "var(--font-mono), monospace",
-                          letterSpacing: "0.08em",
-                          textTransform: "uppercase",
-                          textAlign: "left",
-                          padding: "0.5rem 0.55rem",
-                        }}
-                      >
-                        <span style={{ width: "1rem", display: "inline-flex", justifyContent: "center" }}>
-                          {selected ? "✓" : ""}
-                        </span>
-                        <span>{kind.shortLabel}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          )}
+          <span
+            style={{
+              fontSize: "0.625rem",
+              fontFamily: "var(--font-mono), monospace",
+              letterSpacing: "0.12em",
+              textTransform: "uppercase",
+              color: colorStyle.accent,
+            }}
+          >
+            {noteKindLabel(specialNote ? "special_note" : note.kind)}
+          </span>
 
           <span
             title={`${connectedNodeCount} connected node${connectedNodeCount === 1 ? "" : "s"}`}
@@ -428,63 +333,75 @@ export function TimelineNoteCard({
         )}
 
         {!readOnly && (
+          // The same floating action bar as paper cards: kind, colour and delete, under the note.
           <div
             data-note-control="true"
-            style={{
-              position: "relative",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: "0.5rem",
-              padding: specialNote ? "0.75rem 0.625rem 0.625rem" : "0 0.625rem 0.625rem",
-              opacity: showControls ? 1 : 0,
-              transition: "opacity 0.12s",
-            }}
+            className={bar.bar}
+            data-show={showControls ? "" : undefined}
+            style={{ top: "calc(100% + 10px)" }}
             {...controlFocusHandlers}
             onPointerDown={(event) => event.stopPropagation()}
           >
-            <div style={{ display: "flex", gap: "0.25rem" }}>
+            {!specialNote && (
+              <>
+                <div className={bar.groupAnchor}>
+                  <button type="button" onClick={() => setKindMenuOpen((open) => !open)} aria-expanded={kindMenuOpen} title="Change note type">
+                    {NOTE_KIND_OPTIONS.find((kind) => kind.key === (note.kind ?? "field_note"))?.label ?? "Field note"}
+                    <svg width="9" height="9" viewBox="0 0 8 8" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M2 3l2 2 2-2" /></svg>
+                  </button>
+                  {kindMenuOpen && (
+                    <div className={bar.groupMenu} role="menu" style={{ width: 170 }}>
+                      {NOTE_KIND_OPTIONS.map((kind) => {
+                        const selected = (note.kind ?? "field_note") === kind.key;
+                        return (
+                          <button
+                            key={kind.key}
+                            type="button"
+                            role="menuitemradio"
+                            aria-checked={selected}
+                            onClick={() => {
+                              onKindChange?.(note.id, kind.key);
+                              setKindMenuOpen(false);
+                            }}
+                          >
+                            <span>{kind.label}</span>
+                            {selected && <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M2.5 6.5 5 9l4.5-6" /></svg>}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+                <span className={bar.sep} aria-hidden="true" />
+              </>
+            )}
+            <div className={bar.swatches}>
               {NOTE_COLOR_OPTIONS.map((color) => {
                 const selected = (note.color ?? "paper") === color.key;
                 return (
                   <button
                     key={color.key}
                     type="button"
-                    title={`Set note ${color.label.toLowerCase()}`}
-                    aria-label={`Set note ${color.label.toLowerCase()}`}
+                    className={bar.swatch}
+                    aria-pressed={selected}
+                    title={`${color.label} note`}
+                    aria-label={`Make the note ${color.label.toLowerCase()}`}
                     onClick={() => onColorChange?.(note.id, color.key)}
-                    style={{
-                      width: "1rem",
-                      height: "1rem",
-                      borderRadius: "999px",
-                      border: `0.09375rem solid ${selected ? "var(--text-primary)" : "transparent"}`,
-                      background: color.accent,
-                      cursor: "pointer",
-                      opacity: selected ? 1 : 0.72,
-                    }}
+                    style={{ background: color.accent }}
                   />
                 );
               })}
             </div>
-
+            <span className={bar.sep} aria-hidden="true" />
             <button
               type="button"
+              className={bar.danger}
               onClick={() => onDelete?.(note.id)}
               disabled={isSpecialNoteDeleting}
-              style={{
-                background: "transparent",
-                border: "none",
-                color: "var(--text-secondary)",
-                cursor: isSpecialNoteDeleting ? "default" : "pointer",
-                display: "inline-flex",
-                alignItems: "center",
-                marginRight: "1.25rem",
-                padding: "0.125rem",
-              }}
               aria-label={specialNote ? "Delete file" : "Delete note"}
               title={isSpecialNoteDeleting ? "Deleting…" : specialNote ? "Delete file" : "Delete note"}
             >
-              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.500" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 4.500h10M6.500 4.500V3h3v1.500M4.500 4.500l.5 8.500h6l.5-8.500" /></svg>
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.5 8.5h6l.5-8.5" /></svg>
             </button>
           </div>
         )}
