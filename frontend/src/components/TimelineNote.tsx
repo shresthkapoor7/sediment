@@ -25,6 +25,8 @@ interface TimelineNoteCardProps {
   onDelete?: (noteId: string) => void;
   onOpenSpecialNote?: (note: TimelineNote) => void;
   specialNotePreviewUrl?: string;
+  /** The uploaded file no longer exists. */
+  specialNoteFileMissing?: boolean;
   isSpecialNoteDeleting?: boolean;
 }
 
@@ -45,6 +47,7 @@ export function TimelineNoteCard({
   onDelete,
   onOpenSpecialNote,
   specialNotePreviewUrl,
+  specialNoteFileMissing,
   isSpecialNoteDeleting = false,
 }: TimelineNoteCardProps) {
   const specialNote = isSpecialNote(note);
@@ -351,7 +354,8 @@ export function TimelineNoteCard({
           <SpecialNotePreview
             file={note.specialNote}
             previewUrl={specialNotePreviewUrl}
-            disabled={readOnly}
+            missing={specialNoteFileMissing}
+            disabled={readOnly || Boolean(specialNoteFileMissing)}
             onOpen={() => onOpenSpecialNote?.(note)}
           />
         ) : !readOnly && isEditingText ? (
@@ -550,16 +554,18 @@ export function TimelineNoteCard({
 function SpecialNotePreview({
   file,
   previewUrl,
+  missing,
   disabled,
   onOpen,
 }: {
   file: SpecialNoteFile;
   previewUrl?: string;
+  missing?: boolean;
   disabled: boolean;
   onOpen: () => void;
 }) {
-  const label = file.fileType === "pdf" ? "PDF" : file.fileType === "spreadsheet" ? "SHEET" : "IMAGE";
-  const accent = file.fileType === "pdf" ? "var(--cat-rose)" : file.fileType === "spreadsheet" ? "var(--cat-green)" : "var(--cat-blue)";
+  const label = missing ? "FILE DELETED" : file.fileType === "pdf" ? "PDF" : file.fileType === "spreadsheet" ? "SHEET" : "IMAGE";
+  const accent = missing ? "var(--text-tertiary)" : file.fileType === "pdf" ? "var(--cat-rose)" : file.fileType === "spreadsheet" ? "var(--cat-green)" : "var(--cat-blue)";
 
   return (
     <button
@@ -568,7 +574,7 @@ function SpecialNotePreview({
       disabled={disabled}
       onClick={onOpen}
       onPointerDown={(event) => event.stopPropagation()}
-      title={disabled ? file.filename : `Open ${file.filename}`}
+      title={missing ? `${file.filename} was deleted. Delete this note to remove it.` : disabled ? file.filename : `Open ${file.filename}`}
       style={{
         position: "relative",
         display: "block",
@@ -585,7 +591,25 @@ function SpecialNotePreview({
         textAlign: "left",
       }}
     >
-      {file.fileType === "image" && previewUrl ? (
+      {missing ? (
+        <div
+          style={{
+            display: "grid",
+            height: "100%",
+            placeItems: "center",
+            alignContent: "center",
+            gap: "0.375rem",
+            padding: "1rem",
+            textAlign: "center",
+            color: "var(--text-tertiary)",
+            fontSize: "0.75rem",
+            lineHeight: 1.5,
+          }}
+        >
+          <span style={{ color: "var(--text-secondary)", fontWeight: 550 }}>This file was deleted</span>
+          <span>The note came back, but its upload did not. Delete the note to remove it.</span>
+        </div>
+      ) : file.fileType === "image" && previewUrl ? (
         // eslint-disable-next-line @next/next/no-img-element -- Signed Supabase Storage URLs cannot use Next image optimization.
         <img
           src={previewUrl}

@@ -3,7 +3,7 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { m, AnimatePresence } from "framer-motion";
 import { MarkdownContent } from "./MarkdownContent";
-import { SPECIAL_NOTE_SIGNED_URL_TTL_MS, deleteSpecialNoteFile, fetchCachedPaperContent, fetchPaperAccess, fetchSpecialNoteFileUrl, listSpecialNoteFiles, openChatSession, streamChatAboutPaper, uploadSpecialNoteFile } from "@/lib/api";
+import { APIError, SPECIAL_NOTE_SIGNED_URL_TTL_MS, deleteSpecialNoteFile, fetchCachedPaperContent, fetchPaperAccess, fetchSpecialNoteFileUrl, listSpecialNoteFiles, openChatSession, streamChatAboutPaper, uploadSpecialNoteFile } from "@/lib/api";
 import { DETAIL_PANEL_DEFAULT_WIDTH, DETAIL_PANEL_MAX_WIDTH, DETAIL_PANEL_MIN_WIDTH, DETAIL_PANEL_WIDTH_KEY } from "@/lib/detail-panel";
 import { TIMELINE_MOBILE_BREAKPOINT_PX } from "@/lib/hover-preview";
 
@@ -194,6 +194,11 @@ export function TimelineCanvas({
     limitBytes: SPECIAL_NOTE_STORAGE_LIMIT_BYTES,
   });
   const [specialNotePreviewUrls, setSpecialNotePreviewUrls] = useState<Record<string, SpecialNotePreviewUrl>>({});
+  // Files whose note is still on the canvas but whose upload is gone (deleted, then the note came back by undo).
+  const [missingSpecialFileIds, setMissingSpecialFileIds] = useState<Set<string>>(new Set());
+  const markSpecialFileMissing = useCallback((fileId: string) => {
+    setMissingSpecialFileIds((current) => current.has(fileId) ? current : new Set(current).add(fileId));
+  }, []);
   const specialNotePreviewRequestsRef = useRef(new Set<string>());
   const [specialNoteViewer, setSpecialNoteViewer] = useState<{ file: SpecialNoteFile; url: string } | null>(null);
   const [deletingSpecialNoteId, setDeletingSpecialNoteId] = useState<string | null>(null);
@@ -832,7 +837,7 @@ export function TimelineCanvas({
       .filter((file) => {
         const requestKey = `${graphId}:${file.id}`;
         const cached = specialNotePreviewUrls[file.id];
-        return (!cached || cached.expiresAt <= now) && !specialNotePreviewRequestsRef.current.has(requestKey);
+        return (!cached || cached.expiresAt <= now) && !missingSpecialFileIds.has(file.id) && !specialNotePreviewRequestsRef.current.has(requestKey);
       });
     if (!missingPreviewFiles.length) return;
     const requestKeys = missingPreviewFiles.map((file) => `${graphId}:${file.id}`);
@@ -846,6 +851,11 @@ export function TimelineCanvas({
     ).then((results) => {
       if (cancelled) return;
       const previews = results.flatMap((result) => result.status === "fulfilled" ? [result.value] : []);
+      results.forEach((result, index) => {
+        if (result.status === "rejected" && result.reason instanceof APIError && result.reason.status === 404) {
+          markSpecialFileMissing(missingPreviewFiles[index].id);
+        }
+      });
       if (previews.length) {
         setSpecialNotePreviewUrls((current) => ({
           ...current,
@@ -859,7 +869,7 @@ export function TimelineCanvas({
     return () => {
       cancelled = true;
     };
-  }, [graphId, readOnly, specialNotePreviewUrls, specialNotes, userId]);
+  }, [graphId, markSpecialFileMissing, missingSpecialFileIds, readOnly, specialNotePreviewUrls, specialNotes, userId]);
 
   // Derive edges from adjacency list (single source of truth)
   const edgesForRender = Object.entries(data.adjacency).flatMap(
@@ -1477,6 +1487,12 @@ export function TimelineCanvas({
             onGraphAction?.({ type: "delete_note", noteId });
           })
           .catch((error) => {
+            // The file is already gone (deleted earlier, the note restored by undo): just remove the note.
+            if (error instanceof APIError && error.status === 404) {
+              markSpecialFileMissing(note.specialNote!.id);
+              onGraphAction?.({ type: "delete_note", noteId });
+              return;
+            }
             setSpecialNoteError(error instanceof Error ? error.message : "Could not delete this special note.");
           })
           .finally(() => setDeletingSpecialNoteId(null));
@@ -1484,12 +1500,12 @@ export function TimelineCanvas({
       }
       onGraphAction?.({ type: "delete_note", noteId });
     },
-    [data.notes, deletingSpecialNoteId, graphId, onGraphAction, readOnly, userId],
+    [data.notes, deletingSpecialNoteId, graphId, markSpecialFileMissing, onGraphAction, readOnly, userId],
   );
 
   const handleOpenSpecialNote = useCallback((note: TimelineNote) => {
     const file = note.specialNote;
-    if (!file || !graphId || !userId || readOnly) return;
+    if (!file || !graphId || !userId || readOnly || missingSpecialFileIds.has(file.id)) return;
     const existingUrl = specialNotePreviewUrls[file.id];
     if (existingUrl && existingUrl.expiresAt > Date.now()) {
       setSpecialNoteViewer({ file, url: existingUrl.url });
@@ -1504,9 +1520,13 @@ export function TimelineCanvas({
         setSpecialNoteViewer({ file, url });
       })
       .catch((error) => {
+        if (error instanceof APIError && error.status === 404) {
+          markSpecialFileMissing(file.id);
+          return;
+        }
         setSpecialNoteError(error instanceof Error ? error.message : "Could not open this special note.");
       });
-  }, [graphId, readOnly, specialNotePreviewUrls, userId]);
+  }, [graphId, markSpecialFileMissing, missingSpecialFileIds, readOnly, specialNotePreviewUrls, userId]);
 
   const handleToggleNoteConnection = useCallback(
     (noteId: string) => {
@@ -2031,6 +2051,7 @@ export function TimelineCanvas({
                   onDelete={handleDeleteNote}
                   onOpenSpecialNote={handleOpenSpecialNote}
                   specialNotePreviewUrl={note.specialNote ? specialNotePreviewUrls[note.specialNote.id]?.url : undefined}
+                  specialNoteFileMissing={Boolean(note.specialNote && missingSpecialFileIds.has(note.specialNote.id))}
                   isSpecialNoteDeleting={note.specialNote?.id === deletingSpecialNoteId}
                 />
               );
