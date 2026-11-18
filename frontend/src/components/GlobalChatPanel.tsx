@@ -197,6 +197,9 @@ function capMessages(messages: Message[]): Message[] {
 const LOCAL_SESSION_KEY = "local";
 const MAX_CHATS = 12;
 
+/** The backend accepts questions up to 1,000 characters; a quoted passage keeps well inside that. */
+const MAX_QUOTE_LENGTH = 600;
+
 export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMentionedPaperIdsChange, mentionRequest, kickoff, onKickoffSent, onLineageChanges, onNoteChanges, onNodeColorChanges, canvasDetails, onCanvasDetailsChange, onUsageChanged, graphId, userId }: GlobalChatPanelProps) {
   // Each chat keeps its own messages, so switching tabs or a reply arriving in another chat never mixes them.
   const [messagesBySession, setMessagesBySession] = useState<Record<string, Message[]>>({});
@@ -220,6 +223,14 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
   const [restoredSessions, setRestoredSessions] = useState<Set<string>>(new Set());
   const graphIdRef = useRef<string | null>(graphId ?? null);
   const closingChatRef = useRef(false);
+  const [historyFailed, setHistoryFailed] = useState<Set<string>>(new Set());
+  const [historyRetry, setHistoryRetry] = useState(0);
+  // Cleared on unmount, so a reply still streaming cannot reach whichever canvas is shown next.
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
   const loadedSessionsRef = useRef<Set<string>>(new Set());
   const [input, setInput] = useState("");
   const [mentionedPaperIds, setMentionedPaperIds] = useState<string[]>([]);
@@ -254,6 +265,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
     graphIdRef.current = graphId ?? null;
     setChatsError(false); // eslint-disable-line react-hooks/set-state-in-effect -- Clear the last canvas's load error.
     setRestoredSessions(new Set());
+    setHistoryFailed(new Set());
     if (!graphId || !userId) return () => { cancelled = true; };
     void listChats(graphId, userId)
       .then((chats) => {
@@ -287,14 +299,14 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
           };
         });
         setSessionMessages(sessionId, (current) => capMessages(mergeMessagesById(current, restored)));
+        setRestoredSessions((current) => new Set(current).add(sessionId));
       })
       .catch(() => {
+        // Not restored: sending stays off until a retry loads the history.
         loadedSessionsRef.current.delete(sessionId);
-      })
-      .finally(() => {
-        setRestoredSessions((current) => new Set(current).add(sessionId));
+        setHistoryFailed((current) => new Set(current).add(sessionId));
       });
-  }, [activeSessionId, graphId, setSessionMessages, userId]);
+  }, [activeSessionId, graphId, setSessionMessages, userId, historyRetry]);
 
   const handleAddChat = useCallback(() => {
     if (!graphId || !userId) return;
@@ -529,10 +541,13 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
     if (!paper) return;
     const mentionText = `@${paper.title}`;
     /* eslint-disable react-hooks/set-state-in-effect -- Responds to an explicit request from the paper panel. */
-    const quote = mentionRequest.quote?.trim();
+    // The whole message is capped, so a long passage is shortened here, visibly, leaving room for a question.
+    const rawQuote = mentionRequest.quote?.trim() ?? "";
+    const quote = rawQuote.length > MAX_QUOTE_LENGTH ? `${rawQuote.slice(0, MAX_QUOTE_LENGTH).trimEnd()}…` : rawQuote;
     const quoted = quote ? `${quote.split("\n").map((line) => `> ${line}`).join("\n")}\n\n` : "";
     setInput((current) => {
-      if (quoted) return `${quoted}${mentionText} `;
+      // Add the quote after anything already typed, never in place of it.
+      if (quoted) return current.trim() ? `${current.trimEnd()}\n\n${quoted}${mentionText} ` : `${quoted}${mentionText} `;
       return current.includes(mentionText) ? current : current.trim() ? `${current.trimEnd()} ${mentionText} ` : `${mentionText} `;
     });
     setMentionedPaperIds((current) => current.includes(paper.openalexId) ? current : [...current, paper.openalexId]);
@@ -722,7 +737,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
     if (graphId && userId && (!activeSessionId || !restoredSessions.has(activeSessionId))) return;
     // Results belong to the canvas this was sent from; drop any that arrive after another canvas opened.
     const originGraphId = graphId ?? null;
-    const stillOnCanvas = () => graphIdRef.current === originGraphId;
+    const stillOnCanvas = () => mountedRef.current && graphIdRef.current === originGraphId;
     // Everything below belongs to the chat this message was sent in, even if the user switches tabs.
     const targetKey = sessionKey;
     const setMessages = (update: Message[] | ((current: Message[]) => Message[])) => setSessionMessages(targetKey, update);
@@ -1002,7 +1017,21 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
                     fontFamily: "var(--font-mono), monospace",
                   }}
                 >
-                  {chatsError ? (
+                  {activeSessionId && historyFailed.has(activeSessionId) ? (
+                    <>
+                      This chat’s history could not be loaded.{" "}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setHistoryFailed((current) => { const next = new Set(current); next.delete(activeSessionId); return next; });
+                          setHistoryRetry((value) => value + 1);
+                        }}
+                        style={{ border: "none", background: "none", padding: 0, color: "var(--text-primary)", font: "inherit", textDecoration: "underline", cursor: "pointer" }}
+                      >
+                        Retry
+                      </button>
+                    </>
+                  ) : chatsError ? (
                     <>
                       Chats could not be loaded.{" "}
                       <button

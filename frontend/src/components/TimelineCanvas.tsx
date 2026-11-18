@@ -1490,6 +1490,14 @@ export function TimelineCanvas({
             // The file is already gone (deleted earlier, the note restored by undo): just remove the note.
             if (error instanceof APIError && error.status === 404) {
               markSpecialFileMissing(note.specialNote!.id);
+              // Count the space as free again, once: only if the file is still listed.
+              setSpecialNoteUsage((current) => current.items.some((item) => item.id === note.specialNote!.id)
+                ? {
+                  ...current,
+                  items: current.items.filter((item) => item.id !== note.specialNote!.id),
+                  usedBytes: Math.max(0, current.usedBytes - note.specialNote!.sizeBytes),
+                }
+                : current);
               onGraphAction?.({ type: "delete_note", noteId });
               return;
             }
@@ -2681,7 +2689,7 @@ export function TimelineCanvas({
         loading={paperReaderLoading}
         error={paperReaderError}
         onClose={closePaperReader}
-        onAskSediment={askSedimentAboutSelectedExcerpt}
+        onAskSediment={readOnly ? undefined : askSedimentAboutSelectedExcerpt}
       />
 
       <SpecialNoteViewerModal

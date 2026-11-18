@@ -20,6 +20,11 @@ interface ConversationNavigatorProps {
 const SPACING = 10;
 const MAX_HEIGHT = 320;
 
+/** For screen readers: the question as written, only whitespace tidied (so "Use C#" stays "Use C#"). */
+function spoken(text: string | undefined): string {
+  return (text ?? "").replace(/\s+/g, " ").trim();
+}
+
 function compact(text: string | undefined): string {
   return (text ?? "").replace(/[#*_`>]/g, "").replace(/\s+/g, " ").trim();
 }
@@ -68,7 +73,7 @@ export function ConversationNavigator({ items, onJump, activeId, onActiveChange 
           type="button"
           className={styles.hit}
           aria-label={hotItem
-            ? `Question ${hot! + 1} of ${items.length}: ${compact(hotItem.label)}. Press Enter to jump.`
+            ? `Question ${hot! + 1} of ${items.length}: ${spoken(hotItem.label)}. Press Enter to jump.`
             : `Jump to a question (${items.length}). Use the arrow keys to choose.`}
           onMouseMove={(event) => setHot(indexFromPointer(event.clientY))}
           onMouseLeave={() => setHot(null)}
@@ -110,7 +115,7 @@ export function ConversationNavigator({ items, onJump, activeId, onActiveChange 
         </button>
         {/* Announces the question chosen with the arrow keys; the visual preview is hidden from screen readers. */}
         <span className={styles.srOnly} role="status" aria-live="polite">
-          {hotItem ? `Question ${hot! + 1} of ${items.length}: ${compact(hotItem.label)}` : ""}
+          {hotItem ? `Question ${hot! + 1} of ${items.length}: ${spoken(hotItem.label)}` : ""}
         </span>
         {hotItem && (
           <div className={styles.preview} style={{ top: `${topPercent(hot!)}%` }} aria-hidden="true">

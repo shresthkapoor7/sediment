@@ -93,6 +93,8 @@ export default function Home() {
   const graphDescriptionRef = useRef("");
   // The canvas the latest description save was made for.
   const savingForGraphRef = useRef<string | null>(null);
+  // Each description save gets a number; only the newest save may update the screen when it finishes.
+  const descriptionSaveRef = useRef(0);
   // Who last named and described the canvas. The agent may fill in a default, never overwrite the researcher.
   const [titleSetBy, setTitleSetBy] = useState<"user" | "agent" | null>(null);
   const [descriptionSetBy, setDescriptionSetBy] = useState<"user" | "agent" | null>(null);
@@ -343,9 +345,11 @@ export default function Home() {
 
   const saveGraphDescription = useCallback((next: string) => {
     if (!graphId || !userId || !timelineData) return;
-    savingForGraphRef.current = graphId;
     const previous = graphDescriptionRef.current;
     if (next === previous) return;
+    savingForGraphRef.current = graphId;
+    const revision = ++descriptionSaveRef.current;
+    const ownsScreen = () => descriptionSaveRef.current === revision && savingForGraphRef.current === graphId;
     const previousSetBy = descriptionSetByRef.current;
     graphDescriptionRef.current = next;
     setGraphDescription(next);
@@ -357,15 +361,13 @@ export default function Home() {
       metadata: buildMetadata(searchedQuery, timelineData, graphTitleRef.current || searchedQuery),
     })
       .then(() => {
+        if (!ownsScreen()) return;
         setSaveState("saved");
         saveStateTimeoutRef.current = window.setTimeout(() => setSaveState("idle"), 1800);
       })
       .catch(() => {
-        // Roll back only if this save still owns what is shown: a later edit or another canvas wins.
-        if (graphDescriptionRef.current !== next || savingForGraphRef.current !== graphId) {
-          setSaveState("error");
-          return;
-        }
+        // Roll back only if this is still the newest save on this canvas: a later edit or another canvas wins.
+        if (!ownsScreen()) return;
         graphDescriptionRef.current = previous;
         setGraphDescription(previous);
         descriptionSetByRef.current = previousSetBy;
@@ -418,6 +420,7 @@ export default function Home() {
         setGraphTitle(savedGraph.metadata.title || title);
         graphDescriptionRef.current = "";
         savingForGraphRef.current = null;
+        descriptionSaveRef.current += 1;
         setGraphDescription("");
         setDetailAuthors(null, null);
         setGraphTitleDraft("");
@@ -493,6 +496,7 @@ export default function Home() {
     setGraphTitle("");
     graphDescriptionRef.current = "";
     savingForGraphRef.current = null;
+    descriptionSaveRef.current += 1;
     setGraphDescription("");
     setDetailAuthors(null, null);
     setGraphTitleDraft("");

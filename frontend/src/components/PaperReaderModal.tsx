@@ -15,7 +15,8 @@ interface PaperReaderModalProps {
   loading: boolean;
   error: string | null;
   onClose: () => void;
-  onAskSediment: (excerpt: string) => void;
+  /** Omitted where there is no agent to ask (a read-only canvas); the action is then hidden. */
+  onAskSediment?: (excerpt: string) => void;
 }
 
 interface SelectedQuote {
@@ -395,7 +396,7 @@ export function PaperReaderModal({ open, content, loading, error, onClose, onAsk
                 </article>
               )}
             </div>
-            {selectedQuote && (
+            {selectedQuote && onAskSediment && (
               <button
                 type="button"
                 onMouseDown={(event) => event.preventDefault()}

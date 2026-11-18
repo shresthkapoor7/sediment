@@ -11,5 +11,7 @@ export const NODE_DIMENSIONS = { width: NODE_WIDTH, height: NODE_HEIGHT };
 
 /** Bumped whenever the constants above change, so saved canvases can be re-spaced once on load. */
 export const LAYOUT_VERSION = 2;
+/** The most papers a canvas can hold; the agent's request is capped at the same number. */
+export const MAX_CANVAS_PAPERS = 60;
 /** The column and lane pitch canvases were saved with before LAYOUT_VERSION 2. */
 export const LEGACY_PITCH = { x: 340, y: 160 };

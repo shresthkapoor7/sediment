@@ -14,6 +14,8 @@ interface GraphDescriptionProps {
 export function GraphDescription({ description, onSave }: GraphDescriptionProps) {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(description);
+  // Only a draft the researcher typed into is saved; an untouched one must not overwrite a newer agent update.
+  const [edited, setEdited] = useState(false);
   const root = useRef<HTMLDivElement>(null);
   const field = useRef<HTMLTextAreaElement>(null);
   const has = description.trim().length > 0;
@@ -22,7 +24,7 @@ export function GraphDescription({ description, onSave }: GraphDescriptionProps)
     if (!open) return;
     function close() {
       setOpen(false);
-      if (onSave && draft.trim() !== description.trim()) onSave(draft.trim());
+      if (onSave && edited && draft.trim() !== description.trim()) onSave(draft.trim());
     }
     function onPointerDown(event: PointerEvent) {
       if (!root.current?.contains(event.target as Node)) close();
@@ -36,7 +38,7 @@ export function GraphDescription({ description, onSave }: GraphDescriptionProps)
       window.removeEventListener("pointerdown", onPointerDown);
       window.removeEventListener("keydown", onKeyDown);
     };
-  }, [open, draft, description, onSave]);
+  }, [open, draft, description, edited, onSave]);
 
   if (!onSave && !has) return null;
 
@@ -52,11 +54,12 @@ export function GraphDescription({ description, onSave }: GraphDescriptionProps)
         onClick={() => {
           if (open) {
             // Closing with the icon keeps the edit, like clicking away does; Escape is the way to discard it.
-            if (onSave && draft.trim() !== description.trim()) onSave(draft.trim());
+            if (onSave && edited && draft.trim() !== description.trim()) onSave(draft.trim());
             setOpen(false);
             return;
           }
           setDraft(description);
+          setEdited(false);
           setOpen(true);
           window.requestAnimationFrame(() => field.current?.focus());
         }}
@@ -75,11 +78,11 @@ export function GraphDescription({ description, onSave }: GraphDescriptionProps)
                 maxLength={MAX_GRAPH_DESCRIPTION_LENGTH}
                 rows={4}
                 placeholder="What is this canvas for?"
-                onChange={(event) => setDraft(event.target.value)}
+                onChange={(event) => { setDraft(event.target.value); setEdited(true); }}
                 onKeyDown={(event) => {
                   if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
                     event.preventDefault();
-                    onSave(draft.trim());
+                    if (edited) onSave(draft.trim());
                     setOpen(false);
                   }
                 }}

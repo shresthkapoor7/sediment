@@ -1,5 +1,5 @@
 import { GraphEdge, GraphPaper, LineageChange, NodeBorderColor, TimelineData, TimelineGraphAction, TimelineNode, TimelineNodeColorChange, TimelineNote, TimelineNoteChange } from "./types";
-import { GAP_X, LANE_HEIGHT, NODE_DIMENSIONS, PADDING_X, PADDING_Y } from "./layout-constants";
+import { GAP_X, LANE_HEIGHT, MAX_CANVAS_PAPERS, NODE_DIMENSIONS, PADDING_X, PADDING_Y } from "./layout-constants";
 import { estimateTimelineNoteDimensions, layoutTimelineNotes } from "./note-layout";
 import { computeGroupRegions, groupKey, regionAt, regionFrame } from "./groups";
 
@@ -258,6 +258,8 @@ function applyTimelineLineageChange(
   for (const paper of additions) {
     const normalizedId = normalizeOpenalexId(paper.openalexId);
     if (!normalizedId || numericIdByOpenalexId.has(normalizedId)) continue;
+    // Never past the cap, counted against the canvas as it is now (the user may have added papers meanwhile).
+    if (Object.keys(nodes).length >= MAX_CANVAS_PAPERS) break;
     const nodeId = nextNumericId(nodes);
     const node: TimelineNode = {
       id: nodeId,
