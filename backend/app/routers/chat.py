@@ -9,7 +9,7 @@ from uuid import uuid4
 from collections.abc import Awaitable, Callable, AsyncIterator
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import ValidationError
 
@@ -42,6 +42,7 @@ from ..services.usage_limiter import limiter
 from ..request_ip import get_request_ip
 from .papers import resolve_identifier
 
+from ..request_user import request_user_id
 router = APIRouter()
 logger = logging.getLogger(__name__)
 CONFIRMATION_RE = re.compile(r"\b(yes|yeah|yep|sure|confirm|confirmed|go ahead|do it|access it|retrieve it)\b", re.I)
@@ -1745,7 +1746,7 @@ async def _require_owned_graph(db: SupabaseClient, graph_id: str, user_id: str) 
 
 
 @router.get("/graphs/{graph_id}/chats", response_model=list[ChatTab])
-async def list_chats(graph_id: str, userId: str):
+async def list_chats(graph_id: str, userId: str = Depends(request_user_id)):
     """The agent chats on a canvas, oldest first. A canvas with none gets its first one here."""
     try:
         db = _db()
@@ -1774,7 +1775,7 @@ async def create_chat(graph_id: str, req: ChatTabCreateRequest):
 
 
 @router.delete("/graphs/{graph_id}/chats/{session_id}", status_code=204)
-async def delete_chat(graph_id: str, session_id: str, userId: str):
+async def delete_chat(graph_id: str, session_id: str, userId: str = Depends(request_user_id)):
     try:
         db = _db()
         await _require_owned_graph(db, graph_id, userId)

@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import re
 
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from ..db.supabase import SupabaseAPIError, SupabaseClient, SupabaseConfigError
 from ..models import (
@@ -21,6 +21,7 @@ from ..services.paper_retrieval import PaperRetrievalService, RetrievalError
 from ..services.usage_limiter import limiter
 from ..request_ip import get_request_ip
 
+from ..request_user import request_user_id
 router = APIRouter()
 logger = logging.getLogger(__name__)
 OPENALEX_ID = re.compile(r"^W\d+$", re.IGNORECASE)
@@ -132,7 +133,7 @@ async def retrieve_paper_content(
 async def get_cached_paper_content(
     graph_id: str,
     openalex_id: str,
-    user_id: str = Query(alias="userId", min_length=1),
+    user_id: str = Depends(request_user_id),
 ):
     normalized_id = openalex_id.strip().upper()
     if not OPENALEX_ID.fullmatch(normalized_id):

@@ -2,7 +2,7 @@ import logging
 import secrets
 import uuid
 
-from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 
 from ..config import settings as app_settings
 from ..db.supabase import SupabaseAPIError, SupabaseClient, SupabaseConfigError
@@ -28,6 +28,7 @@ from ..models import (
     UserUpsertRequest,
 )
 
+from ..request_user import request_user_id
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
@@ -81,7 +82,7 @@ async def upsert_user(req: UserUpsertRequest):
     try:
         row = await get_db().upsert_user(req.id.strip())
     except SupabaseAPIError as e:
-        logger.warning("User upsert failed for user_id=%r", req.id, exc_info=e)
+        logger.warning("User upsert failed", exc_info=e)
         raise HTTPException(status_code=502, detail="Persistence service is currently unavailable.") from e
 
     return UserRecord(**row)
@@ -107,7 +108,7 @@ async def create_graph(req: SaveGraphRequest):
         await db.upsert_user(req.userId.strip())
         row = await db.create_graph(payload)
     except SupabaseAPIError as e:
-        logger.warning("Graph create failed for user_id=%r", req.userId, exc_info=e)
+        logger.warning("Graph create failed", exc_info=e)
         raise HTTPException(status_code=502, detail="Failed to save graph.") from e
 
     return to_graph_record(row)
@@ -134,7 +135,7 @@ async def update_graph(graph_id: str, req: UpdateGraphRequest):
     try:
         row = await get_db().update_graph(graph_id, req.userId.strip(), payload)
     except SupabaseAPIError as e:
-        logger.warning("Graph update failed for graph_id=%r user_id=%r", graph_id, req.userId, exc_info=e)
+        logger.warning("Graph update failed for graph_id=%r", graph_id, exc_info=e)
         raise HTTPException(status_code=502, detail="Failed to update graph.") from e
 
     if not row:
@@ -144,7 +145,7 @@ async def update_graph(graph_id: str, req: UpdateGraphRequest):
 
 
 @router.post("/graphs/{graph_id}/share", response_model=ShareGraphResponse)
-async def share_graph(graph_id: str, userId: str = Query(...)):
+async def share_graph(graph_id: str, userId: str = Depends(request_user_id)):
     if not userId.strip():
         raise HTTPException(status_code=400, detail="userId required")
 
@@ -152,7 +153,7 @@ async def share_graph(graph_id: str, userId: str = Query(...)):
         db = get_db()
         existing = await db.get_graph(graph_id, userId.strip())
     except SupabaseAPIError as e:
-        logger.warning("Graph lookup failed before share for graph_id=%r user_id=%r", graph_id, userId, exc_info=e)
+        logger.warning("Graph lookup failed before share for graph_id=%r", graph_id, exc_info=e)
         raise HTTPException(status_code=502, detail="Failed to load graph.") from e
 
     if not existing:
@@ -164,7 +165,7 @@ async def share_graph(graph_id: str, userId: str = Query(...)):
         try:
             updated = await db.share_graph(graph_id, userId.strip(), share_id)
         except SupabaseAPIError as e:
-            logger.warning("Graph share failed for graph_id=%r user_id=%r", graph_id, userId, exc_info=e)
+            logger.warning("Graph share failed for graph_id=%r", graph_id, exc_info=e)
             raise HTTPException(status_code=502, detail="Failed to create share link.") from e
 
         if not updated or updated.get("share_id") != share_id:
@@ -202,7 +203,7 @@ async def get_shared_graph(share_id: str):
 
 @router.get("/graphs", response_model=GraphListResponse)
 async def list_graphs(
-    userId: str = Query(...),
+    userId: str = Depends(request_user_id),
     limit: int = Query(10, ge=1, le=50),
     offset: int = Query(0, ge=0),
 ):
@@ -213,7 +214,7 @@ async def list_graphs(
     try:
         rows = await get_db().list_graphs(userId.strip(), limit=fetch_limit, offset=offset)
     except SupabaseAPIError as e:
-        logger.warning("Graph list failed for user_id=%r", userId, exc_info=e)
+        logger.warning("Graph list failed", exc_info=e)
         raise HTTPException(status_code=502, detail="Failed to list graphs.") from e
 
     page_rows = rows[:limit]
@@ -235,14 +236,14 @@ async def list_graphs(
 
 
 @router.get("/graphs/{graph_id}", response_model=GraphRecord)
-async def get_graph(graph_id: str, userId: str = Query(...)):
+async def get_graph(graph_id: str, userId: str = Depends(request_user_id)):
     if not userId.strip():
         raise HTTPException(status_code=400, detail="userId required")
 
     try:
         row = await get_db().get_graph(graph_id, userId.strip())
     except SupabaseAPIError as e:
-        logger.warning("Graph fetch failed for graph_id=%r user_id=%r", graph_id, userId, exc_info=e)
+        logger.warning("Graph fetch failed for graph_id=%r", graph_id, exc_info=e)
         raise HTTPException(status_code=502, detail="Failed to load graph.") from e
 
     if not row:
@@ -252,7 +253,7 @@ async def get_graph(graph_id: str, userId: str = Query(...)):
 
 
 @router.get("/graphs/{graph_id}/special-notes", response_model=SpecialNoteFileListResponse)
-async def list_special_note_files(graph_id: str, userId: str = Query(...)):
+async def list_special_note_files(graph_id: str, userId: str = Depends(request_user_id)):
     user_id = _normalise_uuid(userId, "userId")
     graph_id = _normalise_uuid(graph_id, "graphId")
     try:
@@ -263,7 +264,7 @@ async def list_special_note_files(graph_id: str, userId: str = Query(...)):
         rows = await db.list_special_note_files(graph_id, user_id)
         used_bytes = await db.get_special_note_storage_usage(user_id)
     except SupabaseAPIError as e:
-        logger.warning("Special note list failed for graph_id=%r user_id=%r", graph_id, user_id, exc_info=e)
+        logger.warning("Special note list failed for graph_id=%r", graph_id, exc_info=e)
         raise HTTPException(status_code=502, detail="Failed to load special notes.") from e
 
     return SpecialNoteFileListResponse(
@@ -286,7 +287,7 @@ async def upload_special_note_file(
             db = get_db()
             graph = await db.get_graph(graph_id, user_id)
         except SupabaseAPIError as e:
-            logger.warning("Special note graph lookup failed for graph_id=%r user_id=%r", graph_id, user_id, exc_info=e)
+            logger.warning("Special note graph lookup failed for graph_id=%r", graph_id, exc_info=e)
             raise HTTPException(status_code=502, detail="Failed to load graph.") from e
         if not graph:
             raise HTTPException(status_code=404, detail="graph not found")
@@ -326,7 +327,7 @@ async def upload_special_note_file(
             raise HTTPException(status_code=409, detail=f"Your {quota} special note storage is full. Delete a previous special note to add this file.") from e
         if e.sqlstate == "P0002":
             raise HTTPException(status_code=404, detail="graph not found") from e
-        logger.warning("Special note reservation failed for graph_id=%r user_id=%r", graph_id, user_id, exc_info=e)
+        logger.warning("Special note reservation failed for graph_id=%r", graph_id, exc_info=e)
         raise HTTPException(status_code=502, detail="Failed to reserve special note storage.") from e
 
     try:
@@ -347,7 +348,7 @@ async def upload_special_note_file(
 
 
 @router.get("/graphs/{graph_id}/special-notes/{file_id}/url", response_model=SpecialNoteFileUrl)
-async def get_special_note_file_url(graph_id: str, file_id: str, userId: str = Query(...)):
+async def get_special_note_file_url(graph_id: str, file_id: str, userId: str = Depends(request_user_id)):
     user_id = _normalise_uuid(userId, "userId")
     graph_id = _normalise_uuid(graph_id, "graphId")
     file_id = _normalise_uuid(file_id, "fileId")
@@ -368,7 +369,7 @@ async def get_special_note_file_url(graph_id: str, file_id: str, userId: str = Q
 
 
 @router.delete("/graphs/{graph_id}/special-notes/{file_id}", status_code=204)
-async def delete_special_note_file(graph_id: str, file_id: str, userId: str = Query(...)):
+async def delete_special_note_file(graph_id: str, file_id: str, userId: str = Depends(request_user_id)):
     user_id = _normalise_uuid(userId, "userId")
     graph_id = _normalise_uuid(graph_id, "graphId")
     file_id = _normalise_uuid(file_id, "fileId")
@@ -388,7 +389,7 @@ async def delete_special_note_file(graph_id: str, file_id: str, userId: str = Qu
 
 
 @router.delete("/graphs/{graph_id}", status_code=204)
-async def delete_graph(graph_id: str, userId: str = Query(...)):
+async def delete_graph(graph_id: str, userId: str = Depends(request_user_id)):
     if not userId.strip():
         raise HTTPException(status_code=400, detail="userId required")
 
@@ -407,7 +408,7 @@ async def delete_graph(graph_id: str, userId: str = Query(...)):
                         special_note_file["id"],
                     )
     except SupabaseAPIError as e:
-        logger.warning("Graph deletion failed for graph_id=%r user_id=%r", graph_id, userId, exc_info=e)
+        logger.warning("Graph deletion failed for graph_id=%r", graph_id, exc_info=e)
         raise HTTPException(status_code=502, detail="Failed to delete graph.") from e
 
     if not row:

@@ -133,9 +133,8 @@ class ChatMemoryService:
             summary = await llm.summarize_conversation(context.summary, messages, ip=ip)
         except Exception as exc:
             logger.warning(
-                "Conversation summarization failed for session_id=%r user_id=%r",
+                "Conversation summarization failed for session_id=%r",
                 context.session.get("id"),
-                user_id,
                 exc_info=exc,
             )
             return

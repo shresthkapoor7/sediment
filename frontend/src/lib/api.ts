@@ -25,6 +25,11 @@ const USE_API_PROXY = process.env.NEXT_PUBLIC_USE_API_PROXY === "true";
 const PROXY_API_BASE = "";
 const EXPENSIVE_API_BASE = USE_API_PROXY ? PROXY_API_BASE : API_BASE;
 export const SEDIMENT_USER_ID_KEY = "sediment_user_id";
+
+/** The anonymous user ID unlocks every canvas made in this browser, so it travels in a header, never in a URL
+ *  where access logs and browser history would keep it. */
+export const USER_ID_HEADER = "X-Sediment-User";
+const userHeaders = (userId: string): Record<string, string> => ({ [USER_ID_HEADER]: userId });
 export const LAST_GRAPH_ID_KEY = "last_graph_id";
 export const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || "0.1.0";
 export const SPECIAL_NOTE_SIGNED_URL_TTL_MS = 5 * 60 * 1000;
@@ -160,8 +165,8 @@ export async function fetchCachedPaperContent(
   openalexId: string,
 ): Promise<PaperContentResponse> {
   const response = await fetch(
-    `${EXPENSIVE_API_BASE}/api/graphs/${encodeURIComponent(graphId)}/papers/${encodeURIComponent(openalexId)}/content?userId=${encodeURIComponent(userId)}`,
-    { cache: "no-store" },
+    `${EXPENSIVE_API_BASE}/api/graphs/${encodeURIComponent(graphId)}/papers/${encodeURIComponent(openalexId)}/content`,
+    { cache: "no-store", headers: userHeaders(userId) },
   );
   if (!response.ok) {
     const detail = await readErrorDetail(response);
@@ -295,8 +300,8 @@ export interface ChatTab {
 /** The agent chats on a canvas, oldest first. A canvas always has at least one. */
 export async function listChats(graphId: string, userId: string): Promise<ChatTab[]> {
   const response = await fetch(
-    `${API_BASE}/api/graphs/${encodeURIComponent(graphId)}/chats?userId=${encodeURIComponent(userId)}`,
-    { cache: "no-store" },
+    `${API_BASE}/api/graphs/${encodeURIComponent(graphId)}/chats`,
+    { cache: "no-store", headers: userHeaders(userId) },
   );
   if (!response.ok) {
     const detail = await readErrorDetail(response);
@@ -320,8 +325,8 @@ export async function createChat(graphId: string, userId: string): Promise<ChatT
 
 export async function deleteChat(graphId: string, userId: string, sessionId: string): Promise<void> {
   const response = await fetch(
-    `${API_BASE}/api/graphs/${encodeURIComponent(graphId)}/chats/${encodeURIComponent(sessionId)}?userId=${encodeURIComponent(userId)}`,
-    { method: "DELETE" },
+    `${API_BASE}/api/graphs/${encodeURIComponent(graphId)}/chats/${encodeURIComponent(sessionId)}`,
+    { method: "DELETE", headers: userHeaders(userId) },
   );
   if (!response.ok) {
     const detail = await readErrorDetail(response);
@@ -402,7 +407,7 @@ export async function updateSavedGraph(
 }
 
 export async function fetchSavedGraph(graphId: string, userId: string): Promise<SavedGraph> {
-  const response = await fetch(`${API_BASE}/api/graphs/${graphId}?userId=${encodeURIComponent(userId)}`);
+  const response = await fetch(`${API_BASE}/api/graphs/${encodeURIComponent(graphId)}`, { headers: userHeaders(userId) });
 
   if (!response.ok) {
     const detail = await readErrorDetail(response);
@@ -417,11 +422,10 @@ export async function listSavedGraphs(
   options: { limit?: number; offset?: number } = {},
 ): Promise<SavedGraphListResponse> {
   const params = new URLSearchParams({
-    userId,
     limit: String(options.limit ?? 10),
     offset: String(options.offset ?? 0),
   });
-  const response = await fetch(`${API_BASE}/api/graphs?${params.toString()}`);
+  const response = await fetch(`${API_BASE}/api/graphs?${params.toString()}`, { headers: userHeaders(userId) });
 
   if (!response.ok) {
     const detail = await readErrorDetail(response);
@@ -437,8 +441,8 @@ export async function listSavedGraphs(
 
 export async function deleteSavedGraph(graphId: string, userId: string): Promise<void> {
   const response = await fetch(
-    `${API_BASE}/api/graphs/${encodeURIComponent(graphId)}?userId=${encodeURIComponent(userId)}`,
-    { method: "DELETE" },
+    `${API_BASE}/api/graphs/${encodeURIComponent(graphId)}`,
+    { method: "DELETE", headers: userHeaders(userId) },
   );
 
   if (!response.ok) {
@@ -452,8 +456,8 @@ export async function listSpecialNoteFiles(
   userId: string,
 ): Promise<SpecialNoteFileListResponse> {
   const response = await fetch(
-    `${API_BASE}/api/graphs/${encodeURIComponent(graphId)}/special-notes?userId=${encodeURIComponent(userId)}`,
-    { cache: "no-store" },
+    `${API_BASE}/api/graphs/${encodeURIComponent(graphId)}/special-notes`,
+    { cache: "no-store", headers: userHeaders(userId) },
   );
   if (!response.ok) {
     const detail = await readErrorDetail(response);
@@ -487,8 +491,8 @@ export async function fetchSpecialNoteFileUrl(
   fileId: string,
 ): Promise<string> {
   const response = await fetch(
-    `${API_BASE}/api/graphs/${encodeURIComponent(graphId)}/special-notes/${encodeURIComponent(fileId)}/url?userId=${encodeURIComponent(userId)}`,
-    { cache: "no-store" },
+    `${API_BASE}/api/graphs/${encodeURIComponent(graphId)}/special-notes/${encodeURIComponent(fileId)}/url`,
+    { cache: "no-store", headers: userHeaders(userId) },
   );
   if (!response.ok) {
     const detail = await readErrorDetail(response);
@@ -510,8 +514,8 @@ export async function deleteSpecialNoteFile(
   fileId: string,
 ): Promise<void> {
   const response = await fetch(
-    `${API_BASE}/api/graphs/${encodeURIComponent(graphId)}/special-notes/${encodeURIComponent(fileId)}?userId=${encodeURIComponent(userId)}`,
-    { method: "DELETE" },
+    `${API_BASE}/api/graphs/${encodeURIComponent(graphId)}/special-notes/${encodeURIComponent(fileId)}`,
+    { method: "DELETE", headers: userHeaders(userId) },
   );
   if (!response.ok) {
     const detail = await readErrorDetail(response);
@@ -522,8 +526,8 @@ export async function deleteSpecialNoteFile(
 export async function shareGraph(graphId: string, userId: string): Promise<{ shareId: string; shareUrl: string }> {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || window.location.origin;
   const response = await fetch(
-    `${API_BASE}/api/graphs/${graphId}/share?userId=${encodeURIComponent(userId)}`,
-    { method: "POST" },
+    `${API_BASE}/api/graphs/${graphId}/share`,
+    { method: "POST", headers: userHeaders(userId) },
   );
 
   if (!response.ok) {

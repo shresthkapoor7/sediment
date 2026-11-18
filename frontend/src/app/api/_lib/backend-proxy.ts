@@ -20,6 +20,12 @@ export function getBackendBaseUrl(): string {
   return candidate;
 }
 
+/** Pass the anonymous user ID through: it arrives in a header, not the URL. */
+function userHeader(request: NextRequest): Record<string, string> {
+  const userId = request.headers.get("x-sediment-user");
+  return userId ? { "X-Sediment-User": userId } : {};
+}
+
 function getBackendUrl(pathname: string, search: string): string {
   return `${getBackendBaseUrl()}${pathname}${search}`;
 }
@@ -33,6 +39,7 @@ export async function proxyJsonRequest(request: NextRequest, backendPath: string
       headers: {
         "Content-Type": request.headers.get("content-type") || "application/json",
         ...(forwardAuthorization && request.headers.has("authorization") ? { Authorization: request.headers.get("authorization")! } : {}),
+        ...userHeader(request),
       },
       body,
       cache: "no-store",
@@ -59,7 +66,10 @@ export async function proxyGetRequest(request: NextRequest, backendPath: string,
   try {
     upstreamResponse = await fetch(getBackendUrl(backendPath, request.nextUrl.search), {
       method: request.method,
-      headers: forwardAuthorization && request.headers.has("authorization") ? { Authorization: request.headers.get("authorization")! } : {},
+      headers: {
+        ...(forwardAuthorization && request.headers.has("authorization") ? { Authorization: request.headers.get("authorization")! } : {}),
+        ...userHeader(request),
+      },
       cache: "no-store",
     });
   } catch (error) {
