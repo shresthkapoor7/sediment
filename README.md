@@ -14,7 +14,7 @@ Find papers, lay them out, and build up a picture of a field with an AI agent wo
 
 ---
 
-Reading a field is not a list of links. It is a map you build in your head: which papers matter, what led to what, which ideas sit apart, and where you think they connect. Sediment puts that map on an infinite canvas, and gives you an agent that can search the literature and work on the board with you.
+Sediment turns literature review into an infinite spatial canvas. Search OpenAlex, map paper lineages, and synthesize connections with an agent working directly on your board.
 
 ## What you can do
 
@@ -27,7 +27,7 @@ Reading a field is not a list of links. It is a map you build in your head: whic
 
 ## How it works
 
-Paper data comes from [OpenAlex](https://openalex.org), the open catalogue of scholarly work. The agent is Claude, with a small set of tools: search OpenAlex, read a paper's references and citations, and edit the canvas. Every paper it adds is checked against OpenAlex, links it is unsure of are marked as its own inference rather than a citation, and each message has a fixed spending cap.
+Paper data comes from [OpenAlex](https://openalex.org), the open catalogue of scholarly work. The agent walks the citation graph for you, following references back and citations forward across several hops, then puts what it finds on your canvas: real papers only, with links it infers kept apart from verified citations.
 
 Read more in [docs/architecture.md](docs/architecture.md).
 
