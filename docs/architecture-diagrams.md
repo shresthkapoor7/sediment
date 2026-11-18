@@ -1,6 +1,6 @@
 # Architecture diagrams
 
-Detailed subsystem flows for Sediment. See the [main architecture overview](../README.md#architecture) for how these components fit together.
+Detailed subsystem flows for Sediment. See [architecture.md](architecture.md) for the current system. The lineage-discovery flow below describes the earlier tracing mode, which has been replaced by the canvas agent.
 
 ## Lineage discovery
 
