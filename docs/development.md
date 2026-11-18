@@ -80,8 +80,9 @@ Limits are set in `backend/app/config.py`: `daily_usage_limit_usd` (spend per an
 ## Tests
 
 ```bash
-cd backend && python -m unittest discover -s tests
-cd frontend && npx tsc --noEmit && npx eslint src
+# the same commands CI runs (.github/workflows/test.yml)
+cd backend && PYTHONPATH=. python -m unittest discover -s tests
+cd frontend && npm run lint && npm run build
 ```
 
 ## Evaluations

@@ -19,8 +19,9 @@ Follow [docs/development.md](docs/development.md) to run the frontend and backen
 3. Run the checks before you push:
 
    ```bash
-   cd backend && python -m unittest discover -s tests
-   cd frontend && npx tsc --noEmit && npx eslint src
+   # the same commands CI runs
+   cd backend && PYTHONPATH=. python -m unittest discover -s tests
+   cd frontend && npm run lint && npm run build
    ```
 
 4. Add or update backend tests when you change behaviour there.
@@ -30,7 +31,7 @@ Follow [docs/development.md](docs/development.md) to run the frontend and backen
 
 - **Text fields get no focus highlights.** No focus ring, glow, shadow or border change on inputs, textareas, selects or the wrappers around them. Buttons and links keep their keyboard focus outline. (See [AGENTS.md](AGENTS.md).)
 - **Keyboard and screen readers matter.** Anything you can click should work from the keyboard and have a label.
-- **The agent stays honest.** It may only put real papers on the canvas, should say when it is inferring rather than citing, and must stay inside its per-message spending cap. Don't add tools or prompts that work around these.
+- **The agent stays honest.** Papers it adds must be real OpenAlex works, verified by ID. Links it infers must stay marked as inferred, separate from verified citations. Don't bypass the request and tool schema validation.
 - **No hard-coded agent flows.** Change what the agent does through its instructions and tools, not by scripting its steps.
 - **Never commit secrets.** API keys go in `.env` files, which are not tracked.
 
