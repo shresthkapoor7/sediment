@@ -149,9 +149,13 @@ export default function Home() {
     window.localStorage.removeItem(LAST_GRAPH_ID_KEY);
   }, []);
 
+  const creditsRequestRef = useRef(0);
   const refreshCredits = useCallback(() => {
+    const request = ++creditsRequestRef.current;
     return fetchUsage()
-      .then((data) => setCredits(data.segments))
+      .then((data) => {
+        if (request === creditsRequestRef.current) setCredits(data.segments);
+      })
       .catch(() => undefined);
   }, []);
 

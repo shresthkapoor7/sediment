@@ -851,17 +851,18 @@ export function TimelineCanvas({
     ).then((results) => {
       if (cancelled) return;
       const previews = results.flatMap((result) => result.status === "fulfilled" ? [result.value] : []);
-      results.forEach((result, index) => {
-        if (result.status === "rejected" && result.reason instanceof APIError && result.reason.status === 404) {
-          markSpecialFileMissing(missingPreviewFiles[index].id);
-        }
-      });
+      // Store the previews that worked before marking any missing file, so that change can't drop them.
       if (previews.length) {
         setSpecialNotePreviewUrls((current) => ({
           ...current,
           ...Object.fromEntries(previews.map((preview) => [preview.id, { url: preview.url, expiresAt: preview.expiresAt }])),
         }));
       }
+      results.forEach((result, index) => {
+        if (result.status === "rejected" && result.reason instanceof APIError && result.reason.status === 404) {
+          markSpecialFileMissing(missingPreviewFiles[index].id);
+        }
+      });
       // A document-style thumbnail remains available when a preview URL cannot be created.
     }).finally(() => {
       requestKeys.forEach((key) => specialNotePreviewRequestsRef.current.delete(key));

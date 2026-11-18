@@ -1633,10 +1633,10 @@ async def _run_global_chat(req: GlobalChatRequest, request_ip: str, event_emitte
             pending_action=pending_action,
             timeline_note_index=timeline_note_index,
             canvas_edges=(
-                [edge.model_dump() for edge in req.edges][:MAX_CANVAS_EDGES_IN_PROMPT]
+                [edge.model_dump() for edge in req.edges]
                 if req.edges is not None
                 else _edges_between(_canvas_edges_from_graph(graph_data), papers)
-            ),
+            )[:MAX_CANVAS_EDGES_IN_PROMPT],
             known_candidates=_known_candidates_from_context(context, set(paper_by_normalized_id)),
             canvas_details=req.canvas.model_dump() if req.canvas else None,
             paper_colors={

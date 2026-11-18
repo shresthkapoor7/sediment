@@ -24,8 +24,8 @@ interface AddPaperDialogProps {
 type SearchState =
   | { status: "idle" }
   | { status: "loading" }
-  | { status: "done"; papers: GraphPaper[] }
-  | { status: "error"; message: string };
+  | { status: "done"; papers: GraphPaper[]; query: string }
+  | { status: "error"; message: string; query: string };
 
 
 const normalizeId = (value: string) => value.trim().split("/").pop()?.toUpperCase() ?? "";
@@ -107,11 +107,12 @@ export function AddPaperDialog({ papersOnCanvas, defaultLinkNodeId, onAdd, onClo
 
   const runSearch = useCallback((text: string, searchMode: "keyword" | "semantic", signal: AbortSignal) => {
     searchPapers(text, signal, searchMode)
-      .then((papers) => setState({ status: "done", papers }))
+      .then((papers) => setState({ status: "done", papers, query: text }))
       .catch((error: unknown) => {
         if (signal.aborted) return;
         setState({
           status: "error",
+          query: text,
           message: error instanceof APIError ? error.message : "Paper search is unavailable right now.",
         });
       });
@@ -159,7 +160,10 @@ export function AddPaperDialog({ papersOnCanvas, defaultLinkNodeId, onAdd, onClo
   const linkTarget = papersOnCanvas.find((paper) => paper.nodeId === linkNodeId) ?? null;
   const visibleState: SearchState = mode === "semantic"
     ? (semanticRequest ? state : { status: "idle" })
-    : trimmed.length < 2 ? { status: "idle" } : state;
+    : trimmed.length < 2
+      ? { status: "idle" }
+      // Results for an older query read as still loading until the current one answers.
+      : "query" in state && state.query !== trimmed ? { status: "loading" } : state;
   const shownQuery = mode === "semantic" ? semanticRequest?.query ?? "" : trimmed;
 
   return (

@@ -15,7 +15,7 @@ def request_user_id(
     of URLs, access logs and browser history. The query parameter is still read so a frontend deployed before
     this change keeps working; drop it once every client sends the header.
     """
-    user_id = (header_user_id or query_user_id or "").strip()
+    user_id = (header_user_id or "").strip() or (query_user_id or "").strip()
     if not user_id:
         raise HTTPException(status_code=400, detail="userId required")
     return user_id
