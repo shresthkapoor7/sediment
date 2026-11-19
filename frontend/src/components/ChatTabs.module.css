@@ -1,6 +1,6 @@
 /* The agent panel's chats, as tabs. Flat: the open chat is one tone lighter, nothing has a stroke. */
 .strip { display: flex; align-items: center; gap: 4px; padding: 10px 10px 4px 12px; flex-shrink: 0; }
-.tabs { display: flex; align-items: center; gap: 2px; min-width: 0; flex: 1; overflow-x: auto; scrollbar-width: none; }
+.tabs { position: relative; display: flex; align-items: center; gap: 2px; min-width: 0; flex: 1; overflow-x: auto; scrollbar-width: none; }
 .tabs::-webkit-scrollbar { display: none; }
 .tab { position: relative; display: flex; align-items: center; flex: 0 1 150px; min-width: 64px; height: 30px; border-radius: 8px; color: var(--text-tertiary); transition: background .12s, color .12s; }
 .tab:hover { background: color-mix(in srgb, var(--text-primary) 5%, transparent); color: var(--text-secondary); }

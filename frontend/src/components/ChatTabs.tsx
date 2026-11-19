@@ -26,9 +26,16 @@ export const chatTabId = (idPrefix: string, id: string) => `${idPrefix}-tab-${id
 export const chatPanelId = (idPrefix: string) => `${idPrefix}-tabpanel`;
 
 export function ChatTabs({ tabs, activeId, busyIds, canAdd, onSelect, onAdd, onClose, onClosePanel, idPrefix }: ChatTabsProps) {
+  const stripRef = useRef<HTMLDivElement>(null);
   const activeRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    activeRef.current?.scrollIntoView({ block: "nearest", inline: "nearest" });
+    // Scroll only the tab strip; scrollIntoView would also scroll the page when the strip sits below the fold.
+    const strip = stripRef.current;
+    const tab = activeRef.current;
+    if (!strip || !tab) return;
+    const left = tab.offsetLeft; // The strip is positioned, so this is measured from its edge.
+    if (left < strip.scrollLeft) strip.scrollLeft = left;
+    else if (left + tab.offsetWidth > strip.scrollLeft + strip.clientWidth) strip.scrollLeft = left + tab.offsetWidth - strip.clientWidth;
   }, [activeId, tabs.length]);
 
   // With one chat there is nothing to close; the last tab always stays.
@@ -37,6 +44,7 @@ export function ChatTabs({ tabs, activeId, busyIds, canAdd, onSelect, onAdd, onC
   return (
     <div className={styles.strip}>
       <div
+        ref={stripRef}
         className={styles.tabs}
         role="tablist"
         aria-label="Chats"

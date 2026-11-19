@@ -101,11 +101,9 @@ export function useWorkspaces() {
       // Lists run oldest to newest and columns show newest first, so "before X" on screen means after X here.
       const anchor = beforeId ? rest.findIndex(category => category.id === beforeId) : -1;
       if (anchor >= 0) rest.splice(anchor + 1, 0, moving);
-      else {
-        // The bottom of a column is the oldest entry there, so go just before that column's oldest category.
-        const oldest = rest.findIndex(category => category.column === column);
-        rest.splice(oldest >= 0 ? oldest : 0, 0, moving);
-      }
+      // Columns show newest first, so the very start of the list is the bottom of every column, including
+      // narrow layouts where two columns fold into one stack.
+      else rest.unshift(moving);
       write(rest);
     },
     /** Files a canvas into a category (or back to Unsorted), before `beforeId` when given, otherwise last. */

@@ -385,7 +385,7 @@ export function TimelineCanvas({
       ? NODE_DIMENSIONS.height + 120
       : Math.max(
           ...allNodes.map((n) => n.y + NODE_DIMENSIONS.height),
-          ...allNotes.map((note) => note.y + (note.height ?? TIMELINE_NOTE_MIN_HEIGHT)),
+          ...allNotes.map((note) => note.y + (note.height ?? (isSpecialNote(note) ? SPECIAL_NOTE_MIN_HEIGHT : TIMELINE_NOTE_MIN_HEIGHT))),
         ) + 120;
 
   // The box the papers and notes actually occupy, so fitting zooms to the content rather than to the
@@ -397,6 +397,16 @@ export function TimelineCanvas({
     maxX: maxX - 120,
     maxY: maxY - 120,
   };
+  // Read-only notes without a stored height grow to fit their text, so their real bottom edge is only
+  // known once they render. Measure them, falling back to the stored or minimum height.
+  const renderedMaxY = useCallback((estimate: number) => {
+    let bottom = estimate;
+    // Notes sit directly in the absolutely positioned node layer, so offsetTop is their canvas y.
+    nodeLayerRef.current?.querySelectorAll<HTMLElement>("[data-note-id]").forEach((element) => {
+      bottom = Math.max(bottom, element.offsetTop + element.offsetHeight);
+    });
+    return bottom;
+  }, []);
 
   const applyTransform = useCallback(() => {
     if (gRef.current) {
@@ -420,13 +430,13 @@ export function TimelineCanvas({
       const contentLeft = x + contentBounds.minX * z;
       const contentTop = y + contentBounds.minY * z;
       const contentRight = x + contentBounds.maxX * z;
-      const contentBottom = y + contentBounds.maxY * z;
+      const contentBottom = y + renderedMaxY(contentBounds.maxY) * z;
       const TOLERANCE = 2;
       const outOfView = !(contentLeft >= -TOLERANCE && contentTop >= -TOLERANCE && contentRight <= clientWidth + TOLERANCE && contentBottom <= clientHeight + TOLERANCE);
       setIsOutOfView(outOfView);
     }
     viewListenersRef.current.forEach((listener) => listener());
-  }, [contentBounds.minX, contentBounds.minY, contentBounds.maxX, contentBounds.maxY]);
+  }, [contentBounds.minX, contentBounds.minY, contentBounds.maxX, contentBounds.maxY, renderedMaxY]);
 
   useEffect(() => {
     try {
@@ -1748,7 +1758,7 @@ export function TimelineCanvas({
               const margin = 48;
               const toolbar = 72;
               const width = Math.max(contentBounds.maxX - contentBounds.minX, 1);
-              const height = Math.max(contentBounds.maxY - contentBounds.minY, 1);
+              const height = Math.max(renderedMaxY(contentBounds.maxY) - contentBounds.minY, 1);
               const availableWidth = Math.max(clientWidth - margin * 2, 1);
               const availableHeight = Math.max(clientHeight - margin * 2 - toolbar, 1);
               const fitZoom = Math.min(availableWidth / width, availableHeight / height, 1.25);

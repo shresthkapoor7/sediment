@@ -157,26 +157,36 @@ const CAMERAS = new Map([WIDE].map(size => [size, {
 
 function useDemoClock(root: React.RefObject<HTMLElement | null>) {
   const [time, setTime] = useState(0);
-  const [running, setRunning] = useState(false);
+  const [visible, setVisible] = useState(false);
+  const [reduced, setReduced] = useState(false);
 
   useEffect(() => {
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- Show the finished scene instead of animating it.
-      setTime(STARTS.hold);
-      return;
-    }
+    const query = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const update = () => setReduced(query.matches);
+    update();
+    query.addEventListener("change", update);
+    return () => query.removeEventListener("change", update);
+  }, []);
+
+  useEffect(() => {
     const node = root.current;
     if (!node) return;
-    const observer = new IntersectionObserver(([entry]) => setRunning(entry.isIntersecting), { threshold: 0.25 });
+    const observer = new IntersectionObserver(([entry]) => setVisible(entry.isIntersecting), { threshold: 0.25 });
     observer.observe(node);
     return () => observer.disconnect();
   }, [root]);
 
   useEffect(() => {
-    if (!running) return;
+    // Reduced motion shows the finished scene instead of animating it.
+    if (reduced) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Jump to the static scene when the preference turns on.
+      setTime(STARTS.hold);
+      return;
+    }
+    if (!visible) return;
     const timer = window.setInterval(() => setTime((current) => (current + TICK) % LOOP), TICK);
     return () => window.clearInterval(timer);
-  }, [running]);
+  }, [reduced, visible]);
 
   return time;
 }
