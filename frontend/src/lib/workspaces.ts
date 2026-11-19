@@ -51,6 +51,17 @@ const read = () => parse(snapshot());
 
 export const UNSORTED = "unsorted";
 
+/** The list with `id` moved into `targetId`'s place (the same list when nothing would change). */
+export function reorderedCategories<T extends { id: string }>(list: T[], id: string, targetId: string): T[] {
+  const from = list.findIndex(category => category.id === id);
+  const to = list.findIndex(category => category.id === targetId);
+  if (from < 0 || to < 0 || from === to) return list;
+  const next = [...list];
+  const [moved] = next.splice(from, 1);
+  next.splice(to, 0, moved);
+  return next;
+}
+
 export function useWorkspaces() {
   const raw = useSyncExternalStore(subscribe, snapshot, serverSnapshot);
   const categories = useMemo(() => parse(raw), [raw]);
@@ -75,12 +86,8 @@ export function useWorkspaces() {
     /** Moves a category into another's place; the categories between them shift over by one. */
     reorder(id: string, targetId: string) {
       const list = read();
-      const from = list.findIndex(category => category.id === id);
-      const to = list.findIndex(category => category.id === targetId);
-      if (from < 0 || to < 0 || from === to) return;
-      const [moved] = list.splice(from, 1);
-      list.splice(to, 0, moved);
-      write(list);
+      const next = reorderedCategories(list, id, targetId);
+      if (next !== list) write(next);
     },
     /** Files a canvas into a category (or back to Unsorted), before `beforeId` when given, otherwise last. */
     move(graphId: string, target: string, beforeId?: string | null) {

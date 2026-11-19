@@ -43,8 +43,9 @@
 .laneStack { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
 .column { position: relative; display: flex; flex-direction: column; padding: 8px; border-radius: 14px; background: color-mix(in srgb, var(--bg-secondary) 55%, transparent); transition: background .15s; min-width: 0; }
 .columnOver { background: color-mix(in srgb, var(--bg-tertiary) 85%, transparent); }
-/* A category being dragged by its header to a new place. */
-.columnMoving { opacity: .45; }
+/* A category being dragged by its header: an outlined slot where it will land, its contents dimmed. */
+.columnMoving { outline: 1.5px dashed var(--border-hover); outline-offset: -1.5px; background: transparent; }
+.columnMoving > * { opacity: .35; }
 .columnHeader[data-movable] { cursor: grab; }
 .columnHeader[data-movable]:active { cursor: grabbing; }
 .columnHeader { display: flex; align-items: center; gap: 8px; height: 44px; padding: 0 8px; box-sizing: border-box; }

@@ -7,7 +7,7 @@ import { AsciiBackdrop } from "@/components/AsciiBackdrop";
 import { LogoMark } from "@/components/LogoMark";
 import { LAST_GRAPH_ID_KEY, deleteSavedGraph, fetchUsage, getOrCreateAnonymousUserId, lastKnownUsageSegments, listSavedGraphs } from "@/lib/api";
 import type { SavedGraphListItem } from "@/lib/types";
-import { UNSORTED, useWorkspaces, type CategoryLook } from "@/lib/workspaces";
+import { UNSORTED, reorderedCategories, useWorkspaces, type CategoryLook } from "@/lib/workspaces";
 import { CreditsMeter } from "@/components/CreditsMeter";
 import { CategoryIcon, CategoryPicker, colorValue } from "./CategoryStyle";
 import styles from "./WorkspacesView.module.css";
@@ -171,14 +171,16 @@ export function WorkspacesView() {
     const byId = new Map((graphs ?? []).map(graph => [graph.id, graph]));
     const filed = new Set<string>();
     const shown = (graph: SavedGraphListItem) => !needle || titleOf(graph).toLowerCase().includes(needle);
-    const categories = [...workspaces.categories].reverse().map(category => ({
+    // While a category is dragged, the board already shows it in the spot it would drop into.
+    const ordered = movingCategory && categoryTarget ? reorderedCategories(workspaces.categories, movingCategory, categoryTarget) : workspaces.categories;
+    const categories = [...ordered].reverse().map(category => ({
       id: category.id,
       name: category.name,
       look: { icon: category.icon, color: category.color },
       graphs: category.graphIds.flatMap(id => { const graph = byId.get(id); if (!graph || filed.has(id)) return []; filed.add(id); return shown(graph) ? [graph] : []; }),
     }));
     return [{ id: UNSORTED, name: "Unsorted", graphs: (graphs ?? []).filter(graph => !filed.has(graph.id) && shown(graph)) }, ...categories];
-  }, [graphs, workspaces.categories, needle]);
+  }, [graphs, workspaces.categories, needle, movingCategory, categoryTarget]);
 
   const open = (graph: SavedGraphListItem) => {
     try { window.localStorage.setItem(LAST_GRAPH_ID_KEY, graph.id); } catch { /* Restricted storage: the canvas just won’t reopen automatically. */ }
@@ -207,11 +209,12 @@ export function WorkspacesView() {
   const dragOver = (event: DragEvent, column: Column, index: number | null) => {
     if (movingCategory) {
       // Categories swap places with categories; Unsorted always stays first.
-      if (column.id === UNSORTED || column.id === movingCategory) { setCategoryTarget(null); return; }
+      if (column.id === UNSORTED) return;
       event.preventDefault();
       event.stopPropagation();
       event.dataTransfer.dropEffect = "move";
-      setCategoryTarget(column.id);
+      // Over its own placeholder the preview stays as it is; over another category it moves into that spot.
+      if (column.id !== movingCategory) setCategoryTarget(column.id);
       return;
     }
     if (!dragging) return;
@@ -233,7 +236,8 @@ export function WorkspacesView() {
   const drop = (event: DragEvent, column: Column) => {
     event.preventDefault();
     if (movingCategory) {
-      if (column.id !== UNSORTED && column.id !== movingCategory) workspaces.reorder(movingCategory, column.id);
+      // Drop wherever the placeholder is now.
+      if (categoryTarget) workspaces.reorder(movingCategory, categoryTarget);
       endCategoryMove();
       return;
     }
@@ -261,7 +265,7 @@ export function WorkspacesView() {
   };
 
   const renderColumn = (column: Column) => {
-            const over = target?.column === column.id || categoryTarget === column.id;
+            const over = target?.column === column.id;
             const movable = column.id !== UNSORTED && renaming !== column.id;
             return <section key={column.id} className={`${styles.column} ${over ? styles.columnOver : ""} ${movingCategory === column.id ? styles.columnMoving : ""} ${picking === column.id ? styles.pickerOpen : ""}`} aria-label={column.name}
               onDragOver={event => dragOver(event, column, null)} onDragLeave={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setTarget(current => current?.column === column.id ? null : current); }} onDrop={event => drop(event, column)}>
