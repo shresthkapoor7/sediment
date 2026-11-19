@@ -21,7 +21,8 @@ function dateLabel(value: string | null) {
 /** The Feeds experience. `embedded` drops the page chrome (header, intro, backdrop) so it can sit
  *  inside another page, such as the home screen. */
 /** Papers shown at a time. The backend returns more per request; the rest are revealed on demand. */
-const PAGE = 10;
+// Matches PAGE_SIZE in backend/app/services/feeds.py.
+const PAGE = 12;
 
 type FeedLayout = "cards" | "grid" | "list";
 const FEED_LAYOUT_KEY = "sediment_feed_layout";
