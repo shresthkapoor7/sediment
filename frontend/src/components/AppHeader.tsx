@@ -293,7 +293,7 @@ export function AppHeader({
             {/* Canvas actions sit in the bar itself. */}
             {timelineData && (
               <>
-                <button type="button" className="app-header-labeled-action" onClick={handleExport} title="Export markdown">
+                <button type="button" className="app-header-labeled-action app-header-export" onClick={handleExport} title="Export markdown">
                   <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M8 2.5v7.5M5 7.5l3 3 3-3M3 13h10" /></svg>
                   <span className="app-header-action-label">Export</span>
                 </button>
