@@ -194,3 +194,16 @@
 
 /* The start bar when the home page places it above the demo instead of above the feed. */
 .startSlot .start { margin-bottom: 0; }
+
+/* Phones: smaller type across the start bar, feed heading and cards. */
+@media (max-width: 640px) {
+  .startMessage, .startInput { font-size: 13px; }
+  .feedHeading h2 { font-size: 17px; }
+  .feedHeading p { font-size: 10.5px; }
+  .card h3 { font-size: 16px; }
+  .summary, .authors { font-size: 12px; }
+  .cardMeta { font-size: 11px; }
+  .cardFooter button { height: 32px; padding: 0 12px; font-size: 12px; }
+  .list[data-layout="grid"] .card h3 { font-size: 15px; }
+  .list[data-layout="list"] .card h3 { font-size: 14px; }
+}

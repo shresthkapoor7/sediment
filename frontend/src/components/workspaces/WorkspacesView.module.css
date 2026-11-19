@@ -127,8 +127,13 @@ button.columnIcon[data-tinted]:hover { background: color-mix(in srgb, var(--tile
 .shell button:focus-visible, .shell a:focus-visible { outline: 1px solid var(--border-hover); outline-offset: 2px; }
 
 @media (max-width: 640px) {
-  .topbar { padding: 0 1.25rem; }
-  .main { padding: 36px 1.25rem 64px; }
+  .topbar { padding: 0 1rem; }
+  .brand { font-size: .9375rem; }
+  .headingText h1 { font-size: 26px; }
+  .headingText p { font-size: 13px; line-height: 1.6; }
+  /* No keyboard on phones, so no shortcut hints. */
+  .tools kbd { display: none; }
+  .main { padding: 28px 1rem 64px; }
   .search { width: 100%; }
   .tools { width: 100%; }
   .reveal { opacity: 1; }

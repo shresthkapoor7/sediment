@@ -839,7 +839,7 @@ export default function Home() {
 
               <div className="landing-start" ref={setStartBarSlot} />
 
-              <section className="landing-demo hide-mobile" aria-label="What the agent does">
+              <section className="landing-demo" aria-label="What the agent does">
                 <LandingDemo />
               </section>
 

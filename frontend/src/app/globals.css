@@ -1157,6 +1157,10 @@ html[data-theme="dark"] .canvas-shell {
     transform: none;
   }
 
+}
+
+/* Home header, the same on every screen: logo left; the usage ring, a slash and Workspaces on the right. */
+.app-header-landing .desktop-only { display: contents !important; }
   .app-header-landing {
     min-height: 4rem !important;
     padding: 0 !important;
@@ -1284,6 +1288,9 @@ html[data-theme="dark"] .canvas-shell {
     white-space: nowrap;
     border: 0;
   }
+
+@media (max-width: 40rem) {
+  .app-header-landing .app-header-actions { padding: 0 1.25rem; }
 }
 
 html[data-theme="dark"] .landing-shell .trace-search-field {
@@ -2620,7 +2627,6 @@ a.landing-brand:hover {
 
 .feeds-nav-link { display: flex; align-items: center; gap: .375rem; color: var(--text-secondary); text-decoration: none; font-size: .75rem; }
 .feeds-nav-link > .app-header-action-label { display: inline-flex; align-items: center; gap: .375rem; vertical-align: middle; }
-.feeds-new { font-size: .5625rem; font-weight: 500; line-height: 1.4; padding: .125rem .3rem; border-radius: .25rem; color: var(--accent); background: var(--accent-soft); }
 .feeds-mobile-link {
   width: 100%;
   gap: .625rem;
@@ -2678,3 +2684,12 @@ a.landing-brand:hover {
 .sn-ghost:disabled { opacity: .5; cursor: default; }
 .sn-ghost-text { padding: 0 10px; }
 .sn-ghost:focus:not(:focus-visible) { outline: none; }
+
+/* Home on phones: smaller type, tighter gutters, the demo full width. */
+@media (max-width: 40rem) {
+  .landing-hero-title { font-size: 1.625rem; line-height: 1.15; }
+  .landing-hero-description { font-size: 0.875rem; line-height: 1.6; }
+  .landing-start, .landing-demo, .landing-feed { padding-left: 1rem; padding-right: 1rem; }
+  .landing-start { margin-bottom: 2rem; }
+  .landing-demo { margin-bottom: 3rem; }
+}

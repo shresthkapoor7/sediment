@@ -24,8 +24,8 @@ export default function NotFound() {
           <Link href="/" className="notfound-button is-primary">
             Back to surface
           </Link>
-          <Link href="/discovery" className="notfound-button">
-            Start a discovery
+          <Link href="/workspaces" className="notfound-button">
+            Your workspaces
           </Link>
         </div>
       </div>

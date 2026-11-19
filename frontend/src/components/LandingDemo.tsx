@@ -23,12 +23,16 @@ import styles from "./LandingDemo.module.css";
  * screen, or reduced motion) freezes the scene.
  */
 
-const APP = { width: 1600, height: 1000 };
 const HEADER_HEIGHT = 73;
-const CANVAS = { width: APP.width, height: APP.height - HEADER_HEIGHT };
-const PANEL_WIDTH = 400;
-// Where fitted content may sit on the canvas: right of the agent panel, above the toolbar.
-const FIT_AREA = { left: PANEL_WIDTH + 48, right: CANVAS.width - 48, top: 36, bottom: CANVAS.height - 88 };
+type Layout = { app: { width: number; height: number }; canvas: { width: number; height: number }; panel: number; fit: { left: number; right: number; top: number; bottom: number } };
+function layout(width: number, height: number, panel: number): Layout {
+  const canvas = { width, height: height - HEADER_HEIGHT };
+  // Where fitted content may sit on the canvas: right of the agent panel, above the toolbar.
+  return { app: { width, height }, canvas, panel, fit: { left: panel + 40, right: canvas.width - 40, top: 36, bottom: canvas.height - 88 } };
+}
+// Desktop shows the app at a laptop's size; phones get a narrower, taller app so it stays legible when scaled.
+const WIDE = layout(1600, 1000, 400);
+const NARROW = layout(1000, 1250, 340);
 
 const PROMPT_ONE = "Map how diffusion models came out of score matching, and note what's still open.";
 const ANSWER_ONE =
@@ -129,7 +133,7 @@ const EMPTY_TIMELINE = { nodes: {}, adjacency: {}, lanes: 1, rootId: 1, expansio
 type Camera = { x: number; y: number; zoom: number };
 
 /** The camera that fits these cards and notes into the free part of the canvas, like the fit button. */
-function fitCamera(nodes: TimelineNode[], notes: TimelineNote[]): Camera {
+function fitCamera(nodes: TimelineNode[], notes: TimelineNote[], { fit: FIT_AREA }: Layout): Camera {
   const boxes = [
     ...nodes.map((node) => ({ x: node.x, y: node.y - 64, right: node.x + NODE_DIMENSIONS.width, bottom: node.y + NODE_DIMENSIONS.height })),
     ...notes.map((note) => ({ x: note.x, y: note.y, right: note.x + (note.width ?? 300), bottom: note.y + (note.height ?? 150) })),
@@ -147,8 +151,10 @@ function fitCamera(nodes: TimelineNode[], notes: TimelineNote[]): Camera {
     y: FIT_AREA.top + (areaHeight - (maxY - minY) * zoom) / 2 - minY * zoom,
   };
 }
-const FIRST_CAMERA = fitCamera(FIRST_PAPERS, [NOTE]);
-const SECOND_CAMERA = fitCamera([...FIRST_PAPERS, ...SECOND_PAPERS], [NOTE]);
+const CAMERAS = new Map([WIDE, NARROW].map(size => [size, {
+  first: fitCamera(FIRST_PAPERS, [NOTE], size),
+  second: fitCamera([...FIRST_PAPERS, ...SECOND_PAPERS], [NOTE], size),
+}]));
 
 function useDemoClock(root: React.RefObject<HTMLElement | null>) {
   const [time, setTime] = useState(0);
@@ -177,17 +183,20 @@ function useDemoClock(root: React.RefObject<HTMLElement | null>) {
 }
 
 function useFitScale(frame: React.RefObject<HTMLElement | null>) {
-  const [scale, setScale] = useState(0.76);
+  const [fit, setFit] = useState({ scale: 0.76, size: WIDE });
   useLayoutEffect(() => {
     const node = frame.current;
     if (!node) return;
-    const update = () => setScale(node.clientWidth / APP.width);
+    const update = () => {
+      const size = node.clientWidth < 640 ? NARROW : WIDE;
+      setFit({ scale: node.clientWidth / size.app.width, size });
+    };
     update();
     const observer = new ResizeObserver(update);
     observer.observe(node);
     return () => observer.disconnect();
   }, [frame]);
-  return scale;
+  return fit;
 }
 
 type ToolLine = { key: string; label: string; done: boolean };
@@ -199,7 +208,9 @@ function MentionChip({ children }: { children: ReactNode }) {
 export function LandingDemo() {
   const frameRef = useRef<HTMLDivElement>(null);
   const time = useDemoClock(frameRef);
-  const scale = useFitScale(frameRef);
+  const { scale, size } = useFitScale(frameRef);
+  const { app: APP, canvas: CANVAS, panel: PANEL_WIDTH } = size;
+  const cameras = CAMERAS.get(size)!;
 
   const reached = (phase: Phase) => time >= STARTS[phase];
   const progress = (phase: Phase) => Math.min(Math.max((time - STARTS[phase]) / PHASES[phase], 0), 1);
@@ -225,7 +236,7 @@ export function LandingDemo() {
   const links = [...(reached("linkOne") ? FIRST_LINKS : []), ...(reached("placeTwo") ? SECOND_LINKS : [])];
   const noted = reached("noteOne");
   const mentioned = reached("typeTwo") && !reached("hold");
-  const camera = reached("placeTwo") ? SECOND_CAMERA : FIRST_CAMERA;
+  const camera = reached("placeTwo") ? cameras.second : cameras.first;
   const named = finished("detailsOne");
 
   // History: each agent turn that changed the canvas is one undo step.
@@ -246,9 +257,12 @@ export function LandingDemo() {
     viewListeners.current.add(listener);
     return () => { viewListeners.current.delete(listener); };
   }, []);
+  const canvasSizeRef = useRef(CANVAS);
+  useEffect(() => { canvasSizeRef.current = CANVAS; }, [CANVAS]);
   const getView = useCallback((): MinimapView => {
     const { x, y, zoom } = cameraRef.current;
-    return { x: -x / zoom, y: -y / zoom, width: CANVAS.width / zoom, height: CANVAS.height / zoom };
+    const { width, height } = canvasSizeRef.current;
+    return { x: -x / zoom, y: -y / zoom, width: width / zoom, height: height / zoom };
   }, []);
   const minimapItems: MinimapItem[] = [
     ...regions.map((region) => ({ id: `group-${region.key}`, kind: "group" as const, ...regionFrame(region) })),
@@ -326,7 +340,7 @@ export function LandingDemo() {
           cancelGraphTitleEdit={noop}
         />
 
-        <div className={styles.canvas}>
+        <div className={styles.canvas} style={{ "--panel-width": `${PANEL_WIDTH}px` } as React.CSSProperties}>
           <div className={styles.world} style={{ transform: `translate(${camera.x}px, ${camera.y}px) scale(${camera.zoom})` }}>
             {regions.map((region) => (
               <m.div key={`${loop}-${region.key}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5 }}>
