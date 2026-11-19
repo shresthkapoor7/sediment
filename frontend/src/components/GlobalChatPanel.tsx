@@ -1503,5 +1503,6 @@ function globalToolLabel(name: string, status?: string, result?: Record<string, 
     return count === null ? "Searching paper content" : `Searched paper content · ${count} matches`;
   }
   if (name === "web_search") return "Searched public sources";
+  if (name === "update_canvas_details") return status === "started" ? "Naming the canvas" : "Named and described the canvas";
   return "Ran tool";
 }

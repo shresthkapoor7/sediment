@@ -1495,10 +1495,20 @@ a.landing-brand:hover {
 }
 
 /* The feed under the hero: the Feeds view, sitting in the home palette. */
+/* The search bar, above the demo. */
+.landing-start {
+  width: 100%;
+  max-width: 71.25rem;
+  margin: 0 auto 3.5rem;
+  padding: 0 2rem;
+  box-sizing: border-box;
+}
+.landing-start:empty { display: none; }
+
 /* The scripted agent demo between the hero and the feed. */
 .landing-demo {
   width: 100%;
-  max-width: 71.25rem;
+  max-width: 82rem;
   margin: 0 auto 5rem;
   padding: 0 2rem;
   box-sizing: border-box;

@@ -191,3 +191,6 @@
   .list[data-layout="list"] .cardBody { grid-template-columns: minmax(0, 1fr); }
   .list[data-layout="list"] .cardFooter { grid-column: 1; grid-row: auto; margin-top: 10px; }
 }
+
+/* The start bar when the home page places it above the demo instead of above the feed. */
+.startSlot .start { margin-bottom: 0; }

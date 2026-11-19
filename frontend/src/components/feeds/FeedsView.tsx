@@ -10,6 +10,7 @@ import { illustrationsFor } from "@/lib/feed-illustrations";
 import { StartBar, type StartMode } from "@/components/feeds/StartBar";
 import { useFeedBookmarks } from "@/lib/feed-bookmarks";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { PageHeader } from "@/components/PageHeader";
 import { APIError } from "@/lib/api";
 import { Feed, FeedAction, FeedDomain, FeedFilter, FeedPaper, fetchFeed, sourceLabels } from "@/lib/feeds-api";
@@ -52,8 +53,10 @@ function useFeedLayout() {
   return [layout, setLayout] as const;
 }
 
-export function FeedsView({ embedded = false, ready = true, onSearch, onStartWorkspace, searching }: {
+export function FeedsView({ embedded = false, ready = true, onSearch, onStartWorkspace, searching, startBarTarget }: {
   embedded?: boolean;
+  /** Where the start bar renders when the page wants it somewhere other than the top of the feed. */
+  startBarTarget?: HTMLElement | null;
   /** Hold the first feed request until true, so the page around the feed can load first. */
   ready?: boolean;
   /** Runs a search from the start bar (embedded only). */
@@ -197,6 +200,8 @@ export function FeedsView({ embedded = false, ready = true, onSearch, onStartWor
   const disabled = pending !== null || needsReload;
   const status = pending === "restore" ? "Restoring your feed…" : pending === "more" ? "Finding more papers…" : pending === "refresh" ? "Checking for recent papers…" : pending === "interests" ? "Finding papers for your interests…" : pending === "source" ? "Loading papers from this source…" : "";
 
+  const withStartBarTarget = (bar: ReactNode) => startBarTarget ? createPortal(<div className={`${styles.embedded} ${styles.startSlot}`}>{bar}</div>, startBarTarget) : bar;
+
   return <div className={embedded ? styles.embedded : `feeds-shell ${styles.page}`}>
     {!embedded && <PageHeader title="Feeds" />}
     <main className={`${styles.main} ${!embedded && !feed?.interests && !savedOnly ? styles.mainEmpty : ""}`}>
@@ -206,7 +211,7 @@ export function FeedsView({ embedded = false, ready = true, onSearch, onStartWor
         <p>The papers you care about, in one place.<br />Tell us what you’re exploring. Make room for something new.</p>
       </section>}
       {error && <div className={styles.error} role="alert"><p>{error}</p>{(!feed || needsReload) && <button disabled={!!pending} onClick={reload}>Reload feed</button>}</div>}
-      {embedded && !editing ? <StartBar
+      {embedded && !editing ? withStartBarTarget(<StartBar
         mode={startMode ?? "paper"}
         onModeChange={setStartMode}
         markedCount={selection.papers.length}
@@ -220,7 +225,7 @@ export function FeedsView({ embedded = false, ready = true, onSearch, onStartWor
           if (ok) setStartMode("feed");
           return ok;
         }}
-      /> : feed && <section className={styles.interests} aria-label="Your research interests">
+      />) : feed && <section className={styles.interests} aria-label="Your research interests">
         <div className={styles.interestHeading}>{editing ? <label htmlFor="interests">What are you interested in?</label> : <strong>Your interests</strong>}</div>
         {editing ? <form onSubmit={event => { event.preventDefault(); void update("interests"); }}>
           <textarea autoFocus id="interests" value={interests} onChange={event => setInterests(event.target.value)} placeholder="Machine learning, the neuroscience of memory, climate science…" maxLength={600} rows={2} required disabled={disabled} aria-describedby="interest-help" />
