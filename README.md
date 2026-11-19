@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="./assets/logo.svg" alt="Sediment logo" width="96" />
+
 # Sediment
 
 **A canvas for research.**
@@ -8,7 +10,7 @@ Find papers, lay them out, and build up a picture of a field with an AI agent wo
 
 [**Try it → sediment-ai.com**](https://www.sediment-ai.com/)
 
-<a href="https://www.sediment-ai.com/"><img src="./assets/canvas.jpg" alt="A Sediment canvas: papers grouped into clusters, notes linked to papers, and the agent explaining how two clusters connect" width="860" /></a>
+<a href="https://www.sediment-ai.com/"><img src="./assets/demo.gif" alt="The Sediment agent searching OpenAlex, laying papers out on a canvas, linking them, and tracing a paper's lineage in a second chat" width="860" /></a>
 
 </div>
 

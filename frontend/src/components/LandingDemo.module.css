@@ -20,7 +20,7 @@
 .world { position: absolute; top: 0; left: 0; transform-origin: 0 0; transition: transform 1s cubic-bezier(.16, 1, .3, 1); }
 .edges { position: absolute; top: 0; left: 0; overflow: visible; }
 
-.toolbar { position: absolute; bottom: 1rem; left: calc(50% + var(--panel-width) / 2); transform: translateX(-50%); z-index: 10; display: flex; align-items: center; gap: .25rem; padding: .1875rem; border-radius: .625rem; background: var(--bg-tertiary); }
+.toolbar { position: absolute; bottom: 1rem; left: 50%; transform: translateX(-50%); z-index: 10; display: flex; align-items: center; gap: .25rem; padding: .1875rem; border-radius: .625rem; background: var(--bg-tertiary); }
 .addPaper { display: flex; align-items: center; gap: .375rem; height: 1.75rem; margin-right: .25rem; padding: 0 .625rem 0 .5rem; border-radius: .4375rem; background: var(--accent); color: var(--on-accent); font-size: .75rem; font-weight: 550; white-space: nowrap; }
 .toolButton { display: flex; align-items: center; justify-content: center; width: 1.75rem; height: 1.75rem; border-radius: .375rem; color: var(--text-secondary); font-size: .875rem; }
 .toggle { display: flex; align-items: center; justify-content: center; width: 1.75rem; height: 1.75rem; margin-left: .25rem; border-radius: .375rem; background: var(--bg-secondary); color: var(--text-tertiary); }
