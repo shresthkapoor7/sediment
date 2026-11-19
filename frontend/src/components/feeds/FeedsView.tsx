@@ -6,9 +6,10 @@ import { PaperStage } from "@/components/feeds/PaperStage";
 import { FeedBackdrop } from "@/components/feeds/FeedBackdrop";
 import { FeedPaperDetail } from "@/components/feeds/FeedPaperDetail";
 import { FeedPaperImage } from "@/components/feeds/FeedPaperImage";
+import { illustrationsFor } from "@/lib/feed-illustrations";
 import { StartBar, type StartMode } from "@/components/feeds/StartBar";
 import { useFeedBookmarks } from "@/lib/feed-bookmarks";
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { PageHeader } from "@/components/PageHeader";
 import { APIError } from "@/lib/api";
 import { Feed, FeedAction, FeedDomain, FeedFilter, FeedPaper, fetchFeed, sourceLabels } from "@/lib/feeds-api";
@@ -183,6 +184,8 @@ export function FeedsView({ embedded = false, ready = true, onSearch, onStartWor
   }
 
   const visible = savedOnly ? savedPapers : (feed?.papers || []).slice(0, shown);
+  // Assigned in feed order, so loading more never changes the drawings above.
+  const illustrations = useMemo(() => illustrationsFor(visible), [visible]);
   const moreAvailable = !savedOnly && !!feed?.interests && (shown < feed.papers.length || !!feed.cursor);
 
   async function loadMore() {
@@ -259,7 +262,7 @@ export function FeedsView({ embedded = false, ready = true, onSearch, onStartWor
         {savedOnly && unresolved.length > 0 && <p className={styles.warning} role="status">Restoring {unresolved.length} previously saved {unresolved.length === 1 ? "paper" : "papers"}. If they don’t appear, <button onClick={retryRestore}>retry restoration</button>.</p>}
         <div className={styles.list} data-layout={layout}>
           {visible.map(paper => <article className={`${styles.card} ${selection.has(paper.id) ? styles.cardMarked : ""}`} key={paper.id}>
-            <FeedPaperImage paper={paper} className={styles.figure} />
+            <FeedPaperImage paper={paper} className={styles.figure} illustration={illustrations.get(paper.id)} />
             <div className={styles.cardBody}>
               <div className={styles.cardMeta}><span>{paper.topics[0] || (paper.preprint ? "Preprint" : "Research paper")}</span><time dateTime={paper.published || undefined}>{dateLabel(paper.published)}</time></div>
               <h3><button type="button" className={styles.paperLink} onClick={() => openPaper(paper)}>{paper.title}</button></h3>

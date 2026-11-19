@@ -416,14 +416,17 @@ export function TimelineCanvas({
       const { clientWidth, clientHeight } = containerRef.current;
       const { x, y } = panRef.current;
       const z = zoomRef.current;
-      const contentRight = x + maxX * z;
-      const contentBottom = y + maxY * z;
+      // Measure the cards themselves, not the empty space between the canvas origin and the first card.
+      const contentLeft = x + contentBounds.minX * z;
+      const contentTop = y + contentBounds.minY * z;
+      const contentRight = x + contentBounds.maxX * z;
+      const contentBottom = y + contentBounds.maxY * z;
       const TOLERANCE = 2;
-      const outOfView = !(x >= -TOLERANCE && y >= -TOLERANCE && contentRight <= clientWidth + TOLERANCE && contentBottom <= clientHeight + TOLERANCE);
+      const outOfView = !(contentLeft >= -TOLERANCE && contentTop >= -TOLERANCE && contentRight <= clientWidth + TOLERANCE && contentBottom <= clientHeight + TOLERANCE);
       setIsOutOfView(outOfView);
     }
     viewListenersRef.current.forEach((listener) => listener());
-  }, [maxX, maxY]);
+  }, [contentBounds.minX, contentBounds.minY, contentBounds.maxX, contentBounds.maxY]);
 
   useEffect(() => {
     try {
@@ -1782,9 +1785,7 @@ export function TimelineCanvas({
             e.currentTarget.style.color = isOutOfView ? "var(--accent)" : "var(--text-secondary)";
           }}
         >
-          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <path d="M2.5 7.25 8 2.75l5.5 4.5M4 6.25v6.75h3V10h2v3h3V6.25" />
-          </svg>
+          ⌂
         </button>
         <div style={{
           fontSize: "0.6875rem",

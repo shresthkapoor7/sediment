@@ -4,9 +4,9 @@ import { useState } from "react";
 import { FeedPaper } from "@/lib/feeds-api";
 import { illustrationFor } from "@/lib/feed-illustrations";
 
-export function FeedPaperImage({ paper, className }: { paper: FeedPaper; className: string }) {
+export function FeedPaperImage({ paper, className, illustration: assigned }: { paper: FeedPaper; className: string; illustration?: string }) {
   const [failed, setFailed] = useState<string[]>([]);
-  const illustration = illustrationFor(paper);
+  const illustration = assigned ?? illustrationFor(paper);
   const thumbnail = paper.thumbnail?.startsWith("https://cdn-thumbnails.huggingface.co/") ? paper.thumbnail : null;
   const src = [thumbnail, illustration].find(candidate => candidate && !failed.includes(candidate));
   if (!src) return null;
