@@ -104,6 +104,9 @@ export function WorkspacesView() {
   const [error, setError] = useState("");
   const [userId, setUserId] = useState<string | null>(null);
   const [dragging, setDragging] = useState<string | null>(null);
+  // A category being dragged by its header, and the category it would take the place of.
+  const [movingCategory, setMovingCategory] = useState<string | null>(null);
+  const [categoryTarget, setCategoryTarget] = useState<string | null>(null);
   const [target, setTarget] = useState<DropTarget | null>(null);
   const [listComplete, setListComplete] = useState(false);
   const [adding, setAdding] = useState(false);
@@ -199,7 +202,18 @@ export function WorkspacesView() {
     if (workspaces.create(draft, draftLook)) { setDraft(""); setDraftLook({}); setPicking(null); setAdding(false); }
   };
 
+  const endCategoryMove = () => { setMovingCategory(null); setCategoryTarget(null); };
+
   const dragOver = (event: DragEvent, column: Column, index: number | null) => {
+    if (movingCategory) {
+      // Categories swap places with categories; Unsorted always stays first.
+      if (column.id === UNSORTED || column.id === movingCategory) { setCategoryTarget(null); return; }
+      event.preventDefault();
+      event.stopPropagation();
+      event.dataTransfer.dropEffect = "move";
+      setCategoryTarget(column.id);
+      return;
+    }
     if (!dragging) return;
     event.preventDefault();
     event.stopPropagation();
@@ -218,6 +232,11 @@ export function WorkspacesView() {
 
   const drop = (event: DragEvent, column: Column) => {
     event.preventDefault();
+    if (movingCategory) {
+      if (column.id !== UNSORTED && column.id !== movingCategory) workspaces.reorder(movingCategory, column.id);
+      endCategoryMove();
+      return;
+    }
     const id = dragging ?? event.dataTransfer.getData("text/plain");
     if (id && !(target?.column === column.id && target.before === SELF_DROP)) {
       workspaces.move(id, column.id, target?.column === column.id ? target.before : null);
@@ -242,10 +261,20 @@ export function WorkspacesView() {
   };
 
   const renderColumn = (column: Column) => {
-            const over = target?.column === column.id;
-            return <section key={column.id} className={`${styles.column} ${over ? styles.columnOver : ""} ${picking === column.id ? styles.pickerOpen : ""}`} aria-label={column.name}
+            const over = target?.column === column.id || categoryTarget === column.id;
+            const movable = column.id !== UNSORTED && renaming !== column.id;
+            return <section key={column.id} className={`${styles.column} ${over ? styles.columnOver : ""} ${movingCategory === column.id ? styles.columnMoving : ""} ${picking === column.id ? styles.pickerOpen : ""}`} aria-label={column.name}
               onDragOver={event => dragOver(event, column, null)} onDragLeave={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setTarget(current => current?.column === column.id ? null : current); }} onDrop={event => drop(event, column)}>
-              <header className={styles.columnHeader}>
+              <header className={styles.columnHeader} data-movable={movable || undefined} draggable={movable}
+                title={movable ? "Drag onto another category to move it there" : undefined}
+                onDragStart={event => {
+                  if (!movable || event.target !== event.currentTarget) return;
+                  event.dataTransfer.effectAllowed = "move";
+                  event.dataTransfer.setData("application/x-sediment-category", column.id);
+                  setMovingCategory(column.id);
+                  setPicking(null);
+                }}
+                onDragEnd={endCategoryMove}>
                 {column.id === UNSORTED ? <span className={styles.columnIcon}><InboxIcon /></span> : tile(column.id, column.look ?? {}, next => workspaces.restyle(column.id, next))}
                 {renaming === column.id
                   ? <input className={styles.rename} autoFocus defaultValue={column.name} maxLength={60} aria-label="Category name"
@@ -323,7 +352,7 @@ export function WorkspacesView() {
         <div className={styles.heading}>
           <div className={styles.headingText}>
             <h1>Workspaces</h1>
-            <p>Group your canvases into categories. Drag a canvas into a category to file it.</p>
+            <p>Group your canvases into categories. Drag a canvas into a category to file it, or drag a category by its name to reorder.</p>
             {graphs !== null && <span className={styles.stats}>{total} {total === 1 ? "canvas" : "canvases"} · {categoryCount} {categoryCount === 1 ? "category" : "categories"}</span>}
           </div>
           <div className={styles.tools}>

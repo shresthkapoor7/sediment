@@ -43,6 +43,10 @@
 .laneStack { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
 .column { position: relative; display: flex; flex-direction: column; padding: 8px; border-radius: 14px; background: color-mix(in srgb, var(--bg-secondary) 55%, transparent); transition: background .15s; min-width: 0; }
 .columnOver { background: color-mix(in srgb, var(--bg-tertiary) 85%, transparent); }
+/* A category being dragged by its header to a new place. */
+.columnMoving { opacity: .45; }
+.columnHeader[data-movable] { cursor: grab; }
+.columnHeader[data-movable]:active { cursor: grabbing; }
 .columnHeader { display: flex; align-items: center; gap: 8px; height: 44px; padding: 0 8px; box-sizing: border-box; }
 /* The folder tile, the count and the delete button share one 24px tile with 7px corners. */
 .columnIcon, .pill, .columnHeader .iconButton { box-sizing: border-box; display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 7px; border: 0; flex: none; }

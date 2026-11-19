@@ -72,6 +72,16 @@ export function useWorkspaces() {
       write(read().map(category => category.id === id ? { ...category, ...look } : category));
     },
     remove(id: string) { write(read().filter(category => category.id !== id)); },
+    /** Moves a category into another's place; the categories between them shift over by one. */
+    reorder(id: string, targetId: string) {
+      const list = read();
+      const from = list.findIndex(category => category.id === id);
+      const to = list.findIndex(category => category.id === targetId);
+      if (from < 0 || to < 0 || from === to) return;
+      const [moved] = list.splice(from, 1);
+      list.splice(to, 0, moved);
+      write(list);
+    },
     /** Files a canvas into a category (or back to Unsorted), before `beforeId` when given, otherwise last. */
     move(graphId: string, target: string, beforeId?: string | null) {
       const next = read().map(category => ({ ...category, graphIds: category.graphIds.filter(id => id !== graphId) }));
