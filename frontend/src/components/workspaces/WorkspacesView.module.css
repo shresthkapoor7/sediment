@@ -88,7 +88,7 @@ button.columnIcon[data-tinted]:hover { background: color-mix(in srgb, var(--tile
 .dropEnd { position: static; flex: none; margin-top: -2px; }
 
 /* the faint constellation: a dot grid with an abstract lineage drawn over it */
-.preview { position: relative; height: 72px; background-image: radial-gradient(color-mix(in srgb, var(--text-primary) 14%, transparent) 1px, transparent 1.2px); background-size: 14px 14px; background-position: 7px 7px; -webkit-mask-image: linear-gradient(180deg, #000 55%, transparent); mask-image: linear-gradient(180deg, #000 55%, transparent); }
+.preview { position: relative; height: 92px; background-image: radial-gradient(color-mix(in srgb, var(--text-primary) 14%, transparent) 1px, transparent 1.2px); background-size: 14px 14px; background-position: 7px 7px; -webkit-mask-image: linear-gradient(180deg, #000 55%, transparent); mask-image: linear-gradient(180deg, #000 55%, transparent); }
 .graph { display: block; width: 100%; height: 100%; color: var(--text-primary); }
 .graph line { stroke: currentColor; stroke-width: 1; opacity: .26; }
 .graph circle { fill: currentColor; opacity: .55; }
@@ -100,7 +100,7 @@ button.columnIcon[data-tinted]:hover { background: color-mix(in srgb, var(--tile
 .title { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; max-width: 100%; padding: 0; border: 0; background: none; color: var(--text-primary); font: inherit; font-size: 14px; font-weight: 550; line-height: 1.4; letter-spacing: -.01em; text-align: left; cursor: pointer; overflow-wrap: anywhere; }
 .title::after { content: ""; position: absolute; inset: 0; z-index: 1; }
 .card:has(.title:focus-visible) { border-color: var(--border-hover); }
-.description { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; margin: 4px 0 0; font-size: 12.5px; line-height: 1.5; color: var(--text-secondary); overflow-wrap: anywhere; }
+.description { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; margin: 4px 0 0; font-size: 11.5px; line-height: 1.5; color: var(--text-secondary); overflow-wrap: anywhere; }
 .meta { display: flex; align-items: center; gap: 8px; margin: 8px 0 0; font-family: var(--font-mono), monospace; font-size: 11px; letter-spacing: .02em; color: var(--text-secondary); white-space: nowrap; }
 .meta i { font-style: normal; color: var(--text-tertiary); }
 .meta time { color: var(--text-tertiary); overflow: hidden; text-overflow: ellipsis; }

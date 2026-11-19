@@ -53,7 +53,7 @@ function GraphPreview({ id, count }: { id: string; count: number }) {
     let placed = 0;
     while (placed < total) {
       const size = Math.min(total - placed, 1 + Math.floor(rand() * 3));
-      layers.push(Array.from({ length: size }, (_, k) => ({ x: 0, y: size === 1 ? 14 + rand() * 36 : 8 + ((k + 0.5) / size) * 48 + (rand() - 0.5) * 8, r: 1.8 + rand() * 1.4 })));
+      layers.push(Array.from({ length: size }, (_, k) => ({ x: 0, y: size === 1 ? 18 + rand() * 48 : 10 + ((k + 0.5) / size) * 64 + (rand() - 0.5) * 10, r: 1.8 + rand() * 1.4 })));
       placed += size;
     }
     const nodes = layers.flatMap((layer, col) => layer.map(node => ({ ...node, x: 18 + (col / Math.max(layers.length - 1, 1)) * 264 + (rand() - 0.5) * 8 })));
@@ -73,7 +73,7 @@ function GraphPreview({ id, count }: { id: string; count: number }) {
     return { nodes, edges };
   }, [id, count]);
   const seed = nodes[nodes.length - 1];
-  return <svg className={styles.graph} viewBox="0 0 300 64" preserveAspectRatio="xMidYMid slice" aria-hidden="true" focusable="false">
+  return <svg className={styles.graph} viewBox="0 0 300 84" preserveAspectRatio="xMidYMid slice" aria-hidden="true" focusable="false">
     {edges.map(([a, b]) => <line key={`${a}-${b}`} x1={nodes[a].x} y1={nodes[a].y} x2={nodes[b].x} y2={nodes[b].y} />)}
     {nodes.map((node, index) => <circle key={index} cx={node.x} cy={node.y} r={node.r} />)}
     <circle className={styles.graphSeed} cx={seed.x} cy={seed.y} r="6" />
