@@ -157,3 +157,37 @@
 
 /* The title is a button, so the 2-line clamp has to live on it, not on the h3 around it. */
 .card h3 .paperLink { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; max-width: 100%; padding: 0; background: transparent; color: inherit; font: inherit; letter-spacing: inherit; text-align: left; }
+
+/* Layout switcher: a quiet pill of icon buttons beside the feed actions. */
+.headingTools { display: flex; align-items: center; gap: 8px; }
+.layouts { display: flex; align-items: center; gap: 2px; height: 36px; padding: 3px; border: 1px solid var(--border); border-radius: 10px; box-sizing: border-box; }
+.layouts button { display: grid; place-items: center; width: 30px; height: 28px; border: 0; border-radius: 7px; background: transparent; color: var(--text-tertiary); cursor: pointer; transition: color .15s, background .15s; }
+.layouts button:hover { color: var(--text-primary); }
+.layouts button[aria-pressed="true"] { background: var(--bg-tertiary); color: var(--text-primary); }
+
+/* Grid: image on top, title and actions below, no abstract. */
+.list[data-layout="grid"] { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+.list[data-layout="grid"] .card { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); gap: 16px; height: auto; padding: 18px; }
+.list[data-layout="grid"] .card .cardBody::after { display: none; }
+.list[data-layout="grid"] .figure { grid-column: 1; grid-row: 1; }
+.list[data-layout="grid"] .figure img { height: auto; aspect-ratio: 16 / 9; }
+.list[data-layout="grid"] .cardBody { grid-row: 2; }
+.list[data-layout="grid"] .card h3 { font-size: 17px; margin-top: 8px; }
+.list[data-layout="grid"] .summary { display: none; }
+
+/* List: compact rows, no image or abstract. */
+.list[data-layout="list"] { gap: 0; border: 1px solid var(--border); border-radius: 14px; overflow: hidden; background: color-mix(in srgb, var(--node-bg) 60%, transparent); }
+.list[data-layout="list"] .card { height: auto; grid-template-columns: minmax(0, 1fr); padding: 16px 20px; border: 0; border-bottom: 1px solid var(--border); border-radius: 0; background: transparent; -webkit-backdrop-filter: none; backdrop-filter: none; }
+.list[data-layout="list"] .card:last-child { border-bottom: 0; }
+.list[data-layout="list"] .card.cardMarked { background: color-mix(in srgb, var(--accent) 6%, transparent); }
+.list[data-layout="list"] .figure, .list[data-layout="list"] .summary, .list[data-layout="list"] .card .cardBody::after { display: none; }
+.list[data-layout="list"] .cardBody { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 20px; align-items: center; }
+.list[data-layout="list"] .cardMeta, .list[data-layout="list"] .card h3, .list[data-layout="list"] .authors { grid-column: 1; }
+.list[data-layout="list"] .card h3 { font-size: 16px; min-height: 0; margin-top: 4px; -webkit-line-clamp: 1; }
+.list[data-layout="list"] .authors { margin-top: 4px; }
+.list[data-layout="list"] .cardFooter { grid-column: 2; grid-row: 1 / span 3; margin: 0; padding: 0; }
+@media (max-width: 640px) {
+  .headingTools { width: 100%; justify-content: space-between; }
+  .list[data-layout="list"] .cardBody { grid-template-columns: minmax(0, 1fr); }
+  .list[data-layout="list"] .cardFooter { grid-column: 1; grid-row: auto; margin-top: 10px; }
+}

@@ -8,7 +8,7 @@ import { FeedPaperDetail } from "@/components/feeds/FeedPaperDetail";
 import { FeedPaperImage } from "@/components/feeds/FeedPaperImage";
 import { StartBar, type StartMode } from "@/components/feeds/StartBar";
 import { useFeedBookmarks } from "@/lib/feed-bookmarks";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { PageHeader } from "@/components/PageHeader";
 import { APIError } from "@/lib/api";
 import { Feed, FeedAction, FeedDomain, FeedFilter, FeedPaper, fetchFeed, sourceLabels } from "@/lib/feeds-api";
@@ -23,6 +23,33 @@ function dateLabel(value: string | null) {
 /** Papers shown at a time. The backend returns more per request; the rest are revealed on demand. */
 const PAGE = 10;
 
+type FeedLayout = "cards" | "grid" | "list";
+const FEED_LAYOUT_KEY = "sediment_feed_layout";
+const FEED_LAYOUTS: { id: FeedLayout; label: string; icon: ReactNode }[] = [
+  { id: "cards", label: "Cards", icon: <><rect x="2.5" y="3" width="11" height="10" rx="1.5" /><path d="M9.5 3v10" /></> },
+  { id: "grid", label: "Grid", icon: <><rect x="2.5" y="2.5" width="4.5" height="4.5" rx="1" /><rect x="9" y="2.5" width="4.5" height="4.5" rx="1" /><rect x="2.5" y="9" width="4.5" height="4.5" rx="1" /><rect x="9" y="9" width="4.5" height="4.5" rx="1" /></> },
+  { id: "list", label: "List", icon: <><path d="M6 4h7.5M6 8h7.5M6 12h7.5" /><circle cx="3" cy="4" r=".6" fill="currentColor" /><circle cx="3" cy="8" r=".6" fill="currentColor" /><circle cx="3" cy="12" r=".6" fill="currentColor" /></> },
+];
+
+/** The researcher's chosen feed layout, remembered in this browser. */
+function useFeedLayout() {
+  const [layout, setLayoutState] = useState<FeedLayout>("cards");
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem(FEED_LAYOUT_KEY);
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Restore the remembered layout after hydration.
+      if (stored === "grid" || stored === "list" || stored === "cards") setLayoutState(stored);
+    } catch {
+      // Storage can be blocked; the default layout still works.
+    }
+  }, []);
+  const setLayout = useCallback((next: FeedLayout) => {
+    setLayoutState(next);
+    try { window.localStorage.setItem(FEED_LAYOUT_KEY, next); } catch { /* not remembered */ }
+  }, []);
+  return [layout, setLayout] as const;
+}
+
 export function FeedsView({ embedded = false, ready = true, onSearch, onStartWorkspace, searching }: {
   embedded?: boolean;
   /** Hold the first feed request until true, so the page around the feed can load first. */
@@ -33,6 +60,7 @@ export function FeedsView({ embedded = false, ready = true, onSearch, onStartWor
   onStartWorkspace?: (papers: FeedPaper[], interests: string) => void;
   searching?: boolean;
 }) {
+  const [layout, setLayout] = useFeedLayout();
   const [openedPaper, setOpenedPaper] = useState<FeedPaper | null>(null);
   const [feed, setFeed] = useState<Feed | null>(null);
   const [interests, setInterests] = useState("");
@@ -212,16 +240,23 @@ export function FeedsView({ embedded = false, ready = true, onSearch, onStartWor
             </h2>
             {(savedOnly || feed?.refreshedAt) && <p>{savedOnly ? "Your saved papers, across all topics and fields." : `Last checked ${new Date(feed!.refreshedAt!).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}.`}</p>}
           </div>
+          <div className={styles.headingTools}>
+          {!!visible.length && <div className={styles.layouts} role="group" aria-label="Layout">
+            {FEED_LAYOUTS.map(option => <button key={option.id} type="button" aria-pressed={layout === option.id} aria-label={option.label} title={option.label} onClick={() => setLayout(option.id)}>
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{option.icon}</svg>
+            </button>)}
+          </div>}
           {feed?.interests && !savedOnly && <div className={styles.actions}><button type="button" className={styles.iconButton} aria-label="Edit interests" title="Edit interests" aria-expanded={editing} disabled={disabled} onClick={() => setEditing(current => !current)}><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m10 3 3 3M3 10l7.5-7.5a2.1 2.1 0 0 1 3 3L6 13l-4 1 1-4Z" /></svg></button><button type="button" className={styles.iconButton} aria-label="Refresh feed" title="Refresh feed" data-busy={pending === "refresh" || undefined} disabled={disabled || editing} onClick={() => void update("refresh")}>
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9" /><path d="M13.5 2.5v3h-3" /></svg>
           </button></div>}
+          </div>
         </div>
         {!savedOnly && !!feed?.interests && !!feed.warnings.length && <p className={styles.warning} role="status">{feed.warnings.map(value => sourceLabels[value]).join(", ")} couldn’t be reached. Showing available papers; try refreshing later.</p>}
         {(feed?.interests || savedOnly) && <>
         {!savedOnly && (["arxiv", "biorxiv", "medrxiv"] as FeedFilter[]).includes(source) && <p className={styles.warning}>{sourceLabels[source as keyof typeof sourceLabels]} papers via OpenAlex. New submissions may take time to appear.</p>}
         {!savedOnly && source === "huggingface" && <p className={styles.warning}>Hugging Face via OpenAlex. This source primarily indexes datasets, so matching research papers may be unavailable.</p>}
         {savedOnly && unresolved.length > 0 && <p className={styles.warning} role="status">Restoring {unresolved.length} previously saved {unresolved.length === 1 ? "paper" : "papers"}. If they don’t appear, <button onClick={retryRestore}>retry restoration</button>.</p>}
-        <div className={styles.list}>
+        <div className={styles.list} data-layout={layout}>
           {visible.map(paper => <article className={`${styles.card} ${selection.has(paper.id) ? styles.cardMarked : ""}`} key={paper.id}>
             <FeedPaperImage paper={paper} className={styles.figure} />
             <div className={styles.cardBody}>
