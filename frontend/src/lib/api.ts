@@ -553,6 +553,13 @@ export async function fetchSharedGraph(shareId: string): Promise<SavedGraph> {
   return response.json();
 }
 
+// The last usage meter value this tab loaded, so a page can show the meter at once instead of waiting for
+// its own request. Starts full, like the home page.
+let lastUsageSegments = 10;
+export function lastKnownUsageSegments(): number {
+  return lastUsageSegments;
+}
+
 export async function fetchUsage(): Promise<{ used: number; remaining: number; segments: number; requestCount: number; dailyLimit: number }> {
   const response = await fetch(`${EXPENSIVE_API_BASE}/api/usage`, {
     cache: "no-store",
@@ -563,7 +570,9 @@ export async function fetchUsage(): Promise<{ used: number; remaining: number; s
     throw new APIError(detail || `Usage failed with status ${response.status}`, response.status);
   }
 
-  return response.json();
+  const usage = await response.json();
+  if (typeof usage?.segments === "number") lastUsageSegments = usage.segments;
+  return usage;
 }
 
 async function readErrorDetail(response: Response): Promise<string> {

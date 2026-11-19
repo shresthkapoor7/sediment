@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AsciiBackdrop } from "@/components/AsciiBackdrop";
 import { LogoMark } from "@/components/LogoMark";
-import { LAST_GRAPH_ID_KEY, deleteSavedGraph, fetchUsage, getOrCreateAnonymousUserId, listSavedGraphs } from "@/lib/api";
+import { LAST_GRAPH_ID_KEY, deleteSavedGraph, fetchUsage, getOrCreateAnonymousUserId, lastKnownUsageSegments, listSavedGraphs } from "@/lib/api";
 import type { SavedGraphListItem } from "@/lib/types";
 import { UNSORTED, useWorkspaces, type CategoryLook } from "@/lib/workspaces";
 import { CreditsMeter } from "@/components/CreditsMeter";
@@ -94,7 +94,7 @@ const DropIcon = () => <Icon size={13}><path d="M8 2.5v8M4.8 7.6 8 10.8l3.2-3.2M
 export function WorkspacesView() {
   const router = useRouter();
   const workspaces = useWorkspaces();
-  const [credits, setCredits] = useState<number | null>(null);
+  const [credits, setCredits] = useState(lastKnownUsageSegments);
   useEffect(() => {
     let active = true;
     fetchUsage().then((data) => { if (active) setCredits(data.segments); }).catch(() => undefined);
@@ -315,7 +315,7 @@ export function WorkspacesView() {
     <div className={styles.page}>
       <header className={styles.topbar}>
         <Link href="/" className={styles.brand}><LogoMark width="28" height="28" /><span>Sediment</span></Link>
-        {credits !== null && <div className="credit-meter-bar"><CreditsMeter credits={credits} expandable /></div>}
+        <div className="credit-meter-bar"><CreditsMeter credits={credits} expandable /></div>
         <span className={styles.here} aria-current="page">Workspaces</span>
       </header>
 
