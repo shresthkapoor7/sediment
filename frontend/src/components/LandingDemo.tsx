@@ -339,6 +339,15 @@ export function LandingDemo() {
         />
 
         <div className={styles.canvas} style={{ "--panel-width": `${PANEL_WIDTH}px` } as React.CSSProperties}>
+          {nodes.length === 0 && (
+            // The canvas's own empty state, same styles as TimelineCanvas.
+            <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", pointerEvents: "none", padding: "0 1.5rem", textAlign: "center" }}>
+              <p style={{ maxWidth: "22rem", fontSize: "0.875rem", lineHeight: 1.6, color: "var(--text-tertiary)" }}>
+                Nothing here yet. Tell the agent what you are working on, or add a paper yourself.
+              </p>
+            </div>
+          )}
+
           <div className={styles.world} style={{ transform: `translate(${camera.x}px, ${camera.y}px) scale(${camera.zoom})` }}>
             {regions.map((region) => (
               <m.div key={`${loop}-${region.key}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5 }}>
@@ -449,7 +458,7 @@ export function LandingDemo() {
             <div className={styles.composerWrap}>
               <div className={styles.composer}>
                 <span className={draft ? styles.composerText : styles.composerPlaceholder}>
-                  {draft || "Ask anything, @ to mention a paper"}
+                  {draft || (nodes.length === 0 ? "What are you working on?" : "Ask anything, @ to mention a paper")}
                 </span>
                 <span className={styles.send} data-ready={draft ? "" : undefined}>
                   <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="var(--on-accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 8H2M8 2l6 6-6 6" /></svg>
