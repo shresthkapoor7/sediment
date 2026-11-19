@@ -247,7 +247,7 @@ export function FeedsView({ embedded = false, ready = true, onSearch, onStartWor
               <span aria-hidden="true">/</span>
               <button type="button" aria-pressed={savedOnly} onClick={() => setSavedOnly(true)}>Saved</button>
             </h2>
-            {(savedOnly || feed?.refreshedAt) && <p>{savedOnly ? "Your saved papers, across all topics and fields." : `Last checked ${new Date(feed!.refreshedAt!).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}.`}</p>}
+            {(savedOnly || feed?.refreshedAt) && <p>{savedOnly ? "Your saved papers, across all topics and fields." : `Last checked ${new Date(feed!.refreshedAt!).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}.`} Topic illustrations are decorative; open a paper for its full abstract and source.</p>}
           </div>
           <div className={styles.headingTools}>
           {!!visible.length && <div className={styles.layouts} role="group" aria-label="Layout">
@@ -279,7 +279,7 @@ export function FeedsView({ embedded = false, ready = true, onSearch, onStartWor
         </div>
         {!visible.length && <div className={styles.empty}><h3>{savedOnly ? "Keep something for later." : "No matching papers yet."}</h3><p>{savedOnly ? "Papers you save stay here across topics and fields in this browser." : source !== "all" ? "Try another source or load more papers." : "Try broader interests, or check for more results below."}</p>{feed?.interests && (source !== "all" || savedOnly) && <button disabled={disabled || editing} onClick={() => { setSavedOnly(false); void update("source", "all"); }}>Show all papers</button>}</div>}
         {moreAvailable && <div className={styles.loadMore}><button className={styles.secondary} disabled={disabled || editing} onClick={() => void loadMore()}>{pending === "more" ? "Loading…" : "Load more papers"}</button></div>}
-        <p className={styles.endnote}>{savedOnly ? "Saved in this browser, across all your topics and fields." : moreAvailable ? (source === "all" ? "" : "Up to 12 new papers at a time.") : "You’re caught up with the available results. Refresh later or edit your interests."}{(savedOnly || !moreAvailable || source !== "all") && <br />}Topic illustrations are decorative. Open a paper for its full abstract and original source.</p>
+        {(savedOnly || !moreAvailable || source !== "all") && <p className={styles.endnote}>{savedOnly ? "Saved in this browser, across all your topics and fields." : moreAvailable ? "Up to 12 new papers at a time." : "You’re caught up with the available results. Refresh later or edit your interests."}</p>}
         </>}
       </section>
     </main>
