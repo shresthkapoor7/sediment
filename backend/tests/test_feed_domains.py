@@ -76,16 +76,16 @@ class DomainTests(unittest.IsolatedAsyncioTestCase):
                 paper(i).model_copy(update={'sources': memberships}) for i in range(base, base + 24)
             ]))
         result = await service.mutate('u', 'interests', 'robot learning', domain='math_physics')
-        self.assertEqual(len(result['papers']), 30)
+        self.assertEqual(len(result['papers']), 36)
         for name in ('arxiv', 'journals', 'openalex'):
-            self.assertEqual(sum(matches_source(p, name, 'math_physics') for p in result['papers']), 10)
+            self.assertEqual(sum(matches_source(p, name, 'math_physics') for p in result['papers']), 12)
         for provider in service.sources:
             for call in provider.search.await_args_list:
-                self.assertLessEqual(call.args[0].limit, 10)
-        self.assertEqual(len({p['id'] for p in result['papers']}), 30)
+                self.assertLessEqual(call.args[0].limit, 12)
+        self.assertEqual(len({p['id'] for p in result['papers']}), 36)
         for name in ('arxiv', 'journals', 'openalex'):
             selected = await service.mutate('u', 'source', source=name)
-            self.assertEqual(len(selected['papers']), 10)
+            self.assertEqual(len(selected['papers']), 12)
             self.assertTrue(all(matches_source(p, name, 'math_physics') for p in selected['papers']))
         exclusive = await service.mutate('u', 'source', source='openalex')
         self.assertTrue(all(p['sources'] == ['openalex'] for p in exclusive['papers']))
