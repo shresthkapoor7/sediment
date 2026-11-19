@@ -3,7 +3,6 @@
 import { usePaperSelection } from "@/lib/paper-selection";
 import { PaperSelectionControl } from "@/components/feeds/PaperSelectionControl";
 import { PaperStage } from "@/components/feeds/PaperStage";
-import { FeedBackdrop } from "@/components/feeds/FeedBackdrop";
 import { FeedPaperDetail } from "@/components/feeds/FeedPaperDetail";
 import { FeedPaperImage } from "@/components/feeds/FeedPaperImage";
 import { illustrationsFor } from "@/lib/feed-illustrations";
@@ -11,7 +10,6 @@ import { StartBar, type StartMode } from "@/components/feeds/StartBar";
 import { useFeedBookmarks } from "@/lib/feed-bookmarks";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { PageHeader } from "@/components/PageHeader";
 import { APIError } from "@/lib/api";
 import { Feed, FeedAction, FeedDomain, FeedFilter, FeedPaper, fetchFeed, sourceLabels } from "@/lib/feeds-api";
 import styles from "./FeedsView.module.css";
@@ -20,8 +18,7 @@ function dateLabel(value: string | null) {
   return value ? new Date(`${value.slice(0, 10)}T12:00:00Z`).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" }) : "Date unavailable";
 }
 
-/** The Feeds experience. `embedded` drops the page chrome (header, intro, backdrop) so it can sit
- *  inside another page, such as the home screen. */
+/** The feed on the home page: the start bar, interests, and the paper library. */
 /** Papers shown at a time. The backend returns more per request; the rest are revealed on demand. */
 // Matches PAGE_SIZE in backend/app/services/feeds.py.
 const PAGE = 12;
@@ -53,13 +50,12 @@ function useFeedLayout() {
   return [layout, setLayout] as const;
 }
 
-export function FeedsView({ embedded = false, ready = true, onSearch, onStartWorkspace, searching, startBarTarget }: {
-  embedded?: boolean;
+export function FeedsView({ ready = true, onSearch, onStartWorkspace, searching, startBarTarget }: {
   /** Where the start bar renders when the page wants it somewhere other than the top of the feed. */
   startBarTarget?: HTMLElement | null;
   /** Hold the first feed request until true, so the page around the feed can load first. */
   ready?: boolean;
-  /** Runs a search from the start bar (embedded only). */
+  /** Runs a search from the start bar. */
   onSearch?: (query: string) => void;
   /** Starts a workspace holding these papers, with the feed interests as context. */
   onStartWorkspace?: (papers: FeedPaper[], interests: string) => void;
@@ -202,16 +198,10 @@ export function FeedsView({ embedded = false, ready = true, onSearch, onStartWor
 
   const withStartBarTarget = (bar: ReactNode) => startBarTarget ? createPortal(<div className={`${styles.embedded} ${styles.startSlot}`}>{bar}</div>, startBarTarget) : bar;
 
-  return <div className={embedded ? styles.embedded : `feeds-shell ${styles.page}`}>
-    {!embedded && <PageHeader title="Feeds" />}
-    <main className={`${styles.main} ${!embedded && !feed?.interests && !savedOnly ? styles.mainEmpty : ""}`}>
-      {!embedded && !feed?.interests && !savedOnly && <FeedBackdrop />}
-      {!embedded && <section className={styles.intro}>
-        <h1>Follow your curiosity.</h1>
-        <p>The papers you care about, in one place.<br />Tell us what you’re exploring. Make room for something new.</p>
-      </section>}
+  return <div className={styles.embedded}>
+    <main className={styles.main}>
       {error && <div className={styles.error} role="alert"><p>{error}</p>{(!feed || needsReload) && <button disabled={!!pending} onClick={reload}>Reload feed</button>}</div>}
-      {embedded && !editing ? withStartBarTarget(<StartBar
+      {!editing ? withStartBarTarget(<StartBar
         mode={startMode ?? "paper"}
         onModeChange={setStartMode}
         markedCount={selection.papers.length}

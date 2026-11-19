@@ -844,7 +844,7 @@ export default function Home() {
               </section>
 
               <section className="landing-feed" aria-label="Paper feed">
-                <FeedsView embedded ready={feedReady} startBarTarget={startBarSlot} onSearch={(query) => void startCanvas(query)} onStartWorkspace={startCanvasFromFeed} searching={isSearching} />
+                <FeedsView ready={feedReady} startBarTarget={startBarSlot} onSearch={(query) => void startCanvas(query)} onStartWorkspace={startCanvasFromFeed} searching={isSearching} />
               </section>
 
               <footer className="landing-footer">
