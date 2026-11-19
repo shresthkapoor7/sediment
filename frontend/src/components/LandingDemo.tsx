@@ -30,9 +30,8 @@ function layout(width: number, height: number, panel: number): Layout {
   // Where fitted content may sit on the canvas: right of the agent panel, above the toolbar.
   return { app: { width, height }, canvas, panel, fit: { left: panel + 40, right: canvas.width - 40, top: 36, bottom: canvas.height - 88 } };
 }
-// Desktop shows the app at a laptop's size; phones get a narrower, taller app so it stays legible when scaled.
+// The app at a laptop's size, scaled to fit. Phones don't show the demo.
 const WIDE = layout(1600, 1000, 400);
-const NARROW = layout(1000, 1250, 340);
 
 const PROMPT_ONE = "Map how diffusion models came out of score matching, and note what's still open.";
 const ANSWER_ONE =
@@ -151,7 +150,7 @@ function fitCamera(nodes: TimelineNode[], notes: TimelineNote[], { fit: FIT_AREA
     y: FIT_AREA.top + (areaHeight - (maxY - minY) * zoom) / 2 - minY * zoom,
   };
 }
-const CAMERAS = new Map([WIDE, NARROW].map(size => [size, {
+const CAMERAS = new Map([WIDE].map(size => [size, {
   first: fitCamera(FIRST_PAPERS, [NOTE], size),
   second: fitCamera([...FIRST_PAPERS, ...SECOND_PAPERS], [NOTE], size),
 }]));
@@ -188,8 +187,7 @@ function useFitScale(frame: React.RefObject<HTMLElement | null>) {
     const node = frame.current;
     if (!node) return;
     const update = () => {
-      const size = node.clientWidth < 640 ? NARROW : WIDE;
-      setFit({ scale: node.clientWidth / size.app.width, size });
+      setFit({ scale: node.clientWidth / WIDE.app.width, size: WIDE });
     };
     update();
     const observer = new ResizeObserver(update);

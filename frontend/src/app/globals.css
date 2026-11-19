@@ -2685,11 +2685,10 @@ a.landing-brand:hover {
 .sn-ghost-text { padding: 0 10px; }
 .sn-ghost:focus:not(:focus-visible) { outline: none; }
 
-/* Home on phones: smaller type, tighter gutters, the demo full width. */
+/* Home on phones: smaller type and tighter gutters. The demo is hidden there. */
 @media (max-width: 40rem) {
   .landing-hero-title { font-size: 1.625rem; line-height: 1.15; }
   .landing-hero-description { font-size: 0.875rem; line-height: 1.6; }
-  .landing-start, .landing-demo, .landing-feed { padding-left: 1rem; padding-right: 1rem; }
+  .landing-start, .landing-feed { padding-left: 1rem; padding-right: 1rem; }
   .landing-start { margin-bottom: 2rem; }
-  .landing-demo { margin-bottom: 3rem; }
 }
