@@ -6,6 +6,14 @@
 .topbar { display: flex; align-items: center; gap: .5rem; height: 4rem; max-width: 71.25rem; margin: 0 auto; padding: 0 2rem; box-sizing: border-box; }
 .brand { display: flex; align-items: center; gap: .625rem; margin-right: auto; color: var(--text-primary); text-decoration: none; font-size: 1rem; font-weight: 600; letter-spacing: -.01em; }
 .brand svg { color: var(--text-primary); }
+.credits { display: inline-flex; align-items: center; gap: .4375rem; height: 2rem; padding: 0 .5rem; border: 0; border-radius: .4375rem; background: none; cursor: pointer; }
+.creditRing { position: relative; width: 1.125rem; height: 1.125rem; border-radius: 50%; background: conic-gradient(var(--text-tertiary) var(--credit-progress), var(--border) 0); }
+.creditRing::after { content: ""; position: absolute; inset: .1875rem; border-radius: inherit; background: var(--bg-primary); }
+.credits:hover .creditRing { background: conic-gradient(var(--text-primary) var(--credit-progress), var(--border) 0); }
+.creditBars { display: flex; align-items: center; gap: .125rem; }
+.creditBars span { width: .25rem; height: .625rem; border-radius: .125rem; }
+.creditCount { font-family: var(--font-mono), monospace; font-size: .6875rem; font-weight: 500; letter-spacing: .02em; }
+.slash { margin-inline: -.25rem; color: color-mix(in srgb, var(--text-tertiary) 55%, transparent); font-size: .8125rem; user-select: none; }
 .here { padding: 0 .625rem; font-size: .8125rem; font-weight: 500; color: var(--text-primary); }
 
 .main { max-width: 71.25rem; margin: 0 auto; padding: 56px 2rem 96px; box-sizing: border-box; }

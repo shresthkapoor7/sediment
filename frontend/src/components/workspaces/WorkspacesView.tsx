@@ -8,6 +8,7 @@ import { LogoMark } from "@/components/LogoMark";
 import { LAST_GRAPH_ID_KEY, deleteSavedGraph, getOrCreateAnonymousUserId, listSavedGraphs } from "@/lib/api";
 import type { SavedGraphListItem } from "@/lib/types";
 import { UNSORTED, useWorkspaces, type CategoryLook } from "@/lib/workspaces";
+import { CreditsMeter } from "./CreditsMeter";
 import { CategoryIcon, CategoryPicker, colorValue } from "./CategoryStyle";
 import styles from "./WorkspacesView.module.css";
 
@@ -308,6 +309,8 @@ export function WorkspacesView() {
     <div className={styles.page}>
       <header className={styles.topbar}>
         <Link href="/" className={styles.brand}><LogoMark width="28" height="28" /><span>Sediment</span></Link>
+        <CreditsMeter />
+        <span className={styles.slash} aria-hidden="true">/</span>
         <span className={styles.here} aria-current="page">Workspaces</span>
       </header>
 

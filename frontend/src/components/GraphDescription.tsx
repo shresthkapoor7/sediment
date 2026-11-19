@@ -88,8 +88,8 @@ export function GraphDescription({ description, onSave }: GraphDescriptionProps)
                 }}
               />
               <div className="graph-description-hint">
-                <span>{draft.length}/{MAX_GRAPH_DESCRIPTION_LENGTH}</span>
-                <span>⌘↵ to save</span>
+                <span className="graph-description-count">{draft.length}/{MAX_GRAPH_DESCRIPTION_LENGTH}</span>
+                <span className="graph-description-keys">Save<kbd>⌘</kbd><kbd>↵</kbd></span>
               </div>
             </>
           ) : (
