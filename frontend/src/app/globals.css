@@ -2708,20 +2708,26 @@ a.landing-brand:hover {
     box-shadow: none !important;
     backdrop-filter: none;
   }
-  .app-header-graph .app-header-brand,
-  .app-header-graph .app-header-query,
-  .app-header-graph .app-header-credit,
-  .app-header-graph .app-header-export,
-  .app-header-graph .app-header-graph-compact-toggle,
-  .app-header-graph .app-header-sediment-label { display: none !important; }
+  /* Extra specificity so the button styling below can't bring these back. */
+  .app-header.app-header-graph .app-header-brand,
+  .app-header.app-header-graph .app-header-query,
+  .app-header.app-header-graph .app-header-credit,
+  .app-header.app-header-graph .app-header-export,
+  .app-header.app-header-graph .app-header-graph-compact-toggle,
+  .app-header.app-header-graph .app-header-sediment-label { display: none !important; }
   .app-header-graph .desktop-only,
   .app-header-graph .app-header-actions > div:not(.desktop-only) { display: contents !important; }
   .app-header-graph .app-header-actions { flex: 1 1 auto; min-width: 0; gap: 0.125rem !important; }
   .app-header-graph .app-header-graph-icon-action { order: -2; }
   .app-header-graph .app-header-labeled-action { order: -1; display: flex !important; align-items: center; justify-content: center; width: 2rem !important; height: 2rem; padding: 0 !important; border: none; background: transparent; color: var(--text-secondary); }
-  .app-header-graph button.show-mobile { order: 1; margin-left: auto; }
+  .app-header-graph button.show-mobile { order: 1; }
   .app-header-graph .app-header-sediment-icon { color: var(--text-primary); }
-  .app-header-graph-center { max-width: calc(100% - 7.5rem); }
+  /* The title takes the room between the left icons and the menu, so it never runs under them. */
+  .app-header-graph .app-header-graph-center {
+    position: static; transform: none; order: 0; flex: 1 1 auto; min-width: 0; max-width: none;
+    justify-content: center;
+  }
+  .app-header-graph .app-header-graph-title-form { position: static; transform: none; width: 100%; }
   .app-header-graph-query {
     display: inline-block; min-width: 0; overflow: hidden; padding: 0.3125rem 0.5rem; border: none; border-radius: 0.5rem;
     background: transparent; color: var(--text-primary); font-family: var(--font-sans), sans-serif; font-size: 0.8125rem;
