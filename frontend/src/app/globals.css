@@ -2734,3 +2734,11 @@ a.landing-brand:hover {
     font-weight: 500; line-height: 1.25rem; text-overflow: ellipsis; white-space: nowrap;
   }
 }
+
+/* Phones: the description opens under the whole header bar rather than under its button, so it stays on screen.
+   There is no ⌘↵ on a phone keyboard; closing the popover saves. */
+@media (max-width: 40rem) {
+  .app-header-graph .graph-description { position: static; }
+  .app-header-graph .graph-description-popover { top: calc(100% + 0.25rem); left: 0.5rem; right: 0.5rem; width: auto; transform: none; }
+  .app-header-graph .graph-description-keys { display: none; }
+}
