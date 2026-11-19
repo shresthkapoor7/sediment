@@ -1516,7 +1516,7 @@ a.landing-brand:hover {
 
 .landing-feed {
   width: 100%;
-  max-width: 71.25rem;
+  max-width: 82rem; /* matches .landing-demo */
   margin: 0 auto;
   padding: 0 2rem 1.5rem;
   box-sizing: border-box;
