@@ -7,12 +7,12 @@ import { AsciiBackdrop } from "@/components/AsciiBackdrop";
 import { LogoMark } from "@/components/LogoMark";
 import { LAST_GRAPH_ID_KEY, deleteSavedGraph, fetchUsage, getOrCreateAnonymousUserId, lastKnownUsageSegments, listSavedGraphs } from "@/lib/api";
 import type { SavedGraphListItem } from "@/lib/types";
-import { UNSORTED, reorderedCategories, useWorkspaces, type CategoryLook } from "@/lib/workspaces";
+import { BOARD_COLUMNS, UNSORTED, categoryColumns, useWorkspaces, type CategoryLook } from "@/lib/workspaces";
 import { CreditsMeter } from "@/components/CreditsMeter";
 import { CategoryIcon, CategoryPicker, colorValue } from "./CategoryStyle";
 import styles from "./WorkspacesView.module.css";
 
-type Column = { id: string; name: string; graphs: SavedGraphListItem[]; look?: CategoryLook };
+type Column = { id: string; name: string; graphs: SavedGraphListItem[]; look?: CategoryLook; board: number };
 type DropTarget = { column: string; before: string | null };
 /** A drop target meaning "where it already is". */
 const SELF_DROP = "__self__";
@@ -104,9 +104,9 @@ export function WorkspacesView() {
   const [error, setError] = useState("");
   const [userId, setUserId] = useState<string | null>(null);
   const [dragging, setDragging] = useState<string | null>(null);
-  // A category being dragged by its header, and the category it would take the place of.
+  // A category being dragged by its header, and where it would land: a board column, above `before` or at the bottom.
   const [movingCategory, setMovingCategory] = useState<string | null>(null);
-  const [categoryTarget, setCategoryTarget] = useState<string | null>(null);
+  const [categoryTarget, setCategoryTarget] = useState<{ board: number; before: string | null } | null>(null);
   const [target, setTarget] = useState<DropTarget | null>(null);
   const [listComplete, setListComplete] = useState(false);
   const [adding, setAdding] = useState(false);
@@ -171,16 +171,21 @@ export function WorkspacesView() {
     const byId = new Map((graphs ?? []).map(graph => [graph.id, graph]));
     const filed = new Set<string>();
     const shown = (graph: SavedGraphListItem) => !needle || titleOf(graph).toLowerCase().includes(needle);
-    // While a category is dragged, the board already shows it in the spot it would drop into.
-    const ordered = movingCategory && categoryTarget ? reorderedCategories(workspaces.categories, movingCategory, categoryTarget) : workspaces.categories;
-    const categories = [...ordered].reverse().map(category => ({
+    const boardOf = categoryColumns(workspaces.categories);
+    const categories = [...workspaces.categories].reverse().map(category => ({
       id: category.id,
+      board: boardOf.get(category.id) ?? 0,
       name: category.name,
       look: { icon: category.icon, color: category.color },
       graphs: category.graphIds.flatMap(id => { const graph = byId.get(id); if (!graph || filed.has(id)) return []; filed.add(id); return shown(graph) ? [graph] : []; }),
     }));
-    return [{ id: UNSORTED, name: "Unsorted", graphs: (graphs ?? []).filter(graph => !filed.has(graph.id) && shown(graph)) }, ...categories];
-  }, [graphs, workspaces.categories, needle, movingCategory, categoryTarget]);
+    return [{ id: UNSORTED, name: "Unsorted", board: 0, graphs: (graphs ?? []).filter(graph => !filed.has(graph.id) && shown(graph)) }, ...categories];
+  }, [graphs, workspaces.categories, needle]);
+
+  // Each category sits in its own board column, newest at the top, with Unsorted heading the first. With fewer
+  // columns on screen, board columns fold together. A new category opens at the top of the emptiest column.
+  const stacks = Array.from({ length: cols }, (_, k) => columns.filter(column => Math.min(column.board, BOARD_COLUMNS - 1) % cols === k));
+  const draftBoard = stacks.reduce((best, stack, k) => stack.length < stacks[best].length ? k : best, 0);
 
   const open = (graph: SavedGraphListItem) => {
     try { window.localStorage.setItem(LAST_GRAPH_ID_KEY, graph.id); } catch { /* Restricted storage: the canvas just won’t reopen automatically. */ }
@@ -201,22 +206,35 @@ export function WorkspacesView() {
   };
 
   const submitCategory = () => {
-    if (workspaces.create(draft, draftLook)) { setDraft(""); setDraftLook({}); setPicking(null); setAdding(false); }
+    if (workspaces.create(draft, draftLook, draftBoard)) { setDraft(""); setDraftLook({}); setPicking(null); setAdding(false); }
   };
 
   const endCategoryMove = () => { setMovingCategory(null); setCategoryTarget(null); };
 
+  // Moving a category: the board column under the pointer takes it, above the first category whose middle is
+  // below the pointer, or at the bottom. Unsorted always stays at the top of the first column.
+  const categoryDragOver = (event: DragEvent<HTMLDivElement>, board: number) => {
+    if (!movingCategory) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+    const sections = [...event.currentTarget.querySelectorAll<HTMLElement>(":scope > section[data-category]")];
+    const below = sections.find(section => {
+      const box = section.getBoundingClientRect();
+      return event.clientY < box.top + box.height / 2;
+    });
+    const before = below?.dataset.category ?? null;
+    setCategoryTarget(current => current && current.board === board && current.before === before ? current : { board, before });
+  };
+
+  const categoryDrop = (event: DragEvent<HTMLDivElement>) => {
+    if (!movingCategory) return;
+    event.preventDefault();
+    // Dropping right above or below itself in its own column leaves it where it is.
+    if (categoryTarget && categoryTarget.before !== movingCategory) workspaces.place(movingCategory, categoryTarget.board, categoryTarget.before);
+    endCategoryMove();
+  };
+
   const dragOver = (event: DragEvent, column: Column, index: number | null) => {
-    if (movingCategory) {
-      // Categories swap places with categories; Unsorted always stays first.
-      if (column.id === UNSORTED) return;
-      event.preventDefault();
-      event.stopPropagation();
-      event.dataTransfer.dropEffect = "move";
-      // Over its own placeholder the preview stays as it is; over another category it moves into that spot.
-      if (column.id !== movingCategory) setCategoryTarget(column.id);
-      return;
-    }
     if (!dragging) return;
     event.preventDefault();
     event.stopPropagation();
@@ -234,13 +252,8 @@ export function WorkspacesView() {
   };
 
   const drop = (event: DragEvent, column: Column) => {
+    if (movingCategory) return;
     event.preventDefault();
-    if (movingCategory) {
-      // Drop wherever the placeholder is now.
-      if (categoryTarget) workspaces.reorder(movingCategory, categoryTarget);
-      endCategoryMove();
-      return;
-    }
     const id = dragging ?? event.dataTransfer.getData("text/plain");
     if (id && !(target?.column === column.id && target.before === SELF_DROP)) {
       workspaces.move(id, column.id, target?.column === column.id ? target.before : null);
@@ -267,10 +280,10 @@ export function WorkspacesView() {
   const renderColumn = (column: Column) => {
             const over = target?.column === column.id;
             const movable = column.id !== UNSORTED && renaming !== column.id;
-            return <section key={column.id} className={`${styles.column} ${over ? styles.columnOver : ""} ${movingCategory === column.id ? styles.columnMoving : ""} ${picking === column.id ? styles.pickerOpen : ""}`} aria-label={column.name}
+            return <section key={column.id} data-category={column.id === UNSORTED ? undefined : column.id} className={`${styles.column} ${over ? styles.columnOver : ""} ${movingCategory === column.id ? styles.columnMoving : ""} ${picking === column.id ? styles.pickerOpen : ""}`} aria-label={column.name}
               onDragOver={event => dragOver(event, column, null)} onDragLeave={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setTarget(current => current?.column === column.id ? null : current); }} onDrop={event => drop(event, column)}>
               <header className={styles.columnHeader} data-movable={movable || undefined} draggable={movable}
-                title={movable ? "Drag onto another category to move it there" : undefined}
+                title={movable ? "Drag to move this category to another column" : undefined}
                 onDragStart={event => {
                   if (!movable || event.target !== event.currentTarget) return;
                   event.dataTransfer.effectAllowed = "move";
@@ -339,9 +352,16 @@ export function WorkspacesView() {
     <ul className={styles.list}><li className={styles.placeholder}>Name it, then drag canvases in</li></ul>
   </form>;
 
-  // Unsorted first, then the new-category lane, then categories newest first; lane i sits in column i % count.
-  const lanes = [renderColumn(columns[0]), ...(adding ? [draftLaneNode] : []), ...columns.slice(1).map(renderColumn)];
-  const laneStacks = Array.from({ length: cols }, (_, k) => lanes.filter((_, index) => index % cols === k));
+  const laneStacks = stacks.map((stack, k) => {
+    const lanes: { id: string; node: ReactNode }[] = stack.map(column => ({ id: column.id, node: renderColumn(column) }));
+    if (adding && k === draftBoard) lanes.splice(k === 0 ? 1 : 0, 0, { id: "draft", node: draftLaneNode });
+    // While a category is dragged, a line shows where it will land.
+    if (movingCategory && categoryTarget?.board === k) {
+      const at = categoryTarget.before ? lanes.findIndex(lane => lane.id === categoryTarget.before) : -1;
+      lanes.splice(at < 0 ? lanes.length : at, 0, { id: "category-drop", node: <div key="category-drop" className={styles.laneDrop} aria-hidden="true" /> });
+    }
+    return lanes.map(lane => lane.node);
+  });
 
   return <div className={`landing-shell ${styles.shell}`}>
     <div className={styles.backdrop}><AsciiBackdrop /></div>
@@ -356,7 +376,7 @@ export function WorkspacesView() {
         <div className={styles.heading}>
           <div className={styles.headingText}>
             <h1>Workspaces</h1>
-            <p>Group your canvases into categories. Drag a canvas into a category to file it, or drag a category by its name to reorder.</p>
+            <p>Group your canvases into categories. Drag a canvas into a category to file it, or drag a category by its name to another column.</p>
             {graphs !== null && <span className={styles.stats}>{total} {total === 1 ? "canvas" : "canvases"} · {categoryCount} {categoryCount === 1 ? "category" : "categories"}</span>}
           </div>
           <div className={styles.tools}>
@@ -379,7 +399,7 @@ export function WorkspacesView() {
         </div>}
 
         {graphs !== null && (total > 0 || categoryCount > 0 || adding) && <div className={styles.board} style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
-          {laneStacks.map((stack, k) => <div key={k} className={styles.laneStack}>{stack}</div>)}
+          {laneStacks.map((stack, k) => <div key={k} className={styles.laneStack} onDragOver={event => categoryDragOver(event, k)} onDrop={categoryDrop}>{stack}</div>)}
         </div>}
       </main>
     </div>
