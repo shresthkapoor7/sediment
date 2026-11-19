@@ -636,12 +636,12 @@ body {
   box-sizing: border-box;
 }
 
-.app-header-landing .app-header-credit-indicator {
+:is(.app-header-landing, .credit-meter-bar) .app-header-credit-indicator {
   border: none;
   background: transparent;
 }
 
-.app-header-landing .app-header-credit {
+:is(.app-header-landing, .credit-meter-bar) .app-header-credit {
   order: 1;
   margin-left: 0.125rem;
 }
@@ -1215,13 +1215,13 @@ html[data-theme="dark"] .canvas-shell {
 
   /* credits: the ring by default (the compact form); clicking it swaps in the bars and count. A
      slash after it separates the meter from Workspaces. */
-  .app-header-landing .app-header-credit {
+  :is(.app-header-landing, .credit-meter-bar) .app-header-credit {
     display: flex;
     align-items: center;
     margin-right: -0.5rem;
   }
 
-  .app-header-landing .app-header-credit::after {
+  :is(.app-header-landing, .credit-meter-bar) .app-header-credit::after {
     content: "/";
     content: "/" / "";
     margin-inline: 0.25rem;
@@ -1230,11 +1230,11 @@ html[data-theme="dark"] .canvas-shell {
     user-select: none;
   }
 
-  .app-header-landing .app-header-credit-indicator {
+  :is(.app-header-landing, .credit-meter-bar) .app-header-credit-indicator {
     position: relative;
   }
 
-  .app-header-landing .app-header-credit-toggle {
+  :is(.app-header-landing, .credit-meter-bar) .app-header-credit-toggle {
     position: absolute;
     /* above the ring and bars, which are positioned too, so a click anywhere on the meter lands here */
     z-index: 1;
@@ -1246,21 +1246,21 @@ html[data-theme="dark"] .canvas-shell {
     cursor: pointer;
   }
 
-  .app-header-landing .app-header-credit:not(.app-header-credit-expanded) .app-header-credit-indicator {
+  :is(.app-header-landing, .credit-meter-bar) .app-header-credit:not(.app-header-credit-expanded) .app-header-credit-indicator {
     gap: 0;
     padding-inline: 0.5rem;
   }
 
-  .app-header-landing .app-header-credit:not(.app-header-credit-expanded) .app-header-credit-visual {
+  :is(.app-header-landing, .credit-meter-bar) .app-header-credit:not(.app-header-credit-expanded) .app-header-credit-visual {
     width: 1.125rem;
   }
 
-  .app-header-landing .app-header-credit:not(.app-header-credit-expanded) .app-header-credit-bars {
+  :is(.app-header-landing, .credit-meter-bar) .app-header-credit:not(.app-header-credit-expanded) .app-header-credit-bars {
     opacity: 0;
     transform: scaleX(0.35);
   }
 
-  .app-header-landing .app-header-credit:not(.app-header-credit-expanded) .app-header-credit-ring {
+  :is(.app-header-landing, .credit-meter-bar) .app-header-credit:not(.app-header-credit-expanded) .app-header-credit-ring {
     width: 1.125rem;
     height: 1.125rem;
     opacity: 1;
@@ -1268,12 +1268,12 @@ html[data-theme="dark"] .canvas-shell {
     background: conic-gradient(var(--text-tertiary) var(--credit-progress), var(--border) 0);
   }
 
-  .app-header-landing .app-header-credit:not(.app-header-credit-expanded):hover .app-header-credit-ring {
+  :is(.app-header-landing, .credit-meter-bar) .app-header-credit:not(.app-header-credit-expanded):hover .app-header-credit-ring {
     background: conic-gradient(var(--text-primary) var(--credit-progress), var(--border) 0);
   }
 
   /* the count stays readable by assistive tech while collapsed */
-  .app-header-landing .app-header-credit:not(.app-header-credit-expanded) .app-header-credit-count {
+  :is(.app-header-landing, .credit-meter-bar) .app-header-credit:not(.app-header-credit-expanded) .app-header-credit-count {
     position: absolute;
     width: 1px;
     height: 1px;
