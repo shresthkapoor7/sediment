@@ -45,6 +45,10 @@
 .columnOver { background: color-mix(in srgb, var(--bg-tertiary) 85%, transparent); }
 /* A category being dragged by its header to another column, and the line showing where it will land. */
 .columnMoving { opacity: .45; }
+/* While a category is dragged every column runs the board's full height, so any spot in a column takes the drop. */
+.boardMoving { align-items: stretch; min-height: 240px; }
+.laneEmpty { display: grid; place-items: center; min-height: 120px; border: 1.5px dashed var(--border-hover); border-radius: 14px; color: var(--text-tertiary); font-size: 12px; }
+.laneEmpty[data-over] { border-color: var(--accent); color: var(--text-secondary); }
 .laneDrop { height: 3px; margin: -9px 8px -10px; border-radius: 2px; background: var(--accent); }
 .columnHeader[data-movable] { cursor: grab; }
 .columnHeader[data-movable]:active { cursor: grabbing; }

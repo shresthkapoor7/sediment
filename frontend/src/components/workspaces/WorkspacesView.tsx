@@ -213,11 +213,21 @@ export function WorkspacesView() {
 
   // Moving a category: the board column under the pointer takes it, above the first category whose middle is
   // below the pointer, or at the bottom. Unsorted always stays at the top of the first column.
-  const categoryDragOver = (event: DragEvent<HTMLDivElement>, board: number) => {
+  // The whole board takes the drop: the column is whichever is nearest the pointer horizontally, so gaps,
+  // the space under a short column and empty columns all work.
+  const categoryDragOver = (event: DragEvent<HTMLDivElement>) => {
     if (!movingCategory) return;
     event.preventDefault();
     event.dataTransfer.dropEffect = "move";
-    const sections = [...event.currentTarget.querySelectorAll<HTMLElement>(":scope > section[data-category]")];
+    const columnsOnScreen = [...event.currentTarget.children] as HTMLElement[];
+    const distance = (element: HTMLElement) => {
+      const box = element.getBoundingClientRect();
+      return event.clientX < box.left ? box.left - event.clientX : event.clientX > box.right ? event.clientX - box.right : 0;
+    };
+    const board = columnsOnScreen.reduce((best, element, k) => distance(element) < distance(columnsOnScreen[best]) ? k : best, 0);
+    const stack = columnsOnScreen[board];
+    if (!stack) return;
+    const sections = [...stack.querySelectorAll<HTMLElement>(":scope > section[data-category]")];
     const below = sections.find(section => {
       const box = section.getBoundingClientRect();
       return event.clientY < box.top + box.height / 2;
@@ -356,7 +366,7 @@ export function WorkspacesView() {
     const lanes: { id: string; node: ReactNode }[] = stack.map(column => ({ id: column.id, node: renderColumn(column) }));
     if (adding && k === draftBoard) lanes.splice(k === 0 ? 1 : 0, 0, { id: "draft", node: draftLaneNode });
     // While a category is dragged, a line shows where it will land.
-    if (movingCategory && categoryTarget?.board === k) {
+    if (movingCategory && categoryTarget?.board === k && stacks[k].length > 0) {
       const at = categoryTarget.before ? lanes.findIndex(lane => lane.id === categoryTarget.before) : -1;
       lanes.splice(at < 0 ? lanes.length : at, 0, { id: "category-drop", node: <div key="category-drop" className={styles.laneDrop} aria-hidden="true" /> });
     }
@@ -398,8 +408,12 @@ export function WorkspacesView() {
           <button type="button" className={styles.secondary} onClick={() => router.push("/")}>Start a trace</button>
         </div>}
 
-        {graphs !== null && (total > 0 || categoryCount > 0 || adding) && <div className={styles.board} style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
-          {laneStacks.map((stack, k) => <div key={k} className={styles.laneStack} onDragOver={event => categoryDragOver(event, k)} onDrop={categoryDrop}>{stack}</div>)}
+        {graphs !== null && (total > 0 || categoryCount > 0 || adding) && <div className={`${styles.board} ${movingCategory ? styles.boardMoving : ""}`} style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}
+          onDragOver={categoryDragOver} onDrop={categoryDrop} onDragLeave={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setCategoryTarget(null); }}>
+          {laneStacks.map((stack, k) => <div key={k} className={styles.laneStack}>
+            {stack}
+            {movingCategory && stacks[k].length === 0 && <div className={styles.laneEmpty} data-over={categoryTarget?.board === k || undefined}>Drop a category here</div>}
+          </div>)}
         </div>}
       </main>
     </div>
