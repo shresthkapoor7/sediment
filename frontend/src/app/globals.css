@@ -1508,7 +1508,7 @@ a.landing-brand:hover {
 /* The scripted agent demo between the hero and the feed. */
 .landing-demo {
   width: 100%;
-  max-width: 82rem;
+  max-width: 77rem;
   margin: 0 auto 5rem;
   padding: 0 2rem;
   box-sizing: border-box;
@@ -1516,7 +1516,7 @@ a.landing-brand:hover {
 
 .landing-feed {
   width: 100%;
-  max-width: 82rem; /* matches .landing-demo */
+  max-width: 77rem; /* matches .landing-demo */
   margin: 0 auto;
   padding: 0 2rem 1.5rem;
   box-sizing: border-box;
