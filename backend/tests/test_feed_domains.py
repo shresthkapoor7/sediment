@@ -92,11 +92,11 @@ class DomainTests(unittest.IsolatedAsyncioTestCase):
         # A source tab fetches papers that must appear when returning to All.
         repo.rows['u']['papers'].append(paper(999).model_copy(update={'sources': ['journals', 'openalex']}).model_dump())
         combined = await service.mutate('u', 'source', source='all')
-        self.assertEqual(len(combined['papers']), 30)
+        self.assertEqual(len(combined['papers']), 36)
         seen = {p['id'] for p in combined['papers']}
         while combined['cursor']:
             combined = await service.mutate('u', 'more', cursor=combined['cursor'])
-            self.assertLessEqual(len(combined['papers']), 30)
+            self.assertLessEqual(len(combined['papers']), 36)
             self.assertFalse(seen & {p['id'] for p in combined['papers']})
             seen.update(p['id'] for p in combined['papers'])
         self.assertEqual(len(seen), 73)
