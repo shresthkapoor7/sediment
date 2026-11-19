@@ -22,16 +22,46 @@ export const feedIllustrations = [
   { id: "medicine", variants: ["heartbeat"], tags: ["medical", "medicine", "clinical", "health", "disease", "therapy"] },
 ] as const;
 
-export function illustrationFor(paper: { id: string; title: string; abstract: string; topics: string[] }): string {
-  const hash = [...paper.id].reduce((n, c) => (Math.imul(n, 31) + c.charCodeAt(0)) >>> 0, 0);
-  const matches = (text: string, tag: string) => new RegExp(`\\b${tag}(?:s|ing|al)?\\b`, "i").test(text);
+const matches = (text: string, tag: string) => new RegExp(`\\b${tag}(?:s|ing|al)?\\b`, "i").test(text);
+const hashOf = (id: string) => [...id].reduce((n, c) => (Math.imul(n, 31) + c.charCodeAt(0)) >>> 0, 0);
+const src = (id: string) => `/feed-illustrations/${id}.svg`;
+
+/** Every drawing that suits a paper, best topic match first, in a stable per-paper order. */
+function candidatesFor(paper: { id: string; title: string; abstract: string; topics: string[] }): string[] {
+  const hash = hashOf(paper.id);
   const ranked = feedIllustrations.map(item => ({ ...item, score: item.tags.reduce((score, tag) => score
     + (matches(paper.topics.join(" "), tag) ? 4 : 0)
     + (matches(paper.title, tag) ? 3 : 0)
-    + (matches(paper.abstract, tag) ? 1 : 0), 0) })).filter(item => item.score > 0);
-  // Every paper gets one: the best topic match, or a stable pick from the whole set when nothing matches.
-  const best = ranked.length ? Math.max(...ranked.map(item => item.score)) : 0;
-  const matched = ranked.length ? ranked.filter(item => item.score === best) : feedIllustrations;
-  const choices = matched.flatMap(item => [item.id, ...item.variants]);
-  return `/feed-illustrations/${choices[hash % choices.length]}.svg`;
+    + (matches(paper.abstract, tag) ? 1 : 0), 0) })).filter(item => item.score > 0)
+    .sort((a, b) => b.score - a.score);
+  const groups = ranked.length ? ranked : [...feedIllustrations];
+  return groups.flatMap(item => {
+    const ids: string[] = [item.id, ...item.variants];
+    const start = hash % ids.length;
+    return [...ids.slice(start), ...ids.slice(0, start)];
+  });
+}
+
+export function illustrationFor(paper: { id: string; title: string; abstract: string; topics: string[] }): string {
+  return src(candidatesFor(paper)[0]);
+}
+
+/**
+ * Drawings for a run of papers, so cards near each other don't repeat one: each paper takes the first drawing
+ * that suits it and hasn't appeared in the last few cards, and only reuses one when every suitable drawing has.
+ */
+export function illustrationsFor(papers: { id: string; title: string; abstract: string; topics: string[] }[], spacing = 6): Map<string, string> {
+  const assigned = new Map<string, string>();
+  const recent: string[] = [];
+  for (const paper of papers) {
+    const candidates = candidatesFor(paper);
+    const fresh = candidates.find(id => !recent.includes(id))
+      // Every suitable drawing is in use nearby: fall back to any drawing not shown recently.
+      ?? feedIllustrations.flatMap(item => [item.id, ...item.variants] as string[]).find(id => !recent.includes(id))
+      ?? candidates[0];
+    assigned.set(paper.id, src(fresh));
+    recent.push(fresh);
+    if (recent.length > spacing) recent.shift();
+  }
+  return assigned;
 }

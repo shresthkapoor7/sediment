@@ -4,13 +4,12 @@ import Link from "next/link";
 import { useState } from "react";
 import { m, AnimatePresence } from "framer-motion";
 import { LogoMark } from "@/components/LogoMark";
-import { ThemeToggle } from "@/components/ThemeToggle";
 import { GraphDescription } from "@/components/GraphDescription";
+import { CreditsMeter } from "@/components/CreditsMeter";
 import { TimelineData } from "@/lib/types";
 
 const MotionLink = m.create(Link);
 
-const GITHUB_REPO_URL = "https://github.com/shresthkapoor7/sediment";
 
 interface AppHeaderProps {
   timelineData: TimelineData | null;
@@ -41,7 +40,7 @@ interface AppHeaderProps {
 
 export function AppHeader({
   timelineData,
-  mobile,
+
   searchedQuery,
   graphTitle,
   graphDescription,
@@ -66,8 +65,6 @@ export function AppHeader({
   // Compaction state lives here so toggling the graph dock only re-renders the
   // header — not the whole page tree. The home header never collapses: it scrolls
   // away with the page.
-  // Home header: credits sit collapsed as a ring until clicked open into the bar meter.
-  const [creditsExpanded, setCreditsExpanded] = useState(false);
   const [isGraphHeaderCompact, setIsGraphHeaderCompact] = useState(false);
 
   return (
@@ -291,96 +288,12 @@ export function AppHeader({
             )}
 
             {/* Credits indicator */}
-            <div
-              className={`app-header-credit${creditsExpanded ? " app-header-credit-expanded" : ""}`}
-              style={{ position: "relative" }}
-              title="Daily usage limit"
-            >
-              <div className="app-header-credit-indicator">
-                {!timelineData && (
-                  <button
-                    type="button"
-                    className="app-header-credit-toggle"
-                    onClick={() => setCreditsExpanded((open) => !open)}
-                    aria-expanded={creditsExpanded}
-                    aria-label={creditsExpanded ? "Collapse usage credits" : "Expand usage credits"}
-                  />
-                )}
-                <div className="app-header-credit-visual" aria-hidden="true">
-                  <div
-                    className="app-header-credit-bars"
-                    style={{ display: "flex", flexWrap: "nowrap" }}
-                  >
-                    {Array.from({ length: 10 }).map((_, i) => {
-                      const filled = i < credits;
-                      const segColor =
-                        credits <= 3
-                          ? "var(--cat-rose)"
-                          : credits <= 6
-                            ? "var(--cat-amber)"
-                            : "var(--accent)";
-                      return (
-                      <div
-                        key={i}
-                        style={{
-                          width: "0.25rem",
-                          height: "0.625rem",
-                          borderRadius: "0.125rem",
-                          background: filled ? segColor : "var(--border)",
-                          opacity: filled ? 1 - i * 0.05 : 1,
-                        }}
-                      />
-                      );
-                    })}
-                    <div
-                      style={{
-                        width: "0.125rem",
-                        height: "0.3125rem",
-                        borderRadius: "0 0.0625rem 0.0625rem 0",
-                        background: "var(--border)",
-                        marginLeft: "0.0625rem",
-                      }}
-                    />
-                  </div>
-                  <span
-                    className="app-header-credit-ring"
-                    aria-hidden="true"
-                    style={
-                      {
-                        "--credit-progress": `${credits * 10}%`,
-                      } as React.CSSProperties
-                    }
-                  />
-                </div>
-                <span
-                  className="app-header-credit-count"
-                  role="meter"
-                  aria-label="Daily usage credits remaining"
-                  aria-valuemin={0}
-                  aria-valuemax={10}
-                  aria-valuenow={credits}
-                  aria-valuetext={`${credits} of 10 daily usage credits remaining`}
-                  style={{
-                    fontSize: "0.6875rem",
-                    color:
-                      credits <= 3
-                        ? "var(--cat-rose)"
-                        : credits <= 6
-                          ? "var(--cat-amber)"
-                          : "var(--text-tertiary)",
-                    fontFamily: "var(--font-mono), monospace",
-                    letterSpacing: "0.02em",
-                  }}
-                >
-                  {credits}
-                </span>
-              </div>
-            </div>
+            <CreditsMeter credits={credits} expandable={!timelineData} />
 
             {/* Canvas actions sit in the bar itself. */}
             {timelineData && (
               <>
-                <button type="button" className="app-header-labeled-action" onClick={handleExport} title="Export markdown">
+                <button type="button" className="app-header-labeled-action app-header-export" onClick={handleExport} title="Export markdown">
                   <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M8 2.5v7.5M5 7.5l3 3 3-3M3 13h10" /></svg>
                   <span className="app-header-action-label">Export</span>
                 </button>
@@ -409,31 +322,10 @@ export function AppHeader({
             )}
           </div>
 
-          {/* Always-visible: theme toggle + mobile hamburger */}
+          {/* Canvas controls: the agent toggle and, on mobile, the menu */}
           <div
             style={{ display: "flex", alignItems: "center", gap: "0.375rem" }}
           >
-            {!timelineData && mobile && (
-              <button
-                type="button"
-                className="show-mobile app-header-mobile-dock-brand app-header-labeled-action"
-                onClick={() => {
-                  handleReset();
-                  landingScrollEl?.scrollTo({ top: 0, behavior: "instant" });
-                }}
-                aria-label="Sediment home"
-              >
-                <LogoMark
-                  className="app-header-sediment-icon"
-                  width="16"
-                  height="16"
-                />
-                <span className="app-header-action-label app-header-sediment-label">Sediment</span>
-              </button>
-            )}
-            {!timelineData && mobile && (
-              <ThemeToggle className="app-header-labeled-action" />
-            )}
 
             {timelineData && (
               <button
@@ -470,8 +362,8 @@ export function AppHeader({
               </button>
             )}
 
-            {/* Hamburger — mobile only */}
-            <button
+            {/* Hamburger — canvases on mobile only */}
+            {timelineData && <button
               className="show-mobile"
               onClick={() => {
                 setMobileMenuOpen((o) => !o);
@@ -522,7 +414,7 @@ export function AppHeader({
                   <path d="M1 1h12M1 6h12M1 11h12" />
                 </svg>
               )}
-            </button>
+            </button>}
           </div>
         </div>
         {/* end right-side wrapper */}
@@ -624,78 +516,6 @@ export function AppHeader({
                 </div>
               </div>
 
-              {/* Workspaces */}
-              {!timelineData && (
-                <Link
-                  href="/workspaces"
-                  onClick={() => setMobileMenuOpen(false)}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "0.625rem",
-                    width: "100%",
-                    padding: "0.625rem 0.5rem",
-                    borderRadius: "0.5rem",
-                    color: "var(--text-primary)",
-                    fontSize: "0.875rem",
-                    fontFamily: "var(--font-sans), sans-serif",
-                    fontWeight: 500,
-                    textDecoration: "none",
-                  }}
-                >
-                  <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="var(--text-tertiary)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="2" y="2.5" width="12" height="3.5" rx="1" /><rect x="2" y="8.5" width="5.5" height="5" rx="1" /><rect x="9" y="8.5" width="5" height="5" rx="1" /></svg>
-                  Workspaces
-                </Link>
-              )}
-
-              {!timelineData && (
-                <Link className="feeds-nav-link feeds-mobile-link" href="/feeds" onClick={() => setMobileMenuOpen(false)}>
-                  <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="var(--text-tertiary)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="2" y="2" width="5" height="7" rx="1" /><rect x="9" y="2" width="5" height="4" rx="1" /><rect x="2" y="11" width="5" height="3" rx="1" /><rect x="9" y="8" width="5" height="6" rx="1" /></svg>
-                  <span>Feeds</span>
-                </Link>
-              )}
-
-              {!timelineData && (
-                <Link className="feeds-nav-link feeds-mobile-link" href="/discovery" onClick={() => setMobileMenuOpen(false)}>
-                  <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="var(--text-tertiary)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 8h3M8 4v8M8 4h3M8 12h3" /><rect x="1" y="6" width="4" height="4" rx=".75" /><rect x="11" y="2" width="4" height="4" rx=".75" /><rect x="11" y="10" width="4" height="4" rx=".75" /></svg>
-                  <span>Discovery</span><span className="feeds-new">New</span>
-                </Link>
-              )}
-
-              {!timelineData && (
-                <Link
-                  href="/changelog"
-                  onClick={() => setMobileMenuOpen(false)}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "0.625rem",
-                    width: "100%",
-                    padding: "0.625rem 0.5rem",
-                    borderRadius: "0.5rem",
-                    color: "var(--text-primary)",
-                    fontSize: "0.875rem",
-                    fontFamily: "var(--font-sans), sans-serif",
-                    fontWeight: 500,
-                    textDecoration: "none",
-                  }}
-                >
-                  <svg
-                    width="15"
-                    height="15"
-                    viewBox="0 0 16 16"
-                    fill="none"
-                    stroke="var(--text-tertiary)"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M3 2.5h7l3 3v8H3z" />
-                    <path d="M10 2.5v3h3M5.5 8h5M5.5 10.5h5" />
-                  </svg>
-                  Changelog
-                </Link>
-              )}
 
               {/* Divider before action buttons */}
               {timelineData && (
@@ -837,38 +657,6 @@ export function AppHeader({
               )}
 
 
-              {/* GitHub */}
-              <a
-                href={GITHUB_REPO_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={() => setMobileMenuOpen(false)}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.625rem",
-                  padding: "0.625rem 0.5rem",
-                  borderRadius: "0.5rem",
-                  color: "var(--text-primary)",
-                  fontSize: "0.875rem",
-                  fontFamily: "var(--font-sans), sans-serif",
-                  fontWeight: 500,
-                  textDecoration: "none",
-                }}
-              >
-                <svg
-                  width="15"
-                  height="15"
-                  viewBox="0 0 24 24"
-                  fill="var(--text-tertiary)"
-                >
-                  <path d="M12 2C6.477 2 2 6.477 2 12c0 4.418 2.865 8.166 6.839 9.489.5.092.682-.217.682-.482 0-.237-.009-.868-.013-1.703-2.782.604-3.369-1.342-3.369-1.342-.454-1.155-1.11-1.463-1.11-1.463-.908-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.831.092-.646.35-1.086.636-1.336-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.029-2.683-.103-.253-.446-1.27.098-2.647 0 0 .84-.269 2.75 1.025A9.578 9.578 0 0 1 12 6.836a9.59 9.59 0 0 1 2.504.337c1.909-1.294 2.747-1.025 2.747-1.025.546 1.377.203 2.394.1 2.647.64.699 1.028 1.592 1.028 2.683 0 3.842-2.339 4.687-4.566 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.741 0 .267.18.578.688.48C19.138 20.163 22 16.418 22 12c0-5.523-4.477-10-10-10z" />
-                </svg>
-                View source
-              </a>
-              {timelineData && (
-                <ThemeToggle className="app-header-mobile-menu-theme" showLabel fullWidth />
-              )}
             </m.div>
           )}
         </AnimatePresence>

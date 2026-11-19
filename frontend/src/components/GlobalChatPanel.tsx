@@ -838,7 +838,7 @@ export function GlobalChatPanel({ data, open, onOpenChange, onHighlight, onMenti
             if (stillOnCanvas()) onLineageChanges?.([event.lineageChange]);
           }
           if (event.type === "tool_started") {
-            upsertTool({ name: event.name, status: "started", label: globalToolLabel(event.name) });
+            upsertTool({ name: event.name, status: "started", label: globalToolLabel(event.name, "started") });
           }
           if (event.type === "tool_completed") {
             upsertTool({
@@ -1503,5 +1503,9 @@ function globalToolLabel(name: string, status?: string, result?: Record<string, 
     return count === null ? "Searching paper content" : `Searched paper content · ${count} matches`;
   }
   if (name === "web_search") return "Searched public sources";
+  if (name === "update_canvas_details") {
+    if (status === "started") return "Naming the canvas";
+    return status === "skipped" ? "Left the canvas name as it was" : "Named and described the canvas";
+  }
   return "Ran tool";
 }

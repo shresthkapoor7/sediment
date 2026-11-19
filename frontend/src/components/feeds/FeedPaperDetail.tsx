@@ -19,7 +19,7 @@ export function FeedPaperDetail({ paper, intercepted = false, missing = false, l
   const router = useRouter();
   const { saved, toggle } = useFeedBookmarks();
   const [error, setError] = useState("");
-  const close = () => onClose ? onClose() : intercepted ? router.back() : router.replace("/feeds");
+  const close = () => onClose ? onClose() : intercepted ? router.back() : router.replace("/");
   useEffect(() => {
     if (!intercepted) return;
     const element = dialog.current;
@@ -37,7 +37,7 @@ export function FeedPaperDetail({ paper, intercepted = false, missing = false, l
   const external = paper && /^https?:\/\//.test(paper.url) ? paper.url : null;
   const content = (
     <div className={styles.surface}>
-      <header className={styles.header}>{intercepted ? <button type="button" aria-label="Close paper details" onClick={close}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg></button> : <Link href="/feeds" aria-label="Back to feed"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg></Link>}<span>Sediment <span>/</span> Paper</span></header>
+      <header className={styles.header}>{intercepted ? <button type="button" aria-label="Close paper details" onClick={close}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg></button> : <Link href="/" aria-label="Back to feed"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg></Link>}<span>Sediment <span>/</span> Paper</span></header>
       {paper ? <article className={styles.content}>
         <div className={styles.meta}>{paper.preprint ? "Preprint" : "Research paper"}{paper.published && <><span>·</span><time dateTime={paper.published}>{date(paper.published)}</time></>}</div>
         <h1 id="paper-detail-title">{paper.title}</h1>

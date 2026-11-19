@@ -20,7 +20,7 @@ from .feed_domains import DOMAIN_SOURCES
 
 logger = logging.getLogger(__name__)
 
-PAGE_SIZE = 10
+PAGE_SIZE = 12
 MAX_PAPERS = 600
 MAX_FETCHES = 9
 STOP = set('i me my we our am are is the a an of for to in on at by with about interested interests curious exploring explore research papers recent latest new please show find want learn more how what and or that this it'.split())

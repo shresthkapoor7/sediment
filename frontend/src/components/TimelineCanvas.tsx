@@ -385,8 +385,28 @@ export function TimelineCanvas({
       ? NODE_DIMENSIONS.height + 120
       : Math.max(
           ...allNodes.map((n) => n.y + NODE_DIMENSIONS.height),
-          ...allNotes.map((note) => note.y + (note.height ?? TIMELINE_NOTE_MIN_HEIGHT)),
+          ...allNotes.map((note) => note.y + (note.height ?? (isSpecialNote(note) ? SPECIAL_NOTE_MIN_HEIGHT : TIMELINE_NOTE_MIN_HEIGHT))),
         ) + 120;
+
+  // The box the papers and notes actually occupy, so fitting zooms to the content rather than to the
+  // empty space between the canvas origin and wherever the first card sits.
+  const hasContent = allNodes.length > 0 || allNotes.length > 0;
+  const contentBounds = {
+    minX: hasContent ? Math.min(...allNodes.map((n) => n.x), ...allNotes.map((note) => note.x)) : 0,
+    minY: hasContent ? Math.min(...allNodes.map((n) => n.y), ...allNotes.map((note) => note.y)) : 0,
+    maxX: maxX - 120,
+    maxY: maxY - 120,
+  };
+  // Read-only notes without a stored height grow to fit their text, so their real bottom edge is only
+  // known once they render. Measure them, falling back to the stored or minimum height.
+  const renderedMaxY = useCallback((estimate: number) => {
+    let bottom = estimate;
+    // Notes sit directly in the absolutely positioned node layer, so offsetTop is their canvas y.
+    nodeLayerRef.current?.querySelectorAll<HTMLElement>("[data-note-id]").forEach((element) => {
+      bottom = Math.max(bottom, element.offsetTop + element.offsetHeight);
+    });
+    return bottom;
+  }, []);
 
   const applyTransform = useCallback(() => {
     if (gRef.current) {
@@ -406,14 +426,17 @@ export function TimelineCanvas({
       const { clientWidth, clientHeight } = containerRef.current;
       const { x, y } = panRef.current;
       const z = zoomRef.current;
-      const contentRight = x + maxX * z;
-      const contentBottom = y + maxY * z;
+      // Measure the cards themselves, not the empty space between the canvas origin and the first card.
+      const contentLeft = x + contentBounds.minX * z;
+      const contentTop = y + contentBounds.minY * z;
+      const contentRight = x + contentBounds.maxX * z;
+      const contentBottom = y + renderedMaxY(contentBounds.maxY) * z;
       const TOLERANCE = 2;
-      const outOfView = !(x >= -TOLERANCE && y >= -TOLERANCE && contentRight <= clientWidth + TOLERANCE && contentBottom <= clientHeight + TOLERANCE);
+      const outOfView = !(contentLeft >= -TOLERANCE && contentTop >= -TOLERANCE && contentRight <= clientWidth + TOLERANCE && contentBottom <= clientHeight + TOLERANCE);
       setIsOutOfView(outOfView);
     }
     viewListenersRef.current.forEach((listener) => listener());
-  }, [maxX, maxY]);
+  }, [contentBounds.minX, contentBounds.minY, contentBounds.maxX, contentBounds.maxY, renderedMaxY]);
 
   useEffect(() => {
     try {
@@ -1731,11 +1754,18 @@ export function TimelineCanvas({
           onClick={() => {
             if (containerRef.current) {
               const { clientWidth, clientHeight } = containerRef.current;
-              const fitZoom = Math.min(clientWidth / maxX, clientHeight / maxY, 1);
+              // Keep a margin round the content and clear the toolbar along the bottom.
+              const margin = 48;
+              const toolbar = 72;
+              const width = Math.max(contentBounds.maxX - contentBounds.minX, 1);
+              const height = Math.max(renderedMaxY(contentBounds.maxY) - contentBounds.minY, 1);
+              const availableWidth = Math.max(clientWidth - margin * 2, 1);
+              const availableHeight = Math.max(clientHeight - margin * 2 - toolbar, 1);
+              const fitZoom = Math.min(availableWidth / width, availableHeight / height, 1.25);
               zoomRef.current = fitZoom;
               panRef.current = {
-                x: (clientWidth - maxX * fitZoom) / 2,
-                y: (clientHeight - maxY * fitZoom) / 2,
+                x: (clientWidth - width * fitZoom) / 2 - contentBounds.minX * fitZoom,
+                y: (clientHeight - toolbar - height * fitZoom) / 2 - contentBounds.minY * fitZoom,
               };
               applyTransform();
               setZoomDisplay(Math.round(fitZoom * 100));
@@ -1747,7 +1777,7 @@ export function TimelineCanvas({
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            background: isOutOfView ? "var(--accent-soft)" : "var(--bg-secondary)",
+            background: isOutOfView ? "var(--accent-soft)" : "transparent",
             border: "none",
             borderRadius: "0.375rem",
             color: isOutOfView ? "var(--accent)" : "var(--text-secondary)",
@@ -1759,11 +1789,9 @@ export function TimelineCanvas({
             touchAction: "manipulation",
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.borderColor = "var(--accent)";
             e.currentTarget.style.color = "var(--accent)";
           }}
           onMouseLeave={(e) => {
-            e.currentTarget.style.borderColor = isOutOfView ? "var(--accent)" : "var(--border)";
             e.currentTarget.style.color = isOutOfView ? "var(--accent)" : "var(--text-secondary)";
           }}
         >

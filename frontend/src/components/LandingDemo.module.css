@@ -1,0 +1,50 @@
+/* The home page demo. The app inside renders at its real size and is scaled to fit this frame; the panel and
+   toolbar values below are copied from GlobalChatPanel and TimelineCanvas so the demo matches the app. */
+.frame {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--bg-canvas);
+  box-shadow: 0 40px 120px -48px rgba(0, 0, 0, .5);
+}
+.srOnly { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
+
+.app { position: absolute; top: 0; left: 0; display: flex; flex-direction: column; overflow: hidden; transform-origin: 0 0; background: var(--bg-canvas); pointer-events: none; user-select: none; }
+/* The end of each loop fades the app, not the frame, so the page behind never shows through. */
+.app > * { transition: opacity .4s ease; }
+.app[data-fading] > * { opacity: 0; }
+
+.canvas { position: relative; flex: 1; min-height: 0; overflow: hidden; background: var(--bg-canvas); }
+.world { position: absolute; top: 0; left: 0; transform-origin: 0 0; transition: transform 1s cubic-bezier(.16, 1, .3, 1); }
+.edges { position: absolute; top: 0; left: 0; overflow: visible; }
+
+.toolbar { position: absolute; bottom: 1rem; left: 50%; transform: translateX(-50%); z-index: 10; display: flex; align-items: center; gap: .25rem; padding: .1875rem; border-radius: .625rem; background: var(--bg-tertiary); }
+.addPaper { display: flex; align-items: center; gap: .375rem; height: 1.75rem; margin-right: .25rem; padding: 0 .625rem 0 .5rem; border-radius: .4375rem; background: var(--accent); color: var(--on-accent); font-size: .75rem; font-weight: 550; white-space: nowrap; }
+.toolButton { display: flex; align-items: center; justify-content: center; width: 1.75rem; height: 1.75rem; border-radius: .375rem; color: var(--text-secondary); font-size: .875rem; }
+.toggle { display: flex; align-items: center; justify-content: center; width: 1.75rem; height: 1.75rem; margin-left: .25rem; border-radius: .375rem; background: var(--bg-secondary); color: var(--text-tertiary); }
+.toggleOn { background: var(--accent-soft); color: var(--accent); }
+.zoom { margin-left: .25rem; padding: .25rem .5rem; color: var(--text-tertiary); font-family: var(--font-mono), monospace; font-size: .6875rem; letter-spacing: .02em; }
+
+.panel { position: absolute; top: 0; bottom: 0; left: 0; z-index: 22; display: flex; flex-direction: column; overflow: hidden; background: var(--bg-secondary); }
+.thread { display: flex; flex: 1; flex-direction: column; gap: 1rem; min-height: 0; overflow: hidden; padding: .5rem 1rem 1rem; }
+.userRow { display: flex; justify-content: flex-end; }
+.userBubble { max-width: 88%; padding: .5rem .75rem; border-radius: .75rem; background: var(--bg-tertiary); color: var(--text-primary); font-size: .8125rem; line-height: 1.6; }
+.mention { display: inline-flex; align-items: center; max-width: 16rem; margin: 0 .125rem; padding: .0625rem .4375rem; overflow: hidden; border: .0625rem solid color-mix(in srgb, white 46%, transparent); border-radius: 999px; background: color-mix(in srgb, white 16%, transparent); font-size: .65625rem; font-weight: 600; line-height: 1.6; text-overflow: ellipsis; white-space: nowrap; vertical-align: baseline; }
+.assistantRow { display: flex; flex-direction: column; gap: .25rem; }
+.answer { color: var(--text-primary); font-size: .8125rem; line-height: 1.6; }
+.tools { display: flex; flex-direction: column; gap: .3125rem; max-width: 88%; padding: .125rem .25rem; }
+.tool { display: flex; align-items: center; gap: .375rem; color: var(--text-secondary); font-size: .6875rem; }
+.typing { display: flex; align-items: center; gap: .25rem; padding: .375rem .125rem; }
+.typing > div { width: .3125rem; height: .3125rem; border-radius: 50%; background: var(--accent); }
+
+.composerWrap { flex-shrink: 0; padding: .5rem 1rem 1rem; }
+.composer { display: flex; align-items: flex-end; gap: .5rem; padding: .75rem .75rem .75rem .875rem; border-radius: .875rem; background: var(--bg-tertiary); }
+.composerText, .composerPlaceholder { flex: 1; min-height: 1.5rem; font-size: .8125rem; line-height: 1.5; }
+.composerText { color: var(--text-primary); }
+.composerPlaceholder { color: var(--text-tertiary); }
+.send { display: flex; flex-shrink: 0; align-items: center; justify-content: center; width: 1.75rem; height: 1.75rem; border-radius: .375rem; background: var(--accent); opacity: 0; transition: opacity .15s; }
+.send[data-ready] { opacity: 1; }
+
+@media (prefers-reduced-motion: reduce) { .app > *, .world { transition: none; } }

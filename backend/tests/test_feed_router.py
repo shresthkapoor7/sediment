@@ -44,7 +44,7 @@ class FeedRouterTests(unittest.IsolatedAsyncioTestCase):
         first = created.json()
         more = await self.client.post('/api/feeds', json={'action': 'more', 'cursor': first['cursor']})
         self.assertEqual(more.status_code, 200)
-        self.assertEqual(len(more.json()['papers']), 10)
+        self.assertEqual(len(more.json()['papers']), 12)
         self.assertFalse({p['id'] for p in first['papers']} & {p['id'] for p in more.json()['papers']})
         restored = await self.client.get('/api/feeds', params={})
         self.assertEqual(restored.json()['interests'], 'robot learning')
@@ -73,7 +73,7 @@ class FeedRouterTests(unittest.IsolatedAsyncioTestCase):
         selected = await self.client.post('/api/feeds', json={'action': 'source', 'source': 'arxiv'})
         self.assertEqual(selected.status_code, 200)
         self.assertEqual(selected.json()['source'], 'arxiv')
-        self.assertEqual(len(selected.json()['papers']), 10)
+        self.assertEqual(len(selected.json()['papers']), 12)
         cursor = selected.json()['cursor']
         wrong = await self.client.post('/api/feeds', json={'action': 'more', 'source': 'openalex', 'cursor': cursor})
         self.assertEqual(wrong.status_code, 409)

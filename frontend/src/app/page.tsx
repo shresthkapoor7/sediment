@@ -34,6 +34,7 @@ import {
 } from "@/lib/api";
 import { useHoverPreviewToggle } from "@/lib/hover-preview";
 import { useLandingViewport } from "@/lib/use-landing-viewport";
+import { LandingDemo } from "@/components/LandingDemo";
 import { upgradeLegacyTimelineNoteLayout } from "@/lib/note-layout";
 import { applyTimelineGraphAction, applyTimelineLineageChanges, applyTimelineNodeColorChanges, applyTimelineNoteChanges } from "@/lib/timeline-actions";
 import { createEmptyTimeline } from "@/lib/timeline-builder";
@@ -149,6 +150,8 @@ export default function Home() {
     window.localStorage.removeItem(LAST_GRAPH_ID_KEY);
   }, []);
 
+  // The home page shows the feed's start bar above the demo; the feed renders it into this slot.
+  const [startBarSlot, setStartBarSlot] = useState<HTMLDivElement | null>(null);
   const creditsRequestRef = useRef(0);
   const refreshCredits = useCallback(() => {
     const request = ++creditsRequestRef.current;
@@ -834,8 +837,14 @@ export default function Home() {
                 </m.div>
               </section>
 
+              <div className="landing-start" ref={setStartBarSlot} />
+
+              <section className="landing-demo hide-mobile" aria-label="What the agent does">
+                <LandingDemo />
+              </section>
+
               <section className="landing-feed" aria-label="Paper feed">
-                <FeedsView embedded ready={feedReady} onSearch={(query) => void startCanvas(query)} onStartWorkspace={startCanvasFromFeed} searching={isSearching} />
+                <FeedsView ready={feedReady} startBarTarget={startBarSlot} onSearch={(query) => void startCanvas(query)} onStartWorkspace={startCanvasFromFeed} searching={isSearching} />
               </section>
 
               <footer className="landing-footer">
