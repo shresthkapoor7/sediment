@@ -36,7 +36,7 @@ const FEED_LAYOUTS: { id: FeedLayout; label: string; icon: ReactNode }[] = [
 
 /** The researcher's chosen feed layout, remembered in this browser. */
 function useFeedLayout() {
-  const [layout, setLayoutState] = useState<FeedLayout>("cards");
+  const [layout, setLayoutState] = useState<FeedLayout>("grid");
   useEffect(() => {
     try {
       const stored = window.localStorage.getItem(FEED_LAYOUT_KEY);
