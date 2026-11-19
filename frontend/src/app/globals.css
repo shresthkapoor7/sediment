@@ -2742,3 +2742,9 @@ a.landing-brand:hover {
   .app-header-graph .graph-description-popover { top: calc(100% + 0.25rem); left: 0.5rem; right: 0.5rem; width: auto; transform: none; }
   .app-header-graph .graph-description-keys { display: none; }
 }
+
+/* Phones: the history list opens centred over the whole toolbar, not from the undo button near its right end. */
+@media (max-width: 40rem) {
+  .canvas-history { position: static !important; }
+  .canvas-history-popover { left: 50% !important; transform: translateX(-50%); width: min(17rem, calc(100vw - 2rem)) !important; }
+}

@@ -70,7 +70,7 @@ export function CanvasHistory({ undoItems, redoItems, onUndo, onRedo }: CanvasHi
   const visibleRedo = [...redoItems].reverse();
 
   return (
-    <div ref={root} data-canvas-ui="true" style={{ position: "relative", display: "flex", alignItems: "center", gap: "0.25rem" }}>
+    <div ref={root} data-canvas-ui="true" className="canvas-history" style={{ position: "relative", display: "flex", alignItems: "center", gap: "0.25rem" }}>
       <button
         type="button"
         title="Undo (⌘Z)"
@@ -115,6 +115,7 @@ export function CanvasHistory({ undoItems, redoItems, onUndo, onRedo }: CanvasHi
         <div
           role="dialog"
           aria-label="History of changes"
+          className="canvas-history-popover"
           style={{
             position: "absolute",
             bottom: "calc(100% + 0.75rem)",
