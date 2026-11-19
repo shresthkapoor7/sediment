@@ -34,6 +34,7 @@ import {
 } from "@/lib/api";
 import { useHoverPreviewToggle } from "@/lib/hover-preview";
 import { useLandingViewport } from "@/lib/use-landing-viewport";
+import { LandingDemo } from "@/components/LandingDemo";
 import { upgradeLegacyTimelineNoteLayout } from "@/lib/note-layout";
 import { applyTimelineGraphAction, applyTimelineLineageChanges, applyTimelineNodeColorChanges, applyTimelineNoteChanges } from "@/lib/timeline-actions";
 import { createEmptyTimeline } from "@/lib/timeline-builder";
@@ -832,6 +833,10 @@ export default function Home() {
                   className="hide-mobile landing-hero-footer"
                 >
                 </m.div>
+              </section>
+
+              <section className="landing-demo hide-mobile" aria-label="What the agent does">
+                <LandingDemo />
               </section>
 
               <section className="landing-feed" aria-label="Paper feed">
