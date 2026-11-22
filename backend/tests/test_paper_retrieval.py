@@ -1,4 +1,5 @@
 from __future__ import annotations
+from app.actor import Actor
 
 import unittest
 from unittest.mock import AsyncMock, patch
@@ -95,7 +96,7 @@ class PaperRetrievalTests(unittest.IsolatedAsyncioTestCase):
         ]
 
         with patch("app.routers.paper_access._db", return_value=db):
-            response = await get_cached_paper_content("graph-1", "w1", user_id="user-1")
+            response = await get_cached_paper_content("graph-1", "w1", actor=Actor(kind="browser", id="user-1", ip="127.0.0.1"))
 
         self.assertEqual(response.title, "Test Paper")
         self.assertEqual(response.chunks[0].content, "First section text.")
@@ -117,7 +118,7 @@ class PaperRetrievalTests(unittest.IsolatedAsyncioTestCase):
         ]
 
         with patch("app.routers.paper_access._db", return_value=db):
-            response = await get_cached_paper_content("graph-1", "W1", user_id="user-1")
+            response = await get_cached_paper_content("graph-1", "W1", actor=Actor(kind="browser", id="user-1", ip="127.0.0.1"))
 
         self.assertEqual(len(response.chunks), 100)
         self.assertTrue(response.truncated)

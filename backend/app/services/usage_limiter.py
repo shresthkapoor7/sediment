@@ -3,11 +3,15 @@ from __future__ import annotations
 import hashlib
 import hmac
 import logging
+from typing import TYPE_CHECKING
 
 from fastapi import HTTPException
 
 from ..config import settings
 from ..db.supabase import SupabaseAPIError, SupabaseClient, SupabaseConfigError
+
+if TYPE_CHECKING:
+    from ..actor import Actor
 
 logger = logging.getLogger(__name__)
 
@@ -32,25 +36,36 @@ def _usd_to_micro_usd(usd: float) -> int:
     return round(usd * MICRO_USD_PER_USD)
 
 
-def _normalize_ip(ip: str) -> str:
-    stripped = ip.strip()
-    return stripped or "unknown"
-
-
 def _actor_secret() -> bytes:
     return settings.actor_key_secret.get_secret_value().encode("utf-8")
 
 
-def _actor_key(ip: str) -> str:
-    normalized_ip = _normalize_ip(ip).encode("utf-8")
-    digest = hmac.new(_actor_secret(), normalized_ip, hashlib.sha256).hexdigest()
-    return f"iphash:{digest}"
+def _hashed(prefix: str, value: str) -> str:
+    digest = hmac.new(_actor_secret(), (value.strip() or "unknown").encode("utf-8"), hashlib.sha256).hexdigest()
+    return f"{prefix}:{digest}"
+
+
+def _actor_key(usage_key: str) -> str:
+    """The stored key for an actor's usage. `usage_key` is `Actor.usage_key` (`account:<id>` or `browser:<id>`)."""
+    kind, _, identity = usage_key.partition(":")
+    if kind == "account":
+        return _hashed("acct", identity)
+    if kind == "browser":
+        return _hashed("brw", identity)
+    raise ValueError("usage key must start with account: or browser:")
+
+
+def _ip_key(ip: str) -> str:
+    return _hashed("iphash", ip)
+
+
+def _daily_limit_usd(usage_key: str) -> float:
+    if usage_key.startswith("account:"):
+        return settings.account_daily_usage_limit_usd
+    return settings.daily_usage_limit_usd
 
 
 class UsageLimiter:
-    def __init__(self) -> None:
-        self._daily_limit_micro_usd = _usd_to_micro_usd(settings.daily_usage_limit_usd)
-
     def _db(self) -> SupabaseClient:
         try:
             return SupabaseClient()
@@ -58,16 +73,15 @@ class UsageLimiter:
             logger.error("Supabase is required for usage limiting", exc_info=e)
             raise HTTPException(status_code=503, detail="Usage limiter is unavailable.") from e
 
-    async def claim_request(self, ip: str, endpoint: str) -> dict:
-        actor_key = _actor_key(ip)
+    async def _claim(self, actor_key: str, endpoint: str, daily_limit_micro_usd: int, burst_limit: int, *, daily_limit_usd: float) -> dict:
         try:
             result = await self._db().rpc(
                 "claim_api_request_slot",
                 {
                     "p_actor_key": actor_key,
                     "p_endpoint": endpoint,
-                    "p_daily_limit_microusd": self._daily_limit_micro_usd,
-                    "p_burst_limit": settings.burst_limit_requests,
+                    "p_daily_limit_microusd": daily_limit_micro_usd,
+                    "p_burst_limit": burst_limit,
                     "p_window_seconds": settings.burst_limit_window_seconds,
                 },
                 expect_single=True,
@@ -77,7 +91,7 @@ class UsageLimiter:
             if "DAILY_LIMIT_EXCEEDED" in message:
                 raise HTTPException(
                     status_code=429,
-                    detail=f"Daily usage limit of ${settings.daily_usage_limit_usd:.2f} reached.",
+                    detail=f"Daily usage limit of ${daily_limit_usd:.2f} reached.",
                 ) from e
             if "BURST_LIMIT_EXCEEDED" in message:
                 raise HTTPException(
@@ -86,11 +100,28 @@ class UsageLimiter:
                 ) from e
             logger.warning("Usage claim failed for actor_key=%r endpoint=%r", actor_key, endpoint, exc_info=e)
             raise HTTPException(status_code=503, detail="Usage limiter is unavailable.") from e
-
         return result if isinstance(result, dict) else {}
 
+    async def claim_request(self, actor: "Actor", endpoint: str) -> dict:
+        """Counts one request against the actor's own daily budget and burst limit.
+
+        Anonymous browsers also count against a much higher per-IP ceiling, which only trips for scripted
+        abuse; a department behind one IP stays well under it. Accounts never touch the IP ceiling.
+        """
+        daily_limit_usd = _daily_limit_usd(actor.usage_key)
+        if not actor.is_account:
+            # The IP key never has spend recorded against it, so only its burst limit can trip.
+            await self._claim(
+                _ip_key(actor.ip), endpoint, _usd_to_micro_usd(1_000_000), settings.ip_burst_limit_requests,
+                daily_limit_usd=daily_limit_usd,
+            )
+        return await self._claim(
+            _actor_key(actor.usage_key), endpoint, _usd_to_micro_usd(daily_limit_usd), settings.burst_limit_requests,
+            daily_limit_usd=daily_limit_usd,
+        )
+
     async def record_usage(
-        self, ip: str, input_tokens: int, output_tokens: int, model: str,
+        self, usage_key: str, input_tokens: int, output_tokens: int, model: str,
         *, cache_creation_input_tokens: int = 0, cache_read_input_tokens: int = 0,
     ) -> dict:
         cost_micro_usd = self.cost_micro_usd(
@@ -98,12 +129,12 @@ class UsageLimiter:
             cache_creation_input_tokens=cache_creation_input_tokens,
             cache_read_input_tokens=cache_read_input_tokens,
         )
-        return await self.record_fixed_cost(ip, cost_micro_usd, reason=f"llm:{model}")
+        return await self.record_fixed_cost(usage_key, cost_micro_usd, reason=f"llm:{model}")
 
-    async def record_fixed_cost(self, ip: str, cost_micro_usd: int, *, reason: str = "provider") -> dict:
+    async def record_fixed_cost(self, usage_key: str, cost_micro_usd: int, *, reason: str = "provider") -> dict:
         if cost_micro_usd <= 0:
             return {}
-        actor_key = _actor_key(ip)
+        actor_key = _actor_key(usage_key)
         try:
             result = await self._db().rpc(
                 "record_api_usage",
@@ -118,10 +149,10 @@ class UsageLimiter:
             raise HTTPException(status_code=503, detail="Usage recording failed.") from e
         return result if isinstance(result, dict) else {}
 
-    async def ensure_can_spend(self, ip: str, estimated_cost_micro_usd: int, *, operation: str) -> None:
+    async def ensure_can_spend(self, usage_key: str, estimated_cost_micro_usd: int, *, operation: str) -> None:
         if estimated_cost_micro_usd <= 0:
             return
-        summary = await self.get_summary(ip)
+        summary = await self.get_summary(usage_key)
         remaining_micro_usd = _usd_to_micro_usd(float(summary["remaining"]))
         if remaining_micro_usd < estimated_cost_micro_usd:
             raise HTTPException(
@@ -132,14 +163,16 @@ class UsageLimiter:
                 ),
             )
 
-    async def get_summary(self, ip: str) -> dict[str, float | int]:
-        actor_key = _actor_key(ip)
+    async def get_summary(self, usage_key: str) -> dict[str, float | int]:
+        actor_key = _actor_key(usage_key)
+        daily_limit_usd = _daily_limit_usd(usage_key)
+        daily_limit_micro_usd = _usd_to_micro_usd(daily_limit_usd)
         try:
             result = await self._db().rpc(
                 "get_api_usage_summary",
                 {
                     "p_actor_key": actor_key,
-                    "p_daily_limit_microusd": self._daily_limit_micro_usd,
+                    "p_daily_limit_microusd": daily_limit_micro_usd,
                 },
                 expect_single=True,
             )
@@ -148,15 +181,15 @@ class UsageLimiter:
             raise HTTPException(status_code=503, detail="Usage summary is unavailable.") from e
 
         used_micro_usd = int(result.get("used_microusd", 0)) if isinstance(result, dict) else 0
-        remaining_micro_usd = int(result.get("remaining_microusd", self._daily_limit_micro_usd)) if isinstance(result, dict) else self._daily_limit_micro_usd
+        remaining_micro_usd = int(result.get("remaining_microusd", daily_limit_micro_usd)) if isinstance(result, dict) else daily_limit_micro_usd
         request_count = int(result.get("request_count", 0)) if isinstance(result, dict) else 0
-        segments = max(0, min(SEGMENTS, round((remaining_micro_usd / max(1, self._daily_limit_micro_usd)) * SEGMENTS)))
+        segments = max(0, min(SEGMENTS, round((remaining_micro_usd / max(1, daily_limit_micro_usd)) * SEGMENTS)))
         return {
             "used": round(_micro_usd_to_usd(used_micro_usd), 6),
             "remaining": round(_micro_usd_to_usd(remaining_micro_usd), 6),
             "segments": segments,
             "requestCount": request_count,
-            "dailyLimit": settings.daily_usage_limit_usd,
+            "dailyLimit": daily_limit_usd,
         }
 
     @staticmethod

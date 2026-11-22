@@ -9,12 +9,12 @@ import logging
 from datetime import date, timedelta
 from typing import Any, AsyncIterator, Literal, Optional, get_args
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 from ..config import settings
-from ..request_ip import get_request_ip
+from ..actor import Actor, current_actor
 from ..services.feed_sources.adapters import (
     ArxivSource,
     BioRxivSource,
@@ -100,12 +100,12 @@ def _quotes(quote: object, question: str) -> bool:
     return len(text) >= 3 and text in " ".join(question.split()).lower()
 
 
-async def _run(req: FeedChatRequest, ip: str, emit) -> None:
-    await limiter.claim_request(ip, "chat_feed")
+async def _run(req: FeedChatRequest, actor: Actor, emit) -> None:
+    await limiter.claim_request(actor, "chat_feed")
     budget = round(settings.agent_turn_budget_usd * 1_000_000)
     remaining: int | None = None
     with contextlib.suppress(Exception):
-        summary = await limiter.get_summary(ip)
+        summary = await limiter.get_summary(actor.usage_key)
         remaining = round(float(summary["remaining"]) * 1_000_000)
     if remaining is not None:
         if remaining <= 0:
@@ -210,7 +210,7 @@ Message:
         history=[turn.model_dump() for turn in req.history[-MAX_HISTORY:]],
         tool_runner=tool,
         text_emitter=lambda text: emit("text_delta", {"text": text}),
-        ip=ip,
+        ip=actor.usage_key,
         budget_micro_usd=budget,
         max_iterations=settings.agent_max_iterations,
     )
@@ -218,10 +218,9 @@ Message:
 
 
 @router.post("/feed-chat/stream")
-async def feed_chat_stream(req: FeedChatRequest, request: Request):
+async def feed_chat_stream(req: FeedChatRequest, actor: Actor = Depends(current_actor)):
     if not req.question.strip():
         raise HTTPException(status_code=400, detail="question required")
-    ip = get_request_ip(request)
     queue: asyncio.Queue[tuple[str, dict[str, Any]] | None] = asyncio.Queue(maxsize=64)
 
     async def emit(event_type: str, payload: dict[str, Any]) -> None:
@@ -229,7 +228,7 @@ async def feed_chat_stream(req: FeedChatRequest, request: Request):
 
     async def run() -> None:
         try:
-            await _run(req, ip, emit)
+            await _run(req, actor, emit)
         except HTTPException as exc:
             await emit("error", {"detail": exc.detail, "statusCode": exc.status_code})
         except Exception:

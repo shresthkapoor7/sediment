@@ -1,4 +1,4 @@
-"""Anonymous feed credentials. Only explicit bearer authentication is accepted."""
+"""Anonymous feed credentials, sent in the X-Sediment-Feed header (Authorization carries the account token)."""
 import hashlib
 import hmac
 import re
@@ -33,10 +33,13 @@ def resolve_feed_actor(credential: str) -> str:
     return str(UUID(hex=_sign('feed-actor:' + nonce)[:32]))
 
 
+FEED_HEADER = 'X-Sediment-Feed'
+
+
 def require_feed_actor(request: Request) -> str:
-    # Cookies are deliberately not an authentication input. Browsers must send
-    # Authorization explicitly, so ambient cookies cannot authorize CSRF.
-    scheme, separator, credential = request.headers.get('authorization', '').partition(' ')
-    if not separator or scheme.lower() != 'bearer':
+    # Cookies are deliberately not an authentication input. Browsers must send this custom header explicitly,
+    # which a cross-site form cannot do, so ambient cookies cannot authorize CSRF.
+    credential = request.headers.get(FEED_HEADER, '').strip()
+    if not credential:
         raise HTTPException(401, 'A valid feed session is required.')
     return resolve_feed_actor(credential)

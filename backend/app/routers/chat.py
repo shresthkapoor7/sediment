@@ -39,10 +39,9 @@ from ..services.paper_ingestion import IngestionError, PaperIngestionService
 from ..services.paper_retrieval import PaperRetrievalService, RetrievalError
 from ..services.special_notes import is_special_note
 from ..services.usage_limiter import limiter
-from ..request_ip import get_request_ip
+from ..actor import Actor, current_actor, owned_by
 from .papers import resolve_identifier
 
-from ..request_user import request_user_id
 router = APIRouter()
 logger = logging.getLogger(__name__)
 CONFIRMATION_RE = re.compile(r"\b(yes|yeah|yep|sure|confirm|confirmed|go ahead|do it|access it|retrieve it)\b", re.I)
@@ -439,9 +438,9 @@ async def _emit(event_emitter: ChatEventEmitter | None, event_type: str, payload
         await event_emitter(event_type, payload)
 
 
-async def _run_paper_chat(req: ChatRequest, request_ip: str, event_emitter: ChatEventEmitter | None = None) -> dict[str, Any]:
+async def _run_paper_chat(req: ChatRequest, actor: Actor, event_emitter: ChatEventEmitter | None = None) -> dict[str, Any]:
     await _emit(event_emitter, "message_started", {"paperId": req.paperId.upper()})
-    await limiter.claim_request(request_ip, "chat")
+    await limiter.claim_request(actor, "chat")
 
     context = None
     memory = None
@@ -514,7 +513,7 @@ async def _run_paper_chat(req: ChatRequest, request_ip: str, event_emitter: Chat
                         })
                         return result
                     try:
-                        result = await PaperIngestionService().ingest(req.paperId.upper(), paper, billing_ip=request_ip)
+                        result = await PaperIngestionService().ingest(req.paperId.upper(), paper, billing_ip=actor.usage_key)
                     except IngestionError as exc:
                         result = {
                             "status": "unavailable" if exc.code in {"access_provider_failed", "no_extractable_text"} else "error",
@@ -531,7 +530,7 @@ async def _run_paper_chat(req: ChatRequest, request_ip: str, event_emitter: Chat
                 if name == "search_paper_content":
                     query = str(tool_input.get("query") or req.question).strip()[:1000]
                     try:
-                        search_result = await retrieval.search_paper(req.paperId.upper(), query, limit=6, billing_ip=request_ip)
+                        search_result = await retrieval.search_paper(req.paperId.upper(), query, limit=6, billing_ip=actor.usage_key)
                         result = {
                             "status": "completed",
                             **search_result,
@@ -562,7 +561,7 @@ async def _run_paper_chat(req: ChatRequest, request_ip: str, event_emitter: Chat
                     if event_emitter
                     else None
                 ),
-                ip=request_ip,
+                ip=actor.usage_key,
                 history=context.history,
                 summary=context.summary,
                 selected_excerpt=req.selectedExcerpt.strip() if req.selectedExcerpt else None,
@@ -573,7 +572,7 @@ async def _run_paper_chat(req: ChatRequest, request_ip: str, event_emitter: Chat
             result = await _llm.chat_about_paper(
                 paper,
                 req.question.strip(),
-                ip=request_ip,
+                ip=actor.usage_key,
                 history=None,
                 summary=None,
             )
@@ -607,7 +606,7 @@ async def _run_paper_chat(req: ChatRequest, request_ip: str, event_emitter: Chat
                     req.userId,
                     int(assistant["sequence_number"]),
                     _llm,
-                    request_ip,
+                    actor.usage_key,
                 )
             except SupabaseAPIError as exc:
                 logger.warning("Paper chat summary update failed", exc_info=exc)
@@ -683,7 +682,7 @@ def _sse(event_type: str, payload: dict[str, Any]) -> str:
     return f"event: {event_type}\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"
 
 
-async def _paper_chat_event_stream(req: ChatRequest, request_ip: str) -> AsyncIterator[str]:
+async def _paper_chat_event_stream(req: ChatRequest, actor: Actor) -> AsyncIterator[str]:
     queue: asyncio.Queue[tuple[str, dict[str, Any]] | None] = asyncio.Queue(maxsize=64)
 
     async def emit(event_type: str, payload: dict[str, Any]) -> None:
@@ -691,7 +690,7 @@ async def _paper_chat_event_stream(req: ChatRequest, request_ip: str) -> AsyncIt
 
     async def run() -> None:
         try:
-            await _run_paper_chat(req, request_ip, emit)
+            await _run_paper_chat(req, actor, emit)
         except HTTPException as exc:
             await emit("error", {"detail": exc.detail, "statusCode": exc.status_code})
         except Exception:
@@ -732,9 +731,9 @@ def _resolve_mentioned_paper_ids(
     ))
 
 
-async def _run_global_chat(req: GlobalChatRequest, request_ip: str, event_emitter: ChatEventEmitter | None = None) -> dict[str, Any]:
+async def _run_global_chat(req: GlobalChatRequest, actor: Actor, event_emitter: ChatEventEmitter | None = None) -> dict[str, Any]:
     await _emit(event_emitter, "message_started", {})
-    await limiter.claim_request(request_ip, "chat_global")
+    await limiter.claim_request(actor, "chat_global")
 
     context = None
     memory = None
@@ -1512,7 +1511,7 @@ async def _run_global_chat(req: GlobalChatRequest, request_ip: str, event_emitte
                 await _emit(event_emitter, "tool_completed", {"name": name, "status": result["status"], "result": result})
                 return result
             try:
-                result = await PaperIngestionService().ingest(canonical_paper_id, paper, billing_ip=request_ip)
+                result = await PaperIngestionService().ingest(canonical_paper_id, paper, billing_ip=actor.usage_key)
             except IngestionError as exc:
                 result = {
                     "status": "unavailable" if exc.code in {"access_provider_failed", "no_extractable_text"} else "error",
@@ -1533,7 +1532,7 @@ async def _run_global_chat(req: GlobalChatRequest, request_ip: str, event_emitte
             else:
                 query = str(tool_input.get("query") or req.question).strip()[:1000]
                 try:
-                    search_result = await retrieval.search_paper(canonical_paper_id, query, limit=6, billing_ip=request_ip)
+                    search_result = await retrieval.search_paper(canonical_paper_id, query, limit=6, billing_ip=actor.usage_key)
                     result = {
                         "status": "completed",
                         **search_result,
@@ -1560,7 +1559,7 @@ async def _run_global_chat(req: GlobalChatRequest, request_ip: str, event_emitte
                         [str(paper.get("openalexId")) for paper in papers if paper.get("openalexId")],
                         query,
                         limit=6,
-                        billing_ip=request_ip,
+                        billing_ip=actor.usage_key,
                     )
                     result = {
                         "status": "completed",
@@ -1605,7 +1604,7 @@ async def _run_global_chat(req: GlobalChatRequest, request_ip: str, event_emitte
     turn_budget_micro_usd = round(settings.agent_turn_budget_usd * 1_000_000)
     remaining_micro_usd: int | None = None
     try:
-        usage_summary = await limiter.get_summary(request_ip)
+        usage_summary = await limiter.get_summary(actor.usage_key)
         remaining_micro_usd = round(float(usage_summary["remaining"]) * 1_000_000)
     except HTTPException:
         logger.warning("Usage summary unavailable; using the per-message ceiling alone")
@@ -1626,7 +1625,7 @@ async def _run_global_chat(req: GlobalChatRequest, request_ip: str, event_emitte
                 if event_emitter
                 else None
             ),
-            ip=request_ip,
+            ip=actor.usage_key,
             history=context.history if context else None,
             summary=context.summary if context else None,
             mentioned_paper_ids=mentioned_paper_ids,
@@ -1686,7 +1685,7 @@ async def _run_global_chat(req: GlobalChatRequest, request_ip: str, event_emitte
                     req.userId,
                     int(assistant["sequence_number"]),
                     _llm,
-                    request_ip,
+                    actor.usage_key,
                 )
             except SupabaseAPIError as exc:
                 logger.warning("Global chat summary update failed", exc_info=exc)
@@ -1698,7 +1697,7 @@ async def _run_global_chat(req: GlobalChatRequest, request_ip: str, event_emitte
     return result
 
 
-async def _global_chat_event_stream(req: GlobalChatRequest, request_ip: str) -> AsyncIterator[str]:
+async def _global_chat_event_stream(req: GlobalChatRequest, actor: Actor) -> AsyncIterator[str]:
     queue: asyncio.Queue[tuple[str, dict[str, Any]] | None] = asyncio.Queue(maxsize=64)
 
     async def emit(event_type: str, payload: dict[str, Any]) -> None:
@@ -1706,7 +1705,7 @@ async def _global_chat_event_stream(req: GlobalChatRequest, request_ip: str) -> 
 
     async def run() -> None:
         try:
-            await _run_global_chat(req, request_ip, emit)
+            await _run_global_chat(req, actor, emit)
         except HTTPException as exc:
             await emit("error", {"detail": exc.detail, "statusCode": exc.status_code})
         except Exception:
@@ -1730,7 +1729,8 @@ async def _global_chat_event_stream(req: GlobalChatRequest, request_ip: str) -> 
 
 
 @router.post("/graphs/{graph_id}/chat/session", response_model=ChatSessionResponse)
-async def open_chat_session(graph_id: str, req: ChatSessionRequest):
+async def open_chat_session(graph_id: str, req: ChatSessionRequest, actor: Actor = Depends(current_actor)):
+    req = owned_by(req, actor)
     try:
         _, _, _, context = await _load_persistent_context(
             graph_id,
@@ -1761,8 +1761,9 @@ async def _require_owned_graph(db: SupabaseClient, graph_id: str, user_id: str) 
 
 
 @router.get("/graphs/{graph_id}/chats", response_model=list[ChatTab])
-async def list_chats(graph_id: str, userId: str = Depends(request_user_id)):
+async def list_chats(graph_id: str, actor: Actor = Depends(current_actor)):
     """The agent chats on a canvas, oldest first. A canvas with none gets its first one here."""
+    userId = actor.id
     try:
         db = _db()
         await _require_owned_graph(db, graph_id, userId)
@@ -1777,7 +1778,8 @@ async def list_chats(graph_id: str, userId: str = Depends(request_user_id)):
 
 
 @router.post("/graphs/{graph_id}/chats", response_model=ChatTab, status_code=201)
-async def create_chat(graph_id: str, req: ChatTabCreateRequest):
+async def create_chat(graph_id: str, req: ChatTabCreateRequest, actor: Actor = Depends(current_actor)):
+    req = owned_by(req, actor)
     try:
         db = _db()
         await _require_owned_graph(db, graph_id, req.userId)
@@ -1790,7 +1792,8 @@ async def create_chat(graph_id: str, req: ChatTabCreateRequest):
 
 
 @router.delete("/graphs/{graph_id}/chats/{session_id}", status_code=204)
-async def delete_chat(graph_id: str, session_id: str, userId: str = Depends(request_user_id)):
+async def delete_chat(graph_id: str, session_id: str, actor: Actor = Depends(current_actor)):
+    userId = actor.id
     try:
         db = _db()
         await _require_owned_graph(db, graph_id, userId)
@@ -1801,12 +1804,11 @@ async def delete_chat(graph_id: str, session_id: str, userId: str = Depends(requ
 
 
 @router.post("/chat", response_model=ChatResponse)
-async def chat(req: ChatRequest, request: Request):
+async def chat(req: ChatRequest, actor: Actor = Depends(current_actor)):
     if not req.question.strip():
         raise HTTPException(status_code=400, detail="question required")
 
-    request_ip = get_request_ip(request)
-    result = await _run_paper_chat(req, request_ip)
+    result = await _run_paper_chat(owned_by(req, actor), actor)
 
     try:
         return ChatResponse(**result)
@@ -1816,12 +1818,11 @@ async def chat(req: ChatRequest, request: Request):
 
 
 @router.post("/chat/stream")
-async def chat_stream(req: ChatRequest, request: Request):
+async def chat_stream(req: ChatRequest, actor: Actor = Depends(current_actor)):
     if not req.question.strip():
         raise HTTPException(status_code=400, detail="question required")
-    request_ip = get_request_ip(request)
     return StreamingResponse(
-        _paper_chat_event_stream(req, request_ip),
+        _paper_chat_event_stream(owned_by(req, actor), actor),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-store",
@@ -1831,27 +1832,25 @@ async def chat_stream(req: ChatRequest, request: Request):
 
 
 @router.post("/chat/global/suggestions", response_model=list[str])
-async def suggest_questions(papers: list[PaperSummary], request: Request):
+async def suggest_questions(papers: list[PaperSummary], actor: Actor = Depends(current_actor)):
     if not papers:
         return []
     if len(papers) > MAX_TIMELINE_PAPERS:
         raise HTTPException(status_code=400, detail=f"At most {MAX_TIMELINE_PAPERS} papers are allowed.")
-    request_ip = get_request_ip(request)
-    await limiter.claim_request(request_ip, "chat_global_suggestions")
+    await limiter.claim_request(actor, "chat_global_suggestions")
     try:
-        return await _llm.suggest_timeline_questions([p.model_dump() for p in papers], ip=request_ip)
+        return await _llm.suggest_timeline_questions([p.model_dump() for p in papers], ip=actor.usage_key)
     except LLMParseError as e:
         logger.warning("Timeline suggestion generation failed for %s papers", len(papers), exc_info=e)
         return []
 
 
 @router.post("/chat/global", response_model=GlobalChatResponse)
-async def chat_global(req: GlobalChatRequest, request: Request):
+async def chat_global(req: GlobalChatRequest, actor: Actor = Depends(current_actor)):
     if not req.question.strip():
         raise HTTPException(status_code=400, detail="question required")
 
-    request_ip = get_request_ip(request)
-    result = await _run_global_chat(req, request_ip)
+    result = await _run_global_chat(owned_by(req, actor), actor)
 
     try:
         return GlobalChatResponse(**result)
@@ -1861,12 +1860,11 @@ async def chat_global(req: GlobalChatRequest, request: Request):
 
 
 @router.post("/chat/global/stream")
-async def chat_global_stream(req: GlobalChatRequest, request: Request):
+async def chat_global_stream(req: GlobalChatRequest, actor: Actor = Depends(current_actor)):
     if not req.question.strip():
         raise HTTPException(status_code=400, detail="question required")
-    request_ip = get_request_ip(request)
     return StreamingResponse(
-        _global_chat_event_stream(req, request_ip),
+        _global_chat_event_stream(owned_by(req, actor), actor),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-store",

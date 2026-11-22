@@ -12,7 +12,7 @@ from ..services.feeds import FeedService
 from ..services.feed_domains import Domain
 from ..services.feed_identity import issue_feed_credential, require_feed_actor
 from ..services.usage_limiter import limiter
-from ..request_ip import get_request_ip
+from ..actor import Actor, current_actor
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -46,7 +46,7 @@ async def get_feed(request: Request, response: Response, actor: str = Depends(re
 
 
 @router.post('/feeds')
-async def update_feed(body: FeedRequest, request: Request, response: Response, actor: str = Depends(require_feed_actor)):
+async def update_feed(body: FeedRequest, response: Response, actor: str = Depends(require_feed_actor), caller: Actor = Depends(current_actor)):
     response.headers['Cache-Control'] = 'no-store'
     if body.action == 'interests' and not (body.interests or '').strip():
         raise HTTPException(400, 'Describe your research interests first.')
@@ -57,7 +57,7 @@ async def update_feed(body: FeedRequest, request: Request, response: Response, a
     if body.action in ('interests', 'refresh') and body.source != 'all':
         raise HTTPException(400, 'Refresh and interest changes apply to all sources.')
     try:
-        await limiter.claim_request(get_request_ip(request), 'feeds')
+        await limiter.claim_request(caller, 'feeds')
         return await asyncio.wait_for(FeedService().mutate(actor, body.action, body.interests, body.cursor, body.source, **({"domain": body.domain} if body.domain is not None else {})), timeout=165)
     except (SupabaseAPIError, SupabaseConfigError):
         logger.warning('Feed persistence unavailable')

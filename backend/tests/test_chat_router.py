@@ -1,4 +1,5 @@
 from __future__ import annotations
+from app.actor import Actor
 
 from types import SimpleNamespace
 import unittest
@@ -140,7 +141,7 @@ class PersistentChatRouterTests(unittest.IsolatedAsyncioTestCase):
                 "lineageChanges": [change],
             }
 
-        request = SimpleNamespace(state=SimpleNamespace(verified_client_ip="127.0.0.1"), client=None)
+        request = Actor(kind="browser", id="00000000-0000-0000-0000-000000000002", ip="127.0.0.1")
         req = GlobalChatRequest(
             graphId="00000000-0000-0000-0000-000000000001",
             userId="00000000-0000-0000-0000-000000000002",
@@ -235,7 +236,7 @@ class PersistentChatRouterTests(unittest.IsolatedAsyncioTestCase):
                 "lineageChanges": [first, second],
             }
 
-        request = SimpleNamespace(state=SimpleNamespace(verified_client_ip="127.0.0.1"), client=None)
+        request = Actor(kind="browser", id="00000000-0000-0000-0000-000000000002", ip="127.0.0.1")
         req = GlobalChatRequest(
             graphId="00000000-0000-0000-0000-000000000001",
             userId="00000000-0000-0000-0000-000000000002",
@@ -276,7 +277,7 @@ class PersistentChatRouterTests(unittest.IsolatedAsyncioTestCase):
                 test_case.assertEqual(paper_ids, ["W1", "W2"])
                 test_case.assertEqual(query, "How do their methods differ?")
                 test_case.assertEqual(limit, 6)
-                test_case.assertEqual(billing_ip, "127.0.0.1")
+                test_case.assertEqual(billing_ip, "browser:00000000-0000-0000-0000-000000000002")
                 return {
                     "scope": "graph",
                     "query": query,
@@ -300,7 +301,7 @@ class PersistentChatRouterTests(unittest.IsolatedAsyncioTestCase):
                 "citations": result["citations"],
             }
 
-        request = SimpleNamespace(state=SimpleNamespace(verified_client_ip="127.0.0.1"), client=None)
+        request = Actor(kind="browser", id="00000000-0000-0000-0000-000000000002", ip="127.0.0.1")
         req = GlobalChatRequest(
             graphId="00000000-0000-0000-0000-000000000001",
             userId="00000000-0000-0000-0000-000000000002",
@@ -357,7 +358,7 @@ class PersistentChatRouterTests(unittest.IsolatedAsyncioTestCase):
                 "citations": [],
             }
 
-        request = SimpleNamespace(state=SimpleNamespace(verified_client_ip="127.0.0.1"), client=None)
+        request = Actor(kind="browser", id="00000000-0000-0000-0000-000000000002", ip="127.0.0.1")
         req = GlobalChatRequest(
             graphId="00000000-0000-0000-0000-000000000001",
             userId="00000000-0000-0000-0000-000000000002",
@@ -462,7 +463,7 @@ class PersistentChatRouterTests(unittest.IsolatedAsyncioTestCase):
                 "noteChanges": [created, updated],
             }
 
-        request = SimpleNamespace(state=SimpleNamespace(verified_client_ip="127.0.0.1"), client=None)
+        request = Actor(kind="browser", id="00000000-0000-0000-0000-000000000002", ip="127.0.0.1")
         req = GlobalChatRequest(
             graphId="00000000-0000-0000-0000-000000000001",
             userId="00000000-0000-0000-0000-000000000002",
@@ -526,7 +527,7 @@ class PersistentChatRouterTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(untouched["notes"][0]["connections"], [])
             return {"text": "No changes were needed.", "highlightedPaperIds": [], "suggestion": None, "toolUses": [], "citations": []}
 
-        request = SimpleNamespace(state=SimpleNamespace(verified_client_ip="127.0.0.1"), client=None)
+        request = Actor(kind="browser", id="00000000-0000-0000-0000-000000000002", ip="127.0.0.1")
         req = GlobalChatRequest(
             papers=papers,
             question="Create a note and connect a canvas note.",
@@ -560,7 +561,7 @@ class PersistentChatRouterTests(unittest.IsolatedAsyncioTestCase):
                 "nodeColorChanges": colored["nodeColorChanges"],
             }
 
-        request = SimpleNamespace(state=SimpleNamespace(verified_client_ip="127.0.0.1"), client=None)
+        request = Actor(kind="browser", id="00000000-0000-0000-0000-000000000002", ip="127.0.0.1")
         req = GlobalChatRequest(
             papers=[
                 {"openalexId": "W1", "title": "Root Paper", "year": 2017, "summary": "Root"},
@@ -605,7 +606,7 @@ class PersistentChatRouterTests(unittest.IsolatedAsyncioTestCase):
                 "nodeColorChanges": changed["nodeColorChanges"],
             }
 
-        request = SimpleNamespace(state=SimpleNamespace(verified_client_ip="127.0.0.1"), client=None)
+        request = Actor(kind="browser", id="00000000-0000-0000-0000-000000000002", ip="127.0.0.1")
         req = GlobalChatRequest(
             papers=[
                 {"openalexId": "W1", "title": "Root Paper", "year": 2017, "summary": "Root"},
@@ -640,7 +641,7 @@ class PersistentChatRouterTests(unittest.IsolatedAsyncioTestCase):
             )
             return {"text": "The green paper is Root Paper.", "highlightedPaperIds": ["W1"], "suggestion": None, "toolUses": [], "citations": []}
 
-        request = SimpleNamespace(state=SimpleNamespace(verified_client_ip="127.0.0.1"), client=None)
+        request = Actor(kind="browser", id="00000000-0000-0000-0000-000000000002", ip="127.0.0.1")
         req = GlobalChatRequest(
             papers=[
                 {"openalexId": "W1", "title": "Root Paper", "year": 2017, "summary": "Root"},
@@ -703,7 +704,7 @@ class PersistentChatRouterTests(unittest.IsolatedAsyncioTestCase):
                 "citations": [],
             }
 
-        request = SimpleNamespace(state=SimpleNamespace(verified_client_ip="127.0.0.1"), client=None)
+        request = Actor(kind="browser", id="00000000-0000-0000-0000-000000000002", ip="127.0.0.1")
         req = GlobalChatRequest(
             graphId="00000000-0000-0000-0000-000000000001",
             userId="00000000-0000-0000-0000-000000000002",
@@ -725,7 +726,7 @@ class PersistentChatRouterTests(unittest.IsolatedAsyncioTestCase):
         ingestion.ingest.assert_awaited_once_with(
             "W1",
             graph["data"]["nodes"]["1"]["paper"],
-            billing_ip="127.0.0.1",
+            billing_ip="browser:00000000-0000-0000-0000-000000000002",
         )
 
     async def test_global_chat_persists_mentioned_papers_with_the_user_message(self) -> None:
@@ -758,7 +759,7 @@ class PersistentChatRouterTests(unittest.IsolatedAsyncioTestCase):
                 "citations": [],
             }
 
-        request = SimpleNamespace(state=SimpleNamespace(verified_client_ip="127.0.0.1"), client=None)
+        request = Actor(kind="browser", id="00000000-0000-0000-0000-000000000002", ip="127.0.0.1")
         req = GlobalChatRequest(
             graphId="00000000-0000-0000-0000-000000000001",
             userId="00000000-0000-0000-0000-000000000002",
@@ -814,7 +815,7 @@ class PersistentChatRouterTests(unittest.IsolatedAsyncioTestCase):
             self.assertIn("tool_runner", kwargs)
             return {"text": "Answer", "suggestion": None, "toolUses": [], "citations": []}
 
-        request = SimpleNamespace(state=SimpleNamespace(verified_client_ip="127.0.0.1"), client=None)
+        request = Actor(kind="browser", id="00000000-0000-0000-0000-000000000002", ip="127.0.0.1")
         req = ChatRequest(
             graphId="00000000-0000-0000-0000-000000000001",
             userId="00000000-0000-0000-0000-000000000002",
@@ -873,7 +874,7 @@ class PersistentChatRouterTests(unittest.IsolatedAsyncioTestCase):
                 "citations": [],
             }
 
-        request = SimpleNamespace(state=SimpleNamespace(verified_client_ip="127.0.0.1"), client=None)
+        request = Actor(kind="browser", id="00000000-0000-0000-0000-000000000002", ip="127.0.0.1")
         req = ChatRequest(
             graphId="00000000-0000-0000-0000-000000000001",
             userId="00000000-0000-0000-0000-000000000002",
@@ -935,7 +936,7 @@ class PersistentChatRouterTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(result["status"], "ready")
             return {"text": "Indexed.", "suggestion": None, "toolUses": [], "citations": []}
 
-        request = SimpleNamespace(state=SimpleNamespace(verified_client_ip="127.0.0.1"), client=None)
+        request = Actor(kind="browser", id="00000000-0000-0000-0000-000000000002", ip="127.0.0.1")
         req = ChatRequest(
             graphId="00000000-0000-0000-0000-000000000001",
             userId="00000000-0000-0000-0000-000000000002",

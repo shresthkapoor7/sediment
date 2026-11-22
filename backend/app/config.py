@@ -24,11 +24,16 @@ class Settings(BaseSettings):
     app_version: str = "0.1.0"
     supabase_url: str = ""
     supabase_service_role_key: SecretStr = SecretStr("")
+    # Only for projects still on Supabase's legacy shared JWT secret; asymmetric keys are read from JWKS.
+    supabase_jwt_secret: SecretStr = SecretStr("")
     app_url: str = ""
     max_request_bytes: int = 1_000_000
     special_note_storage_quota_bytes: int = 20 * 1024 * 1024
     max_special_note_upload_request_bytes: int = 20 * 1024 * 1024 + 256 * 1024
+    # Daily budget for an anonymous browser.
     daily_usage_limit_usd: float = 0.20
+    # Daily budget for a signed-in account.
+    account_daily_usage_limit_usd: float = 0.50
     # Hard ceiling on what one agent message may spend, across all of its model calls and searches.
     agent_turn_budget_usd: float = 0.20
     # Tool rounds the agent may take in one message before it must answer.
@@ -37,6 +42,8 @@ class Settings(BaseSettings):
     full_paper_access_enabled: bool = False
     burst_limit_requests: int = 8
     burst_limit_window_seconds: int = 60
+    # Abuse ceiling for anonymous traffic from one IP (a whole department can share one), per burst window.
+    ip_burst_limit_requests: int = 200
     actor_key_secret: SecretStr = Field(...)
     trust_railway_proxy_headers: bool = False
     trusted_proxies: str = ""

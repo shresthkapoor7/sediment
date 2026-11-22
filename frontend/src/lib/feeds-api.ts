@@ -1,4 +1,4 @@
-import { APIError } from "./api";
+import { APIError, identityHeaders } from "./api";
 
 export type FeedDomain = "ai" | "biomed" | "math_physics" | "general";
 export const domainLabels: Record<FeedDomain, string> = { ai: "AI & computer science", biomed: "Biology & medicine", math_physics: "Math & physics", general: "All fields" };
@@ -65,7 +65,7 @@ async function feedCredential(): Promise<string> {
 export async function fetchFeed(update?: { action: FeedAction; source?: FeedFilter; domain?: FeedDomain; interests?: string; cursor?: string }, signal?: AbortSignal): Promise<Feed> {
   const send = async () => fetch(`${base}/api/feeds`, {
     method: update ? "POST" : "GET",
-    headers: { Authorization: `Bearer ${await feedCredential()}`, ...(update ? { "Content-Type": "application/json" } : {}) },
+    headers: { "X-Sediment-Feed": await feedCredential(), ...identityHeaders(), ...(update ? { "Content-Type": "application/json" } : {}) },
     ...(update ? { body: JSON.stringify(update) } : {}),
     // No cookie authentication: a cross-site form cannot authorize mutations.
     credentials: "omit",
