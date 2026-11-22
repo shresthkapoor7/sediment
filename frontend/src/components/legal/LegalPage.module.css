@@ -1,0 +1,6 @@
+.main { max-width: 44rem; }
+.body { margin-top: 2rem; color: var(--text-secondary); font-size: 14px; line-height: 1.75; }
+.body h2 { margin: 2rem 0 .5rem; color: var(--text-primary); font-size: 15px; font-weight: 600; }
+.body p, .body ul { margin: 0 0 .875rem; }
+.body ul { padding-left: 1.25rem; }
+.body a { color: var(--text-primary); }

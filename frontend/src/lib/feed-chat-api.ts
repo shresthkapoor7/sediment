@@ -1,4 +1,4 @@
-import { APIError, identityHeaders } from "./api";
+import { APIError, apiFetch, identityHeaders } from "./api";
 import type { FeedPaper } from "./feeds-api";
 
 const base = process.env.NEXT_PUBLIC_USE_API_PROXY === "true" ? "" : (process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000");
@@ -37,7 +37,7 @@ const brief = (paper: FeedPaper) => ({
 
 /** Ask the feed assistant; events stream in as it works. */
 export async function streamFeedChat(body: FeedChatRequest, onEvent: (event: FeedChatEvent) => void, signal?: AbortSignal): Promise<void> {
-  const response = await fetch(`${base}/api/feed-chat/stream`, {
+  const response = await apiFetch(`${base}/api/feed-chat/stream`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "text/event-stream", ...identityHeaders() },
     body: JSON.stringify({

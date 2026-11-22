@@ -6,6 +6,7 @@ import { m, AnimatePresence } from "framer-motion";
 import { LogoMark } from "@/components/LogoMark";
 import { GraphDescription } from "@/components/GraphDescription";
 import { CreditsMeter } from "@/components/CreditsMeter";
+import { AccountButton } from "@/components/AccountButton";
 import { TimelineData } from "@/lib/types";
 
 const MotionLink = m.create(Link);
@@ -289,6 +290,7 @@ export function AppHeader({
 
             {/* Credits indicator */}
             <CreditsMeter credits={credits} expandable={!timelineData} />
+            {!timelineData && <AccountButton />}
 
             {/* Canvas actions sit in the bar itself. */}
             {timelineData && (

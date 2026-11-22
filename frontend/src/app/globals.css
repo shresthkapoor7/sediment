@@ -2748,3 +2748,19 @@ a.landing-brand:hover {
   .canvas-history { position: static !important; }
   .canvas-history-popover { left: 50% !important; transform: translateX(-50%); width: min(17rem, calc(100vw - 2rem)) !important; }
 }
+
+/* Account: sign-in pill and avatar in the home header. */
+.account-button {
+  display: flex; align-items: center; height: 2rem; padding: 0 0.75rem; box-sizing: border-box;
+  border: 0.0625rem solid var(--border); border-radius: 0.4375rem; background: transparent;
+  color: var(--text-primary); font: 500 0.75rem var(--font-sans), sans-serif; cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.account-button:hover { border-color: var(--text-tertiary); background: var(--bg-tertiary); }
+.account-avatar {
+  display: grid; place-items: center; width: 1.75rem; height: 1.75rem; overflow: hidden; flex-shrink: 0;
+  border: 0.0625rem solid var(--border); border-radius: 50%; background: var(--bg-tertiary);
+  color: var(--text-secondary); font: 600 0.75rem var(--font-sans), sans-serif; text-decoration: none;
+}
+.account-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.account-avatar:hover { border-color: var(--text-tertiary); }
