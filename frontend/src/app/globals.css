@@ -1205,6 +1205,19 @@ html[data-theme="dark"] .canvas-shell {
   /* right: the credits ring, then Workspaces */
   .app-header-landing .app-header-credit { order: 1; margin-left: 0; }
   .app-header-landing .app-header-workspaces { order: 2; }
+  /* the account (avatar or Sign in) sits last, after a slash; the avatar matches the credits ring */
+  .app-header-landing :is(.account-avatar, .google-signin, .account-button) { order: 3; }
+  .app-header-landing .account-avatar { width: 1.125rem; height: 1.125rem; font-size: 0.5625rem; }
+  .app-header-landing .app-header-workspaces:has(+ :is(.account-avatar, .google-signin, .account-button)) {
+    padding-right: 0 !important;
+    margin-right: -0.25rem;
+  }
+  .app-header-landing .app-header-workspaces:has(+ :is(.account-avatar, .google-signin, .account-button))::after {
+    content: "/" / "";
+    margin-left: 0.5rem;
+    color: color-mix(in srgb, var(--text-tertiary) 55%, transparent);
+    user-select: none;
+  }
 
   .app-header-landing .app-header-workspaces {
     background: transparent !important;
