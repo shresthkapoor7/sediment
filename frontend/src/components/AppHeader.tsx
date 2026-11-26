@@ -7,7 +7,6 @@ import { LogoMark } from "@/components/LogoMark";
 import { GraphDescription } from "@/components/GraphDescription";
 import { CreditsMeter } from "@/components/CreditsMeter";
 import { AccountButton } from "@/components/AccountButton";
-import { useAuth } from "@/components/AuthProvider";
 import { TimelineData } from "@/lib/types";
 
 const MotionLink = m.create(Link);
@@ -64,8 +63,6 @@ export function AppHeader({
   saveGraphTitle,
   cancelGraphTitleEdit,
 }: AppHeaderProps) {
-  const { user, ready } = useAuth();
-  const signedIn = ready && !!user;
   // Compaction state lives here so toggling the graph dock only re-renders the
   // header — not the whole page tree. The home header never collapses: it scrolls
   // away with the page.
@@ -292,8 +289,8 @@ export function AppHeader({
             )}
 
             {/* Credits indicator */}
-            {!timelineData && <AccountButton credits={credits} />}
-            {(timelineData || !signedIn) && <CreditsMeter credits={credits} expandable={!timelineData} />}
+            {!timelineData && <AccountButton />}
+            <CreditsMeter credits={credits} expandable={!timelineData} />
 
             {/* Canvas actions sit in the bar itself. */}
             {timelineData && (

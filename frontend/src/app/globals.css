@@ -2757,19 +2757,13 @@ a.landing-brand:hover {
   transition: border-color 0.15s, background 0.15s;
 }
 .account-button:hover { border-color: var(--text-tertiary); background: var(--bg-tertiary); }
-/* The avatar wears the daily usage ring (replaces the separate meter when signed in). */
 .account-avatar {
-  display: grid; place-items: center; width: 2rem; height: 2rem; flex-shrink: 0; padding: 0.25rem; box-sizing: border-box;
-  border-radius: 50%; text-decoration: none;
-  background: conic-gradient(var(--credit-tone, var(--accent)) var(--credit-progress, 100%), var(--border) 0);
-  transition: filter 0.15s;
+  display: grid; place-items: center; width: 1.75rem; height: 1.75rem; overflow: hidden; flex-shrink: 0;
+  border: 0.0625rem solid var(--border); border-radius: 50%; background: var(--bg-tertiary);
+  color: var(--text-secondary); font: 600 0.75rem var(--font-sans), sans-serif; text-decoration: none;
 }
-.account-avatar > * {
-  display: grid; place-items: center; width: 100%; height: 100%; border-radius: 50%; overflow: hidden;
-  box-shadow: 0 0 0 0.125rem var(--bg-primary); background: var(--bg-tertiary);
-  color: var(--text-secondary); font: 600 0.75rem var(--font-sans), sans-serif; object-fit: cover;
-}
-.account-avatar:hover { filter: brightness(1.15); }
+.account-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.account-avatar:hover { border-color: var(--text-tertiary); }
 
 /* Google's real sign-in button sits invisibly over ours and takes the click (see GoogleSignIn.tsx). */
 .google-signin { position: relative; display: inline-flex; overflow: hidden; border-radius: 0.4375rem; }
