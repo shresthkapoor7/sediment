@@ -1207,11 +1207,19 @@ html[data-theme="dark"] .canvas-shell {
   .app-header-landing .app-header-workspaces { order: 2; }
   /* signed out, the Sign in button comes last, after a slash */
   .app-header-landing :is(.google-signin, .account-button) { order: 3; }
-  .app-header-landing .app-header-workspaces:has(+ :is(.google-signin, .account-button)) {
+  /* Sign in looks like Workspaces */
+  .app-header-landing .account-button {
+    border-color: transparent; background: transparent;
+    color: var(--text-tertiary); font-size: 0.8125rem;
+    transition: color 0.15s, background 0.15s;
+  }
+  .app-header-landing .google-signin:hover > .account-button,
+  .app-header-landing .account-button:hover { border-color: transparent; background: transparent; color: var(--text-primary); }
+  .app-header-landing .app-header-workspaces:has(~ :is(.google-signin, .account-button)) {
     padding-right: 0 !important;
     margin-right: 0.375rem;
   }
-  .app-header-landing .app-header-workspaces:has(+ :is(.google-signin, .account-button))::after {
+  .app-header-landing .app-header-workspaces:has(~ :is(.google-signin, .account-button))::after {
     content: "/" / "";
     margin-left: 0.5rem;
     color: color-mix(in srgb, var(--text-tertiary) 55%, transparent);
