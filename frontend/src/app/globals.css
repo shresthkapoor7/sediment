@@ -1224,7 +1224,7 @@ html[data-theme="dark"] .canvas-shell {
     position: absolute; left: 0.5rem; top: 50%; z-index: 1;
     width: 1.5rem; height: 1.5rem; margin-top: -0.75rem;
     display: grid; place-items: center;
-    transition: transform 320ms cubic-bezier(.3,.7,.2,1);
+    transition: transform 560ms cubic-bezier(.3,.7,.2,1);
   }
   :is(.app-header-landing, .credit-meter-bar) .app-header-credit-with-avatar.app-header-credit-with-avatar.app-header-credit-expanded .app-header-credit-avatar {
     z-index: 2; transform: rotate(-360deg);
@@ -1232,7 +1232,7 @@ html[data-theme="dark"] .canvas-shell {
   :is(.app-header-landing, .credit-meter-bar) .app-header-credit-with-avatar.app-header-credit-with-avatar:not(.app-header-credit-expanded) .app-header-credit-avatar { pointer-events: none; }
   :is(.app-header-landing, .credit-meter-bar) .app-header-credit-with-avatar.app-header-credit-with-avatar .app-header-credit-visual {
     margin-left: 1.5rem;
-    transition: width 320ms cubic-bezier(.3,.7,.2,1), margin-left 320ms cubic-bezier(.3,.7,.2,1);
+    transition: width 560ms cubic-bezier(.3,.7,.2,1), margin-left 560ms cubic-bezier(.3,.7,.2,1);
   }
   :is(.app-header-landing, .credit-meter-bar) .app-header-credit-with-avatar.app-header-credit-with-avatar.app-header-credit-expanded .app-header-credit-visual {
     margin-left: 1.875rem;
