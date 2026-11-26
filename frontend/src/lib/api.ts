@@ -381,6 +381,21 @@ export function getOrCreateAnonymousUserId(): string {
   return memoryAnonymousUserId;
 }
 
+export interface ClaimResult { status: string; graphs?: number; sessions?: number; files?: number }
+
+/** Moves this browser's anonymous canvases, chats and note files onto the signed-in account (safe to repeat). */
+export async function claimAnonymousWork(): Promise<ClaimResult> {
+  const response = await apiFetch(`${API_BASE}/api/account/claim`, {
+    method: "POST",
+    headers: { ...identityHeaders(), [USER_ID_HEADER]: getOrCreateAnonymousUserId() },
+  });
+  if (!response.ok) {
+    const detail = await readErrorDetail(response);
+    throw new APIError(detail || `Claim failed with status ${response.status}`, response.status);
+  }
+  return response.json();
+}
+
 export async function registerAnonymousUser(userId: string): Promise<void> {
   const response = await apiFetch(`${API_BASE}/api/users`, {
     method: "POST",
