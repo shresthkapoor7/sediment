@@ -42,8 +42,15 @@ async function sha256Hex(text: string): Promise<string> {
 }
 
 // One nonce at a time: Google gets its hash inside the token, Supabase gets the raw value and compares.
+// GIS keeps one global config, so initialize once per nonce rather than once per button on the page.
 let rawNonce = "";
-async function initialize(onDone?: () => void) {
+let afterSignIn: (() => void) | undefined;
+let initialized: Promise<void> | null = null;
+function ensureInitialized() {
+  initialized ??= initialize();
+  return initialized;
+}
+async function initialize() {
   rawNonce = crypto.randomUUID();
   const hashed = await sha256Hex(rawNonce);
   window.google!.accounts.id.initialize({
@@ -53,10 +60,10 @@ async function initialize(onDone?: () => void) {
     callback: async ({ credential }: { credential: string }) => {
       const nonce = rawNonce;
       // Re-arm with a fresh nonce straight away so a retry never reuses one.
-      void initialize();
+      initialized = initialize();
       const { error } = await supabase()!.auth.signInWithIdToken({ provider: "google", token: credential, nonce });
       if (error) console.error("Google sign-in failed", error);
-      else onDone?.();
+      else afterSignIn?.();
     },
   });
 }
@@ -69,7 +76,10 @@ export function GoogleSignIn({ className, children, next }: { className?: string
     if (!GOOGLE_CLIENT_ID) return;
     let cancelled = false;
     loadScript()
-      .then(() => initialize(next ? () => { window.location.assign(next); } : undefined))
+      .then(() => {
+        afterSignIn = next ? () => { window.location.assign(next); } : undefined;
+        return ensureInitialized();
+      })
       .then(() => {
         if (cancelled || !overlay.current) return;
         const width = Math.max(200, Math.ceil(overlay.current.getBoundingClientRect().width));
