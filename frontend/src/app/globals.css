@@ -1221,7 +1221,9 @@ html[data-theme="dark"] .canvas-shell {
   /* signed out, the Sign in button comes last, after a slash */
   .app-header-landing :is(.google-signin, .account-button) { order: 3; }
   /* Sign in shares Workspaces' look (above) and box */
-  .app-header-landing .account-button { border-color: transparent; transition: color 0.15s; }
+  .app-header-landing .account-button,
+  .app-header-landing .account-button:is(:hover, :focus-visible),
+  .app-header-landing .google-signin:hover > .account-button { border-color: transparent !important; transition: color 0.15s; }
   .app-header-landing .app-header-workspaces:has(~ :is(.google-signin, .account-button)) {
     padding-right: 0 !important;
     /* slash 0.5rem from the Sign in text (its 0.75rem padding + 2px gap) */
