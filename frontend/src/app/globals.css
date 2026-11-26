@@ -1205,29 +1205,28 @@ html[data-theme="dark"] .canvas-shell {
   /* right: the credits ring, then Workspaces */
   .app-header-landing .app-header-credit { order: 1; margin-left: 0; }
   .app-header-landing .app-header-workspaces { order: 2; }
-  /* the account (avatar or Sign in) sits last, after a slash; the avatar matches the credits ring */
-  .app-header-landing :is(.account-avatar, .google-signin, .account-button) { order: 3; }
-  .app-header-landing .app-header-workspaces:has(+ :is(.account-avatar, .google-signin, .account-button)) {
+  /* signed out: ring / Workspaces / Sign in. Signed in: the avatar (inside the usage ring) takes the ring's
+     place on the left, with a slash before Workspaces. */
+  .app-header-landing :is(.google-signin, .account-button) { order: 3; }
+  .app-header-landing .app-header-workspaces:has(+ :is(.google-signin, .account-button)) {
     padding-right: 0 !important;
     margin-right: 0.375rem;
   }
-  .app-header-landing .app-header-workspaces:has(+ :is(.account-avatar, .google-signin, .account-button))::after {
+  .app-header-landing .app-header-workspaces:has(+ :is(.google-signin, .account-button))::after {
     content: "/" / "";
     margin-left: 0.5rem;
     color: color-mix(in srgb, var(--text-tertiary) 55%, transparent);
     user-select: none;
   }
-
-  .app-header-landing .app-header-workspaces {
-    background: transparent !important;
-    color: var(--text-tertiary) !important;
-    font-size: 0.8125rem !important;
+  .app-header-landing .account-avatar { order: 1; margin-right: -0.375rem; }
+  .app-header-landing .account-avatar::after {
+    content: "/" / "";
+    position: absolute; left: calc(100% + 0.5rem);
+    color: color-mix(in srgb, var(--text-tertiary) 55%, transparent);
+    font: 400 0.8125rem var(--font-sans), sans-serif;
+    user-select: none;
   }
-
-  .app-header-landing .app-header-workspaces:hover {
-    background: transparent !important;
-    color: var(--text-primary) !important;
-  }
+  .app-header-landing .account-avatar { position: relative; margin-right: calc(0.5rem + 0.4rem + 0.5rem - 0.75rem - 2px); }
 
   /* credits: the ring by default (the compact form); clicking it swaps in the bars and count. A
      slash after it separates the meter from Workspaces. */
