@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import type { User } from "@supabase/supabase-js";
 import { claimAnonymousWork, getOrCreateAnonymousUserId, markSessionReady, setAccessToken } from "@/lib/api";
 import { authEnabled, supabase } from "@/lib/supabase";
+import { setWorkspaceOwner } from "@/lib/workspaces";
 
 interface AuthState {
   /** False until the stored session has been read, so the UI does not flash "Sign in" for a signed-in user. */
@@ -51,6 +52,11 @@ async function claim(accountId: string) {
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [ready, setReady] = useState(!authEnabled);
+
+  // Workspaces categories follow whoever is signed in (after the claim, so moved canvases are already theirs).
+  useEffect(() => {
+    if (ready) void setWorkspaceOwner(user?.id ?? null);
+  }, [ready, user?.id]);
 
   useEffect(() => {
     const client = supabase();

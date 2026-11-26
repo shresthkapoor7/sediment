@@ -1,9 +1,10 @@
 """Account-only routes. Phase A5: claiming the work an anonymous browser made before signing in."""
 
 import logging
-from typing import Optional
+import json
+from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Body, Depends, Header, HTTPException
 
 from ..actor import Actor, current_account
 from ..db.supabase import SupabaseAPIError, SupabaseClient
@@ -39,3 +40,35 @@ async def claim_browser_work(
     if (result or {}).get("status") == "taken":
         raise HTTPException(status_code=409, detail="This browser's canvases already belong to another account.")
     return result
+
+
+MAX_CATEGORIES = 200
+MAX_LAYOUT_BYTES = 256 * 1024
+
+
+@router.get("/account/workspaces")
+async def get_workspace_layout(account: Actor = Depends(current_account), db: SupabaseClient = Depends(get_db)):
+    """The account's Workspaces categories (names, looks, columns and which canvases sit in each).
+    `null` when the account has never saved any, so the browser can upload what it has."""
+    try:
+        return {"categories": await db.get_workspace_layout(_normalise_uuid(account.id, "accountId"))}
+    except SupabaseAPIError as exc:
+        raise HTTPException(status_code=502, detail="Could not load your workspaces.") from exc
+
+
+@router.put("/account/workspaces")
+async def save_workspace_layout(
+    categories: list[Any] = Body(..., embed=True),
+    account: Actor = Depends(current_account),
+    db: SupabaseClient = Depends(get_db),
+):
+    # The browser validates entries when it reads them; here only bound the size.
+    if len(categories) > MAX_CATEGORIES or len(json.dumps(categories)) > MAX_LAYOUT_BYTES:
+        raise HTTPException(status_code=413, detail="Too many workspace categories.")
+    if not all(isinstance(entry, dict) for entry in categories):
+        raise HTTPException(status_code=400, detail="Each category must be an object.")
+    try:
+        await db.save_workspace_layout(_normalise_uuid(account.id, "accountId"), categories)
+    except SupabaseAPIError as exc:
+        raise HTTPException(status_code=502, detail="Could not save your workspaces.") from exc
+    return {"ok": True}

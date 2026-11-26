@@ -1,8 +1,10 @@
 "use client";
 
 import { useMemo, useSyncExternalStore } from "react";
+import { fetchWorkspaceLayout, saveWorkspaceLayout } from "@/lib/api";
 
-// Workspace categories live in this browser, next to the anonymous user id the canvases belong to.
+// Anonymous: workspace categories live in this browser, next to the anonymous user id the canvases belong to.
+// Signed in: they belong to the account and are saved on the server; the browser keeps a cached copy per account.
 // A canvas is in at most one category; anything not listed is "Unsorted".
 // `icon` and `color` are ids from the category picker; both are optional and fall back to a plain folder.
 // `column` is which of the board's columns the category sits in (0 to BOARD_COLUMNS - 1); within a column,
@@ -10,8 +12,53 @@ import { useMemo, useSyncExternalStore } from "react";
 export type WorkspaceCategory = { id: string; name: string; graphIds: string[]; icon?: string; color?: string; column?: number };
 export type CategoryLook = { icon?: string; color?: string };
 
-const key = "sediment_workspaces_v1";
+const baseKey = "sediment_workspaces_v1";
 const event = "sediment-workspaces";
+
+let owner: string | null = null;
+const key = () => (owner ? `${baseKey}:${owner}` : baseKey);
+const readKey = (k: string) => { try { return localStorage.getItem(k); } catch { return null; } };
+const notify = () => window.dispatchEvent(new Event(event));
+
+/**
+ * Switches Workspaces to the signed-in account (or back to this browser's anonymous set with `null`).
+ * On sign-in the account's saved categories are loaded; categories made anonymously in this browser are merged
+ * in once and then cleared here, the same way the canvases themselves move to the account.
+ */
+export async function setWorkspaceOwner(accountId: string | null) {
+  if (owner === accountId) return;
+  owner = accountId;
+  memory = null;
+  notify();
+  if (!accountId) return;
+  try {
+    const saved = parse(JSON.stringify((await fetchWorkspaceLayout()) ?? []));
+    if (owner !== accountId) return;
+    const anonymous = parse(readKey(baseKey) || "[]");
+    const known = new Set(saved.map(category => category.id));
+    const merged = [...anonymous.filter(category => !known.has(category.id)), ...saved];
+    try { localStorage.setItem(key(), JSON.stringify(merged)); } catch { memory = JSON.stringify(merged); }
+    if (anonymous.length) {
+      await saveWorkspaceLayout(merged);
+      try { localStorage.removeItem(baseKey); } catch { /* fine */ }
+    }
+    notify();
+  } catch (error) {
+    // Offline or the API is down: keep showing the cached copy; the next save retries.
+    console.error("Loading workspaces from the account failed", error);
+  }
+}
+
+// Saves to the account shortly after the last change, so a drag that writes several times sends one request.
+let saveTimer: ReturnType<typeof setTimeout> | null = null;
+function scheduleSave(categories: WorkspaceCategory[]) {
+  if (!owner) return;
+  if (saveTimer) clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    saveTimer = null;
+    saveWorkspaceLayout(categories).catch(error => console.error("Saving workspaces failed", error));
+  }, 600);
+}
 
 function subscribe(callback: () => void) {
   window.addEventListener("storage", callback);
@@ -25,7 +72,7 @@ function subscribe(callback: () => void) {
 let memory: string | null = null;
 const snapshot = () => {
   if (memory !== null) return memory;
-  try { return localStorage.getItem(key) || "[]"; } catch { return "[]"; }
+  try { return localStorage.getItem(key()) || "[]"; } catch { return "[]"; }
 };
 const serverSnapshot = () => "[]";
 
@@ -47,8 +94,9 @@ function parse(raw: string): WorkspaceCategory[] {
 
 function write(categories: WorkspaceCategory[]) {
   const raw = JSON.stringify(categories);
-  try { localStorage.setItem(key, raw); memory = null; } catch { memory = raw; }
-  window.dispatchEvent(new Event(event));
+  try { localStorage.setItem(key(), raw); memory = null; } catch { memory = raw; }
+  notify();
+  scheduleSave(categories);
 }
 const read = () => parse(snapshot());
 

@@ -396,6 +396,22 @@ export async function claimAnonymousWork(): Promise<ClaimResult> {
   return response.json();
 }
 
+/** The signed-in account's Workspaces categories; `null` when it has never saved any. */
+export async function fetchWorkspaceLayout(): Promise<unknown[] | null> {
+  const response = await apiFetch(`${API_BASE}/api/account/workspaces`, { headers: identityHeaders() });
+  if (!response.ok) throw new APIError(`Loading workspaces failed with status ${response.status}`, response.status);
+  return (await response.json()).categories ?? null;
+}
+
+export async function saveWorkspaceLayout(categories: unknown[]): Promise<void> {
+  const response = await apiFetch(`${API_BASE}/api/account/workspaces`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...identityHeaders() },
+    body: JSON.stringify({ categories }),
+  });
+  if (!response.ok) throw new APIError(`Saving workspaces failed with status ${response.status}`, response.status);
+}
+
 export async function registerAnonymousUser(userId: string): Promise<void> {
   const response = await apiFetch(`${API_BASE}/api/users`, {
     method: "POST",
