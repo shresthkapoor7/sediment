@@ -6,7 +6,7 @@ import { m, AnimatePresence } from "framer-motion";
 import { LogoMark } from "@/components/LogoMark";
 import { GraphDescription } from "@/components/GraphDescription";
 import { CreditsMeter } from "@/components/CreditsMeter";
-import { AccountButton } from "@/components/AccountButton";
+import { AccountAvatar, AccountButton } from "@/components/AccountButton";
 import { useAuth } from "@/components/AuthProvider";
 import { TimelineData } from "@/lib/types";
 
@@ -64,7 +64,7 @@ export function AppHeader({
   saveGraphTitle,
   cancelGraphTitleEdit,
 }: AppHeaderProps) {
-  // Signed in, the home header shows usage as a ring around the avatar instead of the separate meter.
+  // Signed in, the home header puts the avatar inside the usage ring.
   const { user, ready } = useAuth();
   const signedIn = ready && !!user;
   // Compaction state lives here so toggling the graph dock only re-renders the
@@ -293,8 +293,12 @@ export function AppHeader({
             )}
 
             {/* Credits indicator */}
-            {!timelineData && <AccountButton credits={credits} />}
-            {(timelineData || !signedIn) && <CreditsMeter credits={credits} expandable={!timelineData} />}
+            <CreditsMeter
+              credits={credits}
+              expandable={!timelineData}
+              avatar={!timelineData && signedIn ? <AccountAvatar /> : undefined}
+            />
+            {!timelineData && <AccountButton />}
 
             {/* Canvas actions sit in the bar itself. */}
             {timelineData && (

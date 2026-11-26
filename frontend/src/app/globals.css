@@ -1205,8 +1205,7 @@ html[data-theme="dark"] .canvas-shell {
   /* right: the credits ring, then Workspaces */
   .app-header-landing .app-header-credit { order: 1; margin-left: 0; }
   .app-header-landing .app-header-workspaces { order: 2; }
-  /* signed out: ring / Workspaces / Sign in. Signed in: the avatar (inside the usage ring) takes the ring's
-     place on the left, with a slash before Workspaces. */
+  /* signed out, the Sign in button comes last, after a slash */
   .app-header-landing :is(.google-signin, .account-button) { order: 3; }
   .app-header-landing .app-header-workspaces:has(+ :is(.google-signin, .account-button)) {
     padding-right: 0 !important;
@@ -1218,15 +1217,34 @@ html[data-theme="dark"] .canvas-shell {
     color: color-mix(in srgb, var(--text-tertiary) 55%, transparent);
     user-select: none;
   }
-  .app-header-landing .account-avatar { order: 1; }
-  .app-header-landing .account-avatar::after {
-    content: "/" / "";
-    position: absolute; left: calc(100% + 0.5rem);
-    color: color-mix(in srgb, var(--text-tertiary) 55%, transparent);
-    font: 400 0.8125rem var(--font-sans), sans-serif;
-    user-select: none;
+
+  /* Signed in: the avatar sits inside a larger ring. Opening the meter rolls the avatar left (one turn while
+     the bars unfold to its right) and the ring fades; the avatar then links to the account page. */
+  :is(.app-header-landing, .credit-meter-bar) .app-header-credit-with-avatar.app-header-credit-with-avatar .app-header-credit-avatar {
+    position: absolute; left: 0.5rem; top: 50%; z-index: 0;
+    width: 1.5rem; height: 1.5rem; margin-top: -0.75rem;
+    display: grid; place-items: center;
+    transition: transform 320ms cubic-bezier(.3,.7,.2,1);
   }
-  .app-header-landing .account-avatar { position: relative; margin-right: calc(0.5rem + 0.4rem + 0.5rem - 0.75rem - 2px); }
+  :is(.app-header-landing, .credit-meter-bar) .app-header-credit-with-avatar.app-header-credit-with-avatar.app-header-credit-expanded .app-header-credit-avatar {
+    z-index: 2; transform: rotate(-360deg);
+  }
+  :is(.app-header-landing, .credit-meter-bar) .app-header-credit-with-avatar.app-header-credit-with-avatar:not(.app-header-credit-expanded) .app-header-credit-avatar { pointer-events: none; }
+  :is(.app-header-landing, .credit-meter-bar) .app-header-credit-with-avatar.app-header-credit-with-avatar .app-header-credit-visual {
+    margin-left: 1.5rem;
+    transition: width 320ms cubic-bezier(.3,.7,.2,1), margin-left 320ms cubic-bezier(.3,.7,.2,1);
+  }
+  :is(.app-header-landing, .credit-meter-bar) .app-header-credit-with-avatar.app-header-credit-with-avatar.app-header-credit-expanded .app-header-credit-visual {
+    margin-left: 1.875rem;
+  }
+  :is(.app-header-landing, .credit-meter-bar) .app-header-credit-with-avatar.app-header-credit-with-avatar:not(.app-header-credit-expanded) .app-header-credit-visual {
+    width: 0;
+  }
+  :is(.app-header-landing, .credit-meter-bar) .app-header-credit-with-avatar.app-header-credit-with-avatar:not(.app-header-credit-expanded) .app-header-credit-ring {
+    left: -1.5rem; top: 50%; margin-top: -0.75rem; width: 1.5rem; height: 1.5rem;
+  }
+  :is(.app-header-landing, .credit-meter-bar) .app-header-credit-with-avatar.app-header-credit-with-avatar .app-header-credit-ring::after { inset: 0.125rem; }
+  :is(.app-header-landing, .credit-meter-bar) .app-header-credit-with-avatar.app-header-credit-with-avatar.app-header-credit-expanded .app-header-credit-ring { left: -1.5rem; top: 50%; margin-top: -0.75rem; }
 
   /* credits: the ring by default (the compact form); clicking it swaps in the bars and count. A
      slash after it separates the meter from Workspaces. */
@@ -2769,18 +2787,12 @@ a.landing-brand:hover {
   transition: border-color 0.15s, background 0.15s;
 }
 .account-button:hover { border-color: var(--text-tertiary); background: var(--bg-tertiary); }
-/* The avatar sits inside the daily usage ring (the same ring the meter shows when signed out). */
 .account-avatar {
-  display: grid; place-items: center; width: 1.5rem; height: 1.5rem; flex-shrink: 0; padding: 0.1875rem; box-sizing: border-box;
-  border-radius: 50%; text-decoration: none;
-  background: conic-gradient(var(--text-tertiary) var(--credit-progress, 100%), var(--border) 0);
+  display: grid; place-items: center; width: 1.25rem; height: 1.25rem; overflow: hidden; flex-shrink: 0;
+  border-radius: 50%; background: var(--bg-tertiary);
+  color: var(--text-secondary); font: 600 0.5625rem var(--font-sans), sans-serif; text-decoration: none;
 }
-.account-avatar > * {
-  display: grid; place-items: center; width: 100%; height: 100%; border-radius: 50%; overflow: hidden;
-  box-shadow: 0 0 0 0.0625rem var(--bg-primary); background: var(--bg-tertiary);
-  color: var(--text-secondary); font: 600 0.5rem var(--font-sans), sans-serif; object-fit: cover;
-}
-.account-avatar:hover { background: conic-gradient(var(--text-primary) var(--credit-progress, 100%), var(--border) 0); }
+.account-avatar img { width: 100%; height: 100%; object-fit: cover; }
 
 /* Google's real sign-in button sits invisibly over ours and takes the click (see GoogleSignIn.tsx). */
 .google-signin { position: relative; display: inline-flex; overflow: hidden; border-radius: 0.4375rem; }
