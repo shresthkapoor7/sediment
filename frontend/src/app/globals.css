@@ -1205,19 +1205,27 @@ html[data-theme="dark"] .canvas-shell {
   /* right: the credits ring, then Workspaces */
   .app-header-landing .app-header-credit { order: 1; margin-left: 0; }
   .app-header-landing .app-header-workspaces { order: 2; }
+
+  .app-header-landing :is(.app-header-workspaces, .account-button) {
+    background: transparent !important;
+    color: var(--text-tertiary) !important;
+    font-size: 0.8125rem !important;
+  }
+
+  .app-header-landing :is(.app-header-workspaces, .account-button):hover,
+  .app-header-landing .google-signin:hover > .account-button {
+    background: transparent !important;
+    color: var(--text-primary) !important;
+  }
+
   /* signed out, the Sign in button comes last, after a slash */
   .app-header-landing :is(.google-signin, .account-button) { order: 3; }
-  /* Sign in looks like Workspaces */
-  .app-header-landing .account-button {
-    border-color: transparent; background: transparent;
-    color: var(--text-tertiary); font-size: 0.8125rem;
-    transition: color 0.15s, background 0.15s;
-  }
-  .app-header-landing .google-signin:hover > .account-button,
-  .app-header-landing .account-button:hover { border-color: transparent; background: transparent; color: var(--text-primary); }
+  /* Sign in shares Workspaces' look (above) and box */
+  .app-header-landing .account-button { border-color: transparent; transition: color 0.15s; }
   .app-header-landing .app-header-workspaces:has(~ :is(.google-signin, .account-button)) {
     padding-right: 0 !important;
-    margin-right: 0.375rem;
+    /* slash 0.5rem from the Sign in text (its 0.75rem padding + 2px gap) */
+    margin-right: -0.375rem;
   }
   .app-header-landing .app-header-workspaces:has(~ :is(.google-signin, .account-button))::after {
     content: "/" / "";
