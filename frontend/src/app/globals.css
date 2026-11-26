@@ -2817,17 +2817,17 @@ a.landing-brand:hover {
 :is(.app-header-landing, .credit-meter-bar) .app-header-credit-expanded .app-header-credit-bars > * {
   animation: credit-cell-inflate 260ms cubic-bezier(.3,.7,.2,1) both;
 }
-:is(.app-header-landing, .credit-meter-bar) .app-header-credit-expanded .app-header-credit-bars > :nth-last-child(1) { animation-delay: 380ms; }
-:is(.app-header-landing, .credit-meter-bar) .app-header-credit-expanded .app-header-credit-bars > :nth-last-child(2) { animation-delay: 425ms; }
-:is(.app-header-landing, .credit-meter-bar) .app-header-credit-expanded .app-header-credit-bars > :nth-last-child(3) { animation-delay: 470ms; }
-:is(.app-header-landing, .credit-meter-bar) .app-header-credit-expanded .app-header-credit-bars > :nth-last-child(4) { animation-delay: 515ms; }
-:is(.app-header-landing, .credit-meter-bar) .app-header-credit-expanded .app-header-credit-bars > :nth-last-child(5) { animation-delay: 560ms; }
-:is(.app-header-landing, .credit-meter-bar) .app-header-credit-expanded .app-header-credit-bars > :nth-last-child(6) { animation-delay: 605ms; }
-:is(.app-header-landing, .credit-meter-bar) .app-header-credit-expanded .app-header-credit-bars > :nth-last-child(7) { animation-delay: 650ms; }
-:is(.app-header-landing, .credit-meter-bar) .app-header-credit-expanded .app-header-credit-bars > :nth-last-child(8) { animation-delay: 695ms; }
-:is(.app-header-landing, .credit-meter-bar) .app-header-credit-expanded .app-header-credit-bars > :nth-last-child(9) { animation-delay: 740ms; }
-:is(.app-header-landing, .credit-meter-bar) .app-header-credit-expanded .app-header-credit-bars > :nth-last-child(10) { animation-delay: 785ms; }
-:is(.app-header-landing, .credit-meter-bar) .app-header-credit-expanded .app-header-credit-bars > :nth-last-child(11) { animation-delay: 830ms; }
+:is(.app-header-landing, .credit-meter-bar) .app-header-credit-expanded .app-header-credit-bars > :nth-last-child(1) { animation-delay: 200ms; }
+:is(.app-header-landing, .credit-meter-bar) .app-header-credit-expanded .app-header-credit-bars > :nth-last-child(2) { animation-delay: 245ms; }
+:is(.app-header-landing, .credit-meter-bar) .app-header-credit-expanded .app-header-credit-bars > :nth-last-child(3) { animation-delay: 290ms; }
+:is(.app-header-landing, .credit-meter-bar) .app-header-credit-expanded .app-header-credit-bars > :nth-last-child(4) { animation-delay: 335ms; }
+:is(.app-header-landing, .credit-meter-bar) .app-header-credit-expanded .app-header-credit-bars > :nth-last-child(5) { animation-delay: 380ms; }
+:is(.app-header-landing, .credit-meter-bar) .app-header-credit-expanded .app-header-credit-bars > :nth-last-child(6) { animation-delay: 425ms; }
+:is(.app-header-landing, .credit-meter-bar) .app-header-credit-expanded .app-header-credit-bars > :nth-last-child(7) { animation-delay: 470ms; }
+:is(.app-header-landing, .credit-meter-bar) .app-header-credit-expanded .app-header-credit-bars > :nth-last-child(8) { animation-delay: 515ms; }
+:is(.app-header-landing, .credit-meter-bar) .app-header-credit-expanded .app-header-credit-bars > :nth-last-child(9) { animation-delay: 560ms; }
+:is(.app-header-landing, .credit-meter-bar) .app-header-credit-expanded .app-header-credit-bars > :nth-last-child(10) { animation-delay: 605ms; }
+:is(.app-header-landing, .credit-meter-bar) .app-header-credit-expanded .app-header-credit-bars > :nth-last-child(11) { animation-delay: 650ms; }
 @media (prefers-reduced-motion: reduce) {
   :is(.app-header-landing, .credit-meter-bar) .app-header-credit-expanded .app-header-credit-bars,
   :is(.app-header-landing, .credit-meter-bar) .app-header-credit-expanded .app-header-credit-bars > * { animation: none; }
