@@ -2799,3 +2799,18 @@ a.landing-brand:hover {
 .google-signin-overlay { position: absolute; inset: 0; opacity: 0.0001; overflow: hidden; }
 .google-signin-overlay > div { position: absolute; top: 50%; left: 0; transform: translateY(-50%); }
 .google-signin:hover > button { border-color: var(--text-tertiary); background: var(--bg-tertiary); }
+
+/* Opening the meter inflates the battery like an air mattress: it unrolls to full width while flat, then fills
+   out to full height. */
+@keyframes credit-bars-inflate {
+  0%   { opacity: 1; transform: scale(0, 0.2); }
+  55%  { opacity: 1; transform: scale(1, 0.2); }
+  100% { opacity: 1; transform: scale(1, 1); }
+}
+:is(.app-header-landing, .credit-meter-bar) .app-header-credit-expanded .app-header-credit-bars {
+  transform-origin: left center;
+  animation: credit-bars-inflate 700ms cubic-bezier(.3,.7,.2,1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  :is(.app-header-landing, .credit-meter-bar) .app-header-credit-expanded .app-header-credit-bars { animation: none; }
+}
