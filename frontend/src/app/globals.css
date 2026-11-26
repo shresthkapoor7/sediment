@@ -2770,3 +2770,9 @@ a.landing-brand:hover {
   color: var(--text-secondary); font: 600 0.75rem var(--font-sans), sans-serif; object-fit: cover;
 }
 .account-avatar:hover { filter: brightness(1.15); }
+
+/* Google's real sign-in button sits invisibly over ours and takes the click (see GoogleSignIn.tsx). */
+.google-signin { position: relative; display: inline-flex; overflow: hidden; border-radius: 0.4375rem; }
+.google-signin-overlay { position: absolute; inset: 0; opacity: 0.0001; overflow: hidden; }
+.google-signin-overlay > div { position: absolute; top: 50%; left: 0; transform: translateY(-50%); }
+.google-signin:hover > button { border-color: var(--text-tertiary); background: var(--bg-tertiary); }

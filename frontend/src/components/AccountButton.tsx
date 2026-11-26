@@ -2,17 +2,16 @@
 
 import Link from "next/link";
 import { useAuth } from "@/components/AuthProvider";
+import { GoogleSignIn } from "@/components/GoogleSignIn";
 
 /** "Sign in" when anonymous, the account's avatar (linking to the account page) when signed in. */
 export function AccountButton({ credits }: { credits: number }) {
-  const { ready, user, enabled, signIn } = useAuth();
+  const { ready, user, enabled } = useAuth();
   if (!enabled || !ready) return null;
 
   if (!user) {
     return (
-      <button type="button" className="account-button" onClick={() => void signIn()}>
-        Sign in
-      </button>
+      <GoogleSignIn className="account-button">Sign in</GoogleSignIn>
     );
   }
 

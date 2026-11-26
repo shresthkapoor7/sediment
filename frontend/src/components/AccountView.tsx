@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { AsciiBackdrop } from "@/components/AsciiBackdrop";
+import { GoogleSignIn } from "@/components/GoogleSignIn";
 import { useAuth } from "@/components/AuthProvider";
 import { LogoMark } from "@/components/LogoMark";
 import { fetchUsage } from "@/lib/api";
@@ -12,7 +13,7 @@ import styles from "./AccountView.module.css";
 type Usage = Awaited<ReturnType<typeof fetchUsage>>;
 
 export function AccountView() {
-  const { ready, user, enabled, signIn, signOut } = useAuth();
+  const { ready, user, enabled, signOut } = useAuth();
   const [usage, setUsage] = useState<Usage | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -57,7 +58,7 @@ export function AccountView() {
                 Your canvases live in this browser for now. Sign in with Google to keep them with your account,
                 use them on any device, and get a larger daily allowance.
               </p>
-              <button type="button" className={styles.primary} onClick={() => void signIn("/account")}>Sign in with Google</button>
+              <GoogleSignIn className={styles.primary}>Sign in with Google</GoogleSignIn>
             </section>
           ) : (
             <>
