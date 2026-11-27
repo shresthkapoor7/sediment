@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { getBackendBaseUrl, identityHeaders } from "../../../_lib/backend-proxy";
-import { applyCanvasOps, isCanvasOp, MAX_OPS_PER_COMMIT, type CanvasOp, type CanvasOpSource } from "@/lib/canvas-ops";
+import { applyCanvasOps, isCanvasOp, loadCanvasData, MAX_OPS_PER_COMMIT, type CanvasOp, type CanvasOpSource } from "@/lib/canvas-ops";
 import type { TimelineData } from "@/lib/types";
 
 // Each attempt reads the canvas, applies the ops and commits against the version it read. A 409 means another
@@ -33,8 +33,9 @@ export async function POST(request: NextRequest, context: { params: Promise<{ gr
     if (!current.ok) return new NextResponse(current.body, { status: current.status, headers: NO_STORE });
     const graph = await current.json() as { data: TimelineData; version: number };
 
-    const data = applyCanvasOps(graph.data, ops as CanvasOp[]);
-    if (data === graph.data) return NextResponse.json({ version: graph.version, data, changed: false }, { headers: NO_STORE });
+    const loaded = loadCanvasData(graph.data);
+    const data = applyCanvasOps(loaded, ops as CanvasOp[]);
+    if (data === loaded) return NextResponse.json({ version: graph.version, data, changed: false }, { headers: NO_STORE });
 
     const commit = await fetch(`${base}/ops/commit`, {
       method: "POST",

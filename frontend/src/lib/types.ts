@@ -427,6 +427,8 @@ export interface SavedGraph {
   shareId?: string | null;
   createdAt: string;
   updatedAt: string;
+  /** Counts changes to `data`; canvas operations are committed against it. */
+  version?: number;
 }
 
 export interface SavedGraphListItem {

@@ -1,3 +1,4 @@
+import type { CanvasOp, CanvasOpSource } from "./canvas-ops";
 import {
   CanvasDetails,
   GlobalChatResponse,
@@ -443,6 +444,22 @@ export async function createSavedGraph(input: {
     throw new APIError(detail || `Save failed with status ${response.status}`, response.status);
   }
 
+  return response.json();
+}
+
+export interface CanvasOpsResult { version: number; data: TimelineData; changed: boolean }
+
+/** Sends canvas operations to the Next.js ops route, which applies them on the server and logs who made them. */
+export async function postCanvasOps(graphId: string, ops: CanvasOp[], via: CanvasOpSource): Promise<CanvasOpsResult> {
+  const response = await apiFetch(`/api/graphs/${encodeURIComponent(graphId)}/ops`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...identityHeaders() },
+    body: JSON.stringify({ ops, via }),
+  });
+  if (!response.ok) {
+    const detail = await readErrorDetail(response);
+    throw new APIError(detail || `Saving the canvas failed with status ${response.status}`, response.status);
+  }
   return response.json();
 }
 
