@@ -8,7 +8,7 @@ import { LogoMark } from "@/components/LogoMark";
 import { LAST_GRAPH_ID_KEY, deleteSavedGraph, fetchUsage, getOrCreateAnonymousUserId, lastKnownUsageSegments, listSavedGraphs } from "@/lib/api";
 import type { SavedGraphListItem } from "@/lib/types";
 import { BOARD_COLUMNS, UNSORTED, categoryColumns, useWorkspaces, type CategoryLook } from "@/lib/workspaces";
-import { CreditsMeter } from "@/components/CreditsMeter";
+import { SiteNav } from "@/components/SiteNav";
 import { CategoryIcon, CategoryPicker, colorValue } from "./CategoryStyle";
 import styles from "./WorkspacesView.module.css";
 
@@ -378,8 +378,7 @@ export function WorkspacesView() {
     <div className={styles.page}>
       <header className={styles.topbar}>
         <Link href="/" className={styles.brand}><LogoMark width="28" height="28" /><span>Sediment</span></Link>
-        <div className="credit-meter-bar"><CreditsMeter credits={credits} expandable /></div>
-        <span className={styles.here} aria-current="page">Workspaces</span>
+        <SiteNav credits={credits} current="workspaces" />
       </header>
 
       <main className={styles.main}>
