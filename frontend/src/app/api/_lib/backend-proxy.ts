@@ -22,7 +22,7 @@ export function getBackendBaseUrl(): string {
 
 /** Pass the caller's identity through: the account token, the anonymous browser ID and the feed credential. */
 const IDENTITY_HEADERS = { authorization: "Authorization", "x-sediment-user": "X-Sediment-User", "x-sediment-feed": "X-Sediment-Feed" };
-function identityHeaders(request: NextRequest): Record<string, string> {
+export function identityHeaders(request: NextRequest): Record<string, string> {
   const headers: Record<string, string> = {};
   for (const [incoming, outgoing] of Object.entries(IDENTITY_HEADERS)) {
     const value = request.headers.get(incoming);

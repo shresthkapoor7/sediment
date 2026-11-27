@@ -14,6 +14,8 @@ from ..services.special_notes import (
     redact_special_notes_from_shared_graph_data,
 )
 from ..models import (
+    CommitCanvasOpsRequest,
+    CommitCanvasOpsResponse,
     GraphListItem,
     GraphListResponse,
     GraphRecord,
@@ -60,6 +62,7 @@ def to_graph_record(row: dict) -> GraphRecord:
         shareId=row.get("share_id"),
         createdAt=row["created_at"],
         updatedAt=row["updated_at"],
+        version=row.get("version") or 0,
     )
 
 
@@ -145,6 +148,27 @@ async def update_graph(graph_id: str, req: UpdateGraphRequest, actor: Actor = De
         raise HTTPException(status_code=404, detail="graph not found")
 
     return to_graph_record(row)
+
+
+@router.post("/graphs/{graph_id}/ops/commit", response_model=CommitCanvasOpsResponse)
+async def commit_canvas_ops(graph_id: str, req: CommitCanvasOpsRequest, actor: Actor = Depends(current_actor)):
+    """Stores the result of a batch of canvas operations if the canvas is still at `baseVersion`, and logs them.
+
+    409 means someone else changed the canvas first: the caller reloads, re-applies its operations and retries.
+    """
+    graph = _normalise_uuid(graph_id, "graphId")
+    owner = _normalise_uuid(actor.id, "userId")
+    try:
+        version = await get_db().rpc("commit_canvas_ops", {
+            "p_graph_id": graph, "p_user_id": owner, "p_base_version": req.baseVersion, "p_data": req.data,
+            "p_ops": req.ops, "p_actor_kind": actor.kind, "p_actor_id": actor.id, "p_via": req.via,
+        })
+    except SupabaseAPIError as e:
+        logger.warning("Canvas commit failed for graph_id=%r", graph_id, exc_info=e)
+        raise HTTPException(status_code=502, detail="Failed to save the canvas.") from e
+    if version is None or version == []:
+        raise HTTPException(status_code=409, detail="The canvas changed; reload and try again.")
+    return CommitCanvasOpsResponse(version=int(version))
 
 
 @router.post("/graphs/{graph_id}/share", response_model=ShareGraphResponse)

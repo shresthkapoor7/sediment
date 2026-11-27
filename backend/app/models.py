@@ -553,6 +553,20 @@ class GraphRecord(BaseModel):
     shareId: Optional[str] = None
     createdAt: str
     updatedAt: str
+    # Counts changes to `data`; canvas operations commit against it (compare-and-swap).
+    version: int = 0
+
+
+class CommitCanvasOpsRequest(StrictRequestModel):
+    """A batch of canvas operations already applied to `data` by the canvas reducer (Next.js ops route)."""
+    baseVersion: int = Field(ge=0)
+    data: dict[str, Any]
+    ops: list[dict[str, Any]] = Field(min_length=1, max_length=200)
+    via: Literal["ui", "agent", "mcp"] = "ui"
+
+
+class CommitCanvasOpsResponse(BaseModel):
+    version: int
 
 
 class GraphListItem(BaseModel):

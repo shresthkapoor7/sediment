@@ -112,7 +112,7 @@ class SupabaseClient:
     async def get_graph(self, graph_id: str, user_id: str) -> dict[str, Any] | None:
         query = (
             "/rest/v1/graphs"
-            "?select=id,user_id,query,data,metadata,seed_paper_id,is_public,share_id,created_at,updated_at"
+            "?select=id,user_id,query,data,metadata,seed_paper_id,is_public,share_id,created_at,updated_at,version"
             f"&id=eq.{quote(graph_id, safe='')}"
             f"&user_id=eq.{quote(user_id, safe='')}"
             "&deleted_at=is.null"
