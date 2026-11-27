@@ -158,10 +158,12 @@ async def commit_canvas_ops(graph_id: str, req: CommitCanvasOpsRequest, actor: A
     """
     graph = _normalise_uuid(graph_id, "graphId")
     owner = _normalise_uuid(actor.id, "userId")
+    # The source is taken from the token, not the request: OAuth-client tokens are MCP, nothing else may claim it.
+    via = "mcp" if actor.client_id else ("ui" if req.via == "mcp" else req.via)
     try:
         version = await get_db().rpc("commit_canvas_ops", {
             "p_graph_id": graph, "p_user_id": owner, "p_base_version": req.baseVersion, "p_data": req.data,
-            "p_ops": req.ops, "p_actor_kind": actor.kind, "p_actor_id": actor.id, "p_via": req.via,
+            "p_ops": req.ops, "p_actor_kind": actor.kind, "p_actor_id": actor.id, "p_via": via,
         })
     except SupabaseAPIError as e:
         logger.warning("Canvas commit failed for graph_id=%r", graph_id, exc_info=e)

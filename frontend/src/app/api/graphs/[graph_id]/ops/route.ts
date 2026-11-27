@@ -1,53 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { getBackendBaseUrl, identityHeaders } from "../../../_lib/backend-proxy";
-import { applyCanvasOps, isCanvasOp, loadCanvasData, MAX_OPS_PER_COMMIT, type CanvasOp, type CanvasOpSource } from "@/lib/canvas-ops";
-import type { TimelineData } from "@/lib/types";
+import { identityHeaders } from "../../../_lib/backend-proxy";
+import { isCanvasOp, MAX_OPS_PER_COMMIT, type CanvasOp, type CanvasOpSource } from "@/lib/canvas-ops";
+import { commitCanvasOps } from "@/lib/server/canvas-commit";
 
-// Each attempt reads the canvas, applies the ops and commits against the version it read. A 409 means another
-// writer got in between, so read again and re-apply: ops are intent ("move paper 3 here"), not a snapshot.
-const MAX_ATTEMPTS = 4;
 const NO_STORE = { "Cache-Control": "no-store" };
 
-function error(detail: string, status: number) {
-  return NextResponse.json({ detail }, { status, headers: NO_STORE });
-}
-
+/** Canvas edits from the app. The canvas page sends `ui` and `agent`; MCP clients go through /api/mcp instead. */
 export async function POST(request: NextRequest, context: { params: Promise<{ graph_id: string }> }) {
   const { graph_id: graphId } = await context.params;
   let body: { ops?: unknown; via?: unknown };
-  try { body = await request.json(); } catch { return error("Invalid JSON.", 400); }
+  try { body = await request.json(); } catch { return NextResponse.json({ detail: "Invalid JSON." }, { status: 400, headers: NO_STORE }); }
 
   const ops = body.ops;
   if (!Array.isArray(ops) || ops.length === 0 || ops.length > MAX_OPS_PER_COMMIT || !ops.every(isCanvasOp)) {
-    return error(`ops must be 1 to ${MAX_OPS_PER_COMMIT} canvas operations.`, 400);
+    return NextResponse.json({ detail: `ops must be 1 to ${MAX_OPS_PER_COMMIT} canvas operations.` }, { status: 400, headers: NO_STORE });
   }
-  const via: CanvasOpSource = body.via === "agent" || body.via === "mcp" ? body.via : "ui";
+  const via: CanvasOpSource = body.via === "agent" ? "agent" : "ui";
 
-  const base = `${getBackendBaseUrl()}/api/graphs/${encodeURIComponent(graphId)}`;
-  const identity = identityHeaders(request);
-
-  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt += 1) {
-    const current = await fetch(base, { headers: identity, cache: "no-store" }).catch(() => null);
-    if (!current) return error("Backend service is unavailable.", 502);
-    if (!current.ok) return new NextResponse(current.body, { status: current.status, headers: NO_STORE });
-    const graph = await current.json() as { data: TimelineData; version: number };
-
-    const loaded = loadCanvasData(graph.data);
-    const data = applyCanvasOps(loaded, ops as CanvasOp[]);
-    if (data === loaded) return NextResponse.json({ version: graph.version, data, changed: false }, { headers: NO_STORE });
-
-    const commit = await fetch(`${base}/ops/commit`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", ...identity },
-      body: JSON.stringify({ baseVersion: graph.version, data, ops, via }),
-      cache: "no-store",
-    }).catch(() => null);
-    if (!commit) return error("Backend service is unavailable.", 502);
-    if (commit.status === 409) continue;
-    if (!commit.ok) return new NextResponse(commit.body, { status: commit.status, headers: NO_STORE });
-    const { version } = await commit.json() as { version: number };
-    return NextResponse.json({ version, data, changed: true }, { headers: NO_STORE });
-  }
-  return error("The canvas is changing too quickly; try again.", 409);
+  const result = await commitCanvasOps(graphId, ops as CanvasOp[], via, identityHeaders(request));
+  if (!result.ok) return NextResponse.json({ detail: result.detail }, { status: result.status, headers: NO_STORE });
+  return NextResponse.json({ version: result.version, data: result.data, changed: result.changed }, { headers: NO_STORE });
 }

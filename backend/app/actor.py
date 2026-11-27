@@ -32,6 +32,8 @@ class Actor:
     id: str
     ip: str
     email: Optional[str] = None
+    # Set when the token came from an OAuth client (an MCP app) rather than Sediment's own sign-in.
+    client_id: Optional[str] = None
 
     @property
     def is_account(self) -> bool:
@@ -98,7 +100,7 @@ async def current_actor(
     scheme, _, token = (authorization or "").partition(" ")
     if scheme.lower() == "bearer" and token.strip():
         claims = await verify_access_token(token.strip())
-        return Actor(kind="account", id=str(claims["sub"]), ip=ip, email=claims.get("email"))
+        return Actor(kind="account", id=str(claims["sub"]), ip=ip, email=claims.get("email"), client_id=claims.get("client_id"))
     return Actor(kind="browser", id=_browser_id(header_user_id, query_user_id), ip=ip)
 
 
@@ -111,7 +113,7 @@ async def current_account(
     if scheme.lower() != "bearer" or not token.strip():
         raise HTTPException(status_code=401, detail="Sign in to continue.")
     claims = await verify_access_token(token.strip())
-    return Actor(kind="account", id=str(claims["sub"]), ip=get_request_ip(request), email=claims.get("email"))
+    return Actor(kind="account", id=str(claims["sub"]), ip=get_request_ip(request), email=claims.get("email"), client_id=claims.get("client_id"))
 
 
 def owned_by(req, actor: Actor):
