@@ -15,18 +15,31 @@ type Usage = Awaited<ReturnType<typeof fetchUsage>>;
 export function AccountView() {
   const { ready, user, enabled, signOut } = useAuth();
   const [usage, setUsage] = useState<Usage | null>(null);
+  const [usageFailed, setUsageFailed] = useState(false);
+  const [usageAttempt, setUsageAttempt] = useState(0);
   const [busy, setBusy] = useState(false);
+  const [signOutError, setSignOutError] = useState("");
 
   useEffect(() => {
     if (!ready) return;
     let active = true;
-    fetchUsage().then((value) => { if (active) setUsage(value); }).catch(() => {});
+    fetchUsage()
+      .then((value) => { if (active) { setUsage(value); setUsageFailed(false); } })
+      .catch(() => { if (active) setUsageFailed(true); });
     return () => { active = false; };
-  }, [ready, user?.id]);
+  }, [ready, user?.id, usageAttempt]);
+
+  const retryUsage = () => { setUsageFailed(false); setUsageAttempt((n) => n + 1); };
 
   const leave = async (everywhere: boolean) => {
     setBusy(true);
-    await signOut(everywhere);
+    setSignOutError("");
+    const error = await signOut(everywhere);
+    if (error) {
+      setSignOutError(`Could not sign out: ${error}`);
+      setBusy(false);
+      return;
+    }
     // Canvases, chats and credits all belong to whoever is signed in, so start the app over as the browser.
     window.location.assign("/");
   };
@@ -41,7 +54,7 @@ export function AccountView() {
         <header className={shell.topbar}>
           <Link href="/" className={shell.brand}><LogoMark width="28" height="28" /><span>Sediment</span></Link>
           <Link href="/workspaces" className={styles.navLink}>Workspaces</Link>
-          <span className={shell.here} aria-current="page">Account</span>
+          <span className={styles.here} aria-current="page">Account</span>
         </header>
 
         <main className={`${shell.main} ${styles.main}`}>
@@ -88,6 +101,11 @@ export function AccountView() {
                       ${usage.used.toFixed(2)} of ${usage.dailyLimit.toFixed(2)} used across {usage.requestCount} {usage.requestCount === 1 ? "request" : "requests"}. Resets daily.
                     </p>
                   </>
+                ) : usageFailed ? (
+                  <div className={styles.actions}>
+                    <p className={styles.note}>Couldn&apos;t load today&apos;s usage.</p>
+                    <button type="button" className={styles.secondary} onClick={retryUsage}>Try again</button>
+                  </div>
                 ) : <p className={styles.note}>Loading…</p>}
               </section>
 
@@ -97,6 +115,7 @@ export function AccountView() {
                   <button type="button" className={styles.secondary} disabled={busy} onClick={() => void leave(false)}>Sign out</button>
                   <button type="button" className={styles.secondary} disabled={busy} onClick={() => void leave(true)}>Sign out everywhere</button>
                 </div>
+                {signOutError && <p className={styles.note} role="alert" style={{ marginTop: ".75rem" }}>{signOutError}</p>}
               </section>
             </>
           )}

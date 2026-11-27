@@ -2822,6 +2822,8 @@ a.landing-brand:hover {
 /* Google's real sign-in button sits invisibly over ours and takes the click (see GoogleSignIn.tsx). */
 .google-signin { position: relative; display: inline-flex; overflow: hidden; border-radius: 0.4375rem; }
 .google-signin-overlay { position: absolute; inset: 0; opacity: 0.0001; overflow: hidden; }
+/* Google's button takes keyboard focus but is invisible, so show the focus ring on the wrapper. */
+.google-signin:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
 .google-signin-overlay > div { position: absolute; top: 50%; left: 0; transform: translateY(-50%); }
 .google-signin:hover > button { border-color: var(--text-tertiary); background: var(--bg-tertiary); }
 

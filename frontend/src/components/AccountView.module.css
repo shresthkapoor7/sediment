@@ -18,3 +18,4 @@
 .secondary:hover { border-color: var(--text-tertiary); }
 .secondary:disabled { opacity: .5; cursor: default; }
 @media (max-width: 640px) { .main { padding-top: 32px; } }
+.here { padding: 0 .625rem; font-size: .8125rem; font-weight: 500; color: var(--text-primary); }

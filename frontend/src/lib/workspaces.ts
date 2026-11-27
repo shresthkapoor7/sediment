@@ -26,33 +26,57 @@ const notify = () => window.dispatchEvent(new Event(event));
  * in once and then cleared here, the same way the canvases themselves move to the account.
  */
 export async function setWorkspaceOwner(accountId: string | null) {
-  if (owner === accountId) return;
+  if (owner === accountId) { settled = true; notify(); return; }
+  settled = false;
   owner = accountId;
+  hydrating = false;
   memory = null;
   notify();
-  if (!accountId) return;
+  if (!accountId) { settled = true; notify(); return; }
+  // Hold saves until the account's layout has loaded, so an edit made meanwhile can't overwrite categories the
+  // server has but this browser's cached copy doesn't.
+  hydrating = true;
+  const writesBefore = writeCount;
   try {
     const saved = parse(JSON.stringify((await fetchWorkspaceLayout()) ?? []));
     if (owner !== accountId) return;
     const anonymous = parse(readKey(baseKey) || "[]");
-    const known = new Set(saved.map(category => category.id));
-    const merged = [...anonymous.filter(category => !known.has(category.id)), ...saved];
+    // Edits made while loading win for the categories they touch; everything else comes from the server.
+    const local = writeCount !== writesBefore ? read() : [];
+    const merged = mergeCategories(mergeCategories(saved, anonymous), local);
     try { localStorage.setItem(key(), JSON.stringify(merged)); } catch { memory = JSON.stringify(merged); }
+    hydrating = false;
+    if (anonymous.length || local.length) await saveWorkspaceLayout(merged);
     if (anonymous.length) {
-      await saveWorkspaceLayout(merged);
       try { localStorage.removeItem(baseKey); } catch { /* fine */ }
     }
+    settled = true;
     notify();
   } catch (error) {
-    // Offline or the API is down: keep showing the cached copy; the next save retries.
+    // Offline or the API is down: keep showing the cached copy. Saves stay held (they could drop categories the
+    // server has); the next sign-in or reload loads again.
     console.error("Loading workspaces from the account failed", error);
   }
+}
+
+let hydrating = false;
+let writeCount = 0;
+// False until AuthProvider has settled who owns Workspaces (claim done, account layout loaded). Pruning against a
+// canvas list waits for it, so canvases still being moved to the account are not dropped from their categories.
+let settled = false;
+
+/** `extra` categories on top of `base`: same id replaces in place, new ids are added. */
+function mergeCategories(base: WorkspaceCategory[], extra: WorkspaceCategory[]): WorkspaceCategory[] {
+  const byId = new Map(extra.map(category => [category.id, category]));
+  const merged = base.map(category => byId.get(category.id) ?? category);
+  const known = new Set(base.map(category => category.id));
+  return [...extra.filter(category => !known.has(category.id)), ...merged];
 }
 
 // Saves to the account shortly after the last change, so a drag that writes several times sends one request.
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
 function scheduleSave(categories: WorkspaceCategory[]) {
-  if (!owner) return;
+  if (!owner || hydrating) return;
   if (saveTimer) clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
     saveTimer = null;
@@ -95,6 +119,7 @@ function parse(raw: string): WorkspaceCategory[] {
 function write(categories: WorkspaceCategory[]) {
   const raw = JSON.stringify(categories);
   try { localStorage.setItem(key(), raw); memory = null; } catch { memory = raw; }
+  writeCount += 1;
   notify();
   scheduleSave(categories);
 }
@@ -115,9 +140,12 @@ export function categoryColumns(categories: WorkspaceCategory[]): Map<string, nu
 
 export function useWorkspaces() {
   const raw = useSyncExternalStore(subscribe, snapshot, serverSnapshot);
+  // Re-render when ownership settles, so a waiting prune runs.
+  const ownerSettled = useSyncExternalStore(subscribe, () => settled, () => false);
   const categories = useMemo(() => parse(raw), [raw]);
   return {
     categories,
+    ownerSettled,
     create(name: string, look: CategoryLook = {}, column?: number) {
       const clean = name.trim().slice(0, 60);
       if (!clean) return null;
@@ -165,11 +193,13 @@ export function useWorkspaces() {
       }
       write(next);
     },
-    /** Forget canvases that no longer exist. */
-    prune(existing: Set<string>) {
+    /** Forget canvases that no longer exist. Returns false (and does nothing) until the owner has settled. */
+    prune(existing: Set<string>): boolean {
+      if (!settled) return false;
       const current = read();
-      if (current.every(category => category.graphIds.every(id => existing.has(id)))) return;
+      if (current.every(category => category.graphIds.every(id => existing.has(id)))) return true;
       write(current.map(category => ({ ...category, graphIds: category.graphIds.filter(id => existing.has(id)) })));
+      return true;
     },
   };
 }

@@ -37,17 +37,16 @@ let accessToken: string | null = null;
 export function setAccessToken(token: string | null): void { accessToken = token; }
 export const isSignedIn = (): boolean => accessToken !== null;
 
-// Requests wait (briefly) for the stored session to be read, so the first calls on a page load go out as the
-// account rather than as the anonymous browser.
+// Requests wait for the stored session to be read, so the first calls on a page load go out as the account rather
+// than silently as the anonymous browser. AuthProvider always resolves this, also when reading the session fails.
 let resolveSessionReady: () => void = () => {};
 const sessionReady = new Promise<void>((resolve) => { resolveSessionReady = resolve; });
 export function markSessionReady(): void { resolveSessionReady(); }
-const SESSION_WAIT_MS = 1500;
 
 /** fetch with the caller's identity attached at send time (after the session is known). */
 async function apiFetch(input: string, init: RequestInit = {}): Promise<Response> {
   if (typeof window !== "undefined") {
-    await Promise.race([sessionReady, new Promise((resolve) => setTimeout(resolve, SESSION_WAIT_MS))]);
+    await sessionReady;
   }
   const headers = new Headers(init.headers);
   headers.delete("Authorization");

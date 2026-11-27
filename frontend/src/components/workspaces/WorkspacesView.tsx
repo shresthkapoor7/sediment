@@ -147,9 +147,9 @@ export function WorkspacesView() {
   useEffect(() => {
     // A cut-off list would make unlisted canvases look deleted.
     if (!graphs || !listComplete || pruned.current) return;
-    pruned.current = true;
-    workspaces.prune(new Set(graphs.map(graph => graph.id)));
-  }, [graphs, listComplete, workspaces]);
+    // Waits (returns false) until sign-in has settled; the categories update then and this runs again.
+    pruned.current = workspaces.prune(new Set(graphs.map(graph => graph.id)));
+  }, [graphs, listComplete, workspaces, workspaces.ownerSettled]);
 
   useEffect(() => { if (adding) draftLane.current?.scrollIntoView({ block: "nearest", behavior: "smooth" }); }, [adding]);
 
