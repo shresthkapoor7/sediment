@@ -1,0 +1,21 @@
+.main { max-width: 40rem; }
+.navLink { padding: 0 .625rem; color: var(--text-secondary); font-size: .8125rem; font-weight: 500; text-decoration: none; }
+.navLink:hover { color: var(--text-primary); }
+.card { margin-top: 1.25rem; padding: 1.25rem; border: 1px solid var(--border); border-radius: 12px; background: var(--bg-secondary); }
+.card h2 { margin: 0 0 .75rem; font-size: 13px; font-weight: 600; color: var(--text-primary); }
+.note { margin: 0; color: var(--text-secondary); font-size: 13px; line-height: 1.6; }
+.profile { display: flex; align-items: center; gap: .875rem; }
+.avatar { display: grid; place-items: center; width: 44px; height: 44px; overflow: hidden; flex-shrink: 0; border-radius: 50%; background: var(--bg-tertiary); color: var(--text-secondary); font-weight: 600; }
+.avatar img { width: 100%; height: 100%; object-fit: cover; }
+.name { font-size: 15px; font-weight: 600; }
+.email { margin-top: 2px; color: var(--text-tertiary); font-size: 13px; }
+.meter { height: 6px; margin-bottom: .625rem; overflow: hidden; border-radius: 999px; background: var(--bg-tertiary); }
+.meter span { display: block; height: 100%; border-radius: inherit; background: var(--accent); }
+.actions { display: flex; flex-wrap: wrap; gap: .5rem; }
+.primary, .secondary { height: 2.125rem; padding: 0 .875rem; border-radius: 8px; font: 500 13px var(--font-sans), sans-serif; cursor: pointer; }
+.primary { margin-top: 1rem; border: 0; background: var(--accent); color: var(--on-accent); }
+.secondary { border: 1px solid var(--border); background: transparent; color: var(--text-primary); }
+.secondary:hover { border-color: var(--text-tertiary); }
+.secondary:disabled { opacity: .5; cursor: default; }
+@media (max-width: 640px) { .main { padding-top: 32px; } }
+.here { padding: 0 .625rem; font-size: .8125rem; font-weight: 500; color: var(--text-primary); }

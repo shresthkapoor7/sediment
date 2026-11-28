@@ -20,17 +20,22 @@ export function getBackendBaseUrl(): string {
   return candidate;
 }
 
-/** Pass the anonymous user ID through: it arrives in a header, not the URL. */
-function userHeader(request: NextRequest): Record<string, string> {
-  const userId = request.headers.get("x-sediment-user");
-  return userId ? { "X-Sediment-User": userId } : {};
+/** Pass the caller's identity through: the account token, the anonymous browser ID and the feed credential. */
+const IDENTITY_HEADERS = { authorization: "Authorization", "x-sediment-user": "X-Sediment-User", "x-sediment-feed": "X-Sediment-Feed" };
+export function identityHeaders(request: NextRequest): Record<string, string> {
+  const headers: Record<string, string> = {};
+  for (const [incoming, outgoing] of Object.entries(IDENTITY_HEADERS)) {
+    const value = request.headers.get(incoming);
+    if (value) headers[outgoing] = value;
+  }
+  return headers;
 }
 
 function getBackendUrl(pathname: string, search: string): string {
   return `${getBackendBaseUrl()}${pathname}${search}`;
 }
 
-export async function proxyJsonRequest(request: NextRequest, backendPath: string, forwardAuthorization = false): Promise<NextResponse> {
+export async function proxyJsonRequest(request: NextRequest, backendPath: string): Promise<NextResponse> {
   const body = await request.text();
   let upstreamResponse: Response;
   try {
@@ -38,8 +43,7 @@ export async function proxyJsonRequest(request: NextRequest, backendPath: string
       method: request.method,
       headers: {
         "Content-Type": request.headers.get("content-type") || "application/json",
-        ...(forwardAuthorization && request.headers.has("authorization") ? { Authorization: request.headers.get("authorization")! } : {}),
-        ...userHeader(request),
+        ...identityHeaders(request),
       },
       body,
       cache: "no-store",
@@ -61,14 +65,13 @@ export async function proxyJsonRequest(request: NextRequest, backendPath: string
   });
 }
 
-export async function proxyGetRequest(request: NextRequest, backendPath: string, forwardAuthorization = false): Promise<NextResponse> {
+export async function proxyGetRequest(request: NextRequest, backendPath: string): Promise<NextResponse> {
   let upstreamResponse: Response;
   try {
     upstreamResponse = await fetch(getBackendUrl(backendPath, request.nextUrl.search), {
       method: request.method,
       headers: {
-        ...(forwardAuthorization && request.headers.has("authorization") ? { Authorization: request.headers.get("authorization")! } : {}),
-        ...userHeader(request),
+        ...identityHeaders(request),
       },
       cache: "no-store",
     });

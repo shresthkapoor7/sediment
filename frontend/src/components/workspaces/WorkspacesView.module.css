@@ -6,8 +6,6 @@
 .topbar { display: flex; align-items: center; gap: .5rem; height: 4rem; max-width: 71.25rem; margin: 0 auto; padding: 0 2rem; box-sizing: border-box; }
 .brand { display: flex; align-items: center; gap: .625rem; margin-right: auto; color: var(--text-primary); text-decoration: none; font-size: 1rem; font-weight: 600; letter-spacing: -.01em; }
 .brand svg { color: var(--text-primary); }
-.topbar :global(.credit-meter-bar) { display: flex; align-items: center; }
-.here { padding: 0 .625rem; font-size: .8125rem; font-weight: 500; color: var(--text-primary); }
 
 .main { max-width: 71.25rem; margin: 0 auto; padding: 56px 2rem 96px; box-sizing: border-box; }
 .heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 36px; flex-wrap: wrap; }

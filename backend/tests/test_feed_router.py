@@ -27,7 +27,8 @@ class FeedRouterTests(unittest.IsolatedAsyncioTestCase):
         session = await self.client.post('/api/feed-session')
         self.assertEqual(session.headers['cache-control'], 'no-store')
         self.token = session.json()['token']
-        self.client.headers['Authorization'] = 'Bearer ' + self.token
+        self.client.headers['X-Sediment-Feed'] = self.token
+        self.client.headers['X-Sediment-User'] = 'browser-under-test'
 
     async def asyncTearDown(self):
         self.factory.stop()
@@ -95,7 +96,7 @@ class FeedRouterTests(unittest.IsolatedAsyncioTestCase):
     async def test_signed_sessions_isolate_feeds_and_reject_uuid_selection(self):
         await self.client.post('/api/feeds', json={'action': 'interests', 'interests': 'robot learning'})
         other = issue_feed_credential()
-        headers = {'Authorization': 'Bearer ' + other}
+        headers = {'X-Sediment-Feed': other}
         result = await self.client.get('/api/feeds', headers=headers)
         self.assertEqual(result.json()['papers'], [])
         owner = resolve_feed_actor(self.token)
@@ -109,7 +110,7 @@ class FeedRouterTests(unittest.IsolatedAsyncioTestCase):
             expired = issue_feed_credential()
         forged = self.token[:-1] + ('0' if self.token[-1] != '0' else '1')
         for token in ['', 'not-signed', forged, expired]:
-            headers = {'Authorization': 'Bearer ' + token if token else '',
+            headers = {'X-Sediment-Feed': token,
                        'Cookie': 'sediment_feed_session=' + self.token, 'Origin': 'https://untrusted.example'}
             self.assertEqual((await self.client.get('/api/feeds', headers=headers)).status_code, 401)
             self.assertEqual((await self.client.post('/api/feeds', json={'action': 'refresh'}, headers=headers)).status_code, 401)
@@ -119,5 +120,5 @@ class FeedRouterTests(unittest.IsolatedAsyncioTestCase):
     async def test_public_paper_endpoint_remains_accessible_without_auth(self):
         from tests.test_feeds import paper
         self.service.paper=AsyncMock(return_value=paper(1))
-        response=await self.client.get('/api/feed-papers/arxiv-2609.00001', headers={'Authorization': ''})
+        response=await self.client.get('/api/feed-papers/arxiv-2609.00001', headers={'X-Sediment-Feed': ''})
         self.assertEqual(response.status_code,200)

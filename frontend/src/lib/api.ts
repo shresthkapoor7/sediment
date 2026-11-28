@@ -1,3 +1,4 @@
+import type { CanvasOp, CanvasOpSource } from "./canvas-ops";
 import {
   CanvasDetails,
   GlobalChatResponse,
@@ -29,7 +30,39 @@ export const SEDIMENT_USER_ID_KEY = "sediment_user_id";
 /** The anonymous user ID unlocks every canvas made in this browser, so it travels in a header, never in a URL
  *  where access logs and browser history would keep it. */
 export const USER_ID_HEADER = "X-Sediment-User";
-const userHeaders = (userId: string): Record<string, string> => ({ [USER_ID_HEADER]: userId });
+
+// Set by the auth layer whenever Supabase signs in, refreshes or signs out. Only the short-lived access token
+// is kept here; supabase-js holds the refresh token and rotates it.
+let accessToken: string | null = null;
+export function setAccessToken(token: string | null): void { accessToken = token; }
+export const isSignedIn = (): boolean => accessToken !== null;
+
+// Requests wait for the stored session to be read, so the first calls on a page load go out as the account rather
+// than silently as the anonymous browser. AuthProvider always resolves this, also when reading the session fails.
+let resolveSessionReady: () => void = () => {};
+const sessionReady = new Promise<void>((resolve) => { resolveSessionReady = resolve; });
+export function markSessionReady(): void { resolveSessionReady(); }
+
+/** fetch with the caller's identity attached at send time (after the session is known). */
+async function apiFetch(input: string, init: RequestInit = {}): Promise<Response> {
+  if (typeof window !== "undefined") {
+    await sessionReady;
+  }
+  const headers = new Headers(init.headers);
+  headers.delete("Authorization");
+  for (const [name, value] of Object.entries(identityHeaders())) headers.set(name, value);
+  return fetch(input, { ...init, headers });
+}
+export { apiFetch };
+
+/** Who is calling: the account token when signed in, and always the browser ID (the backend uses it when
+ *  there is no token, and the anonymous-to-account move needs it). */
+export function identityHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {};
+  if (typeof window !== "undefined") headers[USER_ID_HEADER] = getOrCreateAnonymousUserId();
+  if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
+  return headers;
+}
 export const LAST_GRAPH_ID_KEY = "last_graph_id";
 export const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || "0.1.0";
 export const SPECIAL_NOTE_SIGNED_URL_TTL_MS = 5 * 60 * 1000;
@@ -49,9 +82,9 @@ export async function chatAboutPaper(
   question: string,
   persistence?: { graphId: string; userId: string },
 ): Promise<PaperChatResponse> {
-  const response = await fetch(`${EXPENSIVE_API_BASE}/api/chat`, {
+  const response = await apiFetch(`${EXPENSIVE_API_BASE}/api/chat`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...identityHeaders() },
     body: JSON.stringify({
       ...(persistence ?? {}),
       paperId: node.paper.openalexId,
@@ -77,9 +110,9 @@ export async function streamChatAboutPaper(
   persistence?: { graphId: string; userId: string },
   selectedExcerpt?: string,
 ): Promise<PaperChatResponse | null> {
-  const response = await fetch(`${EXPENSIVE_API_BASE}/api/chat/stream`, {
+  const response = await apiFetch(`${EXPENSIVE_API_BASE}/api/chat/stream`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
+    headers: { "Content-Type": "application/json", Accept: "text/event-stream", ...identityHeaders() },
     body: JSON.stringify({
       ...(persistence ?? {}),
       paperId: node.paper.openalexId,
@@ -136,9 +169,9 @@ export async function searchPapers(
   signal?: AbortSignal,
   mode: "keyword" | "semantic" = "keyword",
 ): Promise<GraphPaper[]> {
-  const response = await fetch(
+  const response = await apiFetch(
     `${EXPENSIVE_API_BASE}/api/papers/search?q=${encodeURIComponent(query)}&mode=${mode}`,
-    { cache: "no-store", signal },
+    { cache: "no-store", signal, headers: identityHeaders() },
   );
   if (!response.ok) {
     const detail = await readErrorDetail(response);
@@ -148,9 +181,9 @@ export async function searchPapers(
 }
 
 export async function fetchPaperAccess(openalexId: string): Promise<PaperAccessResponse> {
-  const response = await fetch(
+  const response = await apiFetch(
     `${EXPENSIVE_API_BASE}/api/papers/${encodeURIComponent(openalexId)}/access`,
-    { cache: "no-store" },
+    { cache: "no-store", headers: identityHeaders() },
   );
   if (!response.ok) {
     const detail = await readErrorDetail(response);
@@ -164,9 +197,9 @@ export async function fetchCachedPaperContent(
   userId: string,
   openalexId: string,
 ): Promise<PaperContentResponse> {
-  const response = await fetch(
+  const response = await apiFetch(
     `${EXPENSIVE_API_BASE}/api/graphs/${encodeURIComponent(graphId)}/papers/${encodeURIComponent(openalexId)}/content`,
-    { cache: "no-store", headers: userHeaders(userId) },
+    { cache: "no-store", headers: identityHeaders() },
   );
   if (!response.ok) {
     const detail = await readErrorDetail(response);
@@ -178,9 +211,9 @@ export async function fetchCachedPaperContent(
 export async function suggestTimelineQuestions(
   papers: { openalexId: string; title: string; year?: number | null; summary?: string }[],
 ): Promise<string[]> {
-  const response = await fetch(`${EXPENSIVE_API_BASE}/api/chat/global/suggestions`, {
+  const response = await apiFetch(`${EXPENSIVE_API_BASE}/api/chat/global/suggestions`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...identityHeaders() },
     body: JSON.stringify(papers),
   });
   if (!response.ok) return [];
@@ -195,9 +228,9 @@ export async function chatAboutTimeline(
   noteContext?: TimelineNoteContext,
   nodeColorContext?: TimelineNodeColorChange[],
 ): Promise<GlobalChatResponse> {
-  const response = await fetch(`${EXPENSIVE_API_BASE}/api/chat/global`, {
+  const response = await apiFetch(`${EXPENSIVE_API_BASE}/api/chat/global`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...identityHeaders() },
     body: JSON.stringify({ ...(persistence ?? {}), papers, question, mentionedPaperIds, ...(noteContext ? { noteContext } : {}), ...(nodeColorContext ? { nodeColorContext } : {}) }),
   });
 
@@ -220,9 +253,9 @@ export async function streamChatAboutTimeline(
   edges?: { parentPaperId: string; childPaperId: string }[],
   canvas?: CanvasDetails,
 ): Promise<GlobalChatResponse | null> {
-  const response = await fetch(`${EXPENSIVE_API_BASE}/api/chat/global/stream`, {
+  const response = await apiFetch(`${EXPENSIVE_API_BASE}/api/chat/global/stream`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
+    headers: { "Content-Type": "application/json", Accept: "text/event-stream", ...identityHeaders() },
     body: JSON.stringify({ ...(persistence ?? {}), papers, ...(edges ? { edges } : {}), question, mentionedPaperIds, ...(noteContext ? { noteContext } : {}), ...(nodeColorContext ? { nodeColorContext } : {}), ...(canvas ? { canvas } : {}) }),
   });
 
@@ -272,9 +305,9 @@ export async function openChatSession(
   paperOpenalexId?: string,
   sessionId?: string,
 ): Promise<PersistentChatSession> {
-  const response = await fetch(`${API_BASE}/api/graphs/${encodeURIComponent(graphId)}/chat/session`, {
+  const response = await apiFetch(`${API_BASE}/api/graphs/${encodeURIComponent(graphId)}/chat/session`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...identityHeaders() },
     body: JSON.stringify({
       userId,
       scope,
@@ -299,9 +332,9 @@ export interface ChatTab {
 
 /** The agent chats on a canvas, oldest first. A canvas always has at least one. */
 export async function listChats(graphId: string, userId: string): Promise<ChatTab[]> {
-  const response = await fetch(
+  const response = await apiFetch(
     `${API_BASE}/api/graphs/${encodeURIComponent(graphId)}/chats`,
-    { cache: "no-store", headers: userHeaders(userId) },
+    { cache: "no-store", headers: identityHeaders() },
   );
   if (!response.ok) {
     const detail = await readErrorDetail(response);
@@ -311,9 +344,9 @@ export async function listChats(graphId: string, userId: string): Promise<ChatTa
 }
 
 export async function createChat(graphId: string, userId: string): Promise<ChatTab> {
-  const response = await fetch(`${API_BASE}/api/graphs/${encodeURIComponent(graphId)}/chats`, {
+  const response = await apiFetch(`${API_BASE}/api/graphs/${encodeURIComponent(graphId)}/chats`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...identityHeaders() },
     body: JSON.stringify({ userId }),
   });
   if (!response.ok) {
@@ -324,9 +357,9 @@ export async function createChat(graphId: string, userId: string): Promise<ChatT
 }
 
 export async function deleteChat(graphId: string, userId: string, sessionId: string): Promise<void> {
-  const response = await fetch(
+  const response = await apiFetch(
     `${API_BASE}/api/graphs/${encodeURIComponent(graphId)}/chats/${encodeURIComponent(sessionId)}`,
-    { method: "DELETE", headers: userHeaders(userId) },
+    { method: "DELETE", headers: identityHeaders() },
   );
   if (!response.ok) {
     const detail = await readErrorDetail(response);
@@ -348,10 +381,41 @@ export function getOrCreateAnonymousUserId(): string {
   return memoryAnonymousUserId;
 }
 
-export async function registerAnonymousUser(userId: string): Promise<void> {
-  const response = await fetch(`${API_BASE}/api/users`, {
+export interface ClaimResult { status: string; graphs?: number; sessions?: number; files?: number }
+
+/** Moves this browser's anonymous canvases, chats and note files onto the signed-in account (safe to repeat). */
+export async function claimAnonymousWork(): Promise<ClaimResult> {
+  const response = await apiFetch(`${API_BASE}/api/account/claim`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { ...identityHeaders(), [USER_ID_HEADER]: getOrCreateAnonymousUserId() },
+  });
+  if (!response.ok) {
+    const detail = await readErrorDetail(response);
+    throw new APIError(detail || `Claim failed with status ${response.status}`, response.status);
+  }
+  return response.json();
+}
+
+/** The signed-in account's Workspaces categories; `null` when it has never saved any. */
+export async function fetchWorkspaceLayout(): Promise<unknown[] | null> {
+  const response = await apiFetch(`${API_BASE}/api/account/workspaces`, { headers: identityHeaders() });
+  if (!response.ok) throw new APIError(`Loading workspaces failed with status ${response.status}`, response.status);
+  return (await response.json()).categories ?? null;
+}
+
+export async function saveWorkspaceLayout(categories: unknown[]): Promise<void> {
+  const response = await apiFetch(`${API_BASE}/api/account/workspaces`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...identityHeaders() },
+    body: JSON.stringify({ categories }),
+  });
+  if (!response.ok) throw new APIError(`Saving workspaces failed with status ${response.status}`, response.status);
+}
+
+export async function registerAnonymousUser(userId: string): Promise<void> {
+  const response = await apiFetch(`${API_BASE}/api/users`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...identityHeaders() },
     body: JSON.stringify({ id: userId }),
   });
 
@@ -368,9 +432,9 @@ export async function createSavedGraph(input: {
   seedPaperId?: string | null;
   metadata: SavedGraphMetadata;
 }): Promise<SavedGraph> {
-  const response = await fetch(`${API_BASE}/api/graphs`, {
+  const response = await apiFetch(`${API_BASE}/api/graphs`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...identityHeaders() },
     body: JSON.stringify(input),
   });
 
@@ -379,6 +443,22 @@ export async function createSavedGraph(input: {
     throw new APIError(detail || `Save failed with status ${response.status}`, response.status);
   }
 
+  return response.json();
+}
+
+export interface CanvasOpsResult { version: number; data: TimelineData; changed: boolean }
+
+/** Sends canvas operations to the Next.js ops route, which applies them on the server and logs who made them. */
+export async function postCanvasOps(graphId: string, ops: CanvasOp[], via: CanvasOpSource, batchId: string): Promise<CanvasOpsResult> {
+  const response = await apiFetch(`/api/graphs/${encodeURIComponent(graphId)}/ops`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...identityHeaders() },
+    body: JSON.stringify({ ops, via, batchId }),
+  });
+  if (!response.ok) {
+    const detail = await readErrorDetail(response);
+    throw new APIError(detail || `Saving the canvas failed with status ${response.status}`, response.status);
+  }
   return response.json();
 }
 
@@ -392,9 +472,9 @@ export async function updateSavedGraph(
     metadata?: SavedGraphMetadata;
   },
 ): Promise<SavedGraph> {
-  const response = await fetch(`${API_BASE}/api/graphs/${graphId}`, {
+  const response = await apiFetch(`${API_BASE}/api/graphs/${graphId}`, {
     method: "PATCH",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...identityHeaders() },
     body: JSON.stringify(input),
   });
 
@@ -407,7 +487,7 @@ export async function updateSavedGraph(
 }
 
 export async function fetchSavedGraph(graphId: string, userId: string): Promise<SavedGraph> {
-  const response = await fetch(`${API_BASE}/api/graphs/${encodeURIComponent(graphId)}`, { headers: userHeaders(userId) });
+  const response = await apiFetch(`${API_BASE}/api/graphs/${encodeURIComponent(graphId)}`, { headers: identityHeaders() });
 
   if (!response.ok) {
     const detail = await readErrorDetail(response);
@@ -425,7 +505,7 @@ export async function listSavedGraphs(
     limit: String(options.limit ?? 10),
     offset: String(options.offset ?? 0),
   });
-  const response = await fetch(`${API_BASE}/api/graphs?${params.toString()}`, { headers: userHeaders(userId) });
+  const response = await apiFetch(`${API_BASE}/api/graphs?${params.toString()}`, { headers: identityHeaders() });
 
   if (!response.ok) {
     const detail = await readErrorDetail(response);
@@ -440,9 +520,9 @@ export async function listSavedGraphs(
 }
 
 export async function deleteSavedGraph(graphId: string, userId: string): Promise<void> {
-  const response = await fetch(
+  const response = await apiFetch(
     `${API_BASE}/api/graphs/${encodeURIComponent(graphId)}`,
-    { method: "DELETE", headers: userHeaders(userId) },
+    { method: "DELETE", headers: identityHeaders() },
   );
 
   if (!response.ok) {
@@ -455,9 +535,9 @@ export async function listSpecialNoteFiles(
   graphId: string,
   userId: string,
 ): Promise<SpecialNoteFileListResponse> {
-  const response = await fetch(
+  const response = await apiFetch(
     `${API_BASE}/api/graphs/${encodeURIComponent(graphId)}/special-notes`,
-    { cache: "no-store", headers: userHeaders(userId) },
+    { cache: "no-store", headers: identityHeaders() },
   );
   if (!response.ok) {
     const detail = await readErrorDetail(response);
@@ -474,8 +554,9 @@ export async function uploadSpecialNoteFile(
   const form = new FormData();
   form.append("userId", userId);
   form.append("file", file, file.name);
-  const response = await fetch(`${API_BASE}/api/graphs/${encodeURIComponent(graphId)}/special-notes`, {
+  const response = await apiFetch(`${API_BASE}/api/graphs/${encodeURIComponent(graphId)}/special-notes`, {
     method: "POST",
+    headers: identityHeaders(),
     body: form,
   });
   if (!response.ok) {
@@ -490,9 +571,9 @@ export async function fetchSpecialNoteFileUrl(
   userId: string,
   fileId: string,
 ): Promise<string> {
-  const response = await fetch(
+  const response = await apiFetch(
     `${API_BASE}/api/graphs/${encodeURIComponent(graphId)}/special-notes/${encodeURIComponent(fileId)}/url`,
-    { cache: "no-store", headers: userHeaders(userId) },
+    { cache: "no-store", headers: identityHeaders() },
   );
   if (!response.ok) {
     const detail = await readErrorDetail(response);
@@ -513,9 +594,9 @@ export async function deleteSpecialNoteFile(
   userId: string,
   fileId: string,
 ): Promise<void> {
-  const response = await fetch(
+  const response = await apiFetch(
     `${API_BASE}/api/graphs/${encodeURIComponent(graphId)}/special-notes/${encodeURIComponent(fileId)}`,
-    { method: "DELETE", headers: userHeaders(userId) },
+    { method: "DELETE", headers: identityHeaders() },
   );
   if (!response.ok) {
     const detail = await readErrorDetail(response);
@@ -525,9 +606,9 @@ export async function deleteSpecialNoteFile(
 
 export async function shareGraph(graphId: string, userId: string): Promise<{ shareId: string; shareUrl: string }> {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || window.location.origin;
-  const response = await fetch(
+  const response = await apiFetch(
     `${API_BASE}/api/graphs/${graphId}/share`,
-    { method: "POST", headers: userHeaders(userId) },
+    { method: "POST", headers: identityHeaders() },
   );
 
   if (!response.ok) {
@@ -543,7 +624,7 @@ export async function shareGraph(graphId: string, userId: string): Promise<{ sha
 }
 
 export async function fetchSharedGraph(shareId: string): Promise<SavedGraph> {
-  const response = await fetch(`${API_BASE}/api/share/${shareId}`);
+  const response = await apiFetch(`${API_BASE}/api/share/${shareId}`);
 
   if (!response.ok) {
     const detail = await readErrorDetail(response);
@@ -561,8 +642,9 @@ export function lastKnownUsageSegments(): number {
 }
 
 export async function fetchUsage(): Promise<{ used: number; remaining: number; segments: number; requestCount: number; dailyLimit: number }> {
-  const response = await fetch(`${EXPENSIVE_API_BASE}/api/usage`, {
+  const response = await apiFetch(`${EXPENSIVE_API_BASE}/api/usage`, {
     cache: "no-store",
+    headers: identityHeaders(),
   });
 
   if (!response.ok) {

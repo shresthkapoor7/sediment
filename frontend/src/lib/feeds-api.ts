@@ -1,4 +1,4 @@
-import { APIError } from "./api";
+import { APIError, apiFetch, identityHeaders } from "./api";
 
 export type FeedDomain = "ai" | "biomed" | "math_physics" | "general";
 export const domainLabels: Record<FeedDomain, string> = { ai: "AI & computer science", biomed: "Biology & medicine", math_physics: "Math & physics", general: "All fields" };
@@ -50,7 +50,7 @@ async function feedCredential(): Promise<string> {
   if (credential) return credential;
   if (!sessionRequest) {
     sessionRequest = (async () => {
-      const response = await fetch(`${base}/api/feed-session`, { method: "POST", credentials: "omit", cache: "no-store" });
+      const response = await apiFetch(`${base}/api/feed-session`, { method: "POST", credentials: "omit", cache: "no-store" });
       if (!response.ok) throw new APIError("Couldn’t start a feed session. Please try again.", response.status);
       const data = await response.json();
       if (typeof data.token !== "string") throw new APIError("Invalid feed session response.", 502);
@@ -63,9 +63,9 @@ async function feedCredential(): Promise<string> {
 }
 
 export async function fetchFeed(update?: { action: FeedAction; source?: FeedFilter; domain?: FeedDomain; interests?: string; cursor?: string }, signal?: AbortSignal): Promise<Feed> {
-  const send = async () => fetch(`${base}/api/feeds`, {
+  const send = async () => apiFetch(`${base}/api/feeds`, {
     method: update ? "POST" : "GET",
-    headers: { Authorization: `Bearer ${await feedCredential()}`, ...(update ? { "Content-Type": "application/json" } : {}) },
+    headers: { "X-Sediment-Feed": await feedCredential(), ...identityHeaders(), ...(update ? { "Content-Type": "application/json" } : {}) },
     ...(update ? { body: JSON.stringify(update) } : {}),
     // No cookie authentication: a cross-site form cannot authorize mutations.
     credentials: "omit",

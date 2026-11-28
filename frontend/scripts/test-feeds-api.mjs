@@ -11,6 +11,12 @@ function setup(responses, blockedStorage = false) {
   const storage = new Map([['sediment_feed_session', 'expired']]);
   const testModule = { exports: {} };
   class APIError extends Error { constructor(message, status) { super(message); this.status = status; } }
+  const fakeFetch = async (url, options) => {
+    calls.push({ url, ...options });
+    const response = responses.shift();
+    assert.ok(response, 'Unexpected extra request');
+    return { ok: response.status === 200, status: response.status, json: async () => response.body };
+  };
   runInNewContext(code, {
     exports: testModule.exports, module: testModule, process: { env: {} },
     localStorage: {
@@ -18,13 +24,9 @@ function setup(responses, blockedStorage = false) {
       setItem: (key, value) => storage.set(key, value),
       removeItem: key => { if (blockedStorage) throw new Error('blocked'); storage.delete(key); },
     },
-    fetch: async (url, options) => {
-      calls.push({ url, ...options });
-      const response = responses.shift();
-      assert.ok(response, 'Unexpected extra request');
-      return { ok: response.status === 200, status: response.status, json: async () => response.body };
-    },
-    require: () => ({ APIError }),
+    fetch: fakeFetch,
+    // lib/api: requests go through apiFetch with the caller's identity headers.
+    require: () => ({ APIError, apiFetch: fakeFetch, identityHeaders: () => ({ 'X-Sediment-User': 'browser-1' }) }),
   });
   return { fetchFeed: testModule.exports.fetchFeed, calls, storage };
 }
@@ -40,7 +42,7 @@ for (const blocked of [false, true]) {
   if (!blocked) assert.equal(storage.has('sediment_feed_session'), false);
   await fetchFeed();
   assert.equal(calls[1].url.endsWith('/api/feed-session'), true);
-  assert.equal(calls[2].headers.Authorization, 'Bearer fresh', 'Memory credential must be cleared too');
+  assert.equal(calls[2].headers['X-Sediment-Feed'], 'fresh', 'Memory credential must be cleared too');
 }
 const retry = setup([
   { status: 401, body: {} },

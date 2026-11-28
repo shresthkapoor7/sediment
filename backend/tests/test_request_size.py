@@ -93,6 +93,7 @@ class RequestSizeMiddlewareTests(unittest.IsolatedAsyncioTestCase):
                             [body],
                             headers=[
                                 (b"content-type", b"multipart/form-data; boundary=" + boundary),
+                                (b"x-sediment-user", b"00000000-0000-0000-0000-000000000001"),
                                 (b"content-length", str(len(body)).encode()),
                             ],
                         )

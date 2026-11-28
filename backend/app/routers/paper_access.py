@@ -19,9 +19,8 @@ from ..services.paper_access import PaperAccessChecker
 from ..services.paper_ingestion import IngestionError, PaperIngestionService
 from ..services.paper_retrieval import PaperRetrievalService, RetrievalError
 from ..services.usage_limiter import limiter
-from ..request_ip import get_request_ip
+from ..actor import Actor, current_actor, owned_by
 
-from ..request_user import request_user_id
 router = APIRouter()
 logger = logging.getLogger(__name__)
 OPENALEX_ID = re.compile(r"^W\d+$", re.IGNORECASE)
@@ -35,12 +34,12 @@ def _db() -> SupabaseClient:
 
 
 @router.get("/papers/{openalex_id}/access", response_model=PaperAccessResponse)
-async def check_paper_access(openalex_id: str, request: Request):
+async def check_paper_access(openalex_id: str, actor: Actor = Depends(current_actor)):
     normalized_id = openalex_id.strip().upper()
     if not OPENALEX_ID.fullmatch(normalized_id):
         raise HTTPException(status_code=400, detail="Invalid OpenAlex work ID.")
 
-    await limiter.claim_request(get_request_ip(request), "paper_access")
+    await limiter.claim_request(actor, "paper_access")
     try:
         result = await PaperAccessChecker().check(normalized_id)
         return PaperAccessResponse(**result)
@@ -88,7 +87,7 @@ async def retrieve_paper_content(
     graph_id: str,
     openalex_id: str,
     req: RetrievePaperRequest,
-    request: Request,
+    actor: Actor = Depends(current_actor),
 ):
     normalized_id = openalex_id.strip().upper()
     if not OPENALEX_ID.fullmatch(normalized_id):
@@ -96,8 +95,8 @@ async def retrieve_paper_content(
     if not req.confirmed:
         raise HTTPException(status_code=400, detail="Explicit confirmation is required.")
 
-    request_ip = get_request_ip(request)
-    await limiter.claim_request(request_ip, "paper_retrieve")
+    req = owned_by(req, actor)
+    await limiter.claim_request(actor, "paper_retrieve")
     try:
         graph = await _db().get_graph(graph_id, req.userId)
     except SupabaseAPIError as exc:
@@ -111,7 +110,7 @@ async def retrieve_paper_content(
         raise HTTPException(status_code=404, detail="Paper is not present in this graph.")
 
     try:
-        result = await PaperIngestionService().ingest(normalized_id, graph_paper, billing_ip=request_ip)
+        result = await PaperIngestionService().ingest(normalized_id, graph_paper, billing_ip=actor.usage_key)
         return RetrievePaperResponse(**result)
     except IngestionError as exc:
         logger.warning(
@@ -133,7 +132,7 @@ async def retrieve_paper_content(
 async def get_cached_paper_content(
     graph_id: str,
     openalex_id: str,
-    user_id: str = Depends(request_user_id),
+    actor: Actor = Depends(current_actor),
 ):
     normalized_id = openalex_id.strip().upper()
     if not OPENALEX_ID.fullmatch(normalized_id):
@@ -141,7 +140,7 @@ async def get_cached_paper_content(
 
     db = _db()
     try:
-        graph = await db.get_graph(graph_id, user_id)
+        graph = await db.get_graph(graph_id, actor.id)
         if not graph:
             raise HTTPException(status_code=404, detail="Graph not found.")
         graph_paper = _paper_from_graph(graph.get("data"), normalized_id)
@@ -188,14 +187,14 @@ async def search_paper_content(
     graph_id: str,
     openalex_id: str,
     req: SearchPaperContentRequest,
-    request: Request,
+    actor: Actor = Depends(current_actor),
 ):
     normalized_id = openalex_id.strip().upper()
     if not OPENALEX_ID.fullmatch(normalized_id):
         raise HTTPException(status_code=400, detail="Invalid OpenAlex work ID.")
 
-    request_ip = get_request_ip(request)
-    await limiter.claim_request(request_ip, "paper_search")
+    req = owned_by(req, actor)
+    await limiter.claim_request(actor, "paper_search")
     db = _db()
     try:
         graph = await db.get_graph(graph_id, req.userId)
@@ -203,7 +202,7 @@ async def search_paper_content(
             raise HTTPException(status_code=404, detail="Graph not found.")
         if not _paper_from_graph(graph.get("data"), normalized_id):
             raise HTTPException(status_code=404, detail="Paper is not present in this graph.")
-        result = await PaperRetrievalService(db).search_paper(normalized_id, req.query, limit=req.limit, billing_ip=request_ip)
+        result = await PaperRetrievalService(db).search_paper(normalized_id, req.query, limit=req.limit, billing_ip=actor.usage_key)
         return SearchPaperContentResponse(**result)
     except RetrievalError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
@@ -219,17 +218,17 @@ async def search_paper_content(
 async def search_graph_paper_content(
     graph_id: str,
     req: SearchPaperContentRequest,
-    request: Request,
+    actor: Actor = Depends(current_actor),
 ):
-    request_ip = get_request_ip(request)
-    await limiter.claim_request(request_ip, "graph_paper_search")
+    req = owned_by(req, actor)
+    await limiter.claim_request(actor, "graph_paper_search")
     db = _db()
     try:
         graph = await db.get_graph(graph_id, req.userId)
         if not graph:
             raise HTTPException(status_code=404, detail="Graph not found.")
         openalex_ids = _paper_ids_from_graph(graph.get("data"))
-        result = await PaperRetrievalService(db).search_graph(openalex_ids, req.query, limit=req.limit, billing_ip=request_ip)
+        result = await PaperRetrievalService(db).search_graph(openalex_ids, req.query, limit=req.limit, billing_ip=actor.usage_key)
         return SearchPaperContentResponse(**result)
     except RetrievalError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc

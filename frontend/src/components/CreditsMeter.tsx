@@ -6,14 +6,16 @@ interface CreditsMeterProps {
   credits: number;
   /** On the home and Workspaces bars it rests as a ring and opens into the bars on click. */
   expandable?: boolean;
+  /** Signed in: the avatar sits inside the ring, and rolls to the left of the bars when the meter opens. */
+  avatar?: React.ReactNode;
 }
 
 /** The daily usage meter: ten bars and a count, or a progress ring that opens into them. */
-export function CreditsMeter({ credits, expandable = false }: CreditsMeterProps) {
+export function CreditsMeter({ credits, expandable = false, avatar }: CreditsMeterProps) {
   const [creditsExpanded, setCreditsExpanded] = useState(false);
   return (
     <div
-      className={`app-header-credit${creditsExpanded ? " app-header-credit-expanded" : ""}`}
+      className={`app-header-credit${creditsExpanded ? " app-header-credit-expanded" : ""}${avatar ? " app-header-credit-with-avatar" : ""}`}
       style={{ position: "relative" }}
       title="Daily usage limit"
     >
@@ -27,6 +29,7 @@ export function CreditsMeter({ credits, expandable = false }: CreditsMeterProps)
             aria-label={creditsExpanded ? "Collapse usage credits" : "Expand usage credits"}
           />
         )}
+        {avatar && <span className="app-header-credit-avatar">{avatar}</span>}
         <div className="app-header-credit-visual" aria-hidden="true">
           <div
             className="app-header-credit-bars"

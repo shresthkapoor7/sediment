@@ -1,8 +1,10 @@
 "use client";
 
 import { useMemo, useSyncExternalStore } from "react";
+import { fetchWorkspaceLayout, saveWorkspaceLayout } from "@/lib/api";
 
-// Workspace categories live in this browser, next to the anonymous user id the canvases belong to.
+// Anonymous: workspace categories live in this browser, next to the anonymous user id the canvases belong to.
+// Signed in: they belong to the account and are saved on the server; the browser keeps a cached copy per account.
 // A canvas is in at most one category; anything not listed is "Unsorted".
 // `icon` and `color` are ids from the category picker; both are optional and fall back to a plain folder.
 // `column` is which of the board's columns the category sits in (0 to BOARD_COLUMNS - 1); within a column,
@@ -10,8 +12,83 @@ import { useMemo, useSyncExternalStore } from "react";
 export type WorkspaceCategory = { id: string; name: string; graphIds: string[]; icon?: string; color?: string; column?: number };
 export type CategoryLook = { icon?: string; color?: string };
 
-const key = "sediment_workspaces_v1";
+const baseKey = "sediment_workspaces_v1";
 const event = "sediment-workspaces";
+
+let owner: string | null = null;
+const key = () => (owner ? `${baseKey}:${owner}` : baseKey);
+const readKey = (k: string) => { try { return localStorage.getItem(k); } catch { return null; } };
+const notify = () => window.dispatchEvent(new Event(event));
+
+/**
+ * Switches Workspaces to the signed-in account (or back to this browser's anonymous set with `null`).
+ * On sign-in the account's saved categories are loaded; categories made anonymously in this browser are merged
+ * in once and then cleared here, the same way the canvases themselves move to the account.
+ */
+export async function setWorkspaceOwner(accountId: string | null) {
+  const generation = ++hydration;
+  if (owner === accountId && !hydrating) { settled = true; notify(); return; }
+  settled = false;
+  owner = accountId;
+  hydrating = false;
+  memory = null;
+  notify();
+  if (!accountId) { settled = true; notify(); return; }
+  // Hold saves until the account's layout has loaded, so an edit made meanwhile can't overwrite categories the
+  // server has but this browser's cached copy doesn't.
+  hydrating = true;
+  const writesBefore = writeCount;
+  try {
+    const saved = parse(JSON.stringify((await fetchWorkspaceLayout()) ?? []));
+    if (generation !== hydration) return;
+    const anonymous = parse(readKey(baseKey) || "[]");
+    // Edits made while loading win for the categories they touch; everything else comes from the server.
+    const local = writeCount !== writesBefore ? read() : [];
+    const merged = mergeCategories(mergeCategories(saved, anonymous), local);
+    try { localStorage.setItem(key(), JSON.stringify(merged)); } catch { memory = JSON.stringify(merged); }
+    hydrating = false;
+    if (anonymous.length || local.length) await saveWorkspaceLayout(merged);
+    // Another owner change started while saving: it settles itself, this one must not.
+    if (generation !== hydration) return;
+    if (anonymous.length) {
+      try { localStorage.removeItem(baseKey); } catch { /* fine */ }
+    }
+    settled = true;
+    notify();
+  } catch (error) {
+    if (generation !== hydration) return;
+    // Offline or the API is down: keep showing the cached copy. Saves stay held (they could drop categories the
+    // server has); the next sign-in or reload loads again.
+    console.error("Loading workspaces from the account failed", error);
+  }
+}
+
+let hydrating = false;
+let writeCount = 0;
+// Bumped by every owner change, so a load that finishes after a newer one leaves the shared state alone.
+let hydration = 0;
+// False until AuthProvider has settled who owns Workspaces (claim done, account layout loaded). Pruning against a
+// canvas list waits for it, so canvases still being moved to the account are not dropped from their categories.
+let settled = false;
+
+/** `extra` categories on top of `base`: same id replaces in place, new ids are added. */
+function mergeCategories(base: WorkspaceCategory[], extra: WorkspaceCategory[]): WorkspaceCategory[] {
+  const byId = new Map(extra.map(category => [category.id, category]));
+  const merged = base.map(category => byId.get(category.id) ?? category);
+  const known = new Set(base.map(category => category.id));
+  return [...extra.filter(category => !known.has(category.id)), ...merged];
+}
+
+// Saves to the account shortly after the last change, so a drag that writes several times sends one request.
+let saveTimer: ReturnType<typeof setTimeout> | null = null;
+function scheduleSave(categories: WorkspaceCategory[]) {
+  if (!owner || hydrating) return;
+  if (saveTimer) clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    saveTimer = null;
+    saveWorkspaceLayout(categories).catch(error => console.error("Saving workspaces failed", error));
+  }, 600);
+}
 
 function subscribe(callback: () => void) {
   window.addEventListener("storage", callback);
@@ -25,7 +102,7 @@ function subscribe(callback: () => void) {
 let memory: string | null = null;
 const snapshot = () => {
   if (memory !== null) return memory;
-  try { return localStorage.getItem(key) || "[]"; } catch { return "[]"; }
+  try { return localStorage.getItem(key()) || "[]"; } catch { return "[]"; }
 };
 const serverSnapshot = () => "[]";
 
@@ -47,8 +124,10 @@ function parse(raw: string): WorkspaceCategory[] {
 
 function write(categories: WorkspaceCategory[]) {
   const raw = JSON.stringify(categories);
-  try { localStorage.setItem(key, raw); memory = null; } catch { memory = raw; }
-  window.dispatchEvent(new Event(event));
+  try { localStorage.setItem(key(), raw); memory = null; } catch { memory = raw; }
+  writeCount += 1;
+  notify();
+  scheduleSave(categories);
 }
 const read = () => parse(snapshot());
 
@@ -67,9 +146,12 @@ export function categoryColumns(categories: WorkspaceCategory[]): Map<string, nu
 
 export function useWorkspaces() {
   const raw = useSyncExternalStore(subscribe, snapshot, serverSnapshot);
+  // Re-render when ownership settles, so a waiting prune runs.
+  const ownerSettled = useSyncExternalStore(subscribe, () => settled, () => false);
   const categories = useMemo(() => parse(raw), [raw]);
   return {
     categories,
+    ownerSettled,
     create(name: string, look: CategoryLook = {}, column?: number) {
       const clean = name.trim().slice(0, 60);
       if (!clean) return null;
@@ -117,11 +199,13 @@ export function useWorkspaces() {
       }
       write(next);
     },
-    /** Forget canvases that no longer exist. */
-    prune(existing: Set<string>) {
+    /** Forget canvases that no longer exist. Returns false (and does nothing) until the owner has settled. */
+    prune(existing: Set<string>): boolean {
+      if (!settled) return false;
       const current = read();
-      if (current.every(category => category.graphIds.every(id => existing.has(id)))) return;
+      if (current.every(category => category.graphIds.every(id => existing.has(id)))) return true;
       write(current.map(category => ({ ...category, graphIds: category.graphIds.filter(id => existing.has(id)) })));
+      return true;
     },
   };
 }

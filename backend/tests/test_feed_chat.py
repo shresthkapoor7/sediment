@@ -1,3 +1,4 @@
+from app.actor import Actor
 import unittest
 from unittest.mock import AsyncMock, patch
 
@@ -29,7 +30,7 @@ class FeedChatToolTests(unittest.IsolatedAsyncioTestCase):
         with patch.object(feed_chat, "run_feed_agent", fake_agent), \
              patch.object(feed_chat.limiter, "claim_request", AsyncMock()), \
              patch.object(feed_chat.limiter, "get_summary", AsyncMock(return_value={"remaining": 0.2})):
-            await feed_chat._run(req, "1.2.3.4", emit)
+            await feed_chat._run(req, Actor(kind="browser", id="browser-1", ip="1.2.3.4"), emit)
         return events
 
     async def test_marks_known_papers_and_offers_a_workspace(self) -> None:

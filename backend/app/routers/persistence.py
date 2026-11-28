@@ -14,6 +14,8 @@ from ..services.special_notes import (
     redact_special_notes_from_shared_graph_data,
 )
 from ..models import (
+    CommitCanvasOpsRequest,
+    CommitCanvasOpsResponse,
     GraphListItem,
     GraphListResponse,
     GraphRecord,
@@ -28,7 +30,7 @@ from ..models import (
     UserUpsertRequest,
 )
 
-from ..request_user import request_user_id
+from ..actor import Actor, current_actor, current_actor_id, owned_by
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
@@ -60,6 +62,7 @@ def to_graph_record(row: dict) -> GraphRecord:
         shareId=row.get("share_id"),
         createdAt=row["created_at"],
         updatedAt=row["updated_at"],
+        version=row.get("version") or 0,
     )
 
 
@@ -75,7 +78,8 @@ def to_special_note_file(row: dict) -> SpecialNoteFile:
 
 
 @router.post("/users", response_model=UserRecord)
-async def upsert_user(req: UserUpsertRequest):
+async def upsert_user(req: UserUpsertRequest, actor: Actor = Depends(current_actor)):
+    req = req.model_copy(update={"id": actor.id})
     if not req.id.strip():
         raise HTTPException(status_code=400, detail="id required")
 
@@ -89,7 +93,8 @@ async def upsert_user(req: UserUpsertRequest):
 
 
 @router.post("/graphs", response_model=GraphRecord)
-async def create_graph(req: SaveGraphRequest):
+async def create_graph(req: SaveGraphRequest, actor: Actor = Depends(current_actor)):
+    req = owned_by(req, actor)
     if not req.userId.strip():
         raise HTTPException(status_code=400, detail="userId required")
     if not req.query.strip():
@@ -115,7 +120,8 @@ async def create_graph(req: SaveGraphRequest):
 
 
 @router.patch("/graphs/{graph_id}", response_model=GraphRecord)
-async def update_graph(graph_id: str, req: UpdateGraphRequest):
+async def update_graph(graph_id: str, req: UpdateGraphRequest, actor: Actor = Depends(current_actor)):
+    req = owned_by(req, actor)
     if not req.userId.strip():
         raise HTTPException(status_code=400, detail="userId required")
 
@@ -144,8 +150,34 @@ async def update_graph(graph_id: str, req: UpdateGraphRequest):
     return to_graph_record(row)
 
 
+@router.post("/graphs/{graph_id}/ops/commit", response_model=CommitCanvasOpsResponse)
+async def commit_canvas_ops(graph_id: str, req: CommitCanvasOpsRequest, actor: Actor = Depends(current_actor)):
+    """Stores the result of a batch of canvas operations if the canvas is still at `baseVersion`, and logs them.
+
+    409 means someone else changed the canvas first: the caller reloads, re-applies its operations and retries.
+    """
+    graph = _normalise_uuid(graph_id, "graphId")
+    owner = _normalise_uuid(actor.id, "userId")
+    # The source is taken from the token, not the request: OAuth-client tokens are MCP, nothing else may claim it.
+    via = "mcp" if actor.client_id else ("ui" if req.via == "mcp" else req.via)
+    try:
+        version = await get_db().rpc("commit_canvas_ops", {
+            "p_graph_id": graph, "p_user_id": owner, "p_base_version": req.baseVersion, "p_data": req.data,
+            "p_ops": req.ops, "p_actor_kind": actor.kind, "p_actor_id": actor.id, "p_via": via,
+            "p_batch_id": str(req.batchId) if req.batchId else None,
+        })
+    except SupabaseAPIError as e:
+        logger.warning("Canvas commit failed for graph_id=%r", graph_id, exc_info=e)
+        raise HTTPException(status_code=502, detail="Failed to save the canvas.") from e
+    if isinstance(version, list):
+        version = version[0] if version else None
+    if not isinstance(version, dict):
+        raise HTTPException(status_code=409, detail="The canvas changed; reload and try again.")
+    return CommitCanvasOpsResponse(version=int(version["version"]), duplicate=bool(version.get("duplicate")))
+
+
 @router.post("/graphs/{graph_id}/share", response_model=ShareGraphResponse)
-async def share_graph(graph_id: str, userId: str = Depends(request_user_id)):
+async def share_graph(graph_id: str, userId: str = Depends(current_actor_id)):
     if not userId.strip():
         raise HTTPException(status_code=400, detail="userId required")
 
@@ -203,7 +235,7 @@ async def get_shared_graph(share_id: str):
 
 @router.get("/graphs", response_model=GraphListResponse)
 async def list_graphs(
-    userId: str = Depends(request_user_id),
+    userId: str = Depends(current_actor_id),
     limit: int = Query(10, ge=1, le=50),
     offset: int = Query(0, ge=0),
 ):
@@ -236,7 +268,7 @@ async def list_graphs(
 
 
 @router.get("/graphs/{graph_id}", response_model=GraphRecord)
-async def get_graph(graph_id: str, userId: str = Depends(request_user_id)):
+async def get_graph(graph_id: str, userId: str = Depends(current_actor_id)):
     if not userId.strip():
         raise HTTPException(status_code=400, detail="userId required")
 
@@ -253,7 +285,7 @@ async def get_graph(graph_id: str, userId: str = Depends(request_user_id)):
 
 
 @router.get("/graphs/{graph_id}/special-notes", response_model=SpecialNoteFileListResponse)
-async def list_special_note_files(graph_id: str, userId: str = Depends(request_user_id)):
+async def list_special_note_files(graph_id: str, userId: str = Depends(current_actor_id)):
     user_id = _normalise_uuid(userId, "userId")
     graph_id = _normalise_uuid(graph_id, "graphId")
     try:
@@ -277,7 +309,7 @@ async def list_special_note_files(graph_id: str, userId: str = Depends(request_u
 @router.post("/graphs/{graph_id}/special-notes", response_model=SpecialNoteFile, status_code=201)
 async def upload_special_note_file(
     graph_id: str,
-    userId: str = Form(...),
+    userId: str = Depends(current_actor_id),
     file: UploadFile = File(...),
 ):
     user_id = _normalise_uuid(userId, "userId")
@@ -348,7 +380,7 @@ async def upload_special_note_file(
 
 
 @router.get("/graphs/{graph_id}/special-notes/{file_id}/url", response_model=SpecialNoteFileUrl)
-async def get_special_note_file_url(graph_id: str, file_id: str, userId: str = Depends(request_user_id)):
+async def get_special_note_file_url(graph_id: str, file_id: str, userId: str = Depends(current_actor_id)):
     user_id = _normalise_uuid(userId, "userId")
     graph_id = _normalise_uuid(graph_id, "graphId")
     file_id = _normalise_uuid(file_id, "fileId")
@@ -369,7 +401,7 @@ async def get_special_note_file_url(graph_id: str, file_id: str, userId: str = D
 
 
 @router.delete("/graphs/{graph_id}/special-notes/{file_id}", status_code=204)
-async def delete_special_note_file(graph_id: str, file_id: str, userId: str = Depends(request_user_id)):
+async def delete_special_note_file(graph_id: str, file_id: str, userId: str = Depends(current_actor_id)):
     user_id = _normalise_uuid(userId, "userId")
     graph_id = _normalise_uuid(graph_id, "graphId")
     file_id = _normalise_uuid(file_id, "fileId")
@@ -389,7 +421,7 @@ async def delete_special_note_file(graph_id: str, file_id: str, userId: str = De
 
 
 @router.delete("/graphs/{graph_id}", status_code=204)
-async def delete_graph(graph_id: str, userId: str = Depends(request_user_id)):
+async def delete_graph(graph_id: str, userId: str = Depends(current_actor_id)):
     if not userId.strip():
         raise HTTPException(status_code=400, detail="userId required")
 

@@ -65,6 +65,25 @@ class SupabaseClient:
             expect_single=True,
         )
 
+    async def get_workspace_layout(self, user_id: str) -> list[Any] | None:
+        row = await self._request(
+            "GET",
+            f"/rest/v1/workspace_layouts?select=categories&user_id=eq.{quote(user_id, safe='')}",
+            expect_single=True,
+            allow_empty=True,
+        )
+        return row.get("categories") if row else None
+
+    async def save_workspace_layout(self, user_id: str, categories: list[Any]) -> None:
+        await self.upsert_user(user_id)
+        await self._request(
+            "POST",
+            "/rest/v1/workspace_layouts?on_conflict=user_id",
+            json={"user_id": user_id, "categories": categories, "updated_at": datetime.now(timezone.utc).isoformat()},
+            headers={"Prefer": "resolution=merge-duplicates,return=minimal"},
+            allow_empty=True,
+        )
+
     async def create_graph(self, payload: dict[str, Any]) -> dict[str, Any]:
         return await self._request(
             "POST",
@@ -93,7 +112,7 @@ class SupabaseClient:
     async def get_graph(self, graph_id: str, user_id: str) -> dict[str, Any] | None:
         query = (
             "/rest/v1/graphs"
-            "?select=id,user_id,query,data,metadata,seed_paper_id,is_public,share_id,created_at,updated_at"
+            "?select=id,user_id,query,data,metadata,seed_paper_id,is_public,share_id,created_at,updated_at,version"
             f"&id=eq.{quote(graph_id, safe='')}"
             f"&user_id=eq.{quote(user_id, safe='')}"
             "&deleted_at=is.null"

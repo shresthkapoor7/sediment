@@ -24,6 +24,7 @@ import {
   APIError,
   APP_VERSION,
   createSavedGraph,
+  postCanvasOps,
   fetchSavedGraph,
   fetchUsage,
   getOrCreateAnonymousUserId,
@@ -36,7 +37,9 @@ import { useHoverPreviewToggle } from "@/lib/hover-preview";
 import { useLandingViewport } from "@/lib/use-landing-viewport";
 import { LandingDemo } from "@/components/LandingDemo";
 import { upgradeLegacyTimelineNoteLayout } from "@/lib/note-layout";
-import { applyTimelineGraphAction, applyTimelineLineageChanges, applyTimelineNodeColorChanges, applyTimelineNoteChanges } from "@/lib/timeline-actions";
+import { applyTimelineGraphAction } from "@/lib/timeline-actions";
+import { useAuth } from "@/components/AuthProvider";
+import { applyCanvasOp, applyCanvasOps, MAX_OPS_PER_COMMIT, withPaperRefs, type CanvasOp, type CanvasOpSource } from "@/lib/canvas-ops";
 import { createEmptyTimeline } from "@/lib/timeline-builder";
 import {
   CanvasDetailsChange,
@@ -67,6 +70,7 @@ export default function Home() {
   const [userId, setUserId] = useState<string | null>(null);
   const [graphId, setGraphId] = useState<string | null>(null);
   const [graphOwnerId, setGraphOwnerId] = useState<string | null>(null);
+  const { user: account } = useAuth();
   const [graphTitle, setGraphTitle] = useState("");
   const [graphTitleDraft, setGraphTitleDraft] = useState("");
   const [isEditingGraphTitle, setIsEditingGraphTitle] = useState(false);
@@ -87,6 +91,14 @@ export default function Home() {
   const [credits, setCredits] = useState<number>(10);
   const shareStateTimeoutRef = useRef<number | null>(null);
   const saveTimeoutRef = useRef<number | null>(null);
+  const timelineDataRef = useRef<TimelineData | null>(null);
+  const graphVersionRef = useRef(0);
+  // The queue belongs to one canvas (opsGraphRef); opening another canvas starts a new queue, and a flush that
+  // finishes after that leaves the new canvas alone. Entries keep their batch id once sent, so a resend after a
+  // failed request is recognised by the server and not applied twice.
+  const pendingOpsRef = useRef<{ op: CanvasOp; via: CanvasOpSource; batchId?: string }[]>([]);
+  const opsGraphRef = useRef<string | null>(null);
+  const flushRef = useRef<{ graphId: string; promise: Promise<void> } | null>(null);
   const saveStateTimeoutRef = useRef<number | null>(null);
   const graphTitleInputRef = useRef<HTMLInputElement | null>(null);
   const graphTitleRef = useRef("");
@@ -195,6 +207,9 @@ export default function Home() {
     void fetchSavedGraph(lastGraphId, nextUserId)
       .then((graph) => {
         setTimelineData(upgradeLegacyTimelineNoteLayout(graph.data));
+        graphVersionRef.current = graph.version ?? 0;
+        pendingOpsRef.current = [];
+        opsGraphRef.current = graph.id;
         setSearchedQuery(graph.query);
         setGraphId(graph.id);
         setGraphOwnerId(graph.userId);
@@ -229,6 +244,58 @@ export default function Home() {
     [],
   );
 
+  // Canvas edits are sent as operations (see lib/canvas-ops): queued as they happen, flushed shortly after the
+  // last one to the ops route, which applies them on the server and logs who made them. The screen already shows
+  // the change; if someone else edited the canvas in between, the server's result is adopted and anything still
+  // queued is re-applied on top of it.
+
+  const flushOnce = useCallback((forGraphId: string): Promise<void> => {
+    // Concurrent callers share the running flush, so none of them reports "saved" before the ops are stored.
+    if (flushRef.current?.graphId === forGraphId) return flushRef.current.promise;
+    const run = async () => {
+      while (opsGraphRef.current === forGraphId && pendingOpsRef.current.length) {
+        const queue = pendingOpsRef.current;
+        let batch: typeof queue;
+        if (queue[0].batchId) {
+          // A batch that failed before: resend exactly it, under the same id.
+          const id = queue[0].batchId;
+          const end = queue.findIndex((entry) => entry.batchId !== id);
+          batch = queue.slice(0, end < 0 ? queue.length : end);
+        } else {
+          // One commit per source, in order, so the log says whether the researcher or the agent made each change.
+          const via = queue[0].via;
+          const end = queue.findIndex((entry) => entry.via !== via || !!entry.batchId);
+          batch = queue.slice(0, Math.min(end < 0 ? queue.length : end, MAX_OPS_PER_COMMIT));
+          const id = crypto.randomUUID();
+          for (const entry of batch) entry.batchId = id;
+        }
+        const result = await postCanvasOps(forGraphId, batch.map((entry) => entry.op), batch[0].via, batch[0].batchId!);
+        if (opsGraphRef.current !== forGraphId) return; // another canvas is open now
+        pendingOpsRef.current = pendingOpsRef.current.slice(batch.length);
+        const expected = graphVersionRef.current + (result.changed ? 1 : 0);
+        graphVersionRef.current = result.version;
+        // Someone else changed the canvas (also when our ops turned out to be no-ops against their state):
+        // adopt the server's canvas and re-apply what is still queued.
+        if (result.version !== expected) {
+          const rebased = applyCanvasOps(result.data, pendingOpsRef.current.map((entry) => entry.op));
+          timelineDataRef.current = rebased;
+          setTimelineData(rebased);
+        }
+      }
+    };
+    const promise = run().finally(() => {
+      if (flushRef.current?.promise === promise) flushRef.current = null;
+    });
+    flushRef.current = { graphId: forGraphId, promise };
+    return promise;
+  }, []);
+
+  const flushCanvasOps = useCallback(async (forGraphId: string): Promise<void> => {
+    // Ops queued while a shared flush was finishing are sent too before the caller goes on.
+    do await flushOnce(forGraphId);
+    while (opsGraphRef.current === forGraphId && pendingOpsRef.current.length);
+  }, [flushOnce]);
+
   const scheduleGraphUpdate = useCallback(
     (nextData: TimelineData, nextQuery: string) => {
       if (!graphId || !userId) return;
@@ -243,13 +310,14 @@ export default function Home() {
       setSaveState("saving");
 
       saveTimeoutRef.current = window.setTimeout(() => {
-        void updateSavedGraph(graphId, {
-          userId,
-          query: nextQuery,
-          data: nextData,
-          seedPaperId: selectedSeedOpenalexId ?? nextData.nodes[nextData.rootId]?.paper.openalexId ?? null,
-          metadata: buildMetadata(nextQuery, nextData, graphTitleRef.current || nextQuery),
-        })
+        void flushCanvasOps(graphId)
+          // The canvas data went as operations; the title, query and counts still go as one small update.
+          .then(() => updateSavedGraph(graphId, {
+            userId,
+            query: nextQuery,
+            seedPaperId: selectedSeedOpenalexId ?? nextData.nodes[nextData.rootId]?.paper.openalexId ?? null,
+            metadata: buildMetadata(nextQuery, nextData, graphTitleRef.current || nextQuery),
+          }))
           .then(() => {
             setSaveState("saved");
             saveStateTimeoutRef.current = window.setTimeout(() => {
@@ -261,11 +329,12 @@ export default function Home() {
           });
       }, 700);
     },
-    [buildMetadata, graphId, selectedSeedOpenalexId, userId],
+    [buildMetadata, flushCanvasOps, graphId, selectedSeedOpenalexId, userId],
   );
 
   const canEditGraphTitle = Boolean(
-    timelineData && graphId && userId && graphOwnerId === userId,
+    // Owned by this browser (anonymous) or by the signed-in account.
+    timelineData && graphId && userId && (graphOwnerId === userId || (!!account && graphOwnerId === account.id)),
   );
 
   const startGraphTitleEdit = useCallback(() => {
@@ -422,6 +491,9 @@ export default function Home() {
           metadata: buildMetadata(title, emptyData),
         });
         setTimelineData(emptyData);
+        graphVersionRef.current = savedGraph.version ?? 0;
+        pendingOpsRef.current = [];
+        opsGraphRef.current = savedGraph.id;
         setGraphId(savedGraph.id);
         setGraphOwnerId(savedGraph.userId);
         setGraphTitle(savedGraph.metadata.title || title);
@@ -499,6 +571,8 @@ export default function Home() {
     }
     setTimelineData(null);
     setGraphId(null);
+    opsGraphRef.current = null;
+    pendingOpsRef.current = [];
     setGraphOwnerId(null);
     setGraphTitle("");
     graphDescriptionRef.current = "";
@@ -526,7 +600,6 @@ export default function Home() {
   // Canvas edits are applied to the newest canvas, never to the copy a handler happened to capture.
   // The agent holds on to these handlers for the length of a reply, during which it and the user may
   // both change the board; working from a captured copy would silently undo the earlier change.
-  const timelineDataRef = useRef<TimelineData | null>(null);
   useEffect(() => {
     timelineDataRef.current = timelineData;
   }, [timelineData]);
@@ -534,12 +607,13 @@ export default function Home() {
 
   // Every change goes through here. Passing `history` makes it a step the researcher can undo.
   const commitTimeline = useCallback(
-    (update: (current: TimelineData) => TimelineData, history?: HistoryMeta | null) => {
+    (op: CanvasOp, via: CanvasOpSource, history?: HistoryMeta | null) => {
       const current = timelineDataRef.current;
       if (!current) return;
-      const next = update(current);
+      const next = applyCanvasOp(current, op);
       if (next === current) return;
       if (history) recordHistory(current, history);
+      pendingOpsRef.current.push({ op: withPaperRefs(current, op), via });
       timelineDataRef.current = next;
       setTimelineData(next);
       scheduleGraphUpdate(next, searchedQuery);
@@ -555,6 +629,7 @@ export default function Home() {
 
   const showHistoryResult = useCallback((next: TimelineData | null) => {
     if (!next) return;
+    pendingOpsRef.current.push({ op: { type: "restore", data: next }, via: "ui" });
     timelineDataRef.current = next;
     setTimelineData(next);
     scheduleGraphUpdate(next, searchedQuery);
@@ -629,18 +704,20 @@ export default function Home() {
   }), [descriptionSetBy, graphDescription, graphTitle, searchedQuery, titleSetBy]);
 
   const handleTimelineGraphAction = useCallback(
-    (action: TimelineGraphAction) => commitTimeline((current) => applyTimelineGraphAction(current, action, {
-      lockedOpenalexIds: selectedSeedOpenalexId ? [selectedSeedOpenalexId] : [],
-    }), timelineDataRef.current ? describeGraphAction(timelineDataRef.current, action) : null),
+    (action: TimelineGraphAction) => commitTimeline(
+      { ...action, lockedOpenalexIds: selectedSeedOpenalexId ? [selectedSeedOpenalexId] : [] },
+      "ui",
+      timelineDataRef.current ? describeGraphAction(timelineDataRef.current, action) : null,
+    ),
     [commitTimeline, selectedSeedOpenalexId],
   );
 
   const handleTimelineLineageChanges = useCallback(
     (changes: LineageChange[]) => {
       if (changes.length === 0) return;
-      commitTimeline((current) => applyTimelineLineageChanges(current, changes, {
-        lockedOpenalexIds: selectedSeedOpenalexId ? [selectedSeedOpenalexId] : [],
-      }), AGENT_EDIT);
+      commitTimeline({
+        type: "lineage_changes", changes, lockedOpenalexIds: selectedSeedOpenalexId ? [selectedSeedOpenalexId] : [],
+      }, "agent", AGENT_EDIT);
     },
     [commitTimeline, selectedSeedOpenalexId],
   );
@@ -648,7 +725,7 @@ export default function Home() {
   const handleTimelineNoteChanges = useCallback(
     (changes: TimelineNoteChange[]) => {
       if (changes.length === 0) return;
-      commitTimeline((current) => applyTimelineNoteChanges(current, changes), AGENT_EDIT);
+      commitTimeline({ type: "note_changes", changes }, "agent", AGENT_EDIT);
     },
     [commitTimeline],
   );
@@ -656,7 +733,7 @@ export default function Home() {
   const handleTimelineNodeColorChanges = useCallback(
     (changes: TimelineNodeColorChange[]) => {
       if (changes.length === 0) return;
-      commitTimeline((current) => applyTimelineNodeColorChanges(current, changes), AGENT_EDIT);
+      commitTimeline({ type: "node_color_changes", changes }, "agent", AGENT_EDIT);
     },
     [commitTimeline],
   );

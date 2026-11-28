@@ -1,14 +1,13 @@
 "use client";
 
-import Link from "next/link";
 import { useState } from "react";
 import { m, AnimatePresence } from "framer-motion";
 import { LogoMark } from "@/components/LogoMark";
 import { GraphDescription } from "@/components/GraphDescription";
 import { CreditsMeter } from "@/components/CreditsMeter";
+import { SiteNav } from "@/components/SiteNav";
 import { TimelineData } from "@/lib/types";
 
-const MotionLink = m.create(Link);
 
 
 interface AppHeaderProps {
@@ -258,37 +257,10 @@ export function AppHeader({
               </m.button>
             )}
 
-            {!timelineData && (
-              <MotionLink
-                href="/workspaces"
-                className="app-header-labeled-action app-header-workspaces"
-                initial={{ opacity: 0, y: -4 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.25 }}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.375rem",
-                  padding: "0 0.75rem",
-                  height: "2rem",
-                  boxSizing: "border-box",
-                  border: "0.0625rem solid var(--border)",
-                  borderRadius: "0.4375rem",
-                  color: "var(--text-secondary)",
-                  fontSize: "0.75rem",
-                  fontFamily: "var(--font-sans), sans-serif",
-                  fontWeight: 500,
-                  textDecoration: "none",
-                  cursor: "pointer",
-                  transition: "border-color 0.15s, color 0.15s",
-                }}
-              >
-                <span className="app-header-action-label">Workspaces</span>
-              </MotionLink>
-            )}
+            {!timelineData && <SiteNav credits={credits} />}
 
             {/* Credits indicator */}
-            <CreditsMeter credits={credits} expandable={!timelineData} />
+            {timelineData && <CreditsMeter credits={credits} />}
 
             {/* Canvas actions sit in the bar itself. */}
             {timelineData && (
