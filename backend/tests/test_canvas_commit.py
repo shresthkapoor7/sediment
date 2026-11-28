@@ -21,12 +21,16 @@ class CommitTests(unittest.IsolatedAsyncioTestCase):
             return await persistence.commit_canvas_ops(GRAPH, REQ, actor=ACTOR), db
 
     async def test_commits_with_the_caller_as_the_actor(self):
-        result, db = await self.commit(5)
+        result, db = await self.commit({"version": 5, "duplicate": False})
         self.assertEqual(result.version, 5)
         name, params = db.rpc.await_args.args
         self.assertEqual(name, "commit_canvas_ops")
         self.assertEqual((params["p_user_id"], params["p_actor_kind"], params["p_base_version"], params["p_via"]),
                          (ACTOR.id, "account", 4, "agent"))
+
+    async def test_a_replayed_batch_reports_the_stored_version(self):
+        result, _ = await self.commit({"version": 5, "duplicate": True})
+        self.assertEqual((result.version, result.duplicate), (5, True))
 
     async def test_a_stale_base_version_is_a_conflict(self):
         with self.assertRaises(HTTPException) as caught:

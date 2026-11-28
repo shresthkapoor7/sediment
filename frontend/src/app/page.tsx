@@ -39,7 +39,7 @@ import { LandingDemo } from "@/components/LandingDemo";
 import { upgradeLegacyTimelineNoteLayout } from "@/lib/note-layout";
 import { applyTimelineGraphAction } from "@/lib/timeline-actions";
 import { useAuth } from "@/components/AuthProvider";
-import { applyCanvasOp, applyCanvasOps, MAX_OPS_PER_COMMIT, type CanvasOp, type CanvasOpSource } from "@/lib/canvas-ops";
+import { applyCanvasOp, applyCanvasOps, MAX_OPS_PER_COMMIT, withPaperRefs, type CanvasOp, type CanvasOpSource } from "@/lib/canvas-ops";
 import { createEmptyTimeline } from "@/lib/timeline-builder";
 import {
   CanvasDetailsChange,
@@ -93,8 +93,12 @@ export default function Home() {
   const saveTimeoutRef = useRef<number | null>(null);
   const timelineDataRef = useRef<TimelineData | null>(null);
   const graphVersionRef = useRef(0);
-  const pendingOpsRef = useRef<{ op: CanvasOp; via: CanvasOpSource }[]>([]);
-  const flushingRef = useRef(false);
+  // The queue belongs to one canvas (opsGraphRef); opening another canvas starts a new queue, and a flush that
+  // finishes after that leaves the new canvas alone. Entries keep their batch id once sent, so a resend after a
+  // failed request is recognised by the server and not applied twice.
+  const pendingOpsRef = useRef<{ op: CanvasOp; via: CanvasOpSource; batchId?: string }[]>([]);
+  const opsGraphRef = useRef<string | null>(null);
+  const flushRef = useRef<{ graphId: string; promise: Promise<void> } | null>(null);
   const saveStateTimeoutRef = useRef<number | null>(null);
   const graphTitleInputRef = useRef<HTMLInputElement | null>(null);
   const graphTitleRef = useRef("");
@@ -205,6 +209,7 @@ export default function Home() {
         setTimelineData(upgradeLegacyTimelineNoteLayout(graph.data));
         graphVersionRef.current = graph.version ?? 0;
         pendingOpsRef.current = [];
+        opsGraphRef.current = graph.id;
         setSearchedQuery(graph.query);
         setGraphId(graph.id);
         setGraphOwnerId(graph.userId);
@@ -244,29 +249,52 @@ export default function Home() {
   // the change; if someone else edited the canvas in between, the server's result is adopted and anything still
   // queued is re-applied on top of it.
 
-  const flushCanvasOps = useCallback(async (forGraphId: string): Promise<void> => {
-    if (flushingRef.current) return;
-    flushingRef.current = true;
-    try {
-      while (pendingOpsRef.current.length) {
-        // One commit per source, in order, so the log says whether the researcher or the agent made each change.
-        const via = pendingOpsRef.current[0].via;
-        const end = pendingOpsRef.current.findIndex((entry) => entry.via !== via);
-        const batch = pendingOpsRef.current.slice(0, end < 0 ? Math.min(pendingOpsRef.current.length, MAX_OPS_PER_COMMIT) : Math.min(end, MAX_OPS_PER_COMMIT));
-        const result = await postCanvasOps(forGraphId, batch.map((entry) => entry.op), via);
+  const flushOnce = useCallback((forGraphId: string): Promise<void> => {
+    // Concurrent callers share the running flush, so none of them reports "saved" before the ops are stored.
+    if (flushRef.current?.graphId === forGraphId) return flushRef.current.promise;
+    const run = async () => {
+      while (opsGraphRef.current === forGraphId && pendingOpsRef.current.length) {
+        const queue = pendingOpsRef.current;
+        let batch: typeof queue;
+        if (queue[0].batchId) {
+          // A batch that failed before: resend exactly it, under the same id.
+          const id = queue[0].batchId;
+          const end = queue.findIndex((entry) => entry.batchId !== id);
+          batch = queue.slice(0, end < 0 ? queue.length : end);
+        } else {
+          // One commit per source, in order, so the log says whether the researcher or the agent made each change.
+          const via = queue[0].via;
+          const end = queue.findIndex((entry) => entry.via !== via || !!entry.batchId);
+          batch = queue.slice(0, Math.min(end < 0 ? queue.length : end, MAX_OPS_PER_COMMIT));
+          const id = crypto.randomUUID();
+          for (const entry of batch) entry.batchId = id;
+        }
+        const result = await postCanvasOps(forGraphId, batch.map((entry) => entry.op), batch[0].via, batch[0].batchId!);
+        if (opsGraphRef.current !== forGraphId) return; // another canvas is open now
         pendingOpsRef.current = pendingOpsRef.current.slice(batch.length);
-        const expected = graphVersionRef.current + 1;
+        const expected = graphVersionRef.current + (result.changed ? 1 : 0);
         graphVersionRef.current = result.version;
-        if (result.changed && result.version !== expected) {
+        // Someone else changed the canvas (also when our ops turned out to be no-ops against their state):
+        // adopt the server's canvas and re-apply what is still queued.
+        if (result.version !== expected) {
           const rebased = applyCanvasOps(result.data, pendingOpsRef.current.map((entry) => entry.op));
           timelineDataRef.current = rebased;
           setTimelineData(rebased);
         }
       }
-    } finally {
-      flushingRef.current = false;
-    }
+    };
+    const promise = run().finally(() => {
+      if (flushRef.current?.promise === promise) flushRef.current = null;
+    });
+    flushRef.current = { graphId: forGraphId, promise };
+    return promise;
   }, []);
+
+  const flushCanvasOps = useCallback(async (forGraphId: string): Promise<void> => {
+    // Ops queued while a shared flush was finishing are sent too before the caller goes on.
+    do await flushOnce(forGraphId);
+    while (opsGraphRef.current === forGraphId && pendingOpsRef.current.length);
+  }, [flushOnce]);
 
   const scheduleGraphUpdate = useCallback(
     (nextData: TimelineData, nextQuery: string) => {
@@ -465,6 +493,7 @@ export default function Home() {
         setTimelineData(emptyData);
         graphVersionRef.current = savedGraph.version ?? 0;
         pendingOpsRef.current = [];
+        opsGraphRef.current = savedGraph.id;
         setGraphId(savedGraph.id);
         setGraphOwnerId(savedGraph.userId);
         setGraphTitle(savedGraph.metadata.title || title);
@@ -542,6 +571,8 @@ export default function Home() {
     }
     setTimelineData(null);
     setGraphId(null);
+    opsGraphRef.current = null;
+    pendingOpsRef.current = [];
     setGraphOwnerId(null);
     setGraphTitle("");
     graphDescriptionRef.current = "";
@@ -582,7 +613,7 @@ export default function Home() {
       const next = applyCanvasOp(current, op);
       if (next === current) return;
       if (history) recordHistory(current, history);
-      pendingOpsRef.current.push({ op, via });
+      pendingOpsRef.current.push({ op: withPaperRefs(current, op), via });
       timelineDataRef.current = next;
       setTimelineData(next);
       scheduleGraphUpdate(next, searchedQuery);

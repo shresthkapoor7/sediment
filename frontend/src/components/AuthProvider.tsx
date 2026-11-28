@@ -54,8 +54,12 @@ async function claim(accountId: string): Promise<boolean> {
 
 /** Workspaces categories follow the signed-in account, but only once the claim has settled, so categories never
  *  get reconciled against a canvas list that is missing canvases still being moved. */
+let currentAccount: string | null | undefined;
 async function followAccount(accountId: string | null) {
+  currentAccount = accountId;
   if (accountId && (await claimOnce(accountId))) return; // reloading
+  // Signed out (or switched) while the claim ran: that newer call owns Workspaces now.
+  if (currentAccount !== accountId) return;
   await setWorkspaceOwner(accountId);
 }
 

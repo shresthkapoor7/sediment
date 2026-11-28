@@ -164,13 +164,16 @@ async def commit_canvas_ops(graph_id: str, req: CommitCanvasOpsRequest, actor: A
         version = await get_db().rpc("commit_canvas_ops", {
             "p_graph_id": graph, "p_user_id": owner, "p_base_version": req.baseVersion, "p_data": req.data,
             "p_ops": req.ops, "p_actor_kind": actor.kind, "p_actor_id": actor.id, "p_via": via,
+            "p_batch_id": str(req.batchId) if req.batchId else None,
         })
     except SupabaseAPIError as e:
         logger.warning("Canvas commit failed for graph_id=%r", graph_id, exc_info=e)
         raise HTTPException(status_code=502, detail="Failed to save the canvas.") from e
-    if version is None or version == []:
+    if isinstance(version, list):
+        version = version[0] if version else None
+    if not isinstance(version, dict):
         raise HTTPException(status_code=409, detail="The canvas changed; reload and try again.")
-    return CommitCanvasOpsResponse(version=int(version))
+    return CommitCanvasOpsResponse(version=int(version["version"]), duplicate=bool(version.get("duplicate")))
 
 
 @router.post("/graphs/{graph_id}/share", response_model=ShareGraphResponse)

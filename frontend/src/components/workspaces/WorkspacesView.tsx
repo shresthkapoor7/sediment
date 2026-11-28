@@ -123,6 +123,10 @@ export function WorkspacesView() {
   const search = useRef<HTMLInputElement>(null);
   const draftLane = useRef<HTMLFormElement>(null);
 
+  // The list is loaded again once sign-in has settled, and only that list may prune: one taken earlier can miss
+  // canvases that moved to the account meanwhile (in another tab or device).
+  const settled = workspaces.ownerSettled;
+  const [listSettled, setListSettled] = useState(false);
   useEffect(() => {
     const id = getOrCreateAnonymousUserId();
     // eslint-disable-next-line react-hooks/set-state-in-effect -- The anonymous id only exists in the browser.
@@ -138,18 +142,18 @@ export function WorkspacesView() {
         if (!result.hasMore || result.nextOffset == null) { complete = true; break; }
         offset = result.nextOffset;
       }
-      if (!cancelled) { setGraphs(all); setListComplete(complete); }
+      if (!cancelled) { setGraphs(all); setListComplete(complete); setListSettled(settled); }
     })().catch(reason => { if (!cancelled) setError(reason instanceof Error ? reason.message : "Couldn’t load your canvases."); });
     return () => { cancelled = true; };
-  }, []);
+  }, [settled]);
 
   // Once every canvas is known, forget categorised ids that were deleted elsewhere.
   useEffect(() => {
     // A cut-off list would make unlisted canvases look deleted.
-    if (!graphs || !listComplete || pruned.current) return;
+    if (!graphs || !listComplete || !listSettled || pruned.current) return;
     // Waits (returns false) until sign-in has settled; the categories update then and this runs again.
     pruned.current = workspaces.prune(new Set(graphs.map(graph => graph.id)));
-  }, [graphs, listComplete, workspaces, workspaces.ownerSettled]);
+  }, [graphs, listComplete, listSettled, workspaces, workspaces.ownerSettled]);
 
   useEffect(() => { if (adding) draftLane.current?.scrollIntoView({ block: "nearest", behavior: "smooth" }); }, [adding]);
 

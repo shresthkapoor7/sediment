@@ -26,7 +26,8 @@ const notify = () => window.dispatchEvent(new Event(event));
  * in once and then cleared here, the same way the canvases themselves move to the account.
  */
 export async function setWorkspaceOwner(accountId: string | null) {
-  if (owner === accountId) { settled = true; notify(); return; }
+  const generation = ++hydration;
+  if (owner === accountId && !hydrating) { settled = true; notify(); return; }
   settled = false;
   owner = accountId;
   hydrating = false;
@@ -39,7 +40,7 @@ export async function setWorkspaceOwner(accountId: string | null) {
   const writesBefore = writeCount;
   try {
     const saved = parse(JSON.stringify((await fetchWorkspaceLayout()) ?? []));
-    if (owner !== accountId) return;
+    if (generation !== hydration) return;
     const anonymous = parse(readKey(baseKey) || "[]");
     // Edits made while loading win for the categories they touch; everything else comes from the server.
     const local = writeCount !== writesBefore ? read() : [];
@@ -47,12 +48,15 @@ export async function setWorkspaceOwner(accountId: string | null) {
     try { localStorage.setItem(key(), JSON.stringify(merged)); } catch { memory = JSON.stringify(merged); }
     hydrating = false;
     if (anonymous.length || local.length) await saveWorkspaceLayout(merged);
+    // Another owner change started while saving: it settles itself, this one must not.
+    if (generation !== hydration) return;
     if (anonymous.length) {
       try { localStorage.removeItem(baseKey); } catch { /* fine */ }
     }
     settled = true;
     notify();
   } catch (error) {
+    if (generation !== hydration) return;
     // Offline or the API is down: keep showing the cached copy. Saves stay held (they could drop categories the
     // server has); the next sign-in or reload loads again.
     console.error("Loading workspaces from the account failed", error);
@@ -61,6 +65,8 @@ export async function setWorkspaceOwner(accountId: string | null) {
 
 let hydrating = false;
 let writeCount = 0;
+// Bumped by every owner change, so a load that finishes after a newer one leaves the shared state alone.
+let hydration = 0;
 // False until AuthProvider has settled who owns Workspaces (claim done, account layout loaded). Pruning against a
 // canvas list waits for it, so canvases still being moved to the account are not dropped from their categories.
 let settled = false;

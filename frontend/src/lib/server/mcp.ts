@@ -167,7 +167,7 @@ export function createSedimentMcpServer(token: string): McpServer {
     const wanted = new Set(openalexIds.map((id) => id.toUpperCase().replace(/^HTTPS:\/\/OPENALEX\.ORG\//, "")));
     const ops: CanvasOp[] = Object.values(graph.data.nodes)
       .filter((node) => wanted.has(node.paper.openalexId.toUpperCase().replace(/^HTTPS:\/\/OPENALEX\.ORG\//, "")))
-      .map((node) => ({ type: "set_node_group", nodeId: node.id, group: cluster }));
+      .map((node) => ({ type: "set_node_group", nodeId: node.id, group: cluster, paperRef: node.paper.openalexId }));
     if (!ops.length) return failure("None of those papers are on this canvas.");
     await edit(canvasId, ops);
     return text({ clustered: ops.length, cluster });

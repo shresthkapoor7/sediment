@@ -1,3 +1,4 @@
+from uuid import UUID
 import json
 from typing import Any, Literal, Optional
 
@@ -563,10 +564,13 @@ class CommitCanvasOpsRequest(StrictRequestModel):
     data: dict[str, Any]
     ops: list[dict[str, Any]] = Field(min_length=1, max_length=200)
     via: Literal["ui", "agent", "mcp"] = "ui"
+    # Same id on a retry: a batch the server already stored is not applied again.
+    batchId: Optional[UUID] = None
 
 
 class CommitCanvasOpsResponse(BaseModel):
     version: int
+    duplicate: bool = False
 
 
 class GraphListItem(BaseModel):

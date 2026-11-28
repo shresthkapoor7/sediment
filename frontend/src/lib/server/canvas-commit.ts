@@ -16,8 +16,11 @@ async function detailOf(response: Response): Promise<string> {
 
 /** Applies canvas operations on the server as the caller identified by `identity` (forwarded to FastAPI). */
 export async function commitCanvasOps(
-  graphId: string, ops: CanvasOp[], via: CanvasOpSource, identity: Record<string, string>,
+  graphId: string, ops: CanvasOp[], via: CanvasOpSource, identity: Record<string, string>, batchId?: string,
 ): Promise<CommitResult> {
+  // A batch id makes the commit safe to resend: the server stores each batch once. Callers that don't resend
+  // (MCP tools) still get one, so a retry after a lost commit response here can't apply the ops twice either.
+  const id = batchId ?? crypto.randomUUID();
   const base = `${getBackendBaseUrl()}/api/graphs/${encodeURIComponent(graphId)}`;
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt += 1) {
     const current = await fetch(base, { headers: identity, cache: "no-store" }).catch(() => null);
@@ -32,13 +35,15 @@ export async function commitCanvasOps(
     const commit = await fetch(`${base}/ops/commit`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...identity },
-      body: JSON.stringify({ baseVersion: graph.version, data, ops, via }),
+      body: JSON.stringify({ baseVersion: graph.version, data, ops, via, batchId: id }),
       cache: "no-store",
     }).catch(() => null);
     if (!commit) return { ok: false, status: 502, detail: "Backend service is unavailable." };
     if (commit.status === 409) continue;
     if (!commit.ok) return { ok: false, status: commit.status, detail: await detailOf(commit) };
-    const { version } = await commit.json() as { version: number };
+    const { version, duplicate } = await commit.json() as { version: number; duplicate?: boolean };
+    // Already stored by an earlier send: what was read is the server's state, ops included.
+    if (duplicate) return { ok: true, version: graph.version, data: loaded, changed: false };
     return { ok: true, version, data, changed: true };
   }
   return { ok: false, status: 409, detail: "The canvas is changing too quickly; try again." };
